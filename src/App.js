@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { auth } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from './firebase/config';
 import Login from './pages/Login';
 import Dashboard from './components/Dashboard';
 import Projects from './components/Projects';
@@ -12,26 +14,46 @@ import FlowBuilderWrapper from './components/FlowBuilderWrapper';
 import RoleManagement from './components/RoleManagement';
 import CompaniesManager from './components/CompaniesManager';
 import UserManagement from './components/UserManagement';
+import AtendimentoHome from './components/AtendimentoHome';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        await loadUserData(currentUser.email);
+      } else {
+        setUserData(null);
+      }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
+
+  const loadUserData = async (email) => {
+    try {
+      const q = query(collection(db, 'users'), where('email', '==', email));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const data = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        setUserData(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dados do usuário:', err);
+    }
+  };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       setUser(null);
+      setUserData(null);
       setActiveView('dashboard');
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
@@ -58,6 +80,44 @@ function App() {
     );
   }
 
+  // ── ROTEAMENTO POR PERFIL ──────────────────────────────────────────────────
+
+  // Atendimento (equipe sem "diretora" no roleName)
+  const isAtendimento =
+    userData?.userType === 'equipe' &&
+    !userData?.roleName?.toLowerCase().includes('diretora');
+
+  // Diretora
+  const isDiretora =
+    userData?.userType === 'equipe' &&
+    userData?.roleName?.toLowerCase().includes('diretora');
+
+  // Cliente
+  const isCliente = userData?.userType === 'cliente';
+
+  // Se for atendimento, mostra a home de atendimento
+  if (isAtendimento) {
+    return (
+      <AtendimentoHome
+        user={user}
+        userData={userData}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // Se for cliente (futuro)
+  if (isCliente) {
+    return (
+      <div className="loading-container">
+        <p style={{ color: '#7BAFD4', fontFamily: 'sans-serif' }}>
+          Área do cliente em breve...
+        </p>
+      </div>
+    );
+  }
+
+  // Admin / Diretora — painel completo
   return (
     <Router>
       <div className="app-container">
@@ -166,6 +226,7 @@ function App() {
             <div className="header-right">
               <div className="welcome-message">
                 Olá, <strong>{user.email?.split('@')[0]}</strong>!
+                {isDiretora && <span style={{ color: '#00E5C4', marginLeft: 8, fontSize: 12 }}>Diretora</span>}
               </div>
             </div>
           </header>
