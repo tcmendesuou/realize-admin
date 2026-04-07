@@ -1,0 +1,368 @@
+/* BUDGET CARD */
+.budget-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border-left: 4px solid #95a5a6;
+}
+
+.budget-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+/* STATUS COLORS */
+.budget-card.status-analyzing {
+  border-left-color: #f39c12;
+}
+
+.budget-card.status-approved {
+  border-left-color: #27ae60;
+}
+
+.budget-card.status-rejected {
+  border-left-color: #e74c3c;
+}
+
+.budget-card.status-paused {
+  border-left-color: #95a5a6;
+}
+
+/* CARD HEADER */
+.budget-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.budget-number {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.number-label {
+  font-size: 11px;
+  color: #7f8c8d;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.number-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+/* STATUS BADGE COM DROPDOWN */
+.budget-status-section {
+  position: relative;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.status-badge:hover {
+  transform: scale(1.05);
+}
+
+.status-badge.status-analyzing {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.status-badge.status-approved {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-badge.status-rejected {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.status-badge.status-paused {
+  background: #ecf0f1;
+  color: #7f8c8d;
+}
+
+.status-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* STATUS DROPDOWN */
+.status-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 100;
+  min-width: 160px;
+}
+
+.status-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: white;
+  text-align: left;
+  font-size: 14px;
+  color: #2c3e50;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.status-dropdown button:hover {
+  background: #f8f9fa;
+}
+
+/* CARD BODY */
+.budget-card-body {
+  padding: 20px;
+}
+
+.budget-main-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.client-name {
+  margin: 0;
+  font-size: 20px;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.event-type-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* DETAILS GRID */
+.budget-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #7f8c8d;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.detail-item.detail-total {
+  grid-column: 1 / -1;
+  padding-top: 12px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.detail-value-highlight {
+  font-size: 24px;
+  font-weight: 700;
+  color: #27ae60;
+}
+
+/* PROGRESSO DAS TAREFAS */
+.task-progress-section {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.progress-percentage {
+  font-size: 18px;
+  font-weight: 700;
+  color: #3498db;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.progress-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #7f8c8d;
+}
+
+.current-task {
+  font-weight: 600;
+  color: #3498db;
+}
+
+/* BOTÃO VER DETALHES */
+.btn-details {
+  width: 100%;
+  padding: 12px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-details:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+}
+
+/* DETALHES EXPANDIDOS */
+.expanded-details {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.expanded-details h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #2c3e50;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.answers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.answer-item {
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.answer-item strong {
+  color: #2c3e50;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.observations-section {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fff9e6;
+  border-left: 3px solid #f39c12;
+  border-radius: 4px;
+}
+
+.observations-section h4 {
+  margin-bottom: 8px;
+}
+
+.observations-section p {
+  margin: 0;
+  font-size: 14px;
+  color: #856404;
+  line-height: 1.6;
+}
+
+/* RESPONSIVIDADE */
+@media (max-width: 768px) {
+  .budget-card-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .budget-main-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .budget-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-item.detail-total {
+    grid-column: 1;
+  }
+
+  .progress-stats {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
