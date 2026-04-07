@@ -126,7 +126,7 @@ function Login() {
           margin-bottom: 40px;
         }
         .rl-logo-main img {
-          width: 264px;
+          width: 520px;
           height: auto;
           object-fit: contain;
           filter: drop-shadow(0 0 30px rgba(0,229,196,0.2));
