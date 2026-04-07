@@ -221,6 +221,10 @@ function UserManagement() {
       };
 
       if (selectedUser) {
+        // Só atualiza a senha se o campo foi preenchido
+        if (formData.password.trim()) {
+          userData.password = formData.password;
+        }
         await updateDoc(doc(db, 'users', selectedUser.id), userData);
         alert('Usuário atualizado com sucesso!');
       } else {
