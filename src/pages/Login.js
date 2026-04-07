@@ -126,7 +126,7 @@ function Login() {
           margin-bottom: 40px;
         }
         .rl-logo-main img {
-          width: 220px;
+          width: 264px;
           height: auto;
           object-fit: contain;
           filter: drop-shadow(0 0 30px rgba(0,229,196,0.2));
@@ -272,7 +272,7 @@ function Login() {
           </div>
           {/* R alinhado ao centro do círculo */}
           <div className="rl-header-name">
-            <span style={{ color: '#00E5C4', fontWeight: 500 }}>r</span>ealizehub
+            realize<span style={{ color: '#00E5C4', fontWeight: 500 }}>hub</span>
           </div>
         </header>
 
