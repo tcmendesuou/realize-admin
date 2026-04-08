@@ -80,9 +80,9 @@ function RoleManagement() {
 
   const createDefaultUserTypes = async () => {
     const defaultTypes = [
-      { name: 'Cliente', icon: '👤', order: 1 },
-      { name: 'Equipe', icon: '💼', order: 2 },
-      { name: 'Fornecedor', icon: '🏢', order: 3 }
+      { name: 'Cliente', icon: '', order: 1 },
+      { name: 'Equipe', icon: '', order: 2 },
+      { name: 'Fornecedor', icon: '', order: 3 }
     ];
 
     for (const type of defaultTypes) {
@@ -136,7 +136,7 @@ function RoleManagement() {
     try {
       await addDoc(collection(db, 'userTypes'), {
         name: newTypeName,
-        icon: newTypeIcon || '👥',
+        icon: newTypeIcon || '',
         order: userTypes.length + 1,
         createdAt: new Date()
       });
@@ -596,7 +596,7 @@ function RoleManagement() {
                     checked={getPermissionValue('budgets.edit')}
                     onChange={(e) => handleUpdatePermission('budgets.edit', e.target.checked)}
                   />
-                  ✏️ Editar
+                  Editar
                 </label>
                 <label>
                   <input 
@@ -604,7 +604,7 @@ function RoleManagement() {
                     checked={getPermissionValue('budgets.approve')}
                     onChange={(e) => handleUpdatePermission('budgets.approve', e.target.checked)}
                   />
-                  ✅ Aprovar/Rejeitar
+                  Aprovar/Rejeitar
                 </label>
               </div>
             </div>

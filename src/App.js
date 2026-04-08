@@ -155,7 +155,7 @@ function App() {
       <div className="app-container">
         <aside className="sidebar">
           <div className="sidebar-header">
-            <h1 className="logo">✨ Realize</h1>
+            <h1 className="logo">realize</h1>
             <p className="logo-subtitle">Admin Panel</p>
           </div>
 

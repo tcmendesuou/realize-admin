@@ -217,13 +217,12 @@ body {
 }
 
 .top-header {
-  background: white;
+  background: #0D1B2A;
   padding: 18px 30px;
-  border-bottom: 1px solid #e8eaed;
+  border-bottom: 1px solid rgba(0,180,255,0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 
 .header-left {
@@ -232,8 +231,8 @@ body {
 
 .page-title {
   font-size: 22px;
-  font-weight: 500;
-  color: #1a2e40;
+  font-weight: 300;
+  color: #E8F4FF;
   font-family: 'Outfit', sans-serif;
   letter-spacing: -0.3px;
 }
@@ -245,13 +244,13 @@ body {
 
 .welcome-message {
   font-size: 13px;
-  color: #8a9bb0;
+  color: #7BAFD4;
   font-family: 'Outfit', sans-serif;
 }
 
 .welcome-message strong {
-  color: #1a2e40;
-  font-weight: 500;
+  color: #E8F4FF;
+  font-weight: 400;
   text-transform: capitalize;
 }
 
