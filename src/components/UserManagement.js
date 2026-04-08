@@ -6,6 +6,7 @@ import '../styles/UserManagement.css';
 function UserManagement() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [projects, setProjects] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -22,9 +23,11 @@ function UserManagement() {
     phone: '',
     cpf: '',
     password: '',
-    userType: 'cliente', // cliente, equipe, fornecedor
+    userType: 'cliente',
     companyId: '',
     companyName: '',
+    areaId: '',
+    areaName: '',
     roleId: '',
     roleName: '',
     active: true,
@@ -47,6 +50,10 @@ function UserManagement() {
       const rolesSnapshot = await getDocs(collection(db, 'roles'));
       const rolesData = rolesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRoles(rolesData);
+
+      const areasSnapshot = await getDocs(collection(db, 'areas'));
+      const areasData = areasSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAreas(areasData);
 
       const companiesSnapshot = await getDocs(collection(db, 'companies'));
       const companiesData = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -85,6 +92,8 @@ function UserManagement() {
       userType: user.userType || 'cliente',
       companyId: user.companyId || '',
       companyName: user.companyName || '',
+      areaId: user.areaId || '',
+      areaName: user.areaName || '',
       roleId: user.roleId || '',
       roleName: user.roleName || '',
       active: user.active !== undefined ? user.active : true,
@@ -104,6 +113,8 @@ function UserManagement() {
       userType: 'cliente',
       companyId: '',
       companyName: '',
+      areaId: '',
+      areaName: '',
       roleId: '',
       roleName: '',
       active: true,
@@ -116,12 +127,24 @@ function UserManagement() {
     const { name, value, type, checked } = e.target;
     
     if (name === 'userType') {
-      // Ao mudar tipo, limpa empresa e cargo
+      // Ao mudar tipo, limpa empresa, área e cargo
       setFormData({
         ...formData,
         userType: value,
         companyId: '',
         companyName: '',
+        areaId: '',
+        areaName: '',
+        roleId: '',
+        roleName: ''
+      });
+      setCustomPermissions({});
+    } else if (name === 'areaId') {
+      const selectedArea = areas.find(a => a.id === value);
+      setFormData({
+        ...formData,
+        areaId: value,
+        areaName: selectedArea?.name || '',
         roleId: '',
         roleName: ''
       });
@@ -201,9 +224,11 @@ function UserManagement() {
         email: formData.email,
         phone: formData.phone,
         cpf: formData.cpf,
-        userType: formData.userType, // ← String direto!
+        userType: formData.userType,
         companyId: formData.companyId,
         companyName: formData.companyName,
+        areaId: formData.areaId,
+        areaName: formData.areaName,
         roleId: formData.roleId,
         roleName: formData.roleName,
         active: formData.active,
@@ -221,7 +246,6 @@ function UserManagement() {
       };
 
       if (selectedUser) {
-        // Só atualiza a senha se o campo foi preenchido
         if (formData.password.trim()) {
           userData.password = formData.password;
         }
@@ -275,11 +299,16 @@ function UserManagement() {
     c.type === formData.userType && c.active
   );
 
-  // Filtrar cargos por tipo
+  // Filtrar áreas por userType (equipe)
+  const filteredAreas = areas.filter(a => a.userTypeId || true).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Filtrar cargos por área selecionada (quando equipe)
   const filteredRoles = roles.filter(r => {
-    // Se não tem userTypes carregados, mostra todos
-    return true; // Por enquanto mostra todos os cargos
-  });
+    if (formData.userType === 'equipe' && formData.areaId) {
+      return r.areaId === formData.areaId;
+    }
+    return true;
+  }).sort((a, b) => (a.order || 0) - (b.order || 0));
 
   if (loading) {
     return (
@@ -341,6 +370,7 @@ function UserManagement() {
                     </span>
                   </div>
                   <p className="user-role">{user.roleName}</p>
+                  {user.areaName && <p className="user-area">{user.areaName}</p>}
                   <p className="user-type">{user.userType === 'cliente' ? 'Cliente' : user.userType === 'equipe' ? 'Equipe' : 'Fornecedor'}</p>
                   {user.companyName && <p className="user-company">{user.companyName}</p>}
                   <p className="user-email">{user.email}</p>
@@ -383,6 +413,21 @@ function UserManagement() {
                   )}
                 </div>
               )}
+
+              {formData.userType === 'equipe' && (
+                <div className="form-group">
+                  <label>Área *</label>
+                  <select name="areaId" value={formData.areaId} onChange={handleChange}>
+                    <option value="">Selecione uma área...</option>
+                    {filteredAreas.map(area => (
+                      <option key={area.id} value={area.id}>{area.name}</option>
+                    ))}
+                  </select>
+                  {filteredAreas.length === 0 && (
+                    <p className="helper-text">Nenhuma área cadastrada</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-section">
@@ -395,12 +440,20 @@ function UserManagement() {
 
               <div className="form-group">
                 <label>Cargo *</label>
-                <select name="roleId" value={formData.roleId} onChange={handleChange}>
-                  <option value="">Selecione um cargo...</option>
+                <select name="roleId" value={formData.roleId} onChange={handleChange}
+                  disabled={formData.userType === 'equipe' && !formData.areaId}>
+                  <option value="">
+                    {formData.userType === 'equipe' && !formData.areaId
+                      ? 'Selecione uma área primeiro...'
+                      : 'Selecione um cargo...'}
+                  </option>
                   {filteredRoles.map(role => (
                     <option key={role.id} value={role.id}>{role.name}</option>
                   ))}
                 </select>
+                {formData.userType === 'equipe' && formData.areaId && filteredRoles.length === 0 && (
+                  <p className="helper-text">Nenhum cargo cadastrado para esta área</p>
+                )}
               </div>
 
               <div className="form-group">

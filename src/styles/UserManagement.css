@@ -171,6 +171,19 @@
   margin: 4px 0;
 }
 
+.user-area {
+  font-size: 11px;
+  color: #95a5a6;
+  margin: 2px 0;
+  font-style: italic;
+}
+
+.user-type {
+  font-size: 11px;
+  color: #95a5a6;
+  margin: 2px 0;
+}
+
 .user-email {
   font-size: 12px;
   color: #7f8c8d;
@@ -181,6 +194,12 @@
   font-size: 11px;
   color: #95a5a6;
   margin-top: 6px;
+}
+
+.user-company {
+  font-size: 11px;
+  color: #95a5a6;
+  margin: 2px 0;
 }
 
 .empty-state {
@@ -242,6 +261,18 @@
 .form-group select:focus {
   outline: none;
   border-color: #667eea;
+}
+
+.form-group select:disabled {
+  background: #f5f5f5;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+.helper-text {
+  font-size: 12px;
+  color: #e67e22;
+  margin-top: 4px;
 }
 
 .checkbox-label {
