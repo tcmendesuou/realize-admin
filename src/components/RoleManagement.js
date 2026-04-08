@@ -1,732 +1,561 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import '../styles/RoleManagement.css';
 
 function RoleManagement() {
-  const [view, setView] = useState('types'); // 'types', 'roles', 'permissions'
   const [userTypes, setUserTypes] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [roles, setRoles] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [selectedType, setSelectedType] = useState(null);
-  const [selectedRole, setSelectedRole] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Seleção em cascata
+  const [selectedType, setSelectedType] = useState(null);
+  const [selectedArea, setSelectedArea] = useState(null);
+  const [selectedRole, setSelectedRole] = useState(null);
 
   // Modals
   const [showTypeModal, setShowTypeModal] = useState(false);
+  const [showAreaModal, setShowAreaModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
-  const [newTypeIcon, setNewTypeIcon] = useState('');
+  const [newAreaName, setNewAreaName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Permissões
+  const [customPermissions, setCustomPermissions] = useState({});
+
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Carregar tipos de usuário
-      const typesSnapshot = await getDocs(collection(db, 'userTypes'));
-      let typesData = typesSnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
+      const [typesSnap, areasSnap, rolesSnap, questionsSnap, tasksSnap] = await Promise.all([
+        getDocs(collection(db, 'userTypes')),
+        getDocs(collection(db, 'areas')),
+        getDocs(collection(db, 'roles')),
+        getDocs(collection(db, 'questions')),
+        getDocs(collection(db, 'tasks')),
+      ]);
 
-      // Se não existir nenhum, criar os padrões
+      let typesData = typesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (typesData.length === 0) {
-        await createDefaultUserTypes();
-        const newTypesSnapshot = await getDocs(collection(db, 'userTypes'));
-        typesData = newTypesSnapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
-        }));
+        await createDefaultTypes();
+        const snap2 = await getDocs(collection(db, 'userTypes'));
+        typesData = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
       }
 
-      setUserTypes(typesData);
-
-      // Carregar cargos
-      const rolesSnapshot = await getDocs(collection(db, 'roles'));
-      const rolesData = rolesSnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
-      setRoles(rolesData);
-
-      // Carregar perguntas
-      const questionsSnapshot = await getDocs(collection(db, 'questions'));
-      const questionsData = questionsSnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
-      setQuestions(questionsData);
-
-      // Carregar tarefas
-      const tasksSnapshot = await getDocs(collection(db, 'tasks'));
-      const tasksData = tasksSnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
-      setTasks(tasksData);
-
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      alert('Erro ao carregar dados');
+      setUserTypes(typesData.sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setAreas(areasSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setQuestions(questionsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error('Erro ao carregar dados:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const createDefaultUserTypes = async () => {
-    const defaultTypes = [
-      { name: 'Cliente', icon: '', order: 1 },
-      { name: 'Equipe', icon: '', order: 2 },
-      { name: 'Fornecedor', icon: '', order: 3 }
+  const createDefaultTypes = async () => {
+    const defaults = [
+      { name: 'Cliente', order: 1 },
+      { name: 'Equipe', order: 2 },
+      { name: 'Fornecedor', order: 3 },
     ];
-
-    for (const type of defaultTypes) {
-      await addDoc(collection(db, 'userTypes'), {
-        ...type,
-        createdAt: new Date()
-      });
-    }
-
-    // Criar cargos padrão para Equipe
-    const equipeSnapshot = await getDocs(collection(db, 'userTypes'));
-    const equipeType = equipeSnapshot.docs.find(doc => doc.data().name === 'Equipe');
-    
-    if (equipeType) {
-      const defaultRoles = [
-        'Admin',
-        'C-Level',
-        'Atendimento',
-        'Produtor',
-        'Criação 3D',
-        'Criação',
-        'Auxiliar de Produção',
-        'Montador'
-      ];
-
-      for (let i = 0; i < defaultRoles.length; i++) {
-        await addDoc(collection(db, 'roles'), {
-          name: defaultRoles[i],
-          userTypeId: equipeType.id,
-          userTypeName: 'Equipe',
-          permissions: {
-            dashboard: 'view',
-            questions: {},
-            tasks: {},
-            budgets: { view: true, edit: false, approve: false },
-            documents: { view: true, download: true, upload: false }
-          },
-          order: i + 1,
-          createdAt: new Date()
-        });
-      }
+    for (const t of defaults) {
+      await addDoc(collection(db, 'userTypes'), { ...t, icon: '', createdAt: new Date() });
     }
   };
 
-  const handleAddUserType = async () => {
-    if (!newTypeName.trim()) {
-      alert('Digite o nome do tipo de usuário');
-      return;
-    }
-
+  // ── TIPO ──
+  const handleAddType = async () => {
+    if (!newTypeName.trim()) { alert('Digite o nome do tipo'); return; }
+    setSaving(true);
     try {
       await addDoc(collection(db, 'userTypes'), {
-        name: newTypeName,
-        icon: newTypeIcon || '',
-        order: userTypes.length + 1,
-        createdAt: new Date()
+        name: newTypeName.trim(), icon: '', order: userTypes.length + 1, createdAt: new Date()
       });
-
-      setNewTypeName('');
-      setNewTypeIcon('');
-      setShowTypeModal(false);
-      loadData();
-      alert('Tipo de usuário criado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao criar tipo:', error);
-      alert('Erro ao criar tipo de usuário');
-    }
+      setNewTypeName(''); setShowTypeModal(false); loadData();
+    } catch (err) { alert('Erro ao criar tipo'); }
+    finally { setSaving(false); }
   };
 
-  const handleDeleteUserType = async (typeId) => {
-    if (!window.confirm('Tem certeza que deseja excluir este tipo de usuário? Todos os cargos vinculados também serão excluídos.')) {
-      return;
+  const handleDeleteType = async (typeId) => {
+    if (!window.confirm('Excluir este tipo e todas as áreas e cargos vinculados?')) return;
+    const typeAreas = areas.filter(a => a.userTypeId === typeId);
+    for (const area of typeAreas) {
+      const areaRoles = roles.filter(r => r.areaId === area.id);
+      for (const role of areaRoles) await deleteDoc(doc(db, 'roles', role.id));
+      await deleteDoc(doc(db, 'areas', area.id));
     }
-
-    try {
-      // Deletar todos os cargos deste tipo
-      const typeRoles = roles.filter(r => r.userTypeId === typeId);
-      for (const role of typeRoles) {
-        await deleteDoc(doc(db, 'roles', role.id));
-      }
-
-      // Deletar o tipo
-      await deleteDoc(doc(db, 'userTypes', typeId));
-      loadData();
-      alert('Tipo de usuário excluído com sucesso!');
-    } catch (error) {
-      console.error('Erro ao excluir:', error);
-      alert('Erro ao excluir tipo de usuário');
-    }
+    await deleteDoc(doc(db, 'userTypes', typeId));
+    if (selectedType === typeId) { setSelectedType(null); setSelectedArea(null); setSelectedRole(null); }
+    loadData();
   };
 
-  const handleAddRole = async () => {
-    if (!newRoleName.trim()) {
-      alert('Digite o nome do cargo');
-      return;
-    }
-
-    if (!selectedType) {
-      alert('Selecione um tipo de usuário');
-      return;
-    }
-
+  // ── ÁREA ──
+  const handleAddArea = async () => {
+    if (!newAreaName.trim()) { alert('Digite o nome da área'); return; }
+    if (!selectedType) { alert('Selecione um tipo de usuário primeiro'); return; }
+    setSaving(true);
     try {
-      const typeData = userTypes.find(t => t.id === selectedType);
-      
-      await addDoc(collection(db, 'roles'), {
-        name: newRoleName,
+      const typeAreas = areas.filter(a => a.userTypeId === selectedType);
+      await addDoc(collection(db, 'areas'), {
+        name: newAreaName.trim(),
         userTypeId: selectedType,
-        userTypeName: typeData.name,
+        userTypeName: userTypes.find(t => t.id === selectedType)?.name || '',
+        order: typeAreas.length + 1,
+        createdAt: new Date()
+      });
+      setNewAreaName(''); setShowAreaModal(false); loadData();
+    } catch (err) { alert('Erro ao criar área'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteArea = async (areaId) => {
+    if (!window.confirm('Excluir esta área e todos os cargos vinculados?')) return;
+    const areaRoles = roles.filter(r => r.areaId === areaId);
+    for (const role of areaRoles) await deleteDoc(doc(db, 'roles', role.id));
+    await deleteDoc(doc(db, 'areas', areaId));
+    if (selectedArea === areaId) { setSelectedArea(null); setSelectedRole(null); }
+    loadData();
+  };
+
+  // ── CARGO ──
+  const handleAddRole = async () => {
+    if (!newRoleName.trim()) { alert('Digite o nome do cargo'); return; }
+    if (!selectedArea) { alert('Selecione uma área primeiro'); return; }
+    setSaving(true);
+    try {
+      const area = areas.find(a => a.id === selectedArea);
+      const areaRoles = roles.filter(r => r.areaId === selectedArea);
+      await addDoc(collection(db, 'roles'), {
+        name: newRoleName.trim(),
+        areaId: selectedArea,
+        areaName: area?.name || '',
+        userTypeId: selectedType,
+        userTypeName: userTypes.find(t => t.id === selectedType)?.name || '',
         permissions: {
           dashboard: 'none',
-          questions: {},
-          tasks: {},
+          questions: {}, tasks: {},
           budgets: { view: false, edit: false, approve: false },
           documents: { view: false, download: false, upload: false }
         },
-        order: roles.filter(r => r.userTypeId === selectedType).length + 1,
+        order: areaRoles.length + 1,
         createdAt: new Date()
       });
-
-      setNewRoleName('');
-      setShowRoleModal(false);
-      loadData();
-      alert('Cargo criado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao criar cargo:', error);
-      alert('Erro ao criar cargo');
-    }
+      setNewRoleName(''); setShowRoleModal(false); loadData();
+    } catch (err) { alert('Erro ao criar cargo'); }
+    finally { setSaving(false); }
   };
 
   const handleDeleteRole = async (roleId) => {
-    if (!window.confirm('Tem certeza que deseja excluir este cargo?')) {
-      return;
-    }
+    if (!window.confirm('Excluir este cargo?')) return;
+    await deleteDoc(doc(db, 'roles', roleId));
+    if (selectedRole?.id === roleId) setSelectedRole(null);
+    loadData();
+  };
 
-    try {
-      await deleteDoc(doc(db, 'roles', roleId));
-      loadData();
-      alert('Cargo excluído com sucesso!');
-    } catch (error) {
-      console.error('Erro ao excluir:', error);
-      alert('Erro ao excluir cargo');
-    }
+  const handleSelectRole = (role) => {
+    setSelectedRole(role);
+    setCustomPermissions(role.permissions || {});
+  };
+
+  // ── PERMISSÕES ──
+  const getPermissionValue = (field) => {
+    const parts = field.split('.');
+    let val = customPermissions;
+    for (const p of parts) { val = val?.[p]; }
+    return val ?? (field.includes('budgets') || field.includes('documents') ? false : 'none');
   };
 
   const handleUpdatePermission = async (field, value) => {
     if (!selectedRole) return;
-
+    const newPerms = { ...customPermissions };
+    const parts = field.split('.');
+    let obj = newPerms;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!obj[parts[i]]) obj[parts[i]] = {};
+      obj = obj[parts[i]];
+    }
+    obj[parts[parts.length - 1]] = value;
+    setCustomPermissions(newPerms);
     try {
-      const roleRef = doc(db, 'roles', selectedRole.id);
-      const updatedPermissions = { ...selectedRole.permissions };
-
-      // Atualizar campo específico
-      if (field.startsWith('questions.')) {
-        const questionId = field.split('.')[1];
-        updatedPermissions.questions[questionId] = value;
-      } else if (field.startsWith('tasks.')) {
-        const taskId = field.split('.')[1];
-        updatedPermissions.tasks[taskId] = value;
-      } else if (field.startsWith('budgets.')) {
-        const budgetField = field.split('.')[1];
-        updatedPermissions.budgets[budgetField] = value;
-      } else if (field.startsWith('documents.')) {
-        const docField = field.split('.')[1];
-        updatedPermissions.documents[docField] = value;
-      } else {
-        updatedPermissions[field] = value;
-      }
-
-      await updateDoc(roleRef, {
-        permissions: updatedPermissions,
-        updatedAt: new Date()
-      });
-
-      // Atualizar estado local
-      setSelectedRole({ ...selectedRole, permissions: updatedPermissions });
-      
-      // Atualizar lista de roles
-      setRoles(roles.map(r => 
-        r.id === selectedRole.id 
-          ? { ...r, permissions: updatedPermissions }
-          : r
-      ));
-
-    } catch (error) {
-      console.error('Erro ao atualizar permissão:', error);
-      alert('Erro ao atualizar permissão');
-    }
+      await updateDoc(doc(db, 'roles', selectedRole.id), { permissions: newPerms, updatedAt: new Date() });
+    } catch (err) { console.error('Erro ao salvar permissão:', err); }
   };
 
-  const getTypeRoles = (typeId) => {
-    return roles.filter(r => r.userTypeId === typeId);
-  };
+  // Dados filtrados por seleção
+  const filteredAreas = areas.filter(a => a.userTypeId === selectedType);
+  const filteredRoles = roles.filter(r => r.areaId === selectedArea);
 
-  const getPermissionValue = (field) => {
-    if (!selectedRole) return '';
-    
-    if (field.startsWith('questions.')) {
-      const questionId = field.split('.')[1];
-      return selectedRole.permissions.questions[questionId] || 'none';
-    } else if (field.startsWith('tasks.')) {
-      const taskId = field.split('.')[1];
-      return selectedRole.permissions.tasks[taskId] || 'none';
-    } else if (field.startsWith('budgets.')) {
-      const budgetField = field.split('.')[1];
-      return selectedRole.permissions.budgets[budgetField] || false;
-    } else if (field.startsWith('documents.')) {
-      const docField = field.split('.')[1];
-      return selectedRole.permissions.documents[docField] || false;
-    }
-    
-    return selectedRole.permissions[field] || 'none';
-  };
-
-  if (loading) {
-    return (
-      <div className="role-management-container">
-        <div className="loading">Carregando...</div>
-      </div>
-    );
-  }
+  if (loading) return <div className="rm-loading">Carregando...</div>;
 
   return (
-    <div className="role-management-container">
-      <div className="role-header">
-        <h1>Gestão de Acessos</h1>
-        <div className="view-tabs">
-          <button 
-            className={view === 'types' ? 'active' : ''} 
-            onClick={() => setView('types')}
-          >
-            Tipos de Usuário
-          </button>
-          <button 
-            className={view === 'roles' ? 'active' : ''} 
-            onClick={() => setView('roles')}
-          >
-            Cargos/Funções
-          </button>
-          <button 
-            className={view === 'permissions' ? 'active' : ''} 
-            onClick={() => setView('permissions')}
-            disabled={!selectedRole}
-          >
-            Matriz de Permissões
-          </button>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+
+        .rm-wrap { font-family: 'Outfit', sans-serif; height: calc(100vh - 120px); display: flex; flex-direction: column; }
+        .rm-title { font-size: 13px; color: #8a9bb0; margin-bottom: 16px; font-weight: 300; }
+        .rm-loading { padding: 40px; text-align: center; color: #8a9bb0; font-family: 'Outfit', sans-serif; }
+
+        /* CASCADE GRID */
+        .rm-cascade { display: grid; grid-template-columns: 220px 220px 220px 1fr; gap: 1px; background: #e8eaed; border-radius: 12px; overflow: hidden; flex: 1; min-height: 0; }
+
+        /* PANEL */
+        .rm-panel { background: white; display: flex; flex-direction: column; overflow: hidden; }
+        .rm-panel-header {
+          padding: 14px 16px; border-bottom: 1px solid #f0f2f5;
+          display: flex; align-items: center; justify-content: space-between;
+          background: #fafbfc; flex-shrink: 0;
+        }
+        .rm-panel-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #8a9bb0; }
+        .rm-panel-add {
+          width: 24px; height: 24px; border-radius: 6px; border: 1px solid #e0e0e0;
+          background: none; cursor: pointer; font-size: 16px; color: #667eea;
+          display: flex; align-items: center; justify-content: center; line-height: 1;
+          transition: all 0.15s;
+        }
+        .rm-panel-add:hover { background: #667eea; color: white; border-color: #667eea; }
+        .rm-panel-add:disabled { opacity: 0.3; cursor: not-allowed; }
+        .rm-panel-list { flex: 1; overflow-y: auto; padding: 8px; }
+
+        /* ITEMS */
+        .rm-item {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 10px 12px; border-radius: 8px; cursor: pointer;
+          transition: all 0.15s; margin-bottom: 2px;
+        }
+        .rm-item:hover { background: #f5f5f5; }
+        .rm-item.active { background: #f0f3ff; }
+        .rm-item-name { font-size: 13px; color: #2c3e50; font-weight: 400; flex: 1; }
+        .rm-item.active .rm-item-name { color: #667eea; font-weight: 500; }
+        .rm-item-arrow { font-size: 10px; color: #ccc; }
+        .rm-item.active .rm-item-arrow { color: #667eea; }
+        .rm-item-del {
+          width: 20px; height: 20px; border-radius: 4px; border: none; background: none;
+          color: #ccc; cursor: pointer; font-size: 12px; display: flex; align-items: center;
+          justify-content: center; transition: all 0.15s; flex-shrink: 0; opacity: 0;
+        }
+        .rm-item:hover .rm-item-del { opacity: 1; }
+        .rm-item-del:hover { background: #fee; color: #e74c3c; }
+
+        .rm-empty { padding: 24px 12px; text-align: center; color: #ccc; font-size: 12px; }
+
+        /* PERMISSIONS PANEL */
+        .rm-perms { background: white; display: flex; flex-direction: column; overflow: hidden; }
+        .rm-perms-header { padding: 14px 20px; border-bottom: 1px solid #f0f2f5; background: #fafbfc; flex-shrink: 0; }
+        .rm-perms-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #8a9bb0; }
+        .rm-perms-role { font-size: 14px; font-weight: 500; color: #2c3e50; margin-top: 3px; }
+        .rm-perms-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+        .rm-perms-empty { padding: 40px; text-align: center; color: #ccc; font-size: 13px; }
+
+        .rm-perm-section { margin-bottom: 24px; }
+        .rm-perm-section h4 { font-size: 12px; font-weight: 600; color: #2c3e50; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #f0f2f5; letter-spacing: 0.5px; }
+        .rm-perm-item { display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f9f9f9; gap: 12px; }
+        .rm-perm-item:last-child { border-bottom: none; }
+        .rm-perm-label { font-size: 12px; color: #555; flex: 1; line-height: 1.4; }
+        .rm-perm-options { display: flex; gap: 14px; flex-shrink: 0; }
+        .rm-perm-options label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #777; cursor: pointer; white-space: nowrap; }
+        .rm-perm-options input { accent-color: #667eea; cursor: pointer; }
+        .rm-checkbox-group { display: flex; gap: 16px; flex-wrap: wrap; }
+        .rm-checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #555; cursor: pointer; }
+        .rm-checkbox-group input { accent-color: #667eea; cursor: pointer; }
+
+        /* MODAL */
+        .rm-modal-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .rm-modal {
+          background: white; border-radius: 12px; padding: 28px; width: 380px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+        .rm-modal h3 { font-size: 16px; font-weight: 600; color: #2c3e50; margin-bottom: 20px; }
+        .rm-modal-field { margin-bottom: 16px; }
+        .rm-modal-field label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 6px; }
+        .rm-modal-field input {
+          width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+          font-size: 14px; outline: none; font-family: 'Outfit', sans-serif; transition: border-color 0.2s;
+        }
+        .rm-modal-field input:focus { border-color: #667eea; }
+        .rm-modal-footer { display: flex; gap: 10px; margin-top: 24px; }
+        .rm-modal-cancel {
+          flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px;
+          background: none; color: #777; font-family: 'Outfit', sans-serif; font-size: 14px; cursor: pointer;
+        }
+        .rm-modal-confirm {
+          flex: 2; padding: 10px; border: none; border-radius: 8px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer;
+        }
+        .rm-modal-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .rm-perms-body::-webkit-scrollbar, .rm-panel-list::-webkit-scrollbar { width: 4px; }
+        .rm-perms-body::-webkit-scrollbar-thumb, .rm-panel-list::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
+      `}</style>
+
+      <div className="rm-wrap">
+        <p className="rm-title">Selecione um tipo → área → cargo para configurar permissões</p>
+
+        <div className="rm-cascade">
+
+          {/* PAINEL 1 — TIPOS */}
+          <div className="rm-panel">
+            <div className="rm-panel-header">
+              <span className="rm-panel-title">Tipo de Usuário</span>
+              <button className="rm-panel-add" title="Novo tipo" onClick={() => setShowTypeModal(true)}>+</button>
+            </div>
+            <div className="rm-panel-list">
+              {userTypes.length === 0 ? (
+                <div className="rm-empty">Nenhum tipo</div>
+              ) : userTypes.map(t => (
+                <div key={t.id}
+                  className={`rm-item ${selectedType === t.id ? 'active' : ''}`}
+                  onClick={() => { setSelectedType(t.id); setSelectedArea(null); setSelectedRole(null); }}>
+                  <span className="rm-item-name">{t.name}</span>
+                  <span className="rm-item-arrow">›</span>
+                  <button className="rm-item-del" onClick={e => { e.stopPropagation(); handleDeleteType(t.id); }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* PAINEL 2 — ÁREAS */}
+          <div className="rm-panel">
+            <div className="rm-panel-header">
+              <span className="rm-panel-title">Área</span>
+              <button className="rm-panel-add" title="Nova área"
+                disabled={!selectedType}
+                onClick={() => setShowAreaModal(true)}>+</button>
+            </div>
+            <div className="rm-panel-list">
+              {!selectedType ? (
+                <div className="rm-empty">Selecione um tipo</div>
+              ) : filteredAreas.length === 0 ? (
+                <div className="rm-empty">Nenhuma área</div>
+              ) : filteredAreas.map(a => (
+                <div key={a.id}
+                  className={`rm-item ${selectedArea === a.id ? 'active' : ''}`}
+                  onClick={() => { setSelectedArea(a.id); setSelectedRole(null); }}>
+                  <span className="rm-item-name">{a.name}</span>
+                  <span className="rm-item-arrow">›</span>
+                  <button className="rm-item-del" onClick={e => { e.stopPropagation(); handleDeleteArea(a.id); }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* PAINEL 3 — CARGOS */}
+          <div className="rm-panel">
+            <div className="rm-panel-header">
+              <span className="rm-panel-title">Cargo</span>
+              <button className="rm-panel-add" title="Novo cargo"
+                disabled={!selectedArea}
+                onClick={() => setShowRoleModal(true)}>+</button>
+            </div>
+            <div className="rm-panel-list">
+              {!selectedArea ? (
+                <div className="rm-empty">Selecione uma área</div>
+              ) : filteredRoles.length === 0 ? (
+                <div className="rm-empty">Nenhum cargo</div>
+              ) : filteredRoles.map(r => (
+                <div key={r.id}
+                  className={`rm-item ${selectedRole?.id === r.id ? 'active' : ''}`}
+                  onClick={() => handleSelectRole(r)}>
+                  <span className="rm-item-name">{r.name}</span>
+                  <button className="rm-item-del" onClick={e => { e.stopPropagation(); handleDeleteRole(r.id); }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* PAINEL 4 — PERMISSÕES */}
+          <div className="rm-perms">
+            <div className="rm-perms-header">
+              <div className="rm-perms-title">Permissões</div>
+              {selectedRole && <div className="rm-perms-role">{selectedRole.name}</div>}
+            </div>
+            <div className="rm-perms-body">
+              {!selectedRole ? (
+                <div className="rm-perms-empty">Selecione um cargo para configurar permissões</div>
+              ) : (
+                <>
+                  {/* Dashboard */}
+                  <div className="rm-perm-section">
+                    <h4>Dashboard</h4>
+                    <div className="rm-perm-item">
+                      <span className="rm-perm-label">Acesso ao dashboard</span>
+                      <div className="rm-perm-options">
+                        {['none','view'].map(v => (
+                          <label key={v}>
+                            <input type="radio" name="dashboard" value={v}
+                              checked={getPermissionValue('dashboard') === v}
+                              onChange={() => handleUpdatePermission('dashboard', v)} />
+                            {v === 'none' ? 'Sem acesso' : 'Visualizar'}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Perguntas */}
+                  {questions.length > 0 && (
+                    <div className="rm-perm-section">
+                      <h4>Perguntas</h4>
+                      {questions.map(q => (
+                        <div key={q.id} className="rm-perm-item">
+                          <span className="rm-perm-label">{q.text}</span>
+                          <div className="rm-perm-options">
+                            {['none','view','answer','confirm'].map(v => (
+                              <label key={v}>
+                                <input type="radio" name={`q-${q.id}`} value={v}
+                                  checked={getPermissionValue(`questions.${q.id}`) === v}
+                                  onChange={() => handleUpdatePermission(`questions.${q.id}`, v)} />
+                                {v === 'none' ? 'Não vê' : v === 'view' ? 'Ver' : v === 'answer' ? 'Responder' : 'Confirmar'}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tarefas */}
+                  {tasks.length > 0 && (
+                    <div className="rm-perm-section">
+                      <h4>Tarefas</h4>
+                      {tasks.map(t => (
+                        <div key={t.id} className="rm-perm-item">
+                          <span className="rm-perm-label">{t.name}</span>
+                          <div className="rm-perm-options">
+                            {['none','view','execute','confirm'].map(v => (
+                              <label key={v}>
+                                <input type="radio" name={`t-${t.id}`} value={v}
+                                  checked={getPermissionValue(`tasks.${t.id}`) === v}
+                                  onChange={() => handleUpdatePermission(`tasks.${t.id}`, v)} />
+                                {v === 'none' ? 'Não vê' : v === 'view' ? 'Ver' : v === 'execute' ? 'Executar' : 'Confirmar'}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Orçamentos */}
+                  <div className="rm-perm-section">
+                    <h4>Orçamentos</h4>
+                    <div className="rm-checkbox-group">
+                      {[['budgets.view','Visualizar'],['budgets.edit','Editar'],['budgets.approve','Aprovar/Rejeitar']].map(([field, label]) => (
+                        <label key={field}>
+                          <input type="checkbox"
+                            checked={!!getPermissionValue(field)}
+                            onChange={e => handleUpdatePermission(field, e.target.checked)} />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Documentos */}
+                  <div className="rm-perm-section">
+                    <h4>Documentos</h4>
+                    <div className="rm-checkbox-group">
+                      {[['documents.view','Visualizar'],['documents.download','Download'],['documents.upload','Upload']].map(([field, label]) => (
+                        <label key={field}>
+                          <input type="checkbox"
+                            checked={!!getPermissionValue(field)}
+                            onChange={e => handleUpdatePermission(field, e.target.checked)} />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>Permissões salvas automaticamente</p>
+                </>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* VIEW: TIPOS DE USUÁRIO */}
-      {view === 'types' && (
-        <div className="types-view">
-          <div className="section-header">
-            <h2>Tipos de Usuário</h2>
-            <button className="btn-add" onClick={() => setShowTypeModal(true)}>
-              + Adicionar Tipo
-            </button>
-          </div>
-
-          <div className="types-grid">
-            {userTypes.map(type => (
-              <div key={type.id} className="type-card">
-                <div className="type-icon">{type.icon}</div>
-                <h3>{type.name}</h3>
-                <p>{getTypeRoles(type.id).length} cargo(s)</p>
-                <button 
-                  className="btn-delete-small"
-                  onClick={() => handleDeleteUserType(type.id)}
-                >
-                  Excluir
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* VIEW: CARGOS */}
-      {view === 'roles' && (
-        <div className="roles-view">
-          <div className="section-header">
-            <h2>Cargos/Funções</h2>
-            <select 
-              value={selectedType || ''} 
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="type-select"
-            >
-              <option value="">Selecione um tipo...</option>
-              {userTypes.map(type => (
-                <option key={type.id} value={type.id}>
-                  {type.icon} {type.name}
-                </option>
-              ))}
-            </select>
-            <button 
-              className="btn-add" 
-              onClick={() => setShowRoleModal(true)}
-              disabled={!selectedType}
-            >
-              + Adicionar Cargo
-            </button>
-          </div>
-
-          {selectedType && (
-            <div className="roles-list">
-              <h3>{userTypes.find(t => t.id === selectedType)?.icon} {userTypes.find(t => t.id === selectedType)?.name}</h3>
-              <table className="roles-table">
-                <thead>
-                  <tr>
-                    <th>Cargo</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getTypeRoles(selectedType).map(role => (
-                    <tr key={role.id}>
-                      <td>{role.name}</td>
-                      <td>
-                        <button 
-                          className="btn-edit"
-                          onClick={() => {
-                            setSelectedRole(role);
-                            setView('permissions');
-                          }}
-                        >
-                          Permissões
-                        </button>
-                        <button 
-                          className="btn-delete"
-                          onClick={() => handleDeleteRole(role.id)}
-                        >
-                          Excluir
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* VIEW: MATRIZ DE PERMISSÕES */}
-      {view === 'permissions' && selectedRole && (
-        <div className="permissions-view">
-          <div className="permission-header">
-            <button className="btn-back" onClick={() => setView('roles')}>
-              ← Voltar
-            </button>
-            <h2>Permissões: {selectedRole.name} ({selectedRole.userTypeName})</h2>
-          </div>
-
-          <div className="permissions-content">
-            {/* DASHBOARD */}
-            <div className="permission-section">
-              <h3>Dashboard</h3>
-              <div className="permission-options">
-                <label>
-                  <input 
-                    type="radio" 
-                    name="dashboard"
-                    value="none"
-                    checked={getPermissionValue('dashboard') === 'none'}
-                    onChange={(e) => handleUpdatePermission('dashboard', e.target.value)}
-                  />
-                  Sem acesso
-                </label>
-                <label>
-                  <input 
-                    type="radio" 
-                    name="dashboard"
-                    value="view"
-                    checked={getPermissionValue('dashboard') === 'view'}
-                    onChange={(e) => handleUpdatePermission('dashboard', e.target.value)}
-                  />
-                  Visualizar
-                </label>
-                <label>
-                  <input 
-                    type="radio" 
-                    name="dashboard"
-                    value="edit"
-                    checked={getPermissionValue('dashboard') === 'edit'}
-                    onChange={(e) => handleUpdatePermission('dashboard', e.target.value)}
-                  />
-                  Editar
-                </label>
-              </div>
-            </div>
-
-            {/* PERGUNTAS */}
-            <div className="permission-section">
-              <h3>Perguntas</h3>
-              {questions.map(question => (
-                <div key={question.id} className="permission-item">
-                  <p className="item-text">"{question.text}"</p>
-                  <div className="permission-options">
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`question-${question.id}`}
-                        value="none"
-                        checked={getPermissionValue(`questions.${question.id}`) === 'none'}
-                        onChange={(e) => handleUpdatePermission(`questions.${question.id}`, e.target.value)}
-                      />
-                      Não aparece
-                    </label>
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`question-${question.id}`}
-                        value="view"
-                        checked={getPermissionValue(`questions.${question.id}`) === 'view'}
-                        onChange={(e) => handleUpdatePermission(`questions.${question.id}`, e.target.value)}
-                      />
-                      Visualizar
-                    </label>
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`question-${question.id}`}
-                        value="answer"
-                        checked={getPermissionValue(`questions.${question.id}`) === 'answer'}
-                        onChange={(e) => handleUpdatePermission(`questions.${question.id}`, e.target.value)}
-                      />
-                      Responder
-                    </label>
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`question-${question.id}`}
-                        value="confirm"
-                        checked={getPermissionValue(`questions.${question.id}`) === 'confirm'}
-                        onChange={(e) => handleUpdatePermission(`questions.${question.id}`, e.target.value)}
-                      />
-                      Confirmar
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* TAREFAS */}
-            <div className="permission-section">
-              <h3>Tarefas</h3>
-              {tasks.map(task => (
-                <div key={task.id} className="permission-item">
-                  <p className="item-text">"{task.name}"</p>
-                  <div className="permission-options">
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`task-${task.id}`}
-                        value="none"
-                        checked={getPermissionValue(`tasks.${task.id}`) === 'none'}
-                        onChange={(e) => handleUpdatePermission(`tasks.${task.id}`, e.target.value)}
-                      />
-                      Não aparece
-                    </label>
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`task-${task.id}`}
-                        value="view"
-                        checked={getPermissionValue(`tasks.${task.id}`) === 'view'}
-                        onChange={(e) => handleUpdatePermission(`tasks.${task.id}`, e.target.value)}
-                      />
-                      Visualizar
-                    </label>
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`task-${task.id}`}
-                        value="execute"
-                        checked={getPermissionValue(`tasks.${task.id}`) === 'execute'}
-                        onChange={(e) => handleUpdatePermission(`tasks.${task.id}`, e.target.value)}
-                      />
-                      Executar
-                    </label>
-                    <label>
-                      <input 
-                        type="radio" 
-                        name={`task-${task.id}`}
-                        value="confirm"
-                        checked={getPermissionValue(`tasks.${task.id}`) === 'confirm'}
-                        onChange={(e) => handleUpdatePermission(`tasks.${task.id}`, e.target.value)}
-                      />
-                      Confirmar
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* ORÇAMENTOS */}
-            <div className="permission-section">
-              <h3>Orçamentos</h3>
-              <div className="checkbox-group">
-                <label>
-                  <input 
-                    type="checkbox"
-                    checked={getPermissionValue('budgets.view')}
-                    onChange={(e) => handleUpdatePermission('budgets.view', e.target.checked)}
-                  />
-                  Visualizar
-                </label>
-                <label>
-                  <input 
-                    type="checkbox"
-                    checked={getPermissionValue('budgets.edit')}
-                    onChange={(e) => handleUpdatePermission('budgets.edit', e.target.checked)}
-                  />
-                  Editar
-                </label>
-                <label>
-                  <input 
-                    type="checkbox"
-                    checked={getPermissionValue('budgets.approve')}
-                    onChange={(e) => handleUpdatePermission('budgets.approve', e.target.checked)}
-                  />
-                  Aprovar/Rejeitar
-                </label>
-              </div>
-            </div>
-
-            {/* DOCUMENTOS */}
-            <div className="permission-section">
-              <h3>Documentos</h3>
-              <div className="checkbox-group">
-                <label>
-                  <input 
-                    type="checkbox"
-                    checked={getPermissionValue('documents.view')}
-                    onChange={(e) => handleUpdatePermission('documents.view', e.target.checked)}
-                  />
-                  Visualizar
-                </label>
-                <label>
-                  <input 
-                    type="checkbox"
-                    checked={getPermissionValue('documents.download')}
-                    onChange={(e) => handleUpdatePermission('documents.download', e.target.checked)}
-                  />
-                  Download
-                </label>
-                <label>
-                  <input 
-                    type="checkbox"
-                    checked={getPermissionValue('documents.upload')}
-                    onChange={(e) => handleUpdatePermission('documents.upload', e.target.checked)}
-                  />
-                  Upload
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="permission-footer">
-            <button className="btn-save" onClick={() => alert('Permissões salvas automaticamente!')}>
-              Permissões Salvas Automaticamente
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADICIONAR TIPO */}
+      {/* MODAL TIPO */}
       {showTypeModal && (
-        <div className="modal-overlay" onClick={() => setShowTypeModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Adicionar Tipo de Usuário</h2>
-              <button className="close-btn" onClick={() => setShowTypeModal(false)}>×</button>
+        <div className="rm-modal-overlay" onClick={() => setShowTypeModal(false)}>
+          <div className="rm-modal" onClick={e => e.stopPropagation()}>
+            <h3>Novo Tipo de Usuário</h3>
+            <div className="rm-modal-field">
+              <label>Nome *</label>
+              <input type="text" value={newTypeName} onChange={e => setNewTypeName(e.target.value)}
+                placeholder="Ex: Parceiro" autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleAddType()} />
             </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Nome do Tipo *</label>
-                <input 
-                  type="text"
-                  value={newTypeName}
-                  onChange={(e) => setNewTypeName(e.target.value)}
-                  placeholder="Ex: Patrocinador"
-                />
-              </div>
-              <div className="form-group">
-                <label>Ícone (emoji)</label>
-                <input 
-                  type="text"
-                  value={newTypeIcon}
-                  onChange={(e) => setNewTypeIcon(e.target.value)}
-                  placeholder="Ex: 🎯"
-                  maxLength={2}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowTypeModal(false)}>
-                Cancelar
-              </button>
-              <button className="btn-confirm" onClick={handleAddUserType}>
-                Criar Tipo
+            <div className="rm-modal-footer">
+              <button className="rm-modal-cancel" onClick={() => setShowTypeModal(false)}>Cancelar</button>
+              <button className="rm-modal-confirm" onClick={handleAddType} disabled={saving}>
+                {saving ? 'Criando...' : 'Criar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: ADICIONAR CARGO */}
-      {showRoleModal && (
-        <div className="modal-overlay" onClick={() => setShowRoleModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Adicionar Cargo</h2>
-              <button className="close-btn" onClick={() => setShowRoleModal(false)}>×</button>
+      {/* MODAL ÁREA */}
+      {showAreaModal && (
+        <div className="rm-modal-overlay" onClick={() => setShowAreaModal(false)}>
+          <div className="rm-modal" onClick={e => e.stopPropagation()}>
+            <h3>Nova Área</h3>
+            <p style={{ fontSize: 12, color: '#8a9bb0', marginBottom: 16 }}>
+              Tipo: <strong>{userTypes.find(t => t.id === selectedType)?.name}</strong>
+            </p>
+            <div className="rm-modal-field">
+              <label>Nome da Área *</label>
+              <input type="text" value={newAreaName} onChange={e => setNewAreaName(e.target.value)}
+                placeholder="Ex: Produção, Atendimento, Criação" autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleAddArea()} />
             </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Tipo de Usuário</label>
-                <p className="type-display">
-                  {userTypes.find(t => t.id === selectedType)?.icon} {userTypes.find(t => t.id === selectedType)?.name}
-                </p>
-              </div>
-              <div className="form-group">
-                <label>Nome do Cargo *</label>
-                <input 
-                  type="text"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="Ex: Coordenador"
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowRoleModal(false)}>
-                Cancelar
-              </button>
-              <button className="btn-confirm" onClick={handleAddRole}>
-                Criar Cargo
+            <div className="rm-modal-footer">
+              <button className="rm-modal-cancel" onClick={() => setShowAreaModal(false)}>Cancelar</button>
+              <button className="rm-modal-confirm" onClick={handleAddArea} disabled={saving}>
+                {saving ? 'Criando...' : 'Criar Área'}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+
+      {/* MODAL CARGO */}
+      {showRoleModal && (
+        <div className="rm-modal-overlay" onClick={() => setShowRoleModal(false)}>
+          <div className="rm-modal" onClick={e => e.stopPropagation()}>
+            <h3>Novo Cargo</h3>
+            <p style={{ fontSize: 12, color: '#8a9bb0', marginBottom: 16 }}>
+              {userTypes.find(t => t.id === selectedType)?.name} → <strong>{areas.find(a => a.id === selectedArea)?.name}</strong>
+            </p>
+            <div className="rm-modal-field">
+              <label>Nome do Cargo *</label>
+              <input type="text" value={newRoleName} onChange={e => setNewRoleName(e.target.value)}
+                placeholder="Ex: Produtor, Designer, Coordenador" autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleAddRole()} />
+            </div>
+            <div className="rm-modal-footer">
+              <button className="rm-modal-cancel" onClick={() => setShowRoleModal(false)}>Cancelar</button>
+              <button className="rm-modal-confirm" onClick={handleAddRole} disabled={saving}>
+                {saving ? 'Criando...' : 'Criar Cargo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
