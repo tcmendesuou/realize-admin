@@ -4,10 +4,16 @@ import { db } from '../firebase/config';
 import '../styles/TaskForm.css';
 
 function TaskForm({ onClose, onSave, editTask, specialType }) {
+  const [areas, setAreas] = useState([]);
+  const [roles, setRoles] = useState([]);
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    responsibleType: 'attendant',
+    areaId: '',
+    areaName: '',
+    roleId: '',
+    roleName: '',
     priority: 'neutral',
     deadlineDays: 7,
     documentsNeeded: [],
@@ -27,11 +33,15 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
   const [nextOrderNumber, setNextOrderNumber] = useState(1);
 
   useEffect(() => {
+    loadAreas();
     if (editTask) {
       setFormData({
         name: editTask.name || '',
         description: editTask.description || '',
-        responsibleType: editTask.responsibleType || 'attendant',
+        areaId: editTask.areaId || '',
+        areaName: editTask.areaName || '',
+        roleId: editTask.roleId || '',
+        roleName: editTask.roleName || '',
         priority: editTask.priority || 'neutral',
         deadlineDays: editTask.deadlineDays || 7,
         documentsNeeded: editTask.documentsNeeded || [],
@@ -49,7 +59,6 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
         ...prev,
         name: 'Reunião de Kickoff',
         description: 'Primeira reunião com o cliente para alinhamento inicial do projeto',
-        responsibleType: 'attendant',
         priority: 'high',
         required: false
       }));
@@ -58,11 +67,23 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
     }
   }, [editTask, specialType]);
 
+  const loadAreas = async () => {
+    try {
+      const [areasSnap, rolesSnap] = await Promise.all([
+        getDocs(collection(db, 'areas')),
+        getDocs(collection(db, 'roles')),
+      ]);
+      setAreas(areasSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
+    } catch (error) {
+      console.error('Erro ao carregar áreas/cargos:', error);
+    }
+  };
+
   const loadNextOrder = async () => {
     try {
       const q = query(collection(db, 'tasks'), orderBy('order', 'desc'));
       const querySnapshot = await getDocs(q);
-      
       if (!querySnapshot.empty) {
         const highestOrder = querySnapshot.docs[0].data().order || 0;
         const nextOrder = highestOrder + 1;
@@ -76,34 +97,26 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+    if (name === 'areaId') {
+      const selected = areas.find(a => a.id === value);
+      setFormData({ ...formData, areaId: value, areaName: selected?.name || '', roleId: '', roleName: '' });
+    } else if (name === 'roleId') {
+      const selected = roles.find(r => r.id === value);
+      setFormData({ ...formData, roleId: value, roleName: selected?.name || '' });
+    } else {
+      setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+    }
   };
 
   const addDocument = () => {
     if (newDocument.trim()) {
-      setFormData({
-        ...formData,
-        documentsNeeded: [...formData.documentsNeeded, newDocument.trim()]
-      });
+      setFormData({ ...formData, documentsNeeded: [...formData.documentsNeeded, newDocument.trim()] });
       setNewDocument('');
     }
   };
 
   const removeDocument = (index) => {
-    setFormData({
-      ...formData,
-      documentsNeeded: formData.documentsNeeded.filter((_, i) => i !== index)
-    });
-  };
-
-  const clearTime = () => {
-    setFormData({
-      ...formData,
-      meetingTime: ''
-    });
+    setFormData({ ...formData, documentsNeeded: formData.documentsNeeded.filter((_, i) => i !== index) });
   };
 
   const handleSubmit = async (e) => {
@@ -114,7 +127,10 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
       const taskData = {
         name: formData.name,
         description: formData.description,
-        responsibleType: formData.responsibleType,
+        areaId: formData.areaId,
+        areaName: formData.areaName,
+        roleId: formData.roleId,
+        roleName: formData.roleName,
         priority: formData.priority,
         deadlineDays: parseInt(formData.deadlineDays),
         documentsNeeded: formData.documentsNeeded,
@@ -124,7 +140,6 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
         updatedAt: new Date()
       };
 
-      // Adicionar campos especiais se for Kickoff
       if (specialType === 'kickoff' || (editTask && editTask.specialType === 'kickoff')) {
         taskData.specialType = 'kickoff';
         taskData.meetingDate = formData.meetingDate;
@@ -153,15 +168,14 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
   };
 
   const isKickoff = specialType === 'kickoff' || (editTask && editTask.specialType === 'kickoff');
+  const filteredRoles = roles.filter(r => r.areaId === formData.areaId);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content task-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="header-with-number">
-            <h2>
-              {editTask ? 'Editar Tarefa' : (isKickoff ? 'Criar Reunião de Kickoff' : 'Nova Tarefa')}
-            </h2>
+            <h2>{editTask ? 'Editar Tarefa' : (isKickoff ? 'Criar Reunião de Kickoff' : 'Nova Tarefa')}</h2>
             {!editTask && !isKickoff && (
               <span className="task-number-badge">Tarefa #{nextOrderNumber}</span>
             )}
@@ -172,14 +186,14 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
         <form onSubmit={handleSubmit} className="task-form">
           {isKickoff && (
             <div className="special-notice kickoff-notice">
-              <p><strong>⚠️ Tarefa Especial:</strong> Esta é a tarefa de Reunião de Kickoff. Ela aparecerá sempre no início do fluxo de tarefas do evento.</p>
+              <p><strong>⚠️ Tarefa Especial:</strong> Esta é a tarefa de Reunião de Kickoff.</p>
             </div>
           )}
 
           {/* INFORMAÇÕES BÁSICAS */}
           <div className="form-section">
             <h3 className="section-title">Informações Básicas</h3>
-            
+
             <div className="form-group">
               <label>Nome da Tarefa *</label>
               <input
@@ -204,29 +218,40 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
               />
             </div>
 
+            {/* RESPONSÁVEL: Área → Cargo */}
             <div className="form-row">
               <div className="form-group">
-                <label>Responsável *</label>
-                <select
-                  name="responsibleType"
-                  value={formData.responsibleType}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="attendant">Atendente</option>
-                  <option value="producer">Produtor</option>
-                  <option value="external">Fornecedor Externo</option>
+                <label>Área Responsável *</label>
+                <select name="areaId" value={formData.areaId} onChange={handleChange} required={!isKickoff}>
+                  <option value="">Selecione uma área...</option>
+                  {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
 
               <div className="form-group">
-                <label>Prioridade *</label>
+                <label>Cargo Responsável *</label>
                 <select
-                  name="priority"
-                  value={formData.priority}
+                  name="roleId"
+                  value={formData.roleId}
                   onChange={handleChange}
-                  required
+                  disabled={!formData.areaId}
+                  required={!isKickoff}
                 >
+                  <option value="">
+                    {!formData.areaId ? 'Selecione uma área primeiro...' : 'Selecione um cargo...'}
+                  </option>
+                  {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                {formData.areaId && filteredRoles.length === 0 && (
+                  <small className="helper-text">Nenhum cargo nesta área.</small>
+                )}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Prioridade *</label>
+                <select name="priority" value={formData.priority} onChange={handleChange} required>
                   <option value="neutral">Neutro</option>
                   <option value="low">Baixa</option>
                   <option value="medium">Média</option>
@@ -250,24 +275,14 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
 
             <div className="checkbox-group">
               <label>
-                <input
-                  type="checkbox"
-                  name="required"
-                  checked={formData.required}
-                  onChange={handleChange}
-                />
+                <input type="checkbox" name="required" checked={formData.required} onChange={handleChange} />
                 Tarefa obrigatória
               </label>
             </div>
 
             <div className="checkbox-group">
               <label>
-                <input
-                  type="checkbox"
-                  name="active"
-                  checked={formData.active}
-                  onChange={handleChange}
-                />
+                <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
                 Ativa (visível no app)
               </label>
             </div>
@@ -281,34 +296,14 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
               <div className="form-row">
                 <div className="form-group">
                   <label>Data da Reunião</label>
-                  <input
-                    type="date"
-                    name="meetingDate"
-                    value={formData.meetingDate}
-                    onChange={handleChange}
-                  />
+                  <input type="date" name="meetingDate" value={formData.meetingDate} onChange={handleChange} />
                 </div>
-
                 <div className="form-group">
                   <label>Horário</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="time"
-                      name="meetingTime"
-                      value={formData.meetingTime}
-                      onChange={handleChange}
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={clearTime}
-                      className="btn-add-item"
-                      style={{ 
-                        background: '#95a5a6',
-                        padding: '0 16px',
-                        fontSize: '12px'
-                      }}
-                    >
+                    <input type="time" name="meetingTime" value={formData.meetingTime} onChange={handleChange} style={{ flex: 1 }} />
+                    <button type="button" onClick={() => setFormData({ ...formData, meetingTime: '' })}
+                      className="btn-add-item" style={{ background: '#95a5a6', padding: '0 16px', fontSize: '12px' }}>
                       Clear
                     </button>
                   </div>
@@ -317,35 +312,20 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
 
               <div className="form-group">
                 <label>Local da Reunião</label>
-                <input
-                  type="text"
-                  name="meetingLocation"
-                  value={formData.meetingLocation}
-                  onChange={handleChange}
-                  placeholder="Ex: Escritório, Restaurante X, etc."
-                />
+                <input type="text" name="meetingLocation" value={formData.meetingLocation} onChange={handleChange}
+                  placeholder="Ex: Escritório, Restaurante X, etc." />
               </div>
 
               <div className="form-group">
                 <label>Link da Reunião (Zoom, Meet, etc.)</label>
-                <input
-                  type="url"
-                  name="meetingLink"
-                  value={formData.meetingLink}
-                  onChange={handleChange}
-                  placeholder="https://..."
-                />
+                <input type="url" name="meetingLink" value={formData.meetingLink} onChange={handleChange}
+                  placeholder="https://..." />
               </div>
 
               <div className="form-group">
                 <label>Pauta da Reunião</label>
-                <textarea
-                  name="agenda"
-                  value={formData.agenda}
-                  onChange={handleChange}
-                  placeholder="Liste os tópicos que serão discutidos na reunião..."
-                  rows="4"
-                />
+                <textarea name="agenda" value={formData.agenda} onChange={handleChange}
+                  placeholder="Liste os tópicos que serão discutidos na reunião..." rows="4" />
               </div>
             </div>
           )}
@@ -353,7 +333,6 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
           {/* DOCUMENTOS NECESSÁRIOS */}
           <div className="form-section">
             <h3 className="section-title">Documentos Necessários</h3>
-            
             <div className="add-item-group">
               <input
                 type="text"
@@ -362,34 +341,23 @@ function TaskForm({ onClose, onSave, editTask, specialType }) {
                 placeholder="Ex: Contrato assinado, RG, etc."
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDocument())}
               />
-              <button type="button" onClick={addDocument} className="btn-add-item">
-                + Adicionar
-              </button>
+              <button type="button" onClick={addDocument} className="btn-add-item">+ Adicionar</button>
             </div>
-
             {formData.documentsNeeded.length > 0 && (
               <ul className="items-list">
                 {formData.documentsNeeded.map((doc, index) => (
                   <li key={index}>
                     <span>{doc}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeDocument(index)}
-                      className="btn-remove-item"
-                    >
-                      Remover
-                    </button>
+                    <button type="button" onClick={() => removeDocument(index)} className="btn-remove-item">Remover</button>
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          {/* BOTÕES DE AÇÃO */}
+          {/* BOTÕES */}
           <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>
-              Cancelar
-            </button>
+            <button type="button" className="btn-cancel" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn-save" disabled={saving}>
               {saving ? 'Salvando...' : (editTask ? 'Atualizar Tarefa' : 'Criar Tarefa')}
             </button>

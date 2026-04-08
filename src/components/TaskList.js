@@ -6,25 +6,26 @@ import '../styles/TaskList.css';
 
 function TaskList() {
   const [tasks, setTasks] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [creatingSpecialType, setCreatingSpecialType] = useState(null);
   const [filterPriority, setFilterPriority] = useState('all');
+  const [filterArea, setFilterArea] = useState('all');
 
   useEffect(() => {
-    loadTasks();
+    loadData();
   }, []);
 
-  const loadTasks = async () => {
+  const loadData = async () => {
     try {
-      const q = query(collection(db, 'tasks'), orderBy('order', 'asc'));
-      const querySnapshot = await getDocs(q);
-      const tasksData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setTasks(tasksData);
+      const [tasksSnap, areasSnap] = await Promise.all([
+        getDocs(query(collection(db, 'tasks'), orderBy('order', 'asc'))),
+        getDocs(collection(db, 'areas')),
+      ]);
+      setTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setAreas(areasSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
     } catch (error) {
       console.error('Erro ao carregar tarefas:', error);
     } finally {
@@ -64,55 +65,31 @@ function TaskList() {
   };
 
   const handleSave = () => {
-    loadTasks();
+    loadData();
     handleCloseForm();
   };
 
-  const translateResponsibleType = (type) => {
-    const types = {
-      'attendant': 'Atendente',
-      'producer': 'Produtor',
-      'external': 'Fornecedor Externo'
-    };
-    return types[type] || type;
-  };
-
   const translatePriority = (priority) => {
-    const priorities = {
-      'neutral': 'Neutro',
-      'low': 'Baixa',
-      'medium': 'Média',
-      'high': 'Alta',
-      'urgent': 'Urgente'
-    };
+    const priorities = { neutral: 'Neutro', low: 'Baixa', medium: 'Média', high: 'Alta', urgent: 'Urgente' };
     return priorities[priority] || priority;
   };
 
   const getPriorityClass = (priority) => {
-    const classes = {
-      'neutral': 'priority-neutral',
-      'low': 'priority-low',
-      'medium': 'priority-medium',
-      'high': 'priority-high',
-      'urgent': 'priority-urgent'
-    };
+    const classes = { neutral: 'priority-neutral', low: 'priority-low', medium: 'priority-medium', high: 'priority-high', urgent: 'priority-urgent' };
     return classes[priority] || '';
   };
 
   const specialTasks = tasks.filter(t => t.specialType);
   const normalTasks = tasks.filter(t => !t.specialType);
-
   const hasKickoff = specialTasks.some(t => t.specialType === 'kickoff');
 
-  // Filtrar tarefas
   const filteredTasks = normalTasks.filter(task => {
     if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
+    if (filterArea !== 'all' && task.areaId !== filterArea) return false;
     return true;
   });
 
-  if (loading) {
-    return <div className="loading">Carregando tarefas...</div>;
-  }
+  if (loading) return <div className="loading">Carregando tarefas...</div>;
 
   return (
     <div className="task-list-container">
@@ -123,16 +100,11 @@ function TaskList() {
         </div>
         <div className="header-actions">
           {!hasKickoff && (
-            <button 
-              className="btn-special btn-kickoff" 
-              onClick={() => handleCreateSpecial('kickoff')}
-            >
+            <button className="btn-special btn-kickoff" onClick={() => handleCreateSpecial('kickoff')}>
               + Criar Reunião de Kickoff
             </button>
           )}
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            + Nova Tarefa
-          </button>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>+ Nova Tarefa</button>
         </div>
       </div>
 
@@ -146,7 +118,7 @@ function TaskList() {
                 <tr>
                   <th className="col-badge">Tipo</th>
                   <th className="col-text">Tarefa</th>
-                  <th className="col-responsible">Responsável</th>
+                  <th className="col-responsible">Área / Cargo</th>
                   <th className="col-priority">Prioridade</th>
                   <th className="col-status">Status</th>
                   <th className="col-actions">Ações</th>
@@ -155,9 +127,7 @@ function TaskList() {
               <tbody>
                 {specialTasks.map((task) => (
                   <tr key={task.id} className="special-row kickoff-row">
-                    <td>
-                      <span className="badge badge-kickoff">KICKOFF</span>
-                    </td>
+                    <td><span className="badge badge-kickoff">KICKOFF</span></td>
                     <td className="task-text-cell">
                       <strong>{task.name}</strong>
                       {task.meetingDate && (
@@ -166,7 +136,10 @@ function TaskList() {
                         </div>
                       )}
                     </td>
-                    <td>{translateResponsibleType(task.responsibleType)}</td>
+                    <td>
+                      <span className="responsible-area">{task.areaName || '—'}</span>
+                      {task.roleName && <span className="responsible-role">{task.roleName}</span>}
+                    </td>
                     <td>
                       <span className={`badge badge-priority ${getPriorityClass(task.priority)}`}>
                         {translatePriority(task.priority)}
@@ -178,15 +151,8 @@ function TaskList() {
                       </span>
                     </td>
                     <td className="actions-cell">
-                      <button className="btn-action btn-edit" onClick={() => handleEdit(task)}>
-                        Editar
-                      </button>
-                      <button 
-                        className="btn-action btn-delete" 
-                        onClick={() => handleDelete(task.id, task.name)}
-                      >
-                        Deletar
-                      </button>
+                      <button className="btn-action btn-edit" onClick={() => handleEdit(task)}>Editar</button>
+                      <button className="btn-action btn-delete" onClick={() => handleDelete(task.id, task.name)}>Deletar</button>
                     </td>
                   </tr>
                 ))}
@@ -199,6 +165,13 @@ function TaskList() {
       {/* FILTROS */}
       <div className="filters-bar">
         <div className="filter-group">
+          <label>Área:</label>
+          <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)}>
+            <option value="all">Todas</option>
+            {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+        <div className="filter-group">
           <label>Prioridade:</label>
           <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
             <option value="all">Todas</option>
@@ -209,7 +182,6 @@ function TaskList() {
             <option value="urgent">Urgente</option>
           </select>
         </div>
-
         <div className="filter-results">
           {filteredTasks.length} {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
         </div>
@@ -218,13 +190,10 @@ function TaskList() {
       {/* TAREFAS NORMAIS */}
       <div className="normal-section">
         <h3 className="section-title">Tarefas do Fluxo</h3>
-        
         {filteredTasks.length === 0 ? (
           <div className="empty-state">
             <p>Nenhuma tarefa cadastrada ainda</p>
-            <button className="btn-primary" onClick={() => setShowForm(true)}>
-              Criar primeira tarefa
-            </button>
+            <button className="btn-primary" onClick={() => setShowForm(true)}>Criar primeira tarefa</button>
           </div>
         ) : (
           <div className="table-container">
@@ -233,7 +202,7 @@ function TaskList() {
                 <tr>
                   <th className="col-order">#</th>
                   <th className="col-text">Tarefa</th>
-                  <th className="col-responsible">Responsável</th>
+                  <th className="col-responsible">Área / Cargo</th>
                   <th className="col-priority">Prioridade</th>
                   <th className="col-deadline">Prazo</th>
                   <th className="col-docs">Docs</th>
@@ -249,27 +218,25 @@ function TaskList() {
                       <strong>{task.name}</strong>
                       {task.description && (
                         <div className="task-description-preview">
-                          {task.description.substring(0, 60)}
-                          {task.description.length > 60 && '...'}
+                          {task.description.substring(0, 60)}{task.description.length > 60 && '...'}
                         </div>
                       )}
                       {task.required && <span className="required-indicator">*</span>}
                     </td>
-                    <td>{translateResponsibleType(task.responsibleType)}</td>
+                    <td>
+                      <span className="responsible-area">{task.areaName || '—'}</span>
+                      {task.roleName && <span className="responsible-role">{task.roleName}</span>}
+                    </td>
                     <td>
                       <span className={`badge badge-priority ${getPriorityClass(task.priority)}`}>
                         {translatePriority(task.priority)}
                       </span>
                     </td>
-                    <td className="deadline-cell">
-                      {task.deadlineDays} {task.deadlineDays === 1 ? 'dia' : 'dias'}
-                    </td>
+                    <td className="deadline-cell">{task.deadlineDays} {task.deadlineDays === 1 ? 'dia' : 'dias'}</td>
                     <td className="center-cell">
-                      {task.documentsNeeded && task.documentsNeeded.length > 0 ? (
-                        <span className="count-badge">{task.documentsNeeded.length}</span>
-                      ) : (
-                        <span className="no-count">-</span>
-                      )}
+                      {task.documentsNeeded && task.documentsNeeded.length > 0
+                        ? <span className="count-badge">{task.documentsNeeded.length}</span>
+                        : <span className="no-count">-</span>}
                     </td>
                     <td>
                       <span className={`badge ${task.active ? 'badge-active' : 'badge-inactive'}`}>
@@ -277,15 +244,8 @@ function TaskList() {
                       </span>
                     </td>
                     <td className="actions-cell">
-                      <button className="btn-action btn-edit" onClick={() => handleEdit(task)}>
-                        Editar
-                      </button>
-                      <button 
-                        className="btn-action btn-delete" 
-                        onClick={() => handleDelete(task.id, task.name)}
-                      >
-                        Deletar
-                      </button>
+                      <button className="btn-action btn-edit" onClick={() => handleEdit(task)}>Editar</button>
+                      <button className="btn-action btn-delete" onClick={() => handleDelete(task.id, task.name)}>Deletar</button>
                     </td>
                   </tr>
                 ))}
@@ -296,7 +256,7 @@ function TaskList() {
       </div>
 
       {showForm && (
-        <TaskForm 
+        <TaskForm
           onClose={handleCloseForm}
           onSave={handleSave}
           editTask={editingTask}
