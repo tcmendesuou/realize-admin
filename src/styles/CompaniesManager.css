@@ -17,17 +17,20 @@
   margin-bottom: 4px;
 }
 
-/* TWO PANEL LAYOUT */
+/* TWO PANEL LAYOUT
+   Lista: 1fr — ocupa o espaço restante
+   Formulário: 420px fixo — não precisa de mais espaço
+*/
 .two-panel-layout {
   display: grid;
-  grid-template-columns: 350px 1fr;
+  grid-template-columns: 1fr 420px;
   gap: 20px;
   height: calc(100vh - 200px);
   overflow: hidden;
 }
 
 .panel-list {
-  min-width: 350px;
+  min-width: 0;
 }
 
 .companies-list {
@@ -37,8 +40,8 @@
 }
 
 .company-card {
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 14px;
+  margin-bottom: 8px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   cursor: pointer;
@@ -59,33 +62,33 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .company-card h3 {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: #2c3e50;
   margin: 0;
 }
 
 .company-type {
-  font-size: 13px;
+  font-size: 12px;
   color: #667eea;
-  margin: 4px 0;
+  margin: 3px 0;
   font-weight: 600;
 }
 
 .company-cnpj {
   font-size: 12px;
   color: #7f8c8d;
-  margin: 4px 0;
+  margin: 3px 0;
 }
 
 .company-contact {
-  font-size: 12px;
+  font-size: 11px;
   color: #95a5a6;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .form-row {
@@ -95,13 +98,13 @@
 }
 
 /* RESPONSIVE */
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
   .two-panel-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
     height: auto;
   }
-  
+
   .panel {
     height: auto;
     min-height: 400px;

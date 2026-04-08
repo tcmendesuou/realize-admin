@@ -5,6 +5,7 @@ import '../styles/CompaniesManager.css';
 
 function CompaniesManager() {
   const [companies, setCompanies] = useState([]);
+  const [userTypes, setUserTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
@@ -13,7 +14,8 @@ function CompaniesManager() {
 
   const [formData, setFormData] = useState({
     name: '',
-    type: 'cliente',
+    typeId: '',
+    typeName: '',
     cnpj: '',
     contactName: '',
     contactEmail: '',
@@ -25,21 +27,21 @@ function CompaniesManager() {
   });
 
   useEffect(() => {
-    loadCompanies();
+    loadData();
   }, []);
 
-  const loadCompanies = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const companiesSnapshot = await getDocs(collection(db, 'companies'));
-      const companiesData = companiesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setCompanies(companiesData);
+      const [companiesSnap, typesSnap] = await Promise.all([
+        getDocs(collection(db, 'companies')),
+        getDocs(collection(db, 'userTypes')),
+      ]);
+      setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setUserTypes(typesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
     } catch (error) {
-      console.error('Erro ao carregar empresas:', error);
-      alert('Erro ao carregar empresas');
+      console.error('Erro ao carregar dados:', error);
+      alert('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
@@ -49,7 +51,8 @@ function CompaniesManager() {
     setSelectedCompany(company);
     setFormData({
       name: company.name || '',
-      type: company.type || 'cliente',
+      typeId: company.typeId || '',
+      typeName: company.typeName || company.type || '',
       cnpj: company.cnpj || '',
       contactName: company.contact?.name || '',
       contactEmail: company.contact?.email || '',
@@ -65,7 +68,8 @@ function CompaniesManager() {
     setSelectedCompany(null);
     setFormData({
       name: '',
-      type: 'cliente',
+      typeId: '',
+      typeName: '',
       cnpj: '',
       contactName: '',
       contactEmail: '',
@@ -79,23 +83,25 @@ function CompaniesManager() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+    if (name === 'typeId') {
+      const selected = userTypes.find(t => t.id === value);
+      setFormData({ ...formData, typeId: value, typeName: selected?.name || '' });
+    } else {
+      setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+    }
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      alert('Nome da empresa é obrigatório');
-      return;
-    }
+    if (!formData.name.trim()) { alert('Nome da empresa é obrigatório'); return; }
+    if (!formData.typeId) { alert('Selecione um tipo'); return; }
 
     setSaving(true);
     try {
       const companyData = {
         name: formData.name,
-        type: formData.type,
+        type: formData.typeName.toLowerCase(), // compatibilidade legada
+        typeId: formData.typeId,
+        typeName: formData.typeName,
         cnpj: formData.cnpj,
         contact: {
           name: formData.contactName,
@@ -120,7 +126,7 @@ function CompaniesManager() {
         alert('Empresa criada com sucesso!');
       }
 
-      await loadCompanies();
+      await loadData();
       handleNewCompany();
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -132,15 +138,11 @@ function CompaniesManager() {
 
   const handleDelete = async () => {
     if (!selectedCompany) return;
-
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedCompany.name}?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Tem certeza que deseja excluir ${selectedCompany.name}?`)) return;
     try {
       await deleteDoc(doc(db, 'companies', selectedCompany.id));
       alert('Empresa excluída com sucesso!');
-      await loadCompanies();
+      await loadData();
       handleNewCompany();
     } catch (error) {
       console.error('Erro ao excluir:', error);
@@ -151,7 +153,7 @@ function CompaniesManager() {
   const filteredCompanies = companies.filter(company => {
     const matchesSearch = company.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          company.cnpj?.includes(searchTerm);
-    const matchesType = !filterType || company.type === filterType;
+    const matchesType = !filterType || company.typeId === filterType;
     return matchesSearch && matchesType;
   });
 
@@ -175,9 +177,7 @@ function CompaniesManager() {
         <div className="panel panel-list">
           <div className="panel-header">
             <h2>Empresas</h2>
-            <button className="btn-new" onClick={handleNewCompany}>
-              + Nova
-            </button>
+            <button className="btn-new" onClick={handleNewCompany}>+ Nova</button>
           </div>
 
           <div className="search-filters">
@@ -194,16 +194,15 @@ function CompaniesManager() {
               className="filter-select"
             >
               <option value="">Todos os tipos</option>
-              <option value="cliente">Clientes</option>
-              <option value="fornecedor">Fornecedores</option>
+              {userTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
             </select>
           </div>
 
           <div className="companies-list">
             {filteredCompanies.length === 0 ? (
-              <div className="empty-state">
-                <p>Nenhuma empresa encontrada</p>
-              </div>
+              <div className="empty-state"><p>Nenhuma empresa encontrada</p></div>
             ) : (
               filteredCompanies.map(company => (
                 <div
@@ -217,15 +216,9 @@ function CompaniesManager() {
                       {company.active ? 'Ativa' : 'Inativa'}
                     </span>
                   </div>
-                  <p className="company-type">
-                    {company.type === 'cliente' ? 'Cliente' : 'Fornecedor'}
-                  </p>
-                  {company.cnpj && (
-                    <p className="company-cnpj">CNPJ: {company.cnpj}</p>
-                  )}
-                  {company.contact?.email && (
-                    <p className="company-contact">{company.contact.email}</p>
-                  )}
+                  <p className="company-type">{company.typeName || company.type}</p>
+                  {company.cnpj && <p className="company-cnpj">CNPJ: {company.cnpj}</p>}
+                  {company.contact?.email && <p className="company-contact">{company.contact.email}</p>}
                 </div>
               ))
             )}
@@ -244,46 +237,32 @@ function CompaniesManager() {
 
               <div className="form-group">
                 <label>Nome da Empresa *</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="Ex: Ford Brasil"
-                />
+                <input type="text" name="name" value={formData.name} onChange={handleChange}
+                  placeholder="Ex: Ford Brasil" />
               </div>
 
               <div className="form-group">
                 <label>Tipo *</label>
-                <select
-                  name="type"
-                  value={formData.type}
-                  onChange={handleChange}
-                >
-                  <option value="cliente">Cliente</option>
-                  <option value="fornecedor">Fornecedor</option>
+                <select name="typeId" value={formData.typeId} onChange={handleChange}>
+                  <option value="">Selecione um tipo...</option>
+                  {userTypes.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
                 </select>
+                {userTypes.length === 0 && (
+                  <p className="helper-text">Nenhum tipo cadastrado. Cadastre em Gestão de Acessos.</p>
+                )}
               </div>
 
               <div className="form-group">
                 <label>CNPJ</label>
-                <input
-                  type="text"
-                  name="cnpj"
-                  value={formData.cnpj}
-                  onChange={handleChange}
-                  placeholder="00.000.000/0000-00"
-                />
+                <input type="text" name="cnpj" value={formData.cnpj} onChange={handleChange}
+                  placeholder="00.000.000/0000-00" />
               </div>
 
               <div className="form-group">
                 <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    name="active"
-                    checked={formData.active}
-                    onChange={handleChange}
-                  />
+                  <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
                   Empresa ativa
                 </label>
               </div>
@@ -294,35 +273,20 @@ function CompaniesManager() {
 
               <div className="form-group">
                 <label>Nome do Contato</label>
-                <input
-                  type="text"
-                  name="contactName"
-                  value={formData.contactName}
-                  onChange={handleChange}
-                  placeholder="Ex: João Silva"
-                />
+                <input type="text" name="contactName" value={formData.contactName} onChange={handleChange}
+                  placeholder="Ex: João Silva" />
               </div>
 
               <div className="form-group">
                 <label>Email</label>
-                <input
-                  type="email"
-                  name="contactEmail"
-                  value={formData.contactEmail}
-                  onChange={handleChange}
-                  placeholder="contato@empresa.com"
-                />
+                <input type="email" name="contactEmail" value={formData.contactEmail} onChange={handleChange}
+                  placeholder="contato@empresa.com" />
               </div>
 
               <div className="form-group">
                 <label>Telefone</label>
-                <input
-                  type="tel"
-                  name="contactPhone"
-                  value={formData.contactPhone}
-                  onChange={handleChange}
-                  placeholder="(11) 99999-9999"
-                />
+                <input type="tel" name="contactPhone" value={formData.contactPhone} onChange={handleChange}
+                  placeholder="(11) 99999-9999" />
               </div>
             </div>
 
@@ -331,50 +295,29 @@ function CompaniesManager() {
 
               <div className="form-group">
                 <label>Rua/Avenida</label>
-                <input
-                  type="text"
-                  name="street"
-                  value={formData.street}
-                  onChange={handleChange}
-                  placeholder="Rua ABC, 123"
-                />
+                <input type="text" name="street" value={formData.street} onChange={handleChange}
+                  placeholder="Rua ABC, 123" />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label>Cidade</label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    placeholder="São Paulo"
-                  />
+                  <input type="text" name="city" value={formData.city} onChange={handleChange}
+                    placeholder="São Paulo" />
                 </div>
-
                 <div className="form-group">
                   <label>Estado</label>
-                  <input
-                    type="text"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleChange}
-                    placeholder="SP"
-                    maxLength="2"
-                  />
+                  <input type="text" name="state" value={formData.state} onChange={handleChange}
+                    placeholder="SP" maxLength="2" />
                 </div>
               </div>
             </div>
 
             <div className="form-actions">
               {selectedCompany && (
-                <button className="btn-delete" onClick={handleDelete} disabled={saving}>
-                  Excluir
-                </button>
+                <button className="btn-delete" onClick={handleDelete} disabled={saving}>Excluir</button>
               )}
-              <button className="btn-cancel" onClick={handleNewCompany} disabled={saving}>
-                Cancelar
-              </button>
+              <button className="btn-cancel" onClick={handleNewCompany} disabled={saving}>Cancelar</button>
               <button className="btn-save" onClick={handleSave} disabled={saving}>
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
