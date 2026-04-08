@@ -19,21 +19,12 @@ function UserManagement() {
   const [filterType, setFilterType] = useState('');
 
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    cpf: '',
-    password: '',
-    userTypeId: '',
-    userTypeName: '',
-    companyId: '',
-    companyName: '',
-    areaId: '',
-    areaName: '',
-    roleId: '',
-    roleName: '',
-    active: true,
-    selectedProjects: []
+    name: '', email: '', phone: '', cpf: '', password: '',
+    userTypeId: '', userTypeName: '', systemRole: 'none',
+    companyId: '', companyName: '',
+    areaId: '', areaName: '',
+    roleId: '', roleName: '',
+    active: true, selectedProjects: []
   });
 
   const [customPermissions, setCustomPermissions] = useState({});
@@ -72,19 +63,13 @@ function UserManagement() {
   const handleSelectUser = (user) => {
     setSelectedUser(user);
     setFormData({
-      name: user.name || '',
-      email: user.email || '',
-      phone: user.phone || '',
-      cpf: user.cpf || '',
-      password: '',
-      userTypeId: user.userTypeId || '',
-      userTypeName: user.userTypeName || '',
-      companyId: user.companyId || '',
-      companyName: user.companyName || '',
-      areaId: user.areaId || '',
-      areaName: user.areaName || '',
-      roleId: user.roleId || '',
-      roleName: user.roleName || '',
+      name: user.name || '', email: user.email || '', phone: user.phone || '',
+      cpf: user.cpf || '', password: '',
+      userTypeId: user.userTypeId || '', userTypeName: user.userTypeName || '',
+      systemRole: user.systemRole || 'none',
+      companyId: user.companyId || '', companyName: user.companyName || '',
+      areaId: user.areaId || '', areaName: user.areaName || '',
+      roleId: user.roleId || '', roleName: user.roleName || '',
       active: user.active !== undefined ? user.active : true,
       selectedProjects: user.projects?.map(p => p.projectId) || []
     });
@@ -94,51 +79,33 @@ function UserManagement() {
   const handleNewUser = () => {
     setSelectedUser(null);
     setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      cpf: '',
-      password: '',
-      userTypeId: '',
-      userTypeName: '',
-      companyId: '',
-      companyName: '',
-      areaId: '',
-      areaName: '',
-      roleId: '',
-      roleName: '',
-      active: true,
-      selectedProjects: []
+      name: '', email: '', phone: '', cpf: '', password: '',
+      userTypeId: '', userTypeName: '', systemRole: 'none',
+      companyId: '', companyName: '',
+      areaId: '', areaName: '',
+      roleId: '', roleName: '',
+      active: true, selectedProjects: []
     });
     setCustomPermissions({});
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
     if (name === 'userTypeId') {
       const selected = userTypes.find(t => t.id === value);
       setFormData({
         ...formData,
         userTypeId: value,
         userTypeName: selected?.name || '',
-        companyId: '',
-        companyName: '',
-        areaId: '',
-        areaName: '',
-        roleId: '',
-        roleName: ''
+        systemRole: selected?.systemRole || 'none', // ← copia systemRole do tipo
+        companyId: '', companyName: '',
+        areaId: '', areaName: '',
+        roleId: '', roleName: ''
       });
       setCustomPermissions({});
     } else if (name === 'areaId') {
       const selected = areas.find(a => a.id === value);
-      setFormData({
-        ...formData,
-        areaId: value,
-        areaName: selected?.name || '',
-        roleId: '',
-        roleName: ''
-      });
+      setFormData({ ...formData, areaId: value, areaName: selected?.name || '', roleId: '', roleName: '' });
       setCustomPermissions({});
     } else if (name === 'companyId') {
       const selected = companies.find(c => c.id === value);
@@ -193,19 +160,15 @@ function UserManagement() {
     setSaving(true);
     try {
       const userData = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        cpf: formData.cpf,
-        userType: formData.userTypeName.toLowerCase(),
+        name: formData.name, email: formData.email,
+        phone: formData.phone, cpf: formData.cpf,
+        userType: formData.userTypeName.toLowerCase(), // compatibilidade legada
         userTypeId: formData.userTypeId,
         userTypeName: formData.userTypeName,
-        companyId: formData.companyId,
-        companyName: formData.companyName,
-        areaId: formData.areaId,
-        areaName: formData.areaName,
-        roleId: formData.roleId,
-        roleName: formData.roleName,
+        systemRole: formData.systemRole, // ← salva systemRole no usuário
+        companyId: formData.companyId, companyName: formData.companyName,
+        areaId: formData.areaId, areaName: formData.areaName,
+        roleId: formData.roleId, roleName: formData.roleName,
         active: formData.active,
         projects: formData.selectedProjects.map(projId => {
           const project = projects.find(p => p.id === projId);
@@ -275,7 +238,6 @@ function UserManagement() {
       </div>
 
       <div className="three-panel-layout">
-
         {/* PAINEL 1: LISTA */}
         <div className="panel panel-list">
           <div className="panel-header">
@@ -320,7 +282,6 @@ function UserManagement() {
           </div>
           <div className="form-content">
 
-            {/* SEÇÃO: VÍNCULO */}
             <div className="form-section">
               <h3>Vínculo</h3>
 
@@ -371,7 +332,6 @@ function UserManagement() {
               </div>
             </div>
 
-            {/* SEÇÃO: DADOS PESSOAIS */}
             <div className="form-section">
               <h3>Dados Pessoais</h3>
 
@@ -379,28 +339,23 @@ function UserManagement() {
                 <label>Nome Completo *</label>
                 <input type="text" name="name" value={formData.name} onChange={handleChange} />
               </div>
-
               <div className="form-group">
                 <label>Email *</label>
                 <input type="email" name="email" value={formData.email} onChange={handleChange} />
               </div>
-
               <div className="form-group">
                 <label>Telefone</label>
                 <input type="tel" name="phone" value={formData.phone} onChange={handleChange} />
               </div>
-
               <div className="form-group">
                 <label>CPF</label>
                 <input type="text" name="cpf" value={formData.cpf} onChange={handleChange} />
               </div>
-
               <div className="form-group">
                 <label>Senha {!selectedUser && '*'}</label>
                 <input type="password" name="password" value={formData.password} onChange={handleChange}
                   placeholder={selectedUser ? 'Deixe vazio para não alterar' : 'Senha inicial'} />
               </div>
-
               <div className="form-group">
                 <label className="checkbox-label">
                   <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
@@ -409,7 +364,6 @@ function UserManagement() {
               </div>
             </div>
 
-            {/* SEÇÃO: PROJETOS */}
             <div className="form-section">
               <h3>Projetos Vinculados</h3>
               <div className="projects-list">
@@ -448,9 +402,7 @@ function UserManagement() {
             <div className="permissions-header-right">
               {formData.roleName && <span className="role-badge">{formData.roleName}</span>}
               {formData.roleId && (
-                <button className="btn-default" onClick={handleDefaultPermissions} title="Restaurar permissões do cargo">
-                  Default
-                </button>
+                <button className="btn-default" onClick={handleDefaultPermissions}>Default</button>
               )}
             </div>
           </div>
@@ -460,7 +412,6 @@ function UserManagement() {
               <div className="empty-state"><p>Selecione um cargo para configurar permissões</p></div>
             ) : (
               <>
-                {/* Dashboard */}
                 <div className="permission-section">
                   <h3>Dashboard</h3>
                   <div className="perm-item">
@@ -478,7 +429,6 @@ function UserManagement() {
                   </div>
                 </div>
 
-                {/* Perguntas */}
                 {questions.length > 0 && (
                   <div className="permission-section">
                     <h3>Perguntas</h3>
@@ -500,7 +450,6 @@ function UserManagement() {
                   </div>
                 )}
 
-                {/* Tarefas */}
                 {tasks.length > 0 && (
                   <div className="permission-section">
                     <h3>Tarefas</h3>
@@ -522,14 +471,12 @@ function UserManagement() {
                   </div>
                 )}
 
-                {/* Orçamentos */}
                 <div className="permission-section">
                   <h3>Orçamentos</h3>
                   <div className="perm-checkbox-group">
                     {[['budgets.view', 'Visualizar'], ['budgets.edit', 'Editar'], ['budgets.approve', 'Aprovar/Rejeitar']].map(([field, label]) => (
                       <label key={field}>
-                        <input type="checkbox"
-                          checked={!!getPermissionValue(field)}
+                        <input type="checkbox" checked={!!getPermissionValue(field)}
                           onChange={e => handlePermissionChange(field, e.target.checked)} />
                         {label}
                       </label>
@@ -537,14 +484,12 @@ function UserManagement() {
                   </div>
                 </div>
 
-                {/* Documentos */}
                 <div className="permission-section">
                   <h3>Documentos</h3>
                   <div className="perm-checkbox-group">
                     {[['documents.view', 'Visualizar'], ['documents.download', 'Download'], ['documents.upload', 'Upload']].map(([field, label]) => (
                       <label key={field}>
-                        <input type="checkbox"
-                          checked={!!getPermissionValue(field)}
+                        <input type="checkbox" checked={!!getPermissionValue(field)}
                           onChange={e => handlePermissionChange(field, e.target.checked)} />
                         {label}
                       </label>
@@ -557,7 +502,6 @@ function UserManagement() {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

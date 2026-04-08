@@ -18,28 +18,25 @@ import AtendimentoHome from './components/AtendimentoHome';
 import './App.css';
 
 function App() {
-  const [firebaseUser, setFirebaseUser] = useState(null);   // admin via Firebase Auth
-  const [firestoreUser, setFirestoreUser] = useState(null); // outros perfis via Firestore
-  const [userData, setUserData] = useState(null);           // dados do admin no Firestore
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [firestoreUser, setFirestoreUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
 
   useEffect(() => {
-    // Verifica se há usuário Firestore na sessão (atendimento/diretora/cliente)
     const stored = sessionStorage.getItem('firestoreUser');
     if (stored) {
       setFirestoreUser(JSON.parse(stored));
       setLoading(false);
     }
 
-    // Escuta login via Firestore (disparado pelo Login.js)
     const onFirestoreLogin = () => {
       const data = sessionStorage.getItem('firestoreUser');
       if (data) setFirestoreUser(JSON.parse(data));
     };
     window.addEventListener('firestoreLogin', onFirestoreLogin);
 
-    // Escuta Firebase Auth (admin)
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setFirebaseUser(currentUser);
       if (currentUser) {
@@ -47,7 +44,6 @@ function App() {
       } else {
         setUserData(null);
       }
-      // Só termina loading se não há usuário Firestore
       if (!sessionStorage.getItem('firestoreUser')) {
         setLoading(false);
       }
@@ -72,10 +68,8 @@ function App() {
   };
 
   const handleLogout = async () => {
-    // Limpa sessão Firestore
     sessionStorage.removeItem('firestoreUser');
     setFirestoreUser(null);
-    // Limpa Firebase Auth se estiver logado
     try { await signOut(auth); } catch (e) {}
     setFirebaseUser(null);
     setUserData(null);
@@ -93,13 +87,11 @@ function App() {
 
   // ── ROTEAMENTO POR PERFIL ──────────────────────────────────────────────────
 
-  // Usuário Firestore (atendimento / diretora / cliente)
   if (firestoreUser) {
-    const role = firestoreUser.roleName?.toLowerCase() || '';
-    const type = firestoreUser.userType?.toLowerCase() || '';
+    const systemRole = firestoreUser.systemRole || 'none';
 
-    // Atendimento
-    if (type === 'equipe' && !role.includes('diretora')) {
+    // Atendimento → AtendimentoHome
+    if (systemRole === 'atendimento') {
       return (
         <AtendimentoHome
           user={firestoreUser}
@@ -109,8 +101,8 @@ function App() {
       );
     }
 
-    // Diretora (futuro — por ora cai no admin)
-    if (type === 'equipe' && role.includes('diretora')) {
+    // Diretora → AtendimentoHome (futuro: DiretoraPainel)
+    if (systemRole === 'diretora') {
       return (
         <AtendimentoHome
           user={firestoreUser}
@@ -120,8 +112,8 @@ function App() {
       );
     }
 
-    // Cliente (futuro)
-    if (type === 'cliente') {
+    // Cliente → Em breve
+    if (systemRole === 'cliente') {
       return (
         <div className="loading-container">
           <p style={{ color: '#7BAFD4', fontFamily: 'sans-serif' }}>
@@ -133,9 +125,28 @@ function App() {
         </div>
       );
     }
+
+    // Admin via Firestore → painel completo (caso raro)
+    if (systemRole === 'admin') {
+      // cai no painel admin abaixo — não retorna aqui
+    }
+
+    // none ou desconhecido → acesso negado
+    if (systemRole === 'none') {
+      return (
+        <div className="loading-container">
+          <p style={{ color: '#e74c3c', fontFamily: 'sans-serif' }}>
+            Seu usuário não tem acesso ao sistema. Contate o administrador.
+          </p>
+          <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>
+            Sair
+          </button>
+        </div>
+      );
+    }
   }
 
-  // Sem usuário logado → tela de login
+  // Sem usuário logado → login
   if (!firebaseUser && !firestoreUser) {
     return (
       <Router>
@@ -147,7 +158,7 @@ function App() {
     );
   }
 
-  // Admin via Firebase Auth → painel completo
+  // Admin via Firebase Auth (ou systemRole === 'admin') → painel completo
   const isDiretora = userData?.roleName?.toLowerCase().includes('diretora');
 
   return (
