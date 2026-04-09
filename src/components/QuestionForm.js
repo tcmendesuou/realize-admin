@@ -199,6 +199,8 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
     kanbanStage: '',
     required: true,
     active: true,
+    isShared: false,
+    isEventDivider: false,
     order: 1,
     specialType: specialType || null
   });
@@ -220,6 +222,8 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         kanbanStage: editQuestion.kanbanStage || '',
         required: editQuestion.required !== undefined ? editQuestion.required : true,
         active: editQuestion.active !== undefined ? editQuestion.active : true,
+        isShared: editQuestion.isShared || false,
+        isEventDivider: editQuestion.isEventDivider || false,
         order: editQuestion.order || 1,
         specialType: editQuestion.specialType || null
       });
@@ -400,7 +404,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
           )}
 
           {/* CHECKBOXES */}
-          <div className="form-row" style={{ gap: '2rem', marginBottom: '1.5rem' }}>
+          <div className="form-row" style={{ gap: '2rem', marginBottom: '1rem' }}>
             <label className="qf-checkbox">
               <input type="checkbox" name="required" checked={formData.required} onChange={handleChange} />
               Obrigatória
@@ -410,6 +414,40 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
               Ativa
             </label>
           </div>
+
+          {/* TOGGLES DE EVENTO */}
+          {!isSpecialMode && (
+            <div className="qf-event-toggles">
+              <label className={`qf-toggle ${formData.isShared ? 'qf-toggle--on' : ''}`}>
+                <input type="checkbox" name="isShared" checked={formData.isShared}
+                  onChange={handleChange}
+                  disabled={formData.isEventDivider} />
+                <span className="qf-toggle-icon">🔗</span>
+                <span>
+                  <strong>Comum a todos os eventos</strong>
+                  <small>Respondida uma vez, vale para todos os eventos do briefing</small>
+                </span>
+              </label>
+
+              <label className={`qf-toggle qf-toggle--divider ${formData.isEventDivider ? 'qf-toggle--on' : ''}`}>
+                <input type="checkbox" name="isEventDivider" checked={formData.isEventDivider}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setFormData(prev => ({
+                      ...prev,
+                      isEventDivider: checked,
+                      isShared: checked ? false : prev.isShared,
+                      type: checked ? 'number' : prev.type
+                    }));
+                  }} />
+                <span className="qf-toggle-icon">✂️</span>
+                <span>
+                  <strong>Divisor de eventos</strong>
+                  <small>Esta pergunta define quantos eventos o briefing vai gerar</small>
+                </span>
+              </label>
+            </div>
+          )}
 
           {/* OPÇÕES DE RESPOSTA */}
           {showOptions && (

@@ -128,6 +128,8 @@ function QuestionList() {
                     <td className="question-text-cell">
                       <strong>{question.text}</strong>
                       {question.required && <span className="required-indicator">*</span>}
+                      {question.isEventDivider && <span className="badge-divider" title="Divisor de eventos">✂️</span>}
+                      {question.isShared && <span className="badge-shared" title="Comum a todos os eventos">🔗</span>}
                     </td>
                     <td>{translateType(question.type)}</td>
                     <td>
