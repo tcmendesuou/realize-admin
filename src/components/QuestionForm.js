@@ -25,7 +25,16 @@ const QUESTION_TYPES = [
   { value: 'date',        label: 'Data' },
   { value: 'currency',    label: 'Valor em Reais' },
   { value: 'yesno',       label: 'Sim/Não' },
+  // ── Perguntas Fixas ──
+  { value: 'fixed-client',      label: '⚙ Cliente (Fixa)', fixed: true },
+  { value: 'fixed-responsible', label: '⚙ Responsável (Fixa)', fixed: true },
+  { value: 'fixed-attendant',   label: '⚙ Atendimento (Fixa)', fixed: true },
+  { value: 'fixed-date',        label: '⚙ Data do Evento (Fixa)', fixed: true },
+  { value: 'fixed-events',      label: '⚙ Múltiplos Eventos (Fixa)', fixed: true },
 ];
+
+const FIXED_TYPES = ['fixed-client', 'fixed-responsible', 'fixed-attendant', 'fixed-date', 'fixed-events'];
+const isFixedType = (type) => FIXED_TYPES.includes(type);
 
 // Cria uma subpergunta vazia
 const newSubQuestion = (trigger = '') => ({
@@ -200,7 +209,6 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
     required: true,
     active: true,
     isShared: false,
-    isEventDivider: false,
     order: 1,
     specialType: specialType || null
   });
@@ -223,7 +231,6 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         required: editQuestion.required !== undefined ? editQuestion.required : true,
         active: editQuestion.active !== undefined ? editQuestion.active : true,
         isShared: editQuestion.isShared || false,
-        isEventDivider: editQuestion.isEventDivider || false,
         order: editQuestion.order || 1,
         specialType: editQuestion.specialType || null
       });
@@ -335,13 +342,17 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
   };
 
   const filteredRoles = roles.filter(r => r.areaId === formData.areaId);
-  const canHaveSubs = !isSpecialMode && (formData.type === 'yesno' || showOptions);
+  const isFixed = isFixedType(formData.type);
+  const canHaveSubs = !isSpecialMode && !isFixed && (formData.type === 'yesno' || showOptions);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{getModalTitle()}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2>{getModalTitle()}</h2>
+            {isFixed && <span className="qf-fixed-badge">⚙ FIXA</span>}
+          </div>
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
@@ -403,6 +414,17 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             </>
           )}
 
+          {/* PREVIEW PERGUNTA FIXA */}
+          {isFixed && (
+            <div className="qf-fixed-preview">
+              {formData.type === 'fixed-client' && <><span>🏢</span><span>Abre lista dos <strong>clientes cadastrados</strong> para seleção</span></>}
+              {formData.type === 'fixed-responsible' && <><span>👤</span><span>Abre lista dos <strong>usuários da equipe</strong> para seleção</span></>}
+              {formData.type === 'fixed-attendant' && <><span>🎯</span><span>Preenchido automaticamente com o <strong>atendimento logado</strong> (editável)</span></>}
+              {formData.type === 'fixed-date' && <><span>📅</span><span>Preenchido automaticamente com a <strong>data de hoje</strong> (editável)</span></>}
+              {formData.type === 'fixed-events' && <><span>✂️</span><span>Define <strong>quantos eventos</strong> o briefing vai gerar — abre boxes de nome, local e data para cada um</span></>}
+            </div>
+          )}
+
           {/* CHECKBOXES */}
           <div className="form-row" style={{ gap: '2rem', marginBottom: '1rem' }}>
             <label className="qf-checkbox">
@@ -415,35 +437,15 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             </label>
           </div>
 
-          {/* TOGGLES DE EVENTO */}
-          {!isSpecialMode && (
+          {/* TOGGLE COMUM */}
+          {!isSpecialMode && !isFixed && (
             <div className="qf-event-toggles">
               <label className={`qf-toggle ${formData.isShared ? 'qf-toggle--on' : ''}`}>
-                <input type="checkbox" name="isShared" checked={formData.isShared}
-                  onChange={handleChange}
-                  disabled={formData.isEventDivider} />
+                <input type="checkbox" name="isShared" checked={formData.isShared} onChange={handleChange} />
                 <span className="qf-toggle-icon">🔗</span>
                 <span>
                   <strong>Comum a todos os eventos</strong>
                   <small>Respondida uma vez, vale para todos os eventos do briefing</small>
-                </span>
-              </label>
-
-              <label className={`qf-toggle qf-toggle--divider ${formData.isEventDivider ? 'qf-toggle--on' : ''}`}>
-                <input type="checkbox" name="isEventDivider" checked={formData.isEventDivider}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setFormData(prev => ({
-                      ...prev,
-                      isEventDivider: checked,
-                      isShared: checked ? false : prev.isShared,
-                      type: checked ? 'number' : prev.type
-                    }));
-                  }} />
-                <span className="qf-toggle-icon">✂️</span>
-                <span>
-                  <strong>Divisor de eventos</strong>
-                  <small>Esta pergunta define quantos eventos o briefing vai gerar</small>
                 </span>
               </label>
             </div>

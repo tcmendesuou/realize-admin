@@ -63,10 +63,15 @@ function QuestionList() {
     const types = {
       multiple: 'Múltipla Escolha', multiselect: 'Seleção Múltipla',
       number: 'Número', text: 'Texto Curto', textarea: 'Texto Longo',
-      date: 'Data', currency: 'Valor em Reais', yesno: 'Sim/Não'
+      date: 'Data', currency: 'Valor em Reais', yesno: 'Sim/Não',
+      'fixed-client': '⚙ Cliente', 'fixed-responsible': '⚙ Responsável',
+      'fixed-attendant': '⚙ Atendimento', 'fixed-date': '⚙ Data Evento',
+      'fixed-events': '⚙ Múlt. Eventos',
     };
     return types[type] || type;
   };
+
+  const FIXED_TYPES = ['fixed-client','fixed-responsible','fixed-attendant','fixed-date','fixed-events'];
 
   const filteredQuestions = questions.filter(q => {
     if (filterArea !== 'all' && q.areaId !== filterArea) return false;
@@ -128,10 +133,14 @@ function QuestionList() {
                     <td className="question-text-cell">
                       <strong>{question.text}</strong>
                       {question.required && <span className="required-indicator">*</span>}
-                      {question.isEventDivider && <span className="badge-divider" title="Divisor de eventos">✂️</span>}
-                      {question.isShared && <span className="badge-shared" title="Comum a todos os eventos">🔗</span>}
+                      {question.isShared && <span className="badge-shared" title="Comum a todos os eventos"> 🔗</span>}
                     </td>
-                    <td>{translateType(question.type)}</td>
+                    <td>
+                      {FIXED_TYPES.includes(question.type)
+                        ? <span className="badge-fixed">{translateType(question.type)}</span>
+                        : translateType(question.type)
+                      }
+                    </td>
                     <td>
                       <span className="responsible-area">{question.areaName || '—'}</span>
                       {question.roleName && <span className="responsible-role">{question.roleName}</span>}
