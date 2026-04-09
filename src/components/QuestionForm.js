@@ -58,7 +58,7 @@ const newOption = () => ({
 // ─── Componente recursivo de subpergunta ───────────────────────────────────
 function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRemove }) {
   const needsOptions = sub.type === 'multiple' || sub.type === 'multiselect';
-  const canHaveChildren = sub.type === 'yesno' || sub.type === 'multiple' || sub.type === 'multiselect';
+  const canHaveChildren = !isFixedType(sub.type);
 
   const depthColors = [
     { border: '#667eea', bg: '#f0f3ff', badge: '#667eea' },
@@ -105,16 +105,24 @@ function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRe
         </span>
         <div className="sq-trigger-row">
           <span className="sq-trigger-label">Exibir se resposta for:</span>
-          <select className="sq-trigger-select" value={sub.trigger}
-            onChange={e => updateField('trigger', e.target.value)}>
-            {parentType === 'yesno' ? (
-              <><option value="yes">SIM</option><option value="no">NÃO</option></>
-            ) : (
-              parentOptions.map(opt => (
+          {parentType === 'yesno' ? (
+            <select className="sq-trigger-select" value={sub.trigger}
+              onChange={e => updateField('trigger', e.target.value)}>
+              <option value="yes">SIM</option>
+              <option value="no">NÃO</option>
+            </select>
+          ) : (parentType === 'multiple' || parentType === 'multiselect') ? (
+            <select className="sq-trigger-select" value={sub.trigger}
+              onChange={e => updateField('trigger', e.target.value)}>
+              {parentOptions.map(opt => (
                 <option key={opt.id} value={opt.id}>{opt.label || '(sem nome)'}</option>
-              ))
-            )}
-          </select>
+              ))}
+            </select>
+          ) : (
+            <input className="sq-trigger-select" type="text" value={sub.trigger}
+              placeholder="Digite o valor que ativa..."
+              onChange={e => updateField('trigger', e.target.value)} />
+          )}
         </div>
         <button type="button" className="sq-remove-btn" onClick={onRemove}>✕ Remover</button>
       </div>
@@ -352,7 +360,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const filteredRoles = roles.filter(r => r.areaId === formData.areaId);
   const isFixed = isFixedType(formData.type);
-  const canHaveSubs = !isSpecialMode && !isFixed && (formData.type === 'yesno' || showOptions);
+  const canHaveSubs = !isSpecialMode && !isFixed;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
