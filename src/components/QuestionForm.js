@@ -58,7 +58,7 @@ const newOption = () => ({
 // ─── Componente recursivo de subpergunta ───────────────────────────────────
 function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRemove }) {
   const needsOptions = sub.type === 'multiple' || sub.type === 'multiselect';
-  const canHaveChildren = !isFixedType(sub.type);
+  const canHaveChildren = sub.type === 'yesno' || sub.type === 'multiple' || sub.type === 'multiselect';
 
   const depthColors = [
     { border: '#667eea', bg: '#f0f3ff', badge: '#667eea' },
@@ -105,24 +105,16 @@ function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRe
         </span>
         <div className="sq-trigger-row">
           <span className="sq-trigger-label">Exibir se resposta for:</span>
-          {parentType === 'yesno' ? (
-            <select className="sq-trigger-select" value={sub.trigger}
-              onChange={e => updateField('trigger', e.target.value)}>
-              <option value="yes">SIM</option>
-              <option value="no">NÃO</option>
-            </select>
-          ) : (parentType === 'multiple' || parentType === 'multiselect') ? (
-            <select className="sq-trigger-select" value={sub.trigger}
-              onChange={e => updateField('trigger', e.target.value)}>
-              {parentOptions.map(opt => (
+          <select className="sq-trigger-select" value={sub.trigger}
+            onChange={e => updateField('trigger', e.target.value)}>
+            {parentType === 'yesno' ? (
+              <><option value="yes">SIM</option><option value="no">NÃO</option></>
+            ) : (
+              parentOptions.map(opt => (
                 <option key={opt.id} value={opt.id}>{opt.label || '(sem nome)'}</option>
-              ))}
-            </select>
-          ) : (
-            <input className="sq-trigger-select" type="text" value={sub.trigger}
-              placeholder="Digite o valor que ativa..."
-              onChange={e => updateField('trigger', e.target.value)} />
-          )}
+              ))
+            )}
+          </select>
         </div>
         <button type="button" className="sq-remove-btn" onClick={onRemove}>✕ Remover</button>
       </div>
@@ -138,9 +130,10 @@ function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRe
           <div className="sq-field sq-field-sm">
             <label>Tipo de resposta</label>
             <select value={sub.type} onChange={e => {
-              const needsOpts = e.target.value === 'multiple' || e.target.value === 'multiselect';
-              updateField('type', e.target.value);
-              if (!needsOpts) onChange({ ...sub, type: e.target.value, options: [], subQuestions: [] });
+              const newType = e.target.value;
+              const needsOpts = newType === 'multiple' || newType === 'multiselect';
+              if (!needsOpts) onChange({ ...sub, type: newType, options: [] });
+              else onChange({ ...sub, type: newType });
             }}>
               {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -289,7 +282,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
   };
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type: inputType, checked } = e.target;
     if (name === 'areaId') {
       const selected = areas.find(a => a.id === value);
       setFormData({ ...formData, areaId: value, areaName: selected?.name || '', roleId: '', roleName: '' });
@@ -298,12 +291,12 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
       setFormData({ ...formData, roleId: value, roleName: selected?.name || '' });
     } else if (name === 'type') {
       setFormData({ ...formData, type: value });
+      // Limpa options se não for múltipla escolha, mas mantém subperguntas
       if (value !== 'multiple' && value !== 'multiselect') {
         setOptions([]);
-        setSubQuestions([]);
       }
     } else {
-      setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+      setFormData({ ...formData, [name]: inputType === 'checkbox' ? checked : value });
     }
   };
 
@@ -360,7 +353,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const filteredRoles = roles.filter(r => r.areaId === formData.areaId);
   const isFixed = isFixedType(formData.type);
-  const canHaveSubs = !isSpecialMode && !isFixed;
+  const canHaveSubs = !isSpecialMode && !isFixed && (formData.type === 'yesno' || showOptions);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
