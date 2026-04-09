@@ -257,7 +257,6 @@ body {
 .content-area {
   flex: 1;
   padding: 28px 30px;
-  overflow-y: auto;
 }
 
 /* RESPONSIVE */
