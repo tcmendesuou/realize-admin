@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 import ProjetoScreen from './ProjetoScreen';
 
 const KANBAN_STAGES = [
@@ -54,6 +55,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   // Usuários clientes da empresa selecionada
   const [clientUsers, setClientUsers] = useState([]);
+
+  // Controle de uploads em andamento por questionId
+  const [uploadingFiles, setUploadingFiles] = useState({});
 
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
@@ -333,6 +337,34 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
           </div>
         );
       }
+      if (q.type === 'upload') {
+        const key = `${q.id}_${feiraIndex}`;
+        const uploading = uploadingFiles[key];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', borderRadius: 8, cursor: uploading ? 'not-allowed' : 'pointer',
+              border: '1px dashed rgba(0,229,196,0.4)', background: 'rgba(0,229,196,0.04)',
+              color: '#00E5C4', fontSize: 13, opacity: uploading ? 0.6 : 1
+            }}>
+              <span>📎</span>
+              <span>{uploading ? 'Enviando...' : 'Clique para selecionar arquivo'}</span>
+              <input type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }}
+                disabled={uploading}
+                onChange={e => handleUpload(q.id, e.target.files[0], feiraIndex)} />
+            </label>
+            {val && (
+              <a href={val} target="_blank" rel="noopener noreferrer" style={{
+                fontSize: 12, color: '#7BAFD4', textDecoration: 'underline',
+                display: 'flex', alignItems: 'center', gap: 6
+              }}>
+                ✓ Arquivo enviado — clique para visualizar
+              </a>
+            )}
+          </div>
+        );
+      }
       return <input type="text" value={val}
         onChange={e => handleAnswerFeiraChange(q.id, feiraIndex, e.target.value)}
         style={base} placeholder="Sua resposta..." />;
@@ -403,6 +435,28 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         </div>
       </div>
     );
+  };
+
+  const handleUpload = async (questionId, file, feiraIndex = null) => {
+    if (!file) return;
+    const key = feiraIndex !== null ? `${questionId}_${feiraIndex}` : questionId;
+    setUploadingFiles(prev => ({ ...prev, [key]: true }));
+    try {
+      const path = `briefings/${briefingForm.eventTypeId}/${questionId}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      if (feiraIndex !== null) {
+        handleAnswerFeiraChange(questionId, feiraIndex, url);
+      } else {
+        handleAnswerChange(questionId, url);
+      }
+    } catch (err) {
+      console.error('Erro ao fazer upload:', err);
+      alert('Erro ao subir o arquivo. Tente novamente.');
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [key]: false }));
+    }
   };
 
   const renderQuestionInput = (q) => {
@@ -559,6 +613,34 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               }}>{opt.label}</button>
             );
           })}
+        </div>
+      );
+    }
+    if (q.type === 'upload') {
+      const uploading = uploadingFiles[q.id];
+      const url = val;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px', borderRadius: 8, cursor: uploading ? 'not-allowed' : 'pointer',
+            border: '1px dashed rgba(0,229,196,0.4)', background: 'rgba(0,229,196,0.04)',
+            color: '#00E5C4', fontSize: 13, opacity: uploading ? 0.6 : 1
+          }}>
+            <span>📎</span>
+            <span>{uploading ? 'Enviando...' : 'Clique para selecionar arquivo'}</span>
+            <input type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }}
+              disabled={uploading}
+              onChange={e => handleUpload(q.id, e.target.files[0])} />
+          </label>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer" style={{
+              fontSize: 12, color: '#7BAFD4', textDecoration: 'underline',
+              display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              ✓ Arquivo enviado — clique para visualizar
+            </a>
+          )}
         </div>
       );
     }
