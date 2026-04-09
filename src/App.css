@@ -104,6 +104,13 @@ body {
   gap: 2px;
 }
 
+.nav-separator {
+  height: 1px;
+  background: rgba(123, 175, 212, 0.25);
+  margin: 6px 14px;
+  border-radius: 1px;
+}
+
 .nav-item {
   background: none;
   border: none;

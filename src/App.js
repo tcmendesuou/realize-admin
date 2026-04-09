@@ -172,25 +172,44 @@ function App() {
           </div>
 
           <nav className="sidebar-nav">
-            {['dashboard','projects','flows','questions','tasks','eventTypes','roles','companies','users'].map(view => (
-              <button
-                key={view}
-                className={activeView === view ? 'nav-item active' : 'nav-item'}
-                onClick={() => setActiveView(view)}
-              >
-                <span className="nav-text">
-                  {view === 'dashboard'   && 'Dashboard'}
-                  {view === 'projects'    && 'Projetos'}
-                  {view === 'flows'       && 'Fluxos'}
-                  {view === 'questions'   && 'Perguntas'}
-                  {view === 'tasks'       && 'Tarefas'}
-                  {view === 'eventTypes'  && 'Tipos de Eventos'}
-                  {view === 'roles'       && 'Gestão de Acessos'}
-                  {view === 'companies'   && 'Empresas'}
-                  {view === 'users'       && 'Cadastros'}
-                </span>
-              </button>
-            ))}
+            {/* Dashboard */}
+            <button className={activeView === 'dashboard' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('dashboard')}>
+              <span className="nav-text">Dashboard</span>
+            </button>
+
+            {/* Projetos + separador abaixo */}
+            <button className={activeView === 'projects' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('projects')}>
+              <span className="nav-text">Projetos</span>
+            </button>
+            <div className="nav-separator" />
+
+            {/* Configuração de eventos */}
+            <button className={activeView === 'eventTypes' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('eventTypes')}>
+              <span className="nav-text">Tipos de Eventos</span>
+            </button>
+            <button className={activeView === 'flows' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('flows')}>
+              <span className="nav-text">Fluxos de Eventos</span>
+            </button>
+            <button className={activeView === 'questions' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('questions')}>
+              <span className="nav-text">Perguntas</span>
+            </button>
+            <button className={activeView === 'tasks' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tasks')}>
+              <span className="nav-text">Tarefas</span>
+            </button>
+
+            {/* Separador antes de Gestão de Acessos */}
+            <div className="nav-separator" />
+
+            {/* Gestão */}
+            <button className={activeView === 'roles' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('roles')}>
+              <span className="nav-text">Gestão de Acessos</span>
+            </button>
+            <button className={activeView === 'companies' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('companies')}>
+              <span className="nav-text">Cadastro de Empresas</span>
+            </button>
+            <button className={activeView === 'users' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('users')}>
+              <span className="nav-text">Cadastros</span>
+            </button>
           </nav>
 
           <div className="sidebar-footer">
