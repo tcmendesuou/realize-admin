@@ -370,38 +370,102 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         style={base} placeholder="Sua resposta..." />;
     };
 
-    // Subperguntas visíveis por feira (yesno: se Sim, mostra subs com trigger 'yes')
+    // Subperguntas visíveis por feira
     const renderSubs = (feiraIndex) => {
       const val = (briefingForm.answers[q.id] || {})[feiraIndex] || '';
       if (!q.subQuestions || q.subQuestions.length === 0) return null;
+
       const activeSubs = q.subQuestions.filter(sub => {
+        if (!sub.trigger) return false;
         if (q.type === 'yesno') return sub.trigger === 'yes' ? val === 'Sim' : val === 'Não';
-        return sub.trigger === val; // múltipla escolha
+        if (q.type === 'multiple' || q.type === 'multiselect') return sub.trigger === val || sub.trigger === (q.options?.find(o => o.label === val)?.id);
+        // Tipos livres (text, number, etc.) — compara valor digitado com trigger
+        return val.toString().trim().toLowerCase() === sub.trigger.toString().trim().toLowerCase();
       });
+
       if (activeSubs.length === 0) return null;
+
+      const renderSubInput = (sub, subVal, feiraIdx) => {
+        if (sub.type === 'yesno') {
+          return (
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['Sim', 'Não'].map(opt => (
+                <button key={opt} onClick={() => handleAnswerFeiraChange(sub.id, feiraIdx, opt)} style={{
+                  ...base, width: 'auto', padding: '6px 14px', cursor: 'pointer', fontSize: 12,
+                  background: subVal === opt ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                  borderColor: subVal === opt ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                  color: subVal === opt ? '#00E5C4' : '#E8F4FF'
+                }}>{opt}</button>
+              ))}
+            </div>
+          );
+        }
+        if (sub.type === 'multiple' || sub.type === 'multiselect') {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(sub.options || []).map(opt => {
+                const sel = sub.type === 'multiple' ? subVal === opt.label : (Array.isArray(subVal) ? subVal.includes(opt.label) : false);
+                return (
+                  <button key={opt.id} onClick={() => {
+                    if (sub.type === 'multiple') handleAnswerFeiraChange(sub.id, feiraIdx, opt.label);
+                    else {
+                      const arr = Array.isArray(subVal) ? subVal : [];
+                      handleAnswerFeiraChange(sub.id, feiraIdx, sel ? arr.filter(v => v !== opt.label) : [...arr, opt.label]);
+                    }
+                  }} style={{
+                    ...base, width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: 12,
+                    background: sel ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.04)',
+                    borderColor: sel ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                    color: sel ? '#00E5C4' : '#E8F4FF'
+                  }}>{opt.label}</button>
+                );
+              })}
+            </div>
+          );
+        }
+        if (sub.type === 'upload') {
+          const key = `${sub.id}_${feiraIdx}`;
+          const uploading = uploadingFiles[key];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                borderRadius: 8, cursor: uploading ? 'not-allowed' : 'pointer',
+                border: '1px dashed rgba(0,229,196,0.4)', background: 'rgba(0,229,196,0.04)',
+                color: '#00E5C4', fontSize: 12, opacity: uploading ? 0.6 : 1
+              }}>
+                <span>📎</span>
+                <span>{uploading ? 'Enviando...' : 'Clique para selecionar arquivo'}</span>
+                <input type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }}
+                  disabled={uploading}
+                  onChange={e => handleUpload(sub.id, e.target.files[0], feiraIdx)} />
+              </label>
+              {subVal && (
+                <a href={subVal} target="_blank" rel="noopener noreferrer" style={{
+                  fontSize: 11, color: '#7BAFD4', textDecoration: 'underline',
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}>✓ Arquivo enviado — clique para visualizar</a>
+              )}
+            </div>
+          );
+        }
+        return (
+          <input type={sub.type === 'textarea' ? 'text' : (sub.type === 'currency' ? 'number' : sub.type)}
+            value={subVal} onChange={e => handleAnswerFeiraChange(sub.id, feiraIdx, e.target.value)}
+            style={{ ...base, fontSize: 12 }} placeholder="Sua resposta..." />
+        );
+      };
+
       return (
-        <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: '2px solid rgba(0,229,196,0.2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: '2px solid rgba(0,229,196,0.2)', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {activeSubs.map(sub => {
             const subVal = (briefingForm.answers[sub.id] || {})[feiraIndex] || '';
             return (
               <div key={sub.id}>
-                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 4 }}>{sub.text}{sub.required && <span style={{ color: '#E74C3C' }}> *</span>}</div>
-                {sub.type === 'yesno' ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {['Sim', 'Não'].map(opt => (
-                      <button key={opt} onClick={() => handleAnswerFeiraChange(sub.id, feiraIndex, opt)} style={{
-                        ...base, width: 'auto', padding: '6px 14px', cursor: 'pointer', fontSize: 12,
-                        background: subVal === opt ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
-                        borderColor: subVal === opt ? '#00E5C4' : 'rgba(0,180,255,0.15)',
-                        color: subVal === opt ? '#00E5C4' : '#E8F4FF'
-                      }}>{opt}</button>
-                    ))}
-                  </div>
-                ) : (
-                  <input type={sub.type === 'textarea' ? 'text' : sub.type} value={subVal}
-                    onChange={e => handleAnswerFeiraChange(sub.id, feiraIndex, e.target.value)}
-                    style={{ ...base, fontSize: 12 }} placeholder="Sua resposta..." />
-                )}
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 6 }}>
+                  {sub.text}{sub.required && <span style={{ color: '#E74C3C' }}> *</span>}
+                </div>
+                {renderSubInput(sub, subVal, feiraIndex)}
               </div>
             );
           })}
