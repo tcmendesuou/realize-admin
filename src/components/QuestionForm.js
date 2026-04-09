@@ -25,7 +25,6 @@ const QUESTION_TYPES = [
   { value: 'date',        label: 'Data' },
   { value: 'currency',    label: 'Valor em Reais' },
   { value: 'yesno',       label: 'Sim/Não' },
-  { value: 'upload',      label: '📎 Upload de Arquivo' },
   // ── Perguntas Fixas ──
   { value: 'fixed-client',      label: '⚙ Cliente (Fixa)', fixed: true },
   { value: 'fixed-responsible', label: '⚙ Responsável (Fixa)', fixed: true },
@@ -384,31 +383,31 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             </div>
           )}
 
-          {/* TEXTO */}
-          <div className="form-group">
-            <label>Texto da Pergunta *</label>
-            <input type="text" name="text" value={formData.text} onChange={handleChange}
-              placeholder="Ex: Quantas pessoas vão participar?" required />
+          {/* LINHA 1: Texto + Ordem */}
+          <div className="form-row">
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Texto da Pergunta *</label>
+              <input type="text" name="text" value={formData.text} onChange={handleChange}
+                placeholder="Ex: Quantas pessoas vão participar?" required />
+            </div>
+            {!isSpecialMode && (
+              <div className="form-group" style={{ flex: '0 0 100px' }}>
+                <label>Ordem *</label>
+                <input type="number" name="order" value={formData.order} onChange={handleChange} min="1" required />
+              </div>
+            )}
           </div>
 
           {!isSpecialMode && (
             <>
-              {/* LINHA 1: Tipo (maior) + Ordem (menor) */}
+              {/* LINHA 2: Tipo + Área + Cargo */}
               <div className="form-row">
-                <div className="form-group" style={{ flex: 3 }}>
+                <div className="form-group" style={{ flex: 1 }}>
                   <label>Tipo de Resposta *</label>
                   <select name="type" value={formData.type} onChange={handleChange}>
                     {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Ordem *</label>
-                  <input type="number" name="order" value={formData.order} onChange={handleChange} min="1" required />
-                </div>
-              </div>
-
-              {/* LINHA 2: Área + Cargo + Etapa Kanban — mesmo tamanho */}
-              <div className="form-row">
                 <div className="form-group" style={{ flex: 1 }}>
                   <label>Área Responsável</label>
                   <select name="areaId" value={formData.areaId} onChange={handleChange}>
@@ -419,10 +418,14 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
                 <div className="form-group" style={{ flex: 1 }}>
                   <label>Cargo Responsável</label>
                   <select name="roleId" value={formData.roleId} onChange={handleChange} disabled={!formData.areaId}>
-                    <option value="">{!formData.areaId ? 'Selecione uma área...' : 'Selecione um cargo...'}</option>
+                    <option value="">{!formData.areaId ? 'Selecione área...' : 'Selecione cargo...'}</option>
                     {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </div>
+              </div>
+
+              {/* LINHA 3: Etapa Kanban sozinha */}
+              <div className="form-row">
                 <div className="form-group" style={{ flex: 1 }}>
                   <label>Etapa do Kanban</label>
                   <select name="kanbanStage" value={formData.kanbanStage} onChange={handleChange}>
@@ -445,16 +448,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             </div>
           )}
 
-          {/* PREVIEW UPLOAD */}
-          {formData.type === 'upload' && (
-            <div className="qf-upload-preview">
-              <span>📎</span>
-              <div>
-                <strong>Upload de Arquivo</strong>
-                <small>O atendimento poderá subir imagens ou documentos (PDF, JPG, PNG). Os arquivos serão salvos no Firebase Storage.</small>
-              </div>
-            </div>
-          )}
+          {/* CHECKBOXES */}
           <div className="form-row" style={{ gap: '2rem', marginBottom: '1rem' }}>
             <label className="qf-checkbox">
               <input type="checkbox" name="required" checked={formData.required} onChange={handleChange} />
