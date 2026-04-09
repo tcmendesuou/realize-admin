@@ -50,7 +50,10 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   // Estado para feiras (bloco fixo-events)
   const [numFeiras, setNumFeiras] = useState('');
-  const [feiras, setFeiras] = useState([]); // [{ nome, local, data }]
+  const [feiras, setFeiras] = useState([]); // [{ nome, local, dataInicio, dataFim }]
+
+  // Usuários clientes da empresa selecionada
+  const [clientUsers, setClientUsers] = useState([]);
 
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
@@ -103,11 +106,19 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   const loadCompaniesAndEventTypes = async () => {
     try {
-      const [compSnap, etSnap] = await Promise.all([
+      const [compSnap, etSnap, utSnap] = await Promise.all([
         getDocs(collection(db, 'companies')),
-        getDocs(query(collection(db, 'eventTypes'), where('active', '==', true)))
+        getDocs(query(collection(db, 'eventTypes'), where('active', '==', true))),
+        getDocs(collection(db, 'userTypes')),
       ]);
-      setCompanies(compSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      // IDs dos userTypes que NÃO são agência (systemRole !== 'workspace' e !== 'admin')
+      const clientTypeIds = utSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => t.systemRole !== 'workspace' && t.systemRole !== 'admin')
+        .map(t => t.id);
+      // Só empresas cujo typeId é de cliente
+      const allCompanies = compSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCompanies(allCompanies.filter(c => clientTypeIds.includes(c.typeId)));
       setEventTypes(etSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error('Erro ao carregar empresas/tipos:', err);
@@ -160,7 +171,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const handleNumFeirasChange = (n) => {
     const num = parseInt(n) || 0;
     setNumFeiras(n);
-    setFeiras(Array.from({ length: num }, (_, i) => feiras[i] || { nome: '', local: '', data: '' }));
+    setFeiras(Array.from({ length: num }, (_, i) => feiras[i] || { nome: '', local: '', dataInicio: '', dataFim: '' }));
   };
 
   const handleFeiraChange = (index, field, value) => {
@@ -262,20 +273,34 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     // ── Campos do bloco fixo ──
     if (q.type === 'fixed-client') {
       return (
-        <select value={briefingForm.companyId} onChange={e => {
+        <select value={briefingForm.companyId} onChange={async e => {
           const c = companies.find(x => x.id === e.target.value);
-          setBriefingForm(f => ({ ...f, companyId: e.target.value, companyName: c?.name || '' }));
-        }} style={base}>
-          <option value="">Selecione a empresa...</option>
-          {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          setBriefingForm(f => ({ ...f, companyId: e.target.value, companyName: c?.name || '', clientName: '', clientUserId: '' }));
+          // Busca usuários clientes da empresa selecionada
+          if (e.target.value) {
+            try {
+              const usersSnap = await getDocs(query(collection(db, 'users'), where('companyId', '==', e.target.value)));
+              setClientUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            } catch { setClientUsers([]); }
+          } else {
+            setClientUsers([]);
+          }
+        }} style={{ ...base, color: '#E8F4FF' }}>
+          <option value="" style={{ background: '#111f30', color: '#E8F4FF' }}>Selecione a empresa...</option>
+          {companies.map(c => <option key={c.id} value={c.id} style={{ background: '#111f30', color: '#E8F4FF' }}>{c.name}</option>)}
         </select>
       );
     }
     if (q.type === 'fixed-responsible') {
       return (
-        <input type="text" value={briefingForm.clientName}
-          onChange={e => setBriefingForm(f => ({ ...f, clientName: e.target.value }))}
-          style={base} placeholder="Nome do responsável..." />
+        <select value={briefingForm.clientName} onChange={e => {
+          setBriefingForm(f => ({ ...f, clientName: e.target.value }));
+        }} style={{ ...base, color: '#E8F4FF' }} disabled={!briefingForm.companyId}>
+          <option value="" style={{ background: '#111f30', color: '#E8F4FF' }}>
+            {!briefingForm.companyId ? 'Selecione a empresa primeiro...' : 'Selecione o responsável...'}
+          </option>
+          {clientUsers.map(u => <option key={u.id} value={u.name} style={{ background: '#111f30', color: '#E8F4FF' }}>{u.name}</option>)}
+        </select>
       );
     }
     if (q.type === 'fixed-attendant') {
@@ -307,10 +332,16 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               <span style={{ fontSize: 11, color: '#00E5C4', letterSpacing: 1 }}>FEIRA {i + 1}</span>
               <input type="text" placeholder="Nome da feira" value={f.nome}
                 onChange={e => handleFeiraChange(i, 'nome', e.target.value)} style={base} />
-              <input type="text" placeholder="Local" value={f.local}
-                onChange={e => handleFeiraChange(i, 'local', e.target.value)} style={base} />
-              <input type="date" value={f.data}
-                onChange={e => handleFeiraChange(i, 'data', e.target.value)} style={base} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <input type="text" placeholder="Local" value={f.local}
+                  onChange={e => handleFeiraChange(i, 'local', e.target.value)} style={base} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <input type="date" placeholder="Data início" value={f.dataInicio || ''}
+                    onChange={e => handleFeiraChange(i, 'dataInicio', e.target.value)} style={{ ...base, fontSize: 12 }} />
+                  <input type="date" placeholder="Data fim" value={f.dataFim || ''}
+                    onChange={e => handleFeiraChange(i, 'dataFim', e.target.value)} style={{ ...base, fontSize: 12 }} />
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -812,14 +843,46 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     <div className="ws-modal-section-title">Perguntas do briefing</div>
                     {flowQuestions.length === 0 ? (
                       <div className="ws-no-questions">Nenhuma pergunta cadastrada para este tipo</div>
-                    ) : flowQuestions.map(q => (
-                      <div key={q.id} className="ws-question-item">
-                        <div className="ws-question-text">
-                          {q.label || q.text}{q.required && <span className="ws-question-required">*</span>}
-                        </div>
-                        {renderQuestionInput(q)}
-                      </div>
-                    ))}
+                    ) : (() => {
+                      // Agrupa em pares: [fixed-client + fixed-responsible], [fixed-attendant + fixed-date], resto individual
+                      const pairs = [];
+                      let i = 0;
+                      while (i < flowQuestions.length) {
+                        const cur = flowQuestions[i];
+                        const next = flowQuestions[i + 1];
+                        const isPair =
+                          (cur.type === 'fixed-client' && next?.type === 'fixed-responsible') ||
+                          (cur.type === 'fixed-attendant' && next?.type === 'fixed-date');
+                        if (isPair) {
+                          pairs.push([cur, next]);
+                          i += 2;
+                        } else {
+                          pairs.push([cur]);
+                          i += 1;
+                        }
+                      }
+                      return pairs.map((group, gi) =>
+                        group.length === 2 ? (
+                          <div key={gi} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            {group.map(q => (
+                              <div key={q.id} className="ws-question-item">
+                                <div className="ws-question-text">
+                                  {q.label || q.text}{q.required && <span className="ws-question-required">*</span>}
+                                </div>
+                                {renderQuestionInput(q)}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div key={gi} className="ws-question-item">
+                            <div className="ws-question-text">
+                              {group[0].label || group[0].text}{group[0].required && <span className="ws-question-required">*</span>}
+                            </div>
+                            {renderQuestionInput(group[0])}
+                          </div>
+                        )
+                      );
+                    })()}
                   </div>
                 )}
 
