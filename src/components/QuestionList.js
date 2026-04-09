@@ -4,6 +4,24 @@ import { db } from '../firebase/config';
 import QuestionForm from './QuestionForm';
 import '../styles/QuestionList.css';
 
+// ─── Perguntas Fixas do Sistema (hardcoded) ───────────────────────────────────
+const FIXED_BLOCKS = [
+  {
+    id: 'fixed-block-briefing',
+    text: 'Briefing Inicial',
+    type: 'fixed-block',
+    description: 'Bloco fixo de abertura do briefing. Coleta: Cliente, Responsável, Atendimento (auto), Data (auto), Propósito e Feiras (nome, local e data de cada uma).',
+    fields: [
+      { label: 'Cliente', type: 'fixed-client' },
+      { label: 'Responsável', type: 'fixed-responsible' },
+      { label: 'Atendimento', type: 'fixed-attendant' },
+      { label: 'Data', type: 'fixed-date' },
+      { label: 'Propósito', type: 'textarea' },
+      { label: 'Feiras', type: 'fixed-events' },
+    ],
+  },
+];
+
 function QuestionList() {
   const [questions, setQuestions] = useState([]);
   const [areas, setAreas] = useState([]);
@@ -11,6 +29,7 @@ function QuestionList() {
   const [showForm, setShowForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [filterArea, setFilterArea] = useState('all');
+  const [previewBlock, setPreviewBlock] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -89,7 +108,97 @@ function QuestionList() {
         </div>
       </div>
 
-      {/* FILTRO */}
+      {/* ── BLOCOS FIXOS DO SISTEMA ── */}
+      <div className="fixed-blocks-section">
+        <div className="fixed-blocks-title">
+          <span className="fixed-blocks-icon">⚙</span>
+          Perguntas Fixas do Sistema
+          <span className="fixed-blocks-subtitle">Definidas no código — não podem ser editadas ou deletadas</span>
+        </div>
+        <div className="table-container">
+          <table className="questions-table">
+            <thead>
+              <tr>
+                <th className="col-order">#</th>
+                <th className="col-text">Bloco</th>
+                <th className="col-type">Tipo</th>
+                <th className="col-role">Campos</th>
+                <th className="col-status">Status</th>
+                <th className="col-actions">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {FIXED_BLOCKS.map((block, index) => (
+                <tr key={block.id} className="fixed-block-row">
+                  <td className="order-cell">
+                    <span className="fixed-order-icon">⚙</span>
+                  </td>
+                  <td className="question-text-cell">
+                    <strong>{block.text}</strong>
+                    <span className="fixed-block-desc">{block.description}</span>
+                  </td>
+                  <td>
+                    <span className="badge-fixed-block">Bloco Fixo</span>
+                  </td>
+                  <td>
+                    <div className="fixed-fields-list">
+                      {block.fields.map((f, i) => (
+                        <span key={i} className="fixed-field-tag">{f.label}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="badge badge-active">Ativo</span>
+                  </td>
+                  <td className="actions-cell">
+                    <button
+                      className="btn-action btn-edit"
+                      onClick={() => setPreviewBlock(previewBlock?.id === block.id ? null : block)}
+                    >
+                      {previewBlock?.id === block.id ? 'Fechar' : 'Ver'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Preview do bloco fixo */}
+        {previewBlock && (
+          <div className="fixed-block-preview">
+            <div className="fixed-block-preview-header">
+              <strong>Preview — {previewBlock.text}</strong>
+              <button className="fixed-preview-close" onClick={() => setPreviewBlock(null)}>✕ Fechar</button>
+            </div>
+            <div className="fixed-block-preview-fields">
+              {previewBlock.fields.map((f, i) => (
+                <div key={i} className="fixed-preview-field">
+                  <span className="fixed-preview-label">{f.label}</span>
+                  <span className="fixed-preview-type">{translateType(f.type)}</span>
+                  {(f.type === 'fixed-client' || f.type === 'fixed-responsible') && (
+                    <span className="fixed-preview-hint">Abre lista para seleção</span>
+                  )}
+                  {f.type === 'fixed-attendant' && (
+                    <span className="fixed-preview-hint">Preenchido automaticamente (editável)</span>
+                  )}
+                  {f.type === 'fixed-date' && (
+                    <span className="fixed-preview-hint">Data de hoje (editável)</span>
+                  )}
+                  {f.type === 'textarea' && (
+                    <span className="fixed-preview-hint">Campo de texto livre</span>
+                  )}
+                  {f.type === 'fixed-events' && (
+                    <span className="fixed-preview-hint">Nº de feiras → abre boxes de nome, local e data</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── FILTRO ── */}
       <div className="filters-bar">
         <div className="filter-group">
           <label>Área:</label>
@@ -103,7 +212,7 @@ function QuestionList() {
         </div>
       </div>
 
-      {/* PERGUNTAS */}
+      {/* ── PERGUNTAS VARIÁVEIS ── */}
       <div className="normal-section">
         {filteredQuestions.length === 0 ? (
           <div className="empty-state">
