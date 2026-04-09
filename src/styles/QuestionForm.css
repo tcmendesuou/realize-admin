@@ -98,6 +98,20 @@ form {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  align-items: flex-start;
+}
+
+/* form-group dentro de form-row não deve ter margin própria nem width forçado */
+.form-row > .form-group {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.form-row > .form-group input,
+.form-row > .form-group select,
+.form-row > .form-group textarea {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .checkbox-group {
