@@ -414,60 +414,9 @@
   border-top: 2px solid #e0e0e0;
 }
 
-/* MODALS */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.modal-content {
-  background: white;
-  border-radius: 16px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.modal-header h2 {
-  font-size: 22px;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 32px;
-  color: #7f8c8d;
-  cursor: pointer;
-  line-height: 1;
-  transition: color 0.2s ease;
-}
-
-.close-btn:hover {
-  color: #e74c3c;
-}
-
-.modal-body {
-  padding: 24px;
-}
+/* MODALS — removidas classes genéricas (modal-overlay, modal-content, etc.)
+   pois conflitavam com QuestionForm e TaskForm.
+   O RoleManagement usa classes próprias com prefixo rm- definidas no JS. */
 
 .form-group {
   margin-bottom: 20px;
@@ -594,9 +543,5 @@
 
   .permission-options {
     flex-direction: column;
-  }
-
-  .modal-content {
-    width: 95%;
   }
 }
