@@ -90,19 +90,8 @@ function App() {
   if (firestoreUser) {
     const systemRole = firestoreUser.systemRole || 'none';
 
-    // Atendimento → AtendimentoHome
-    if (systemRole === 'atendimento') {
-      return (
-        <AtendimentoHome
-          user={firestoreUser}
-          userData={firestoreUser}
-          onLogout={handleLogout}
-        />
-      );
-    }
-
-    // Diretora → AtendimentoHome (futuro: DiretoraPainel)
-    if (systemRole === 'diretora') {
+    // Equipe interna → Workspace (atendimento, planner, produtor, etc.)
+    if (systemRole === 'workspace') {
       return (
         <AtendimentoHome
           user={firestoreUser}
@@ -116,7 +105,7 @@ function App() {
     if (systemRole === 'cliente') {
       return (
         <div className="loading-container">
-          <p style={{ color: '#7BAFD4', fontFamily: 'sans-serif' }}>
+          <p style={{ color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>
             Área do cliente em breve...
           </p>
           <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>
@@ -126,16 +115,28 @@ function App() {
       );
     }
 
-    // Admin via Firestore → painel completo (caso raro)
-    if (systemRole === 'admin') {
-      // cai no painel admin abaixo — não retorna aqui
-    }
-
-    // none ou desconhecido → acesso negado
-    if (systemRole === 'none') {
+    // Fornecedor → Em breve
+    if (systemRole === 'fornecedor') {
       return (
         <div className="loading-container">
-          <p style={{ color: '#e74c3c', fontFamily: 'sans-serif' }}>
+          <p style={{ color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>
+            Área do fornecedor em breve...
+          </p>
+          <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>
+            Sair
+          </button>
+        </div>
+      );
+    }
+
+    // Admin via Firestore → cai no painel completo abaixo
+    if (systemRole === 'admin') {
+      // continua para o painel admin
+    } else if (systemRole !== 'admin') {
+      // none ou desconhecido → acesso negado
+      return (
+        <div className="loading-container">
+          <p style={{ color: '#e74c3c', fontFamily: 'Outfit, sans-serif' }}>
             Seu usuário não tem acesso ao sistema. Contate o administrador.
           </p>
           <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>
@@ -158,7 +159,7 @@ function App() {
     );
   }
 
-  // Admin via Firebase Auth (ou systemRole === 'admin') → painel completo
+  // Admin via Firebase Auth ou systemRole === 'admin' → painel completo
   const isDiretora = userData?.roleName?.toLowerCase().includes('diretora');
 
   return (

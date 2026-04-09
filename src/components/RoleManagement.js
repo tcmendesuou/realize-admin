@@ -4,11 +4,11 @@ import { db } from '../firebase/config';
 import '../styles/RoleManagement.css';
 
 const SYSTEM_ROLES = [
-  { value: 'none',        label: 'Nenhum (sem acesso ao sistema)' },
-  { value: 'atendimento', label: 'Atendimento' },
-  { value: 'diretora',    label: 'Diretora' },
-  { value: 'cliente',     label: 'Cliente' },
-  { value: 'admin',       label: 'Admin (painel completo)' },
+  { value: 'none',       label: 'Nenhum (sem acesso ao sistema)' },
+  { value: 'workspace',  label: 'Workspace (equipe interna)' },
+  { value: 'cliente',    label: 'Cliente' },
+  { value: 'fornecedor', label: 'Fornecedor' },
+  { value: 'admin',      label: 'Admin (painel completo)' },
 ];
 
 function RoleManagement() {
@@ -68,9 +68,9 @@ function RoleManagement() {
 
   const createDefaultTypes = async () => {
     const defaults = [
-      { name: 'Cliente', order: 1, systemRole: 'cliente' },
-      { name: 'Equipe', order: 2, systemRole: 'atendimento' },
-      { name: 'Fornecedor', order: 3, systemRole: 'none' },
+      { name: 'Agência', order: 1, systemRole: 'workspace' },
+      { name: 'Cliente', order: 2, systemRole: 'cliente' },
+      { name: 'Fornecedor', order: 3, systemRole: 'fornecedor' },
     ];
     for (const t of defaults) {
       await addDoc(collection(db, 'userTypes'), { ...t, icon: '', createdAt: new Date() });
@@ -204,7 +204,6 @@ function RoleManagement() {
 
   const filteredAreas = areas.filter(a => a.userTypeId === selectedType);
   const filteredRoles = roles.filter(r => r.areaId === selectedArea);
-
   const getSystemRoleLabel = (value) => SYSTEM_ROLES.find(r => r.value === value)?.label || '—';
 
   if (loading) return <div className="rm-loading">Carregando...</div>;
@@ -240,7 +239,6 @@ function RoleManagement() {
         .rm-item-del { width: 20px; height: 20px; border-radius: 4px; border: none; background: none; color: #ccc; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; opacity: 0; }
         .rm-item:hover .rm-item-del { opacity: 1; }
         .rm-item-del:hover { background: #fee; color: #e74c3c; }
-
         .rm-empty { padding: 24px 12px; text-align: center; color: #ccc; font-size: 12px; }
 
         .rm-perms { background: white; display: flex; flex-direction: column; overflow: hidden; }
@@ -267,10 +265,7 @@ function RoleManagement() {
         .rm-modal h3 { font-size: 16px; font-weight: 600; color: #2c3e50; margin-bottom: 20px; }
         .rm-modal-field { margin-bottom: 16px; }
         .rm-modal-field label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 6px; }
-        .rm-modal-field input, .rm-modal-field select {
-          width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px;
-          font-size: 14px; outline: none; font-family: 'Outfit', sans-serif; transition: border-color 0.2s; box-sizing: border-box;
-        }
+        .rm-modal-field input, .rm-modal-field select { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; font-family: 'Outfit', sans-serif; transition: border-color 0.2s; box-sizing: border-box; }
         .rm-modal-field input:focus, .rm-modal-field select:focus { border-color: #667eea; }
         .rm-modal-hint { font-size: 11px; color: #aaa; margin-top: 4px; }
         .rm-modal-footer { display: flex; gap: 10px; margin-top: 24px; }
@@ -294,20 +289,19 @@ function RoleManagement() {
               <button className="rm-panel-add" title="Novo tipo" onClick={() => setShowTypeModal(true)}>+</button>
             </div>
             <div className="rm-panel-list">
-              {userTypes.length === 0 ? (
-                <div className="rm-empty">Nenhum tipo</div>
-              ) : userTypes.map(t => (
-                <div key={t.id}
-                  className={`rm-item ${selectedType === t.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedType(t.id); setSelectedArea(null); setSelectedRole(null); }}>
-                  <div className="rm-item-info">
-                    <span className="rm-item-name">{t.name}</span>
-                    <span className="rm-item-systemrole">{getSystemRoleLabel(t.systemRole || 'none')}</span>
+              {userTypes.length === 0 ? <div className="rm-empty">Nenhum tipo</div>
+                : userTypes.map(t => (
+                  <div key={t.id}
+                    className={`rm-item ${selectedType === t.id ? 'active' : ''}`}
+                    onClick={() => { setSelectedType(t.id); setSelectedArea(null); setSelectedRole(null); }}>
+                    <div className="rm-item-info">
+                      <span className="rm-item-name">{t.name}</span>
+                      <span className="rm-item-systemrole">{getSystemRoleLabel(t.systemRole || 'none')}</span>
+                    </div>
+                    <span className="rm-item-arrow">›</span>
+                    <button className="rm-item-del" onClick={e => { e.stopPropagation(); handleDeleteType(t.id); }}>×</button>
                   </div>
-                  <span className="rm-item-arrow">›</span>
-                  <button className="rm-item-del" onClick={e => { e.stopPropagation(); handleDeleteType(t.id); }}>×</button>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 
@@ -469,7 +463,7 @@ function RoleManagement() {
             <div className="rm-modal-field">
               <label>Nome *</label>
               <input type="text" value={newTypeName} onChange={e => setNewTypeName(e.target.value)}
-                placeholder="Ex: Agência, Cliente, Parceiro" autoFocus
+                placeholder="Ex: Agência, Cliente, Fornecedor" autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleAddType()} />
             </div>
             <div className="rm-modal-field">
@@ -500,7 +494,7 @@ function RoleManagement() {
             <div className="rm-modal-field">
               <label>Nome da Área *</label>
               <input type="text" value={newAreaName} onChange={e => setNewAreaName(e.target.value)}
-                placeholder="Ex: Produção, Atendimento, Criação" autoFocus
+                placeholder="Ex: Atendimento, Criação, Produção" autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleAddArea()} />
             </div>
             <div className="rm-modal-footer">
@@ -524,7 +518,7 @@ function RoleManagement() {
             <div className="rm-modal-field">
               <label>Nome do Cargo *</label>
               <input type="text" value={newRoleName} onChange={e => setNewRoleName(e.target.value)}
-                placeholder="Ex: Produtor, Designer, Coordenador" autoFocus
+                placeholder="Ex: Atendimento, Planner, Pré-Produtor" autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleAddRole()} />
             </div>
             <div className="rm-modal-footer">
