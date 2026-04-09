@@ -518,3 +518,191 @@
   color: #95a5a6;
   margin-top: 6px;
 }
+
+/* ── NOVOS ESTILOS: FlowBuilderWrapper com gestão de tipos ── */
+
+.flow-wrapper-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.btn-new-type {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-new-type:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.event-type-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.event-type-card-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.event-type-card:hover .event-type-card-actions {
+  opacity: 1;
+}
+
+.btn-edit-type,
+.btn-delete-type {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  line-height: 1;
+}
+
+.btn-edit-type:hover { background: #f0f3ff; }
+.btn-delete-type:hover { background: #fdecea; }
+
+/* Modal criar/editar tipo */
+.fw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.fw-modal {
+  background: white;
+  border-radius: 12px;
+  width: min(90vw, 480px);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+
+.fw-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.fw-modal-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.fw-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #95a5a6;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s;
+}
+
+.fw-modal-close:hover { background: #ecf0f1; color: #2c3e50; }
+
+.fw-modal-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fw-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.fw-field input,
+.fw-field textarea {
+  padding: 10px 12px;
+  border: 2px solid #ecf0f1;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+
+.fw-field input:focus,
+.fw-field textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.fw-modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #ecf0f1;
+}
+
+.fw-btn-cancel {
+  flex: 1;
+  padding: 10px;
+  background: #ecf0f1;
+  color: #2c3e50;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.fw-btn-cancel:hover { background: #d5d8dc; }
+
+.fw-btn-save {
+  flex: 2;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.fw-btn-save:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+}
+
+.fw-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
