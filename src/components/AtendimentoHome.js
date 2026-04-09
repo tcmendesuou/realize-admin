@@ -318,7 +318,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .ws-logout:hover { background: rgba(231,76,60,0.1); color: #E74C3C; }
 
         /* MAIN */
-        .ws-main { margin-left: 220px; min-height: 100vh; display: flex; flex-direction: column; }
+        .ws-main { margin-left: 220px; min-height: 100vh; display: flex; flex-direction: column; width: calc(100vw - 220px); overflow-x: hidden; }
 
         /* HEADER */
         .ws-header {
