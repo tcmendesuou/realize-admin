@@ -171,7 +171,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const handleNumFeirasChange = (n) => {
     const num = parseInt(n) || 0;
     setNumFeiras(n);
-    setFeiras(Array.from({ length: num }, (_, i) => feiras[i] || { nome: '', local: '', dataInicio: '', dataFim: '' }));
+    setFeiras(Array.from({ length: num }, (_, i) => feiras[i] || { nome: '', local: '', dataInicio: '', dataFim: '', isMae: i === 0 }));
   };
 
   const handleFeiraChange = (index, field, value) => {
@@ -328,18 +328,42 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             style={base}
           />
           {feiras.map((f, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ fontSize: 11, color: '#00E5C4', letterSpacing: 1 }}>FEIRA {i + 1}</span>
+            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${f.isMae ? 'rgba(0,229,196,0.4)' : 'rgba(0,180,255,0.1)'}`, borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Header com label e checkbox feira mãe */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: f.isMae ? '#00E5C4' : '#7BAFD4', letterSpacing: 1, fontWeight: 600 }}>
+                  FEIRA {i + 1}{f.isMae ? ' — MÃE' : ''}
+                </span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#7BAFD4', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!f.isMae}
+                    onChange={() => {
+                      // Só uma pode ser mãe — desmarca as outras
+                      setFeiras(prev => prev.map((item, idx) => ({ ...item, isMae: idx === i })));
+                    }}
+                    style={{ accentColor: '#00E5C4', cursor: 'pointer' }}
+                  />
+                  Feira mãe
+                </label>
+              </div>
+              {/* Nome */}
               <input type="text" placeholder="Nome da feira" value={f.nome}
                 onChange={e => handleFeiraChange(i, 'nome', e.target.value)} style={base} />
+              {/* Local */}
+              <input type="text" placeholder="Local" value={f.local}
+                onChange={e => handleFeiraChange(i, 'local', e.target.value)} style={base} />
+              {/* Datas */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <input type="text" placeholder="Local" value={f.local}
-                  onChange={e => handleFeiraChange(i, 'local', e.target.value)} style={base} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <input type="date" placeholder="Data início" value={f.dataInicio || ''}
-                    onChange={e => handleFeiraChange(i, 'dataInicio', e.target.value)} style={{ ...base, fontSize: 12 }} />
-                  <input type="date" placeholder="Data fim" value={f.dataFim || ''}
-                    onChange={e => handleFeiraChange(i, 'dataFim', e.target.value)} style={{ ...base, fontSize: 12 }} />
+                  <span style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 0.5 }}>DATA INICIAL</span>
+                  <input type="date" value={f.dataInicio || ''}
+                    onChange={e => handleFeiraChange(i, 'dataInicio', e.target.value)} style={base} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 0.5 }}>DATA FINAL</span>
+                  <input type="date" value={f.dataFim || ''}
+                    onChange={e => handleFeiraChange(i, 'dataFim', e.target.value)} style={base} />
                 </div>
               </div>
             </div>
