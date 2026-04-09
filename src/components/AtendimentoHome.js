@@ -345,12 +345,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .ws-section-title { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7BAFD4; }
 
         /* ─── KANBAN PROJETOS ─── */
-        .ws-projects-kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
-        .ws-projects-kanban::-webkit-scrollbar { height: 4px; }
-        .ws-projects-kanban::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
-        .ws-projects-kanban::-webkit-scrollbar-thumb { background: rgba(0,229,196,0.2); border-radius: 2px; }
+        .ws-projects-kanban { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; padding-bottom: 4px; }
 
-        .ws-proj-col { flex-shrink: 0; width: 180px; }
+        .ws-proj-col { min-width: 0; }
         .ws-proj-col-header {
           display: flex; align-items: center; justify-content: space-between;
           margin-bottom: 8px; padding: 0 2px;
