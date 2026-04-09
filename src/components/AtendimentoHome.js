@@ -22,11 +22,23 @@ const TASK_STAGES = [
   { id: 'done',       label: 'Concluído', color: '#66BB6A' },
 ];
 
+// ─── Definição dos campos do bloco fixo (espelho do FlowBuilder) ───────────
+const FIXED_BLOCK_FIELDS = {
+  'fixed-block-briefing': [
+    { id: 'fixed-client',     label: 'Empresa Cliente',   type: 'fixed-client' },
+    { id: 'fixed-responsible',label: 'Responsável',        type: 'fixed-responsible' },
+    { id: 'fixed-attendant',  label: 'Atendimento',        type: 'fixed-attendant' },
+    { id: 'fixed-date',       label: 'Data',               type: 'fixed-date' },
+    { id: 'fixed-purpose',    label: 'Propósito',          type: 'textarea' },
+    { id: 'fixed-events',     label: 'Quantas feiras?',    type: 'fixed-events' },
+  ]
+};
+
 export default function AtendimentoHome({ user, userData, onLogout }) {
   const [allBudgets, setAllBudgets] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [taskView, setTaskView] = useState('kanban'); // 'kanban' | 'list'
+  const [taskView, setTaskView] = useState('kanban');
   const [selectedProjectId, setSelectedProjectId] = useState(null);
 
   // Briefing modal
@@ -35,6 +47,11 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [eventTypes, setEventTypes] = useState([]);
   const [flowQuestions, setFlowQuestions] = useState([]);
   const [savingBriefing, setSavingBriefing] = useState(false);
+
+  // Estado para feiras (bloco fixo-events)
+  const [numFeiras, setNumFeiras] = useState('');
+  const [feiras, setFeiras] = useState([]); // [{ nome, local, data }]
+
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
     clientName: '', clientEmail: '', clientPhone: '',
@@ -71,7 +88,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   const loadMyTasks = async () => {
     if (!userId) return;
-    // Busca tarefas de todos os budgets onde o usuário tem tarefas atribuídas
     const snap = await getDocs(collection(db, 'budgets'));
     const tasks = [];
     snap.docs.forEach(d => {
@@ -103,16 +119,27 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       const flowSnap = await getDocs(query(collection(db, 'eventFlows'), where('eventTypeId', '==', eventTypeId)));
       if (flowSnap.empty) { setFlowQuestions([]); return; }
       const flow = flowSnap.docs[0].data();
-      const questionItems = (flow.items || []).filter(i => i.itemType === 'question');
-      if (questionItems.length === 0) { setFlowQuestions([]); return; }
-      const allQSnap = await getDocs(collection(db, 'questions'));
-      const allQ = allQSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const ordered = questionItems
-        .map(item => allQ.find(q => q.id === item.itemId))
-        .filter(Boolean)
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-      setFlowQuestions(ordered);
+      const items = flow.items || [];
+
+      const result = [];
+
+      for (const item of items.sort((a, b) => a.order - b.order)) {
+        if (item.itemType === 'fixed-block') {
+          // Expande os campos do bloco fixo como perguntas virtuais
+          const fields = FIXED_BLOCK_FIELDS[item.itemId] || [];
+          fields.forEach(f => result.push({ ...f, isFixedBlockField: true }));
+        } else if (item.itemType === 'question') {
+          // Pergunta normal do Firestore
+          const allQSnap = await getDocs(collection(db, 'questions'));
+          const allQ = allQSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const found = allQ.find(q => q.id === item.itemId);
+          if (found) result.push(found);
+        }
+      }
+
+      setFlowQuestions(result);
     } catch (err) {
+      console.error('Erro ao carregar fluxo:', err);
       setFlowQuestions([]);
     }
   };
@@ -120,6 +147,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const handleEventTypeChange = async (eventTypeId) => {
     const et = eventTypes.find(e => e.id === eventTypeId);
     setBriefingForm(f => ({ ...f, eventTypeId, eventTypeName: et?.name || '', answers: {} }));
+    setNumFeiras('');
+    setFeiras([]);
     if (eventTypeId) await loadFlowQuestions(eventTypeId);
     else setFlowQuestions([]);
   };
@@ -128,10 +157,20 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     setBriefingForm(f => ({ ...f, answers: { ...f.answers, [questionId]: value } }));
   };
 
+  const handleNumFeirasChange = (n) => {
+    const num = parseInt(n) || 0;
+    setNumFeiras(n);
+    setFeiras(Array.from({ length: num }, (_, i) => feiras[i] || { nome: '', local: '', data: '' }));
+  };
+
+  const handleFeiraChange = (index, field, value) => {
+    setFeiras(prev => prev.map((f, i) => i === index ? { ...f, [field]: value } : f));
+  };
+
   const handleSaveBriefing = async () => {
+    if (!briefingForm.eventTypeId) { alert('Selecione o tipo de evento'); return; }
     if (!briefingForm.companyId) { alert('Selecione a empresa cliente'); return; }
     if (!briefingForm.clientName) { alert('Informe o nome do responsável'); return; }
-    if (!briefingForm.eventTypeId) { alert('Selecione o tipo de evento'); return; }
 
     setSavingBriefing(true);
     try {
@@ -147,7 +186,10 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         companyName: briefingForm.companyName,
         eventTypeId: briefingForm.eventTypeId,
         eventTypeName: briefingForm.eventTypeName,
-        answers: briefingForm.answers,
+        answers: {
+          ...briefingForm.answers,
+          'fixed-events': feiras,
+        },
         status: 'analyzing',
         kanbanStage: 'novo_pedido',
         assignedTo: userId,
@@ -170,6 +212,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       setShowBriefing(false);
       setBriefingForm({ companyId: '', companyName: '', clientName: '', clientEmail: '', clientPhone: '', eventTypeId: '', eventTypeName: '', answers: {} });
       setFlowQuestions([]);
+      setNumFeiras('');
+      setFeiras([]);
       await loadData();
     } catch (err) {
       console.error('Erro ao salvar briefing:', err);
@@ -214,8 +258,73 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       background: 'rgba(255,255,255,0.04)', color: '#E8F4FF',
       fontFamily: 'Outfit, sans-serif', fontSize: 13, outline: 'none'
     };
+
+    // ── Campos do bloco fixo ──
+    if (q.type === 'fixed-client') {
+      return (
+        <select value={briefingForm.companyId} onChange={e => {
+          const c = companies.find(x => x.id === e.target.value);
+          setBriefingForm(f => ({ ...f, companyId: e.target.value, companyName: c?.name || '' }));
+        }} style={base}>
+          <option value="">Selecione a empresa...</option>
+          {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      );
+    }
+    if (q.type === 'fixed-responsible') {
+      return (
+        <input type="text" value={briefingForm.clientName}
+          onChange={e => setBriefingForm(f => ({ ...f, clientName: e.target.value }))}
+          style={base} placeholder="Nome do responsável..." />
+      );
+    }
+    if (q.type === 'fixed-attendant') {
+      return (
+        <input type="text" value={userName} readOnly
+          style={{ ...base, opacity: 0.6, cursor: 'default' }} />
+      );
+    }
+    if (q.type === 'fixed-date') {
+      return (
+        <input type="date"
+          value={briefingForm.answers['fixed-date'] || new Date().toISOString().split('T')[0]}
+          onChange={e => handleAnswerChange('fixed-date', e.target.value)}
+          style={base} />
+      );
+    }
+    if (q.type === 'fixed-events') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            type="number" min="1" max="20"
+            value={numFeiras}
+            onChange={e => handleNumFeirasChange(e.target.value)}
+            placeholder="Quantas feiras?"
+            style={base}
+          />
+          {feiras.map((f, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#00E5C4', letterSpacing: 1 }}>FEIRA {i + 1}</span>
+              <input type="text" placeholder="Nome da feira" value={f.nome}
+                onChange={e => handleFeiraChange(i, 'nome', e.target.value)} style={base} />
+              <input type="text" placeholder="Local" value={f.local}
+                onChange={e => handleFeiraChange(i, 'local', e.target.value)} style={base} />
+              <input type="date" value={f.data}
+                onChange={e => handleFeiraChange(i, 'data', e.target.value)} style={base} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // ── Perguntas normais ──
     if (q.type === 'text' || q.type === 'number' || q.type === 'date') {
       return <input type={q.type} value={val} onChange={e => handleAnswerChange(q.id, e.target.value)} style={base} placeholder="Sua resposta..." />;
+    }
+    if (q.type === 'textarea') {
+      return <textarea value={val} onChange={e => handleAnswerChange(q.id, e.target.value)}
+        rows={4} placeholder="Descreva o propósito do evento..."
+        style={{ ...base, resize: 'vertical', lineHeight: 1.5 }} />;
     }
     if (q.type === 'yesno') {
       return (
@@ -684,40 +793,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                 <button className="ws-modal-close" onClick={() => setShowBriefing(false)}>×</button>
               </div>
               <div className="ws-modal-body">
-                <div className="ws-modal-section">
-                  <div className="ws-modal-section-title">Empresa e responsável</div>
-                  <div className="ws-field">
-                    <label>Empresa cliente *</label>
-                    <select value={briefingForm.companyId} onChange={e => {
-                      const c = companies.find(x => x.id === e.target.value);
-                      setBriefingForm(f => ({ ...f, companyId: e.target.value, companyName: c?.name || '' }));
-                    }}>
-                      <option value="">Selecione a empresa...</option>
-                      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="ws-field">
-                    <label>Nome do responsável *</label>
-                    <input type="text" placeholder="Nome completo"
-                      value={briefingForm.clientName}
-                      onChange={e => setBriefingForm(f => ({ ...f, clientName: e.target.value }))} />
-                  </div>
-                  <div className="ws-field-row">
-                    <div className="ws-field">
-                      <label>Email</label>
-                      <input type="email" placeholder="email@empresa.com"
-                        value={briefingForm.clientEmail}
-                        onChange={e => setBriefingForm(f => ({ ...f, clientEmail: e.target.value }))} />
-                    </div>
-                    <div className="ws-field">
-                      <label>Telefone</label>
-                      <input type="tel" placeholder="(00) 00000-0000"
-                        value={briefingForm.clientPhone}
-                        onChange={e => setBriefingForm(f => ({ ...f, clientPhone: e.target.value }))} />
-                    </div>
-                  </div>
-                </div>
 
+                {/* 1. TIPO DE EVENTO — primeiro */}
                 <div className="ws-modal-section">
                   <div className="ws-modal-section-title">Tipo de evento</div>
                   <div className="ws-field">
@@ -729,6 +806,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                   </div>
                 </div>
 
+                {/* 2. PERGUNTAS DO BRIEFING — aparecem após selecionar tipo */}
                 {briefingForm.eventTypeId && (
                   <div className="ws-modal-section">
                     <div className="ws-modal-section-title">Perguntas do briefing</div>
@@ -737,13 +815,14 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     ) : flowQuestions.map(q => (
                       <div key={q.id} className="ws-question-item">
                         <div className="ws-question-text">
-                          {q.text}{q.required && <span className="ws-question-required">*</span>}
+                          {q.label || q.text}{q.required && <span className="ws-question-required">*</span>}
                         </div>
                         {renderQuestionInput(q)}
                       </div>
                     ))}
                   </div>
                 )}
+
               </div>
               <div className="ws-modal-footer">
                 <button className="ws-btn-cancel-modal" onClick={() => setShowBriefing(false)}>Cancelar</button>
