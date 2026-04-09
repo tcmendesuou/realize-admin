@@ -353,7 +353,74 @@ form {
   color: #7f8c8d;
 }
 
-/* ── BADGES NA LISTA ── */
+/* ── TOGGLE COMUM NO HEADER ── */
+.qf-header-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1.5px solid #e0e0e0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #7f8c8d;
+  background: #fafafa;
+  transition: all 0.2s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.qf-header-toggle:hover {
+  border-color: #667eea;
+  color: #667eea;
+  background: #f0f3ff;
+}
+
+.qf-header-toggle--on {
+  border-color: #667eea;
+  background: #f0f3ff;
+  color: #667eea;
+}
+
+.qf-header-toggle input[type="checkbox"] {
+  accent-color: #667eea;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── SUBPERGUNTAS EM CASCATA ── */
+.sq-node {
+  border-left: 3px solid;
+  border-radius: 0 10px 10px 0;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+/* Conector visual em cascata */
+.sq-children {
+  margin-top: 12px;
+  padding-left: 20px;
+  border-left: 2px dashed rgba(0,0,0,0.1);
+  margin-left: 8px;
+}
+
+.sq-children .sq-node {
+  position: relative;
+}
+
+.sq-children .sq-node::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 20px;
+  width: 18px;
+  height: 2px;
+  background: rgba(0,0,0,0.12);
+}
 .badge-fixed {
   display: inline-flex;
   align-items: center;

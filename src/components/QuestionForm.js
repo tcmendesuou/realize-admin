@@ -247,12 +247,21 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const loadAreasRoles = async () => {
     try {
-      const [areasSnap, rolesSnap] = await Promise.all([
+      const [areasSnap, rolesSnap, utSnap] = await Promise.all([
         getDocs(collection(db, 'areas')),
         getDocs(collection(db, 'roles')),
+        getDocs(collection(db, 'userTypes')),
       ]);
-      setAreas(areasSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
-      setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      // Só userTypes da agência (workspace ou admin)
+      const agenciaTypeIds = utSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => t.systemRole === 'workspace' || t.systemRole === 'admin')
+        .map(t => t.id);
+      const allAreas = areasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allRoles = rolesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Filtra áreas e roles que pertencem aos tipos de agência
+      setAreas(allAreas.filter(a => agenciaTypeIds.includes(a.userTypeId)).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setRoles(allRoles.filter(r => agenciaTypeIds.includes(r.userTypeId)).sort((a, b) => (a.order || 0) - (b.order || 0)));
     } catch (error) {
       console.error('Erro ao carregar áreas/cargos:', error);
     }
@@ -353,7 +362,17 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             <h2>{getModalTitle()}</h2>
             {isFixed && <span className="qf-fixed-badge">⚙ FIXA</span>}
           </div>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Toggle isShared no header — só para perguntas variáveis */}
+            {!isSpecialMode && !isFixed && (
+              <label className={`qf-header-toggle ${formData.isShared ? 'qf-header-toggle--on' : ''}`}>
+                <input type="checkbox" name="isShared" checked={formData.isShared} onChange={handleChange} />
+                <span>🔗</span>
+                <span>Comum a todos os eventos</span>
+              </label>
+            )}
+            <button className="close-btn" onClick={onClose}>×</button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -387,23 +406,23 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
                 </div>
               </div>
 
-              {/* LINHA 2: Área + Cargo + Etapa Kanban */}
+              {/* LINHA 2: Área + Cargo + Etapa Kanban — mesmo tamanho */}
               <div className="form-row">
-                <div className="form-group">
+                <div className="form-group" style={{ flex: 1 }}>
                   <label>Área Responsável</label>
                   <select name="areaId" value={formData.areaId} onChange={handleChange}>
                     <option value="">Selecione uma área...</option>
                     {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
+                <div className="form-group" style={{ flex: 1 }}>
                   <label>Cargo Responsável</label>
                   <select name="roleId" value={formData.roleId} onChange={handleChange} disabled={!formData.areaId}>
                     <option value="">{!formData.areaId ? 'Selecione uma área...' : 'Selecione um cargo...'}</option>
                     {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
+                <div className="form-group" style={{ flex: 1 }}>
                   <label>Etapa do Kanban</label>
                   <select name="kanbanStage" value={formData.kanbanStage} onChange={handleChange}>
                     <option value="">Selecione uma etapa...</option>
@@ -437,19 +456,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             </label>
           </div>
 
-          {/* TOGGLE COMUM */}
-          {!isSpecialMode && !isFixed && (
-            <div className="qf-event-toggles">
-              <label className={`qf-toggle ${formData.isShared ? 'qf-toggle--on' : ''}`}>
-                <input type="checkbox" name="isShared" checked={formData.isShared} onChange={handleChange} />
-                <span className="qf-toggle-icon">🔗</span>
-                <span>
-                  <strong>Comum a todos os eventos</strong>
-                  <small>Respondida uma vez, vale para todos os eventos do briefing</small>
-                </span>
-              </label>
-            </div>
-          )}
+          {/* TOGGLE COMUM — movido para o header */}
 
           {/* OPÇÕES DE RESPOSTA */}
           {showOptions && (
