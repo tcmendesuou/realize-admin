@@ -10,7 +10,6 @@ function QuestionList() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
-  const [creatingSpecialType, setCreatingSpecialType] = useState(null);
   const [filterArea, setFilterArea] = useState('all');
 
   useEffect(() => {
@@ -32,11 +31,7 @@ function QuestionList() {
     }
   };
 
-  const handleDelete = async (id, specialType) => {
-    if (specialType) {
-      alert('Perguntas especiais não podem ser deletadas. Use o botão Editar para modificá-las.');
-      return;
-    }
+  const handleDelete = async (id) => {
     if (window.confirm('Tem certeza que deseja deletar esta pergunta?')) {
       try {
         await deleteDoc(doc(db, 'questions', id));
@@ -51,20 +46,12 @@ function QuestionList() {
 
   const handleEdit = (question) => {
     setEditingQuestion(question);
-    setCreatingSpecialType(null);
-    setShowForm(true);
-  };
-
-  const handleCreateSpecial = (type) => {
-    setCreatingSpecialType(type);
-    setEditingQuestion(null);
     setShowForm(true);
   };
 
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingQuestion(null);
-    setCreatingSpecialType(null);
   };
 
   const handleSave = () => {
@@ -74,18 +61,14 @@ function QuestionList() {
 
   const translateType = (type) => {
     const types = {
-      multiple: 'Múltipla Escolha', multiselect: 'Seleção Única', number: 'Número',
-      text: 'Texto', date: 'Data', currency: 'Valor em Reais', yesno: 'Sim/Não'
+      multiple: 'Múltipla Escolha', multiselect: 'Seleção Múltipla',
+      number: 'Número', text: 'Texto Curto', textarea: 'Texto Longo',
+      date: 'Data', currency: 'Valor em Reais', yesno: 'Sim/Não'
     };
     return types[type] || type;
   };
 
-  const specialQuestions = questions.filter(q => q.specialType);
-  const normalQuestions = questions.filter(q => !q.specialType);
-  const hasInitial = specialQuestions.some(q => q.specialType === 'initial');
-  const hasFinalization = specialQuestions.some(q => q.specialType === 'finalization');
-
-  const filteredQuestions = normalQuestions.filter(q => {
+  const filteredQuestions = questions.filter(q => {
     if (filterArea !== 'all' && q.areaId !== filterArea) return false;
     return true;
   });
@@ -97,70 +80,9 @@ function QuestionList() {
       <div className="list-header">
         <h2>Banco de Perguntas</h2>
         <div className="header-actions">
-          {!hasInitial && (
-            <button className="btn-special btn-initial" onClick={() => handleCreateSpecial('initial')}>
-              + Criar Pergunta Inicial
-            </button>
-          )}
-          {!hasFinalization && (
-            <button className="btn-special btn-finalization" onClick={() => handleCreateSpecial('finalization')}>
-              + Criar Finalização
-            </button>
-          )}
           <button className="btn-primary" onClick={() => setShowForm(true)}>+ Nova Pergunta</button>
         </div>
       </div>
-
-      {/* PERGUNTAS ESPECIAIS */}
-      {specialQuestions.length > 0 && (
-        <div className="special-section">
-          <h3 className="section-title">Perguntas Especiais</h3>
-          <div className="table-container">
-            <table className="questions-table special-table">
-              <thead>
-                <tr>
-                  <th className="col-badge">Tipo</th>
-                  <th className="col-text">Pergunta</th>
-                  <th className="col-options">Opções</th>
-                  <th className="col-status">Status</th>
-                  <th className="col-actions">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {specialQuestions.map((question) => (
-                  <tr key={question.id} className="special-row">
-                    <td>
-                      <span className={`badge badge-special badge-${question.specialType}`}>
-                        {question.specialType === 'initial' ? 'INICIAL' : 'FINAL'}
-                      </span>
-                    </td>
-                    <td className="question-text-cell">
-                      <strong>{question.text}</strong>
-                      <div className="question-description">
-                        {question.specialType === 'initial' ? 'Primeira pergunta do questionário' : 'Tela de finalização e envio'}
-                      </div>
-                    </td>
-                    <td>
-                      {question.options && question.options.length > 0
-                        ? <span className="options-count">{question.options.length} opções</span>
-                        : <span className="no-options">-</span>}
-                    </td>
-                    <td>
-                      <span className={`badge ${question.active ? 'badge-active' : 'badge-inactive'}`}>
-                        {question.active ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="actions-cell">
-                      <button className="btn-action btn-edit" onClick={() => handleEdit(question)}>Editar</button>
-                      <button className="btn-action btn-delete" disabled title="Não pode deletar">Deletar</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* FILTRO */}
       <div className="filters-bar">
@@ -176,9 +98,8 @@ function QuestionList() {
         </div>
       </div>
 
-      {/* PERGUNTAS NORMAIS */}
+      {/* PERGUNTAS */}
       <div className="normal-section">
-        <h3 className="section-title">Perguntas do Questionário</h3>
         {filteredQuestions.length === 0 ? (
           <div className="empty-state">
             <p>Nenhuma pergunta cadastrada ainda</p>
@@ -193,6 +114,7 @@ function QuestionList() {
                   <th className="col-text">Pergunta</th>
                   <th className="col-type">Tipo</th>
                   <th className="col-role">Área / Cargo</th>
+                  <th className="col-stage">Etapa</th>
                   <th className="col-options">Opções</th>
                   <th className="col-subquestions">Sub</th>
                   <th className="col-status">Status</th>
@@ -213,6 +135,9 @@ function QuestionList() {
                       {question.roleName && <span className="responsible-role">{question.roleName}</span>}
                     </td>
                     <td>
+                      <span className="stage-badge">{question.kanbanStage || '—'}</span>
+                    </td>
+                    <td>
                       {question.options && question.options.length > 0
                         ? <span className="options-count">{question.options.length} opções</span>
                         : <span className="no-options">-</span>}
@@ -229,7 +154,7 @@ function QuestionList() {
                     </td>
                     <td className="actions-cell">
                       <button className="btn-action btn-edit" onClick={() => handleEdit(question)}>Editar</button>
-                      <button className="btn-action btn-delete" onClick={() => handleDelete(question.id, question.specialType)}>Deletar</button>
+                      <button className="btn-action btn-delete" onClick={() => handleDelete(question.id)}>Deletar</button>
                     </td>
                   </tr>
                 ))}
@@ -244,7 +169,7 @@ function QuestionList() {
           onClose={handleCloseForm}
           onSave={handleSave}
           editQuestion={editingQuestion}
-          specialType={creatingSpecialType}
+          specialType={null}
         />
       )}
     </div>

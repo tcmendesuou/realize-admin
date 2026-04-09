@@ -251,7 +251,8 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
     try {
       const q = query(collection(db, 'questions'), orderBy('order', 'asc'));
       const snap = await getDocs(q);
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(q => (q.order || 0) < 999); // ignora perguntas especiais
       const maxOrder = data.length > 0 ? Math.max(...data.map(q => q.order || 0)) : 0;
       setFormData(prev => ({ ...prev, order: maxOrder + 1 }));
     } catch (error) {
