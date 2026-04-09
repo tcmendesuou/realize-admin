@@ -3,12 +3,191 @@ import { collection, addDoc, doc, updateDoc, query, orderBy, getDocs } from 'fir
 import { db } from '../firebase/config';
 import '../styles/QuestionForm.css';
 
+const KANBAN_STAGES = [
+  { value: 'novo_pedido',  label: 'Novo Pedido' },
+  { value: 'orcamento',    label: 'Orçamento' },
+  { value: 'cliente',      label: 'Cliente' },
+  { value: 'kickoff',      label: 'Kick Off' },
+  { value: 'criacao',      label: 'Criação' },
+  { value: 'producao',     label: 'Produção' },
+  { value: 'montagem',     label: 'Montagem' },
+  { value: 'evento',       label: 'Evento' },
+  { value: 'desmontagem',  label: 'Desmontagem' },
+  { value: 'fechamento',   label: 'Fechamento' },
+];
+
+const QUESTION_TYPES = [
+  { value: 'multiple',    label: 'Múltipla Escolha' },
+  { value: 'multiselect', label: 'Seleção Múltipla' },
+  { value: 'text',        label: 'Texto Curto' },
+  { value: 'textarea',    label: 'Texto Longo' },
+  { value: 'number',      label: 'Número' },
+  { value: 'date',        label: 'Data' },
+  { value: 'currency',    label: 'Valor em Reais' },
+  { value: 'yesno',       label: 'Sim/Não' },
+];
+
+// Cria uma subpergunta vazia
+const newSubQuestion = (trigger = '') => ({
+  id: Date.now().toString() + Math.random().toString(36).slice(2),
+  trigger,
+  text: '',
+  type: 'text',
+  required: false,
+  options: [],
+  subQuestions: [], // suporte a múltiplos níveis
+});
+
+// Cria uma opção vazia
+const newOption = () => ({
+  id: Date.now().toString() + Math.random().toString(36).slice(2),
+  label: '',
+  basePrice: 0,
+  pricePerPerson: 0,
+});
+
+// ─── Componente recursivo de subpergunta ───────────────────────────────────
+function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRemove }) {
+  const needsOptions = sub.type === 'multiple' || sub.type === 'multiselect';
+  const canHaveChildren = sub.type === 'yesno' || sub.type === 'multiple' || sub.type === 'multiselect';
+
+  const depthColors = [
+    { border: '#667eea', bg: '#f0f3ff', badge: '#667eea' },
+    { border: '#00bcd4', bg: '#e0f7fa', badge: '#00bcd4' },
+    { border: '#ff9800', bg: '#fff3e0', badge: '#ff9800' },
+    { border: '#4caf50', bg: '#e8f5e9', badge: '#4caf50' },
+    { border: '#e91e63', bg: '#fce4ec', badge: '#e91e63' },
+  ];
+  const color = depthColors[Math.min(depth, depthColors.length - 1)];
+
+  const updateField = (field, value) => onChange({ ...sub, [field]: value });
+
+  const updateOption = (optId, field, value) => {
+    onChange({ ...sub, options: sub.options.map(o => o.id === optId ? { ...o, [field]: value } : o) });
+  };
+
+  const removeOption = (optId) => {
+    onChange({ ...sub, options: sub.options.filter(o => o.id !== optId) });
+  };
+
+  const addOption = () => {
+    onChange({ ...sub, options: [...(sub.options || []), newOption()] });
+  };
+
+  const addChild = () => {
+    const trigger = sub.type === 'yesno' ? 'yes' : (sub.options[0]?.id || '');
+    onChange({ ...sub, subQuestions: [...(sub.subQuestions || []), newSubQuestion(trigger)] });
+  };
+
+  const updateChild = (childId, updatedChild) => {
+    onChange({ ...sub, subQuestions: sub.subQuestions.map(c => c.id === childId ? updatedChild : c) });
+  };
+
+  const removeChild = (childId) => {
+    onChange({ ...sub, subQuestions: sub.subQuestions.filter(c => c.id !== childId) });
+  };
+
+  return (
+    <div className="sq-node" style={{ borderLeftColor: color.border, background: color.bg }}>
+      {/* Header */}
+      <div className="sq-node-header">
+        <span className="sq-depth-badge" style={{ background: color.badge }}>
+          {depth === 0 ? 'Subpergunta' : `Nível ${depth + 1}`}
+        </span>
+        <div className="sq-trigger-row">
+          <span className="sq-trigger-label">Exibir se resposta for:</span>
+          <select className="sq-trigger-select" value={sub.trigger}
+            onChange={e => updateField('trigger', e.target.value)}>
+            {parentType === 'yesno' ? (
+              <><option value="yes">SIM</option><option value="no">NÃO</option></>
+            ) : (
+              parentOptions.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label || '(sem nome)'}</option>
+              ))
+            )}
+          </select>
+        </div>
+        <button type="button" className="sq-remove-btn" onClick={onRemove}>✕ Remover</button>
+      </div>
+
+      {/* Campos */}
+      <div className="sq-fields">
+        <div className="sq-field-row">
+          <div className="sq-field">
+            <label>Texto da pergunta *</label>
+            <input type="text" value={sub.text} placeholder="Ex: Qual nível de serviço?"
+              onChange={e => updateField('text', e.target.value)} />
+          </div>
+          <div className="sq-field sq-field-sm">
+            <label>Tipo de resposta</label>
+            <select value={sub.type} onChange={e => {
+              const needsOpts = e.target.value === 'multiple' || e.target.value === 'multiselect';
+              updateField('type', e.target.value);
+              if (!needsOpts) onChange({ ...sub, type: e.target.value, options: [], subQuestions: [] });
+            }}>
+              {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div className="sq-field sq-field-xs">
+            <label>Obrigatória</label>
+            <input type="checkbox" checked={sub.required}
+              onChange={e => updateField('required', e.target.checked)} />
+          </div>
+        </div>
+
+        {/* Opções */}
+        {needsOptions && (
+          <div className="sq-options">
+            <div className="sq-options-header">
+              <span>Opções</span>
+              <button type="button" className="sq-add-option-btn" onClick={addOption}>+ Opção</button>
+            </div>
+            {(sub.options || []).map(opt => (
+              <div key={opt.id} className="sq-option-row">
+                <input type="text" placeholder="Nome da opção" value={opt.label}
+                  onChange={e => updateOption(opt.id, 'label', e.target.value)} />
+                <input type="number" placeholder="Preço fixo" value={opt.basePrice}
+                  onChange={e => updateOption(opt.id, 'basePrice', e.target.value)} min="0" step="0.01" />
+                <input type="number" placeholder="Por pessoa" value={opt.pricePerPerson}
+                  onChange={e => updateOption(opt.id, 'pricePerPerson', e.target.value)} min="0" step="0.01" />
+                <button type="button" className="sq-remove-opt-btn" onClick={() => removeOption(opt.id)}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Filhos recursivos */}
+        {canHaveChildren && depth < 4 && (
+          <div className="sq-children">
+            {(sub.subQuestions || []).map(child => (
+              <SubQuestionNode
+                key={child.id}
+                sub={child}
+                depth={depth + 1}
+                parentOptions={sub.options || []}
+                parentType={sub.type}
+                onChange={updated => updateChild(child.id, updated)}
+                onRemove={() => removeChild(child.id)}
+              />
+            ))}
+            <button type="button" className="sq-add-child-btn" onClick={addChild}>
+              + Adicionar subpergunta nível {depth + 2}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente principal ──────────────────────────────────────────────────
 function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null }) {
   const isEditMode = editQuestion !== null;
   const isSpecialMode = specialType !== null || (editQuestion && editQuestion.specialType);
 
   const [areas, setAreas] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     text: '',
@@ -17,6 +196,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
     areaName: '',
     roleId: '',
     roleName: '',
+    kanbanStage: '',
     required: true,
     active: true,
     order: 1,
@@ -25,8 +205,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const [options, setOptions] = useState([]);
   const [subQuestions, setSubQuestions] = useState([]);
-  const [showOptions, setShowOptions] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const showOptions = formData.type === 'multiple' || formData.type === 'multiselect';
 
   useEffect(() => {
     loadAreasRoles();
@@ -38,36 +217,18 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         areaName: editQuestion.areaName || '',
         roleId: editQuestion.roleId || '',
         roleName: editQuestion.roleName || '',
+        kanbanStage: editQuestion.kanbanStage || '',
         required: editQuestion.required !== undefined ? editQuestion.required : true,
         active: editQuestion.active !== undefined ? editQuestion.active : true,
         order: editQuestion.order || 1,
         specialType: editQuestion.specialType || null
       });
-      if (editQuestion.options) setOptions(editQuestion.options);
-      if (editQuestion.subQuestions) setSubQuestions(editQuestion.subQuestions);
-      setShowOptions(editQuestion.type === 'multiple' || editQuestion.type === 'multiselect');
+      setOptions(editQuestion.options || []);
+      setSubQuestions(editQuestion.subQuestions || []);
     } else if (specialType === 'initial') {
-      setFormData(prev => ({
-        ...prev,
-        text: 'Qual tipo de evento você deseja realizar?',
-        type: 'multiple',
-        specialType: 'initial',
-        required: true,
-        active: true,
-        order: 0
-      }));
-      setShowOptions(true);
+      setFormData(prev => ({ ...prev, text: 'Qual tipo de evento você deseja realizar?', type: 'multiple', specialType: 'initial', required: true, active: true, order: 0 }));
     } else if (specialType === 'finalization') {
-      setFormData(prev => ({
-        ...prev,
-        text: 'Finalizar e Enviar Orçamento',
-        type: 'finalization',
-        specialType: 'finalization',
-        required: true,
-        active: true,
-        order: 999
-      }));
-      setShowOptions(false);
+      setFormData(prev => ({ ...prev, text: 'Finalizar e Enviar Orçamento', type: 'finalization', specialType: 'finalization', required: true, active: true, order: 999 }));
     } else {
       loadQuestionsForOrder();
     }
@@ -89,28 +250,14 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
   const loadQuestionsForOrder = async () => {
     try {
       const q = query(collection(db, 'questions'), orderBy('order', 'asc'));
-      const querySnapshot = await getDocs(q);
-      const questionsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      if (questionsData.length > 0) {
-        const maxOrder = Math.max(...questionsData.map(q => q.order || 0));
-        setFormData(prev => ({ ...prev, order: maxOrder + 1 }));
-      } else {
-        setFormData(prev => ({ ...prev, order: 1 }));
-      }
+      const snap = await getDocs(q);
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const maxOrder = data.length > 0 ? Math.max(...data.map(q => q.order || 0)) : 0;
+      setFormData(prev => ({ ...prev, order: maxOrder + 1 }));
     } catch (error) {
       console.error('Erro ao carregar ordem:', error);
     }
   };
-
-  const questionTypes = [
-    { value: 'multiple', label: 'Múltipla Escolha' },
-    { value: 'multiselect', label: 'Seleção Única' },
-    { value: 'number', label: 'Número' },
-    { value: 'text', label: 'Texto Curto' },
-    { value: 'date', label: 'Data' },
-    { value: 'currency', label: 'Valor em Reais' },
-    { value: 'yesno', label: 'Sim/Não' }
-  ];
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -120,64 +267,27 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
     } else if (name === 'roleId') {
       const selected = roles.find(r => r.id === value);
       setFormData({ ...formData, roleId: value, roleName: selected?.name || '' });
+    } else if (name === 'type') {
+      setFormData({ ...formData, type: value });
+      if (value !== 'multiple' && value !== 'multiselect') {
+        setOptions([]);
+        setSubQuestions([]);
+      }
     } else {
       setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
-      if (name === 'type') {
-        const needsOptions = value === 'multiple' || value === 'multiselect';
-        setShowOptions(needsOptions);
-        if (!needsOptions) setOptions([]);
-      }
     }
   };
 
-  const addOption = () => {
-    setOptions([...options, { id: Date.now().toString(), label: '', basePrice: 0, pricePerPerson: 0 }]);
-  };
+  const addOption = () => setOptions([...options, newOption()]);
+  const updateOption = (id, field, value) => setOptions(options.map(o => o.id === id ? { ...o, [field]: value } : o));
+  const removeOption = (id) => setOptions(options.filter(o => o.id !== id));
 
-  const updateOption = (id, field, value) => {
-    setOptions(options.map(opt => opt.id === id ? { ...opt, [field]: value } : opt));
+  const addSubQuestion = () => {
+    const trigger = formData.type === 'yesno' ? 'yes' : (options[0]?.id || '');
+    setSubQuestions([...subQuestions, newSubQuestion(trigger)]);
   };
-
-  const removeOption = (id) => {
-    setOptions(options.filter(opt => opt.id !== id));
-  };
-
-  const handleAddSubQuestion = () => {
-    setSubQuestions([...subQuestions, {
-      id: Date.now().toString(),
-      trigger: formData.type === 'yesno' ? 'yes' : (options[0]?.id || ''),
-      text: '', type: 'multiple', required: true, linkToMainQuantity: false, options: []
-    }]);
-  };
-
-  const handleRemoveSubQuestion = (subId) => {
-    setSubQuestions(subQuestions.filter(sub => sub.id !== subId));
-  };
-
-  const updateSubQuestion = (subId, field, value) => {
-    setSubQuestions(subQuestions.map(sub => sub.id === subId ? { ...sub, [field]: value } : sub));
-  };
-
-  const addSubQuestionOption = (subId) => {
-    setSubQuestions(subQuestions.map(sub => {
-      if (sub.id !== subId) return sub;
-      return { ...sub, options: [...(sub.options || []), { id: Date.now().toString(), label: '', basePrice: 0, pricePerPerson: 0 }] };
-    }));
-  };
-
-  const updateSubQuestionOption = (subId, optId, field, value) => {
-    setSubQuestions(subQuestions.map(sub => {
-      if (sub.id !== subId) return sub;
-      return { ...sub, options: sub.options.map(opt => opt.id === optId ? { ...opt, [field]: value } : opt) };
-    }));
-  };
-
-  const removeSubQuestionOption = (subId, optId) => {
-    setSubQuestions(subQuestions.map(sub => {
-      if (sub.id !== subId) return sub;
-      return { ...sub, options: sub.options.filter(opt => opt.id !== optId) };
-    }));
-  };
+  const updateSubQuestion = (id, updated) => setSubQuestions(subQuestions.map(s => s.id === id ? updated : s));
+  const removeSubQuestion = (id) => setSubQuestions(subQuestions.filter(s => s.id !== id));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -186,17 +296,10 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
       const questionData = {
         ...formData,
         order: Number(formData.order),
+        options: showOptions ? options.map(o => ({ ...o, basePrice: Number(o.basePrice), pricePerPerson: Number(o.pricePerPerson) })) : [],
+        subQuestions: subQuestions,
         updatedAt: new Date()
       };
-      if (showOptions && options.length > 0) {
-        questionData.options = options.map(opt => ({ ...opt, basePrice: Number(opt.basePrice), pricePerPerson: Number(opt.pricePerPerson) }));
-      }
-      if (subQuestions.length > 0) {
-        questionData.subQuestions = subQuestions.map(sub => ({
-          ...sub,
-          options: sub.options?.map(opt => ({ ...opt, basePrice: Number(opt.basePrice), pricePerPerson: Number(opt.pricePerPerson) })) || []
-        }));
-      }
       if (isEditMode) {
         await updateDoc(doc(db, 'questions', editQuestion.id), questionData);
         alert('Pergunta atualizada com sucesso!');
@@ -227,10 +330,11 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
   };
 
   const filteredRoles = roles.filter(r => r.areaId === formData.areaId);
+  const canHaveSubs = !isSpecialMode && (formData.type === 'yesno' || showOptions);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{getModalTitle()}</h2>
           <button className="close-btn" onClick={onClose}>×</button>
@@ -239,15 +343,12 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         <form onSubmit={handleSubmit}>
           {isSpecialMode && (
             <div className="special-notice">
-              {formData.specialType === 'initial' && (
-                <p><strong>Pergunta Inicial:</strong> Esta será a primeira pergunta do questionário.</p>
-              )}
-              {formData.specialType === 'finalization' && (
-                <p><strong>Finalização:</strong> Esta é a tela final onde o cliente revisa e envia o orçamento.</p>
-              )}
+              {formData.specialType === 'initial' && <p><strong>Pergunta Inicial:</strong> Primeira pergunta do questionário.</p>}
+              {formData.specialType === 'finalization' && <p><strong>Finalização:</strong> Tela final de envio do orçamento.</p>}
             </div>
           )}
 
+          {/* TEXTO */}
           <div className="form-group">
             <label>Texto da Pergunta *</label>
             <input type="text" name="text" value={formData.text} onChange={handleChange}
@@ -256,57 +357,57 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
           {!isSpecialMode && (
             <>
+              {/* LINHA 1: Tipo (maior) + Ordem (menor) */}
               <div className="form-row">
-                <div className="form-group">
-                  <label>Ordem de Exibição *</label>
-                  <input type="number" name="order" value={formData.order} onChange={handleChange} min="1" required />
-                </div>
-                <div className="form-group">
+                <div className="form-group" style={{ flex: 3 }}>
                   <label>Tipo de Resposta *</label>
                   <select name="type" value={formData.type} onChange={handleChange}>
-                    {questionTypes.map(type => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
-                    ))}
+                    {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Ordem *</label>
+                  <input type="number" name="order" value={formData.order} onChange={handleChange} min="1" required />
                 </div>
               </div>
 
-              {/* RESPONSÁVEL: Área → Cargo */}
+              {/* LINHA 2: Área + Cargo + Etapa Kanban */}
               <div className="form-row">
                 <div className="form-group">
-                  <label>Área Responsável *</label>
+                  <label>Área Responsável</label>
                   <select name="areaId" value={formData.areaId} onChange={handleChange}>
                     <option value="">Selecione uma área...</option>
                     {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Cargo Responsável *</label>
+                  <label>Cargo Responsável</label>
                   <select name="roleId" value={formData.roleId} onChange={handleChange} disabled={!formData.areaId}>
-                    <option value="">{!formData.areaId ? 'Selecione uma área primeiro...' : 'Selecione um cargo...'}</option>
+                    <option value="">{!formData.areaId ? 'Selecione uma área...' : 'Selecione um cargo...'}</option>
                     {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
-                  {formData.areaId && filteredRoles.length === 0 && (
-                    <small className="helper-text">Nenhum cargo nesta área.</small>
-                  )}
+                </div>
+                <div className="form-group">
+                  <label>Etapa do Kanban</label>
+                  <select name="kanbanStage" value={formData.kanbanStage} onChange={handleChange}>
+                    <option value="">Selecione uma etapa...</option>
+                    {KANBAN_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
                 </div>
               </div>
             </>
           )}
 
-          <div className="form-row">
-            <div className="checkbox-group">
-              <label>
-                <input type="checkbox" name="required" checked={formData.required} onChange={handleChange} />
-                Obrigatória
-              </label>
-            </div>
-            <div className="checkbox-group">
-              <label>
-                <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
-                Ativa
-              </label>
-            </div>
+          {/* CHECKBOXES */}
+          <div className="form-row" style={{ gap: '2rem', marginBottom: '1.5rem' }}>
+            <label className="qf-checkbox">
+              <input type="checkbox" name="required" checked={formData.required} onChange={handleChange} />
+              Obrigatória
+            </label>
+            <label className="qf-checkbox">
+              <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
+              Ativa
+            </label>
           </div>
 
           {/* OPÇÕES DE RESPOSTA */}
@@ -317,110 +418,56 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
                 <button type="button" className="btn-add-option" onClick={addOption}>+ Adicionar Opção</button>
               </div>
               {options.length === 0 && <p className="empty-options">Nenhuma opção adicionada.</p>}
-              {options.map((option) => (
-                <div key={option.id} className="option-item">
+              {options.map(opt => (
+                <div key={opt.id} className="option-item">
                   <div className="option-field">
                     <label>Nome da Opção *</label>
-                    <input type="text" placeholder="Ex: Buffet Completo" value={option.label}
-                      onChange={(e) => updateOption(option.id, 'label', e.target.value)} required />
+                    <input type="text" placeholder="Ex: Buffet Completo" value={opt.label}
+                      onChange={e => updateOption(opt.id, 'label', e.target.value)} />
                   </div>
                   <div className="option-field">
                     <label>Preço Fixo (R$)</label>
-                    <input type="number" placeholder="0.00" value={option.basePrice}
-                      onChange={(e) => updateOption(option.id, 'basePrice', e.target.value)} min="0" step="0.01" />
-                    <small>Valor fixo do serviço</small>
+                    <input type="number" placeholder="0.00" value={opt.basePrice}
+                      onChange={e => updateOption(opt.id, 'basePrice', e.target.value)} min="0" step="0.01" />
                   </div>
                   <div className="option-field">
-                    <label>Preço por Pessoa (R$)</label>
-                    <input type="number" placeholder="0.00" value={option.pricePerPerson}
-                      onChange={(e) => updateOption(option.id, 'pricePerPerson', e.target.value)} min="0" step="0.01" />
-                    <small>Multiplica pelo nº de convidados</small>
+                    <label>Por Pessoa (R$)</label>
+                    <input type="number" placeholder="0.00" value={opt.pricePerPerson}
+                      onChange={e => updateOption(opt.id, 'pricePerPerson', e.target.value)} min="0" step="0.01" />
                   </div>
-                  <button type="button" className="btn-remove-option" onClick={() => removeOption(option.id)}>Remover</button>
+                  <button type="button" className="btn-remove-option" onClick={() => removeOption(opt.id)}>✕</button>
                 </div>
               ))}
             </div>
           )}
 
-          {/* SUBPERGUNTAS CONDICIONAIS */}
-          {!isSpecialMode && (formData.type === 'yesno' || showOptions) && (
-            <div className="subquestion-section">
-              <div className="subquestion-header">
-                <h3>Perguntas Condicionais (Subperguntas)</h3>
-                <button type="button" className="btn-add-subquestion" onClick={handleAddSubQuestion}>
-                  + Adicionar Subpergunta
+          {/* SUBPERGUNTAS RECURSIVAS */}
+          {canHaveSubs && (
+            <div className="sq-section">
+              <div className="sq-section-header">
+                <div>
+                  <h3>Perguntas Condicionais</h3>
+                  <p className="sq-section-sub">Perguntas que aparecem dependendo da resposta. Cada uma pode ter suas próprias subperguntas.</p>
+                </div>
+                <button type="button" className="sq-add-root-btn" onClick={addSubQuestion}>
+                  + Nova subpergunta
                 </button>
               </div>
-              {subQuestions.map((subQuestion, index) => (
-                <div key={subQuestion.id} className="subquestion-box">
-                  <div className="subquestion-number">Subpergunta #{index + 1}</div>
-                  <div className="subquestion-controls">
-                    <label className="subquestion-label">Exibida SE a resposta principal for:</label>
-                    <select value={subQuestion.trigger}
-                      onChange={(e) => updateSubQuestion(subQuestion.id, 'trigger', e.target.value)}
-                      className="trigger-select">
-                      {formData.type === 'yesno' ? (
-                        <><option value="yes">SIM</option><option value="no">NÃO</option></>
-                      ) : (
-                        options.map(opt => <option key={opt.id} value={opt.id}>{opt.label || 'Opção sem nome'}</option>)
-                      )}
-                    </select>
-                    <button type="button" className="btn-remove-subquestion"
-                      onClick={() => handleRemoveSubQuestion(subQuestion.id)}>
-                      Remover Subpergunta
-                    </button>
-                  </div>
-                  <div className="form-group">
-                    <label>Texto da Subpergunta *</label>
-                    <input type="text" value={subQuestion.text}
-                      onChange={(e) => updateSubQuestion(subQuestion.id, 'text', e.target.value)}
-                      placeholder="Ex: Escolha os tipos de A&B" required />
-                  </div>
-                  <div className="form-group">
-                    <label>Tipo de Resposta</label>
-                    <select value={subQuestion.type}
-                      onChange={(e) => updateSubQuestion(subQuestion.id, 'type', e.target.value)}>
-                      {questionTypes.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="checkbox-group">
-                    <label>
-                      <input type="checkbox" checked={subQuestion.linkToMainQuantity || false}
-                        onChange={(e) => updateSubQuestion(subQuestion.id, 'linkToMainQuantity', e.target.checked)} />
-                      Vincular preço com quantidade de pessoas da pergunta principal
-                    </label>
-                  </div>
-                  {(subQuestion.type === 'multiple' || subQuestion.type === 'multiselect') && (
-                    <div className="options-section">
-                      <div className="options-header">
-                        <h4>Opções da Subpergunta</h4>
-                        <button type="button" className="btn-add-option-small"
-                          onClick={() => addSubQuestionOption(subQuestion.id)}>+ Opção</button>
-                      </div>
-                      {subQuestion.options?.map((option) => (
-                        <div key={option.id} className="option-item">
-                          <div className="option-field">
-                            <label>Nome *</label>
-                            <input type="text" placeholder="Ex: Open Bar Premium" value={option.label}
-                              onChange={(e) => updateSubQuestionOption(subQuestion.id, option.id, 'label', e.target.value)} required />
-                          </div>
-                          <div className="option-field">
-                            <label>Preço Fixo</label>
-                            <input type="number" placeholder="0.00" value={option.basePrice}
-                              onChange={(e) => updateSubQuestionOption(subQuestion.id, option.id, 'basePrice', e.target.value)} min="0" step="0.01" />
-                          </div>
-                          <div className="option-field">
-                            <label>Por Pessoa</label>
-                            <input type="number" placeholder="0.00" value={option.pricePerPerson}
-                              onChange={(e) => updateSubQuestionOption(subQuestion.id, option.id, 'pricePerPerson', e.target.value)} min="0" step="0.01" />
-                          </div>
-                          <button type="button" className="btn-remove-option"
-                            onClick={() => removeSubQuestionOption(subQuestion.id, option.id)}>Remover</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
+              {subQuestions.length === 0 && (
+                <div className="sq-empty">Nenhuma subpergunta adicionada ainda.</div>
+              )}
+
+              {subQuestions.map(sub => (
+                <SubQuestionNode
+                  key={sub.id}
+                  sub={sub}
+                  depth={0}
+                  parentOptions={options}
+                  parentType={formData.type}
+                  onChange={updated => updateSubQuestion(sub.id, updated)}
+                  onRemove={() => removeSubQuestion(sub.id)}
+                />
               ))}
             </div>
           )}
