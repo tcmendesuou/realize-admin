@@ -98,6 +98,12 @@ form {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  align-items: flex-start;
+}
+
+.form-row .form-group {
+  margin-bottom: 0;
+  min-width: 0;
 }
 
 .checkbox-group {
@@ -421,6 +427,44 @@ form {
   height: 2px;
   background: rgba(0,0,0,0.12);
 }
+
+/* ── UPLOAD PREVIEW ── */
+.qf-upload-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f0f7ff;
+  border: 2px solid #90caf9;
+  border-radius: 10px;
+  margin-bottom: 1.25rem;
+  font-size: 13px;
+  color: #1565c0;
+}
+
+.qf-upload-preview span:first-child {
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.qf-upload-preview div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.qf-upload-preview strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qf-upload-preview small {
+  font-size: 11px;
+  color: #1976d2;
+  opacity: 0.8;
+}
+
 .badge-fixed {
   display: inline-flex;
   align-items: center;

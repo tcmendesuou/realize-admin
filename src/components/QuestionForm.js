@@ -25,6 +25,7 @@ const QUESTION_TYPES = [
   { value: 'date',        label: 'Data' },
   { value: 'currency',    label: 'Valor em Reais' },
   { value: 'yesno',       label: 'Sim/Não' },
+  { value: 'upload',      label: '📎 Upload de Arquivo' },
   // ── Perguntas Fixas ──
   { value: 'fixed-client',      label: '⚙ Cliente (Fixa)', fixed: true },
   { value: 'fixed-responsible', label: '⚙ Responsável (Fixa)', fixed: true },
@@ -444,7 +445,16 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
             </div>
           )}
 
-          {/* CHECKBOXES */}
+          {/* PREVIEW UPLOAD */}
+          {formData.type === 'upload' && (
+            <div className="qf-upload-preview">
+              <span>📎</span>
+              <div>
+                <strong>Upload de Arquivo</strong>
+                <small>O atendimento poderá subir imagens ou documentos (PDF, JPG, PNG). Os arquivos serão salvos no Firebase Storage.</small>
+              </div>
+            </div>
+          )}
           <div className="form-row" style={{ gap: '2rem', marginBottom: '1rem' }}>
             <label className="qf-checkbox">
               <input type="checkbox" name="required" checked={formData.required} onChange={handleChange} />
