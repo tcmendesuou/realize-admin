@@ -25,6 +25,7 @@ const QUESTION_TYPES = [
   { value: 'date',        label: 'Data' },
   { value: 'currency',    label: 'Valor em Reais' },
   { value: 'yesno',       label: 'Sim/Não' },
+  { value: 'upload',      label: '📎 Upload de Arquivo' },
   // ── Perguntas Fixas ──
   { value: 'fixed-client',      label: '⚙ Cliente (Fixa)', fixed: true },
   { value: 'fixed-responsible', label: '⚙ Responsável (Fixa)', fixed: true },
@@ -446,6 +447,17 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
               {formData.type === 'fixed-attendant' && <><span>🎯</span><span>Preenchido automaticamente com o <strong>atendimento logado</strong> (editável)</span></>}
               {formData.type === 'fixed-date' && <><span>📅</span><span>Preenchido automaticamente com a <strong>data de hoje</strong> (editável)</span></>}
               {formData.type === 'fixed-events' && <><span>✂️</span><span>Define <strong>quantos eventos</strong> o briefing vai gerar — abre boxes de nome, local e data para cada um</span></>}
+            </div>
+          )}
+
+          {/* PREVIEW UPLOAD */}
+          {formData.type === 'upload' && (
+            <div className="qf-upload-preview">
+              <span>📎</span>
+              <div>
+                <strong>Upload de Arquivo</strong>
+                <small>O atendimento poderá subir imagens ou documentos (PDF, JPG, PNG). Os arquivos serão salvos no Firebase Storage.</small>
+              </div>
             </div>
           )}
 
