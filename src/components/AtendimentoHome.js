@@ -168,6 +168,17 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     setBriefingForm(f => ({ ...f, answers: { ...f.answers, [questionId]: value } }));
   };
 
+  // Resposta por feira: answers[questionId] = { 0: 'Sim', 1: 'Não', ... }
+  const handleAnswerFeiraChange = (questionId, feiraIndex, value) => {
+    setBriefingForm(f => ({
+      ...f,
+      answers: {
+        ...f.answers,
+        [questionId]: { ...(f.answers[questionId] || {}), [feiraIndex]: value }
+      }
+    }));
+  };
+
   const handleNumFeirasChange = (n) => {
     const num = parseInt(n) || 0;
     setNumFeiras(n);
@@ -259,6 +270,139 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  // ── Renderiza pergunta variável replicada por feira ─────────────────────────
+  const renderQuestionPorFeira = (q) => {
+    const base = {
+      width: '100%', padding: '10px 14px', borderRadius: 8,
+      border: '1px solid rgba(0,180,255,0.15)',
+      background: 'rgba(255,255,255,0.04)', color: '#E8F4FF',
+      fontFamily: 'Outfit, sans-serif', fontSize: 13, outline: 'none'
+    };
+
+    const renderInput = (feiraIndex) => {
+      const val = (briefingForm.answers[q.id] || {})[feiraIndex] || '';
+
+      if (q.type === 'yesno') {
+        return (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['Sim', 'Não'].map(opt => (
+              <button key={opt} onClick={() => handleAnswerFeiraChange(q.id, feiraIndex, opt)} style={{
+                ...base, width: 'auto', padding: '7px 18px', cursor: 'pointer',
+                background: val === opt ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                borderColor: val === opt ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                color: val === opt ? '#00E5C4' : '#E8F4FF'
+              }}>{opt}</button>
+            ))}
+          </div>
+        );
+      }
+      if (q.type === 'text' || q.type === 'number' || q.type === 'date') {
+        return <input type={q.type} value={val}
+          onChange={e => handleAnswerFeiraChange(q.id, feiraIndex, e.target.value)}
+          style={base} placeholder="Sua resposta..." />;
+      }
+      if (q.type === 'textarea') {
+        return <textarea value={val} rows={3}
+          onChange={e => handleAnswerFeiraChange(q.id, feiraIndex, e.target.value)}
+          style={{ ...base, resize: 'vertical', lineHeight: 1.5 }} />;
+      }
+      if (q.type === 'multiple' || q.type === 'multiselect') {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(q.options || []).map(opt => {
+              const selected = q.type === 'multiple'
+                ? val === opt.label
+                : (Array.isArray(val) ? val.includes(opt.label) : false);
+              return (
+                <button key={opt.id} onClick={() => {
+                  if (q.type === 'multiple') handleAnswerFeiraChange(q.id, feiraIndex, opt.label);
+                  else {
+                    const arr = Array.isArray(val) ? val : [];
+                    handleAnswerFeiraChange(q.id, feiraIndex, selected ? arr.filter(v => v !== opt.label) : [...arr, opt.label]);
+                  }
+                }} style={{
+                  ...base, width: '100%', textAlign: 'left', cursor: 'pointer',
+                  background: selected ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.04)',
+                  borderColor: selected ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                  color: selected ? '#00E5C4' : '#E8F4FF'
+                }}>{opt.label}</button>
+              );
+            })}
+          </div>
+        );
+      }
+      return <input type="text" value={val}
+        onChange={e => handleAnswerFeiraChange(q.id, feiraIndex, e.target.value)}
+        style={base} placeholder="Sua resposta..." />;
+    };
+
+    // Subperguntas visíveis por feira (yesno: se Sim, mostra subs com trigger 'yes')
+    const renderSubs = (feiraIndex) => {
+      const val = (briefingForm.answers[q.id] || {})[feiraIndex] || '';
+      if (!q.subQuestions || q.subQuestions.length === 0) return null;
+      const activeSubs = q.subQuestions.filter(sub => {
+        if (q.type === 'yesno') return sub.trigger === 'yes' ? val === 'Sim' : val === 'Não';
+        return sub.trigger === val; // múltipla escolha
+      });
+      if (activeSubs.length === 0) return null;
+      return (
+        <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: '2px solid rgba(0,229,196,0.2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {activeSubs.map(sub => {
+            const subVal = (briefingForm.answers[sub.id] || {})[feiraIndex] || '';
+            return (
+              <div key={sub.id}>
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 4 }}>{sub.text}{sub.required && <span style={{ color: '#E74C3C' }}> *</span>}</div>
+                {sub.type === 'yesno' ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {['Sim', 'Não'].map(opt => (
+                      <button key={opt} onClick={() => handleAnswerFeiraChange(sub.id, feiraIndex, opt)} style={{
+                        ...base, width: 'auto', padding: '6px 14px', cursor: 'pointer', fontSize: 12,
+                        background: subVal === opt ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                        borderColor: subVal === opt ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                        color: subVal === opt ? '#00E5C4' : '#E8F4FF'
+                      }}>{opt}</button>
+                    ))}
+                  </div>
+                ) : (
+                  <input type={sub.type === 'textarea' ? 'text' : sub.type} value={subVal}
+                    onChange={e => handleAnswerFeiraChange(sub.id, feiraIndex, e.target.value)}
+                    style={{ ...base, fontSize: 12 }} placeholder="Sua resposta..." />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    return (
+      <div className="ws-question-item">
+        <div className="ws-question-text">
+          {q.text}{q.required && <span className="ws-question-required">*</span>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+          {feiras.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)', fontStyle: 'italic' }}>
+              Defina as feiras no bloco anterior para responder esta pergunta
+            </div>
+          ) : feiras.map((feira, feiraIndex) => (
+            <div key={feiraIndex} style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: `1px solid ${feira.isMae ? 'rgba(0,229,196,0.2)' : 'rgba(0,180,255,0.08)'}`,
+              borderRadius: 8, padding: '10px 12px'
+            }}>
+              <div style={{ fontSize: 11, color: feira.isMae ? '#00E5C4' : '#7BAFD4', fontWeight: 600, letterSpacing: 0.5, marginBottom: 8 }}>
+                FEIRA {feiraIndex + 1}{feira.isMae ? ' — MÃE' : ''}{feira.nome ? ` — ${feira.nome}` : ''}
+              </div>
+              {renderInput(feiraIndex)}
+              {renderSubs(feiraIndex)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const renderQuestionInput = (q) => {
@@ -898,12 +1042,17 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                             ))}
                           </div>
                         ) : (
-                          <div key={gi} className="ws-question-item">
-                            <div className="ws-question-text">
-                              {group[0].label || group[0].text}{group[0].required && <span className="ws-question-required">*</span>}
-                            </div>
-                            {renderQuestionInput(group[0])}
-                          </div>
+                          // Pergunta individual: se não for fixa e não for shared → replica por feira
+                          (!group[0].isFixedBlockField && group[0].isShared === false && feiras.length > 0)
+                            ? renderQuestionPorFeira(group[0])
+                            : (
+                              <div key={gi} className="ws-question-item">
+                                <div className="ws-question-text">
+                                  {group[0].label || group[0].text}{group[0].required && <span className="ws-question-required">*</span>}
+                                </div>
+                                {renderQuestionInput(group[0])}
+                              </div>
+                            )
                         )
                       );
                     })()}
