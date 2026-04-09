@@ -1,6 +1,6 @@
 /* TASK FORM */
 .task-modal-content {
-  max-width: 900px;
+  width: min(95vw, 1400px);
   max-height: 90vh;
   overflow-y: auto;
 }
