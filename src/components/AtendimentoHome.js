@@ -1,14 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ProjetoScreen from './ProjetoScreen';
 
-export default function AtendimentoHome({ user, userData, onLogout }) {
-  const [myBudgets, setMyBudgets] = useState([]);
-  const [myProjects, setMyProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+const KANBAN_STAGES = [
+  { id: 'novo_pedido',  label: 'Novo Pedido' },
+  { id: 'orcamento',    label: 'Orçamento' },
+  { id: 'cliente',      label: 'Cliente' },
+  { id: 'kickoff',      label: 'Kick Off' },
+  { id: 'criacao',      label: 'Criação' },
+  { id: 'producao',     label: 'Produção' },
+  { id: 'montagem',     label: 'Montagem' },
+  { id: 'evento',       label: 'Evento' },
+  { id: 'desmontagem',  label: 'Desmontagem' },
+  { id: 'fechamento',   label: 'Fechamento' },
+];
 
-  // Navegação para projeto
+const TASK_STAGES = [
+  { id: 'backlog',    label: 'Backlog',   color: '#7BAFD4' },
+  { id: 'todo',       label: 'To Do',     color: '#FFA726' },
+  { id: 'done',       label: 'Concluído', color: '#66BB6A' },
+];
+
+export default function AtendimentoHome({ user, userData, onLogout }) {
+  const [allBudgets, setAllBudgets] = useState([]);
+  const [myTasks, setMyTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [taskView, setTaskView] = useState('kanban'); // 'kanban' | 'list'
   const [selectedProjectId, setSelectedProjectId] = useState(null);
 
   // Briefing modal
@@ -24,23 +42,47 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     answers: {}
   });
 
-  const userName = userData?.name || user?.email?.split('@')[0] || 'Atendimento';
+  const userName = userData?.name || user?.email?.split('@')[0] || 'Usuário';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   const userId = userData?.id;
+  const userRoleId = userData?.roleId;
+  const canOpenBriefing = userData?.permissions?.briefing?.create !== false;
 
   useEffect(() => {
-    if (userId) loadData(userId);
+    loadData();
     loadCompaniesAndEventTypes();
   }, [userId]);
 
-  const loadData = async (uid) => {
+  const loadData = async () => {
     try {
-      await Promise.all([loadMyBudgets(uid), loadMyProjects(uid)]);
+      await Promise.all([loadAllBudgets(), loadMyTasks()]);
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadAllBudgets = async () => {
+    const snap = await getDocs(collection(db, 'budgets'));
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setAllBudgets(data);
+  };
+
+  const loadMyTasks = async () => {
+    if (!userId) return;
+    // Busca tarefas de todos os budgets onde o usuário tem tarefas atribuídas
+    const snap = await getDocs(collection(db, 'budgets'));
+    const tasks = [];
+    snap.docs.forEach(d => {
+      const budget = { id: d.id, ...d.data() };
+      (budget.tasks || []).forEach(task => {
+        if (task.assignedTo === userId || task.roleId === userRoleId) {
+          tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.clientName });
+        }
+      });
+    });
+    setMyTasks(tasks);
   };
 
   const loadCompaniesAndEventTypes = async () => {
@@ -71,33 +113,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .sort((a, b) => (a.order || 0) - (b.order || 0));
       setFlowQuestions(ordered);
     } catch (err) {
-      console.error('Erro ao carregar perguntas:', err);
       setFlowQuestions([]);
     }
-  };
-
-  const loadMyBudgets = async (uid) => {
-    const q = query(collection(db, 'budgets'), where('assignedTo', '==', uid), where('status', '==', 'analyzing'));
-    const snap = await getDocs(q);
-    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      .sort((a, b) => {
-        const dA = a.assignedAt?.toDate ? a.assignedAt.toDate() : new Date(0);
-        const dB = b.assignedAt?.toDate ? b.assignedAt.toDate() : new Date(0);
-        return dB - dA;
-      });
-    setMyBudgets(data);
-  };
-
-  const loadMyProjects = async (uid) => {
-    const q = query(collection(db, 'budgets'), where('assignedTo', '==', uid), where('status', '==', 'approved'));
-    const snap = await getDocs(q);
-    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      .sort((a, b) => {
-        const dA = a.approvedAt?.toDate ? a.approvedAt.toDate() : new Date(0);
-        const dB = b.approvedAt?.toDate ? b.approvedAt.toDate() : new Date(0);
-        return dB - dA;
-      });
-    setMyProjects(data);
   };
 
   const handleEventTypeChange = async (eventTypeId) => {
@@ -118,8 +135,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
     setSavingBriefing(true);
     try {
-      const allBudgets = await getDocs(collection(db, 'budgets'));
-      const maxNum = allBudgets.docs.reduce((max, d) => Math.max(max, d.data().budgetNumber || 0), 1000);
+      const allBudgetsSnap = await getDocs(collection(db, 'budgets'));
+      const maxNum = allBudgetsSnap.docs.reduce((max, d) => Math.max(max, d.data().budgetNumber || 0), 1000);
 
       await addDoc(collection(db, 'budgets'), {
         budgetNumber: maxNum + 1,
@@ -132,16 +149,17 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         eventTypeName: briefingForm.eventTypeName,
         answers: briefingForm.answers,
         status: 'analyzing',
+        kanbanStage: 'novo_pedido',
         assignedTo: userId,
         assignedToName: userName,
         assignedBy: userId,
         assignedAt: serverTimestamp(),
         createdBy: 'atendimento',
+        tasks: [],
         timeline: [{
           action: 'created',
-          description: `Briefing aberto por ${userName} (via email do cliente)`,
-          userId: userId,
-          userName: userName,
+          description: `Briefing aberto por ${userName}`,
+          userId, userName,
           timestamp: new Date()
         }],
         createdAt: serverTimestamp(),
@@ -152,12 +170,28 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       setShowBriefing(false);
       setBriefingForm({ companyId: '', companyName: '', clientName: '', clientEmail: '', clientPhone: '', eventTypeId: '', eventTypeName: '', answers: {} });
       setFlowQuestions([]);
-      await loadData(userId);
+      await loadData();
     } catch (err) {
       console.error('Erro ao salvar briefing:', err);
       alert('Erro ao salvar. Tente novamente.');
     } finally {
       setSavingBriefing(false);
+    }
+  };
+
+  const handleTaskStatusChange = async (task, newStatus) => {
+    try {
+      const budgetRef = doc(db, 'budgets', task.projectId);
+      const budgetSnap = await getDocs(query(collection(db, 'budgets'), where('__name__', '==', task.projectId)));
+      if (budgetSnap.empty) return;
+      const budget = budgetSnap.docs[0].data();
+      const updatedTasks = (budget.tasks || []).map(t =>
+        t.taskId === task.taskId ? { ...t, status: newStatus } : t
+      );
+      await updateDoc(budgetRef, { tasks: updatedTasks, updatedAt: new Date() });
+      await loadMyTasks();
+    } catch (err) {
+      console.error('Erro ao atualizar tarefa:', err);
     }
   };
 
@@ -223,24 +257,20 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     return <input type="text" value={val} onChange={e => handleAnswerChange(q.id, e.target.value)} style={base} placeholder="Sua resposta..." />;
   };
 
-  // Navega para tela do projeto
   if (selectedProjectId) {
-    return (
-      <ProjetoScreen
-        projectId={selectedProjectId}
-        onBack={() => setSelectedProjectId(null)}
-      />
-    );
+    return <ProjetoScreen projectId={selectedProjectId} onBack={() => setSelectedProjectId(null)} />;
   }
 
   if (loading) {
     return (
       <div style={styles.loadingWrap}>
         <div style={styles.spinner} />
-        <p style={styles.loadingText}>Carregando seus projetos...</p>
+        <p style={{ color: '#7BAFD4', fontSize: 14, marginTop: 12 }}>Carregando...</p>
       </div>
     );
   }
+
+  const tasksByStage = (stageId) => myTasks.filter(t => (t.taskStatus || t.status || 'backlog') === stageId);
 
   return (
     <>
@@ -248,320 +278,418 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0D1B2A; }
-        .at-wrap { min-height: 100vh; background: #0D1B2A; font-family: 'Outfit', sans-serif; color: #E8F4FF; }
+        .ws-wrap { min-height: 100vh; background: #0D1B2A; font-family: 'Outfit', sans-serif; color: #E8F4FF; display: flex; }
 
-        .at-sidebar {
-          position: fixed; top: 0; left: 0; bottom: 0; width: 240px;
-          background: rgba(10,22,38,0.95); border-right: 1px solid rgba(0,180,255,0.1);
-          backdrop-filter: blur(20px); display: flex; flex-direction: column; z-index: 10; padding: 28px 0;
+        /* SIDEBAR */
+        .ws-sidebar {
+          position: fixed; top: 0; left: 0; bottom: 0; width: 220px;
+          background: rgba(10,22,38,0.97); border-right: 1px solid rgba(0,180,255,0.1);
+          display: flex; flex-direction: column; z-index: 10; padding: 24px 0;
         }
-        .at-sidebar-logo { padding: 0 24px 28px; border-bottom: 1px solid rgba(0,180,255,0.08); }
-        .at-sidebar-logo-name { font-size: 18px; font-weight: 300; letter-spacing: 3px; color: #E8F4FF; }
-        .at-sidebar-logo-name span { color: #00E5C4; font-weight: 500; }
-        .at-sidebar-logo-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(123,175,212,0.4); margin-top: 4px; }
-        .at-nav { flex: 1; padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; }
-        .at-nav-item {
-          display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px;
+        .ws-logo { padding: 0 20px 24px; border-bottom: 1px solid rgba(0,180,255,0.08); }
+        .ws-logo-name { font-size: 17px; font-weight: 300; letter-spacing: 3px; color: #E8F4FF; }
+        .ws-logo-name span { color: #00E5C4; font-weight: 500; }
+        .ws-logo-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(123,175,212,0.4); margin-top: 3px; }
+        .ws-nav { flex: 1; padding: 16px 10px; display: flex; flex-direction: column; gap: 3px; }
+        .ws-nav-item {
+          display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
           font-size: 13px; font-weight: 300; color: #7BAFD4; cursor: pointer; transition: all 0.15s;
           border: none; background: none; width: 100%; text-align: left; font-family: 'Outfit', sans-serif;
         }
-        .at-nav-item:hover { background: rgba(0,229,196,0.06); color: #E8F4FF; }
-        .at-nav-item.active { background: rgba(0,229,196,0.1); color: #00E5C4; }
-        .at-nav-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-        .at-sidebar-user {
-          padding: 20px 16px 0; border-top: 1px solid rgba(0,180,255,0.08);
+        .ws-nav-item:hover { background: rgba(0,229,196,0.06); color: #E8F4FF; }
+        .ws-nav-item.active { background: rgba(0,229,196,0.1); color: #00E5C4; }
+        .ws-nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+        .ws-sidebar-user {
+          padding: 16px 14px 0; border-top: 1px solid rgba(0,180,255,0.08);
           display: flex; align-items: center; gap: 10px;
         }
-        .at-avatar {
-          width: 36px; height: 36px; border-radius: 50%; background: rgba(0,229,196,0.15);
+        .ws-avatar {
+          width: 34px; height: 34px; border-radius: 50%; background: rgba(0,229,196,0.15);
           border: 1.5px solid rgba(0,229,196,0.4); display: flex; align-items: center; justify-content: center;
-          font-size: 13px; font-weight: 500; color: #00E5C4; flex-shrink: 0;
+          font-size: 12px; font-weight: 500; color: #00E5C4; flex-shrink: 0;
         }
-        .at-user-name { font-size: 13px; font-weight: 400; color: #E8F4FF; }
-        .at-user-role { font-size: 11px; color: rgba(123,175,212,0.5); }
-        .at-logout {
-          margin-left: auto; padding: 6px 10px; border-radius: 6px; background: none;
+        .ws-user-name { font-size: 13px; font-weight: 400; color: #E8F4FF; }
+        .ws-user-role { font-size: 10px; color: rgba(123,175,212,0.5); }
+        .ws-logout {
+          margin-left: auto; padding: 5px 8px; border-radius: 6px; background: none;
           border: 1px solid rgba(231,76,60,0.3); color: rgba(231,76,60,0.7); font-size: 11px;
-          cursor: pointer; transition: all 0.15s; font-family: 'Outfit', sans-serif;
+          cursor: pointer; transition: all 0.15s; font-family: 'Outfit', sans-serif; white-space: nowrap;
         }
-        .at-logout:hover { background: rgba(231,76,60,0.1); color: #E74C3C; }
+        .ws-logout:hover { background: rgba(231,76,60,0.1); color: #E74C3C; }
 
-        .at-main { margin-left: 240px; min-height: 100vh; display: flex; flex-direction: column; }
+        /* MAIN */
+        .ws-main { margin-left: 220px; min-height: 100vh; display: flex; flex-direction: column; }
 
-        .at-header {
-          padding: 28px 36px 24px; border-bottom: 1px solid rgba(0,180,255,0.08);
-          background: rgba(10,22,38,0.5); backdrop-filter: blur(10px);
+        /* HEADER */
+        .ws-header {
+          padding: 20px 32px; border-bottom: 1px solid rgba(0,180,255,0.08);
+          background: rgba(10,22,38,0.6); backdrop-filter: blur(10px);
           display: flex; align-items: center; justify-content: space-between;
+          position: sticky; top: 0; z-index: 5;
         }
-        .at-header-greeting { font-size: 22px; font-weight: 300; margin-bottom: 4px; }
-        .at-header-greeting strong { font-weight: 500; color: #00E5C4; }
-        .at-header-sub { font-size: 13px; color: #7BAFD4; font-weight: 300; }
-
-        .at-btn-briefing {
+        .ws-header-left h1 { font-size: 20px; font-weight: 300; }
+        .ws-header-left h1 strong { color: #00E5C4; font-weight: 500; }
+        .ws-header-left p { font-size: 12px; color: #7BAFD4; margin-top: 2px; }
+        .ws-btn-briefing {
           display: flex; align-items: center; gap: 8px;
-          padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer;
+          padding: 9px 16px; border-radius: 10px; border: none; cursor: pointer;
           background: linear-gradient(135deg, #00E5C4 0%, #0080FF 100%);
           color: #fff; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
-          letter-spacing: 0.5px; transition: opacity 0.2s, transform 0.15s; white-space: nowrap;
+          transition: opacity 0.2s, transform 0.15s;
         }
-        .at-btn-briefing:hover { opacity: 0.9; transform: translateY(-1px); }
+        .ws-btn-briefing:hover { opacity: 0.9; transform: translateY(-1px); }
 
-        .at-stats { display: flex; gap: 16px; padding: 20px 36px; border-bottom: 1px solid rgba(0,180,255,0.06); }
-        .at-stat { flex: 1; background: rgba(255,255,255,0.02); border: 1px solid rgba(0,180,255,0.1); border-radius: 10px; padding: 16px 20px; }
-        .at-stat-num { font-size: 28px; font-weight: 300; }
-        .at-stat-label { font-size: 11px; color: #7BAFD4; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
-        .at-stat.orange .at-stat-num { color: #FFA726; }
-        .at-stat.green .at-stat-num { color: #66BB6A; }
+        /* SECTION TITLES */
+        .ws-section { padding: 24px 32px; }
+        .ws-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .ws-section-title { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7BAFD4; }
 
-        .at-content { flex: 1; padding: 28px 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-        .at-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-        .at-section-title { font-size: 14px; font-weight: 500; letter-spacing: 0.5px; }
-        .at-section-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
-        .at-section-badge.orange { background: rgba(255,167,38,0.15); color: #FFA726; }
-        .at-section-badge.green { background: rgba(102,187,106,0.15); color: #66BB6A; }
+        /* ─── KANBAN PROJETOS ─── */
+        .ws-projects-kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
+        .ws-projects-kanban::-webkit-scrollbar { height: 4px; }
+        .ws-projects-kanban::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+        .ws-projects-kanban::-webkit-scrollbar-thumb { background: rgba(0,229,196,0.2); border-radius: 2px; }
 
-        .at-card {
-          background: rgba(255,255,255,0.02); border: 1px solid rgba(0,180,255,0.1);
-          border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; cursor: pointer;
-          transition: all 0.15s; position: relative; overflow: hidden;
+        .ws-proj-col { flex-shrink: 0; width: 180px; }
+        .ws-proj-col-header {
+          display: flex; align-items: center; justify-content: space-between;
+          margin-bottom: 8px; padding: 0 2px;
         }
-        .at-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-        .at-card.orange::before { background: #FFA726; }
-        .at-card.green::before { background: #66BB6A; }
-        .at-card:hover { background: rgba(255,255,255,0.04); border-color: rgba(0,180,255,0.2); transform: translateY(-1px); }
-        .at-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-        .at-card-name { font-size: 15px; font-weight: 500; color: #E8F4FF; flex: 1; margin-right: 10px; }
-        .at-card-status { font-size: 10px; font-weight: 600; letter-spacing: 1px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
-        .at-card-status.orange { background: rgba(255,167,38,0.15); color: #FFA726; }
-        .at-card-status.green { background: rgba(102,187,106,0.15); color: #66BB6A; }
-        .at-card-info { display: flex; flex-direction: column; gap: 3px; }
-        .at-card-type { font-size: 12px; color: #7BAFD4; }
-        .at-card-client { font-size: 13px; color: #E8F4FF; }
-        .at-card-meta { display: flex; gap: 12px; margin-top: 8px; }
-        .at-card-num { font-size: 11px; color: rgba(123,175,212,0.4); }
-        .at-card-date { font-size: 11px; color: rgba(123,175,212,0.4); }
-        .at-progress { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
-        .at-progress-bar { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
-        .at-progress-fill { height: 100%; background: linear-gradient(90deg, #00E5C4, #66BB6A); border-radius: 2px; }
-        .at-progress-text { font-size: 11px; color: #66BB6A; font-weight: 500; white-space: nowrap; }
-        .at-empty { border: 1px dashed rgba(0,180,255,0.15); border-radius: 12px; padding: 32px; text-align: center; }
-        .at-empty-text { font-size: 14px; color: rgba(232,244,255,0.4); margin-bottom: 4px; }
-        .at-empty-sub { font-size: 12px; color: rgba(123,175,212,0.3); }
+        .ws-proj-col-name { font-size: 11px; font-weight: 500; color: #7BAFD4; letter-spacing: 0.5px; }
+        .ws-proj-col-count {
+          width: 18px; height: 18px; border-radius: 50%;
+          background: rgba(0,180,255,0.1); color: #7BAFD4;
+          font-size: 10px; display: flex; align-items: center; justify-content: center;
+        }
+        .ws-proj-col.active .ws-proj-col-name { color: #00E5C4; }
+        .ws-proj-col.active .ws-proj-col-count { background: rgba(0,229,196,0.15); color: #00E5C4; }
+
+        .ws-proj-card {
+          background: rgba(255,255,255,0.03); border: 1px solid rgba(0,180,255,0.1);
+          border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .ws-proj-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(0,229,196,0.3); transform: translateY(-1px); }
+        .ws-proj-card-name { font-size: 12px; font-weight: 500; color: #E8F4FF; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ws-proj-card-client { font-size: 11px; color: rgba(123,175,212,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ws-proj-col-empty { font-size: 11px; color: rgba(123,175,212,0.2); text-align: center; padding: 12px 0; }
+
+        /* ─── DIVISOR ─── */
+        .ws-divider { height: 1px; background: rgba(0,180,255,0.06); margin: 0 32px; }
+
+        /* ─── TOGGLE LISTA/KANBAN ─── */
+        .ws-view-toggle { display: flex; gap: 6px; }
+        .ws-toggle-btn {
+          padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(0,180,255,0.15);
+          background: none; color: #7BAFD4; font-family: 'Outfit', sans-serif; font-size: 12px;
+          cursor: pointer; transition: all 0.15s;
+        }
+        .ws-toggle-btn.active { background: rgba(0,229,196,0.1); border-color: rgba(0,229,196,0.3); color: #00E5C4; }
+
+        /* ─── KANBAN TAREFAS ─── */
+        .ws-tasks-kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+        .ws-task-col { display: flex; flex-direction: column; }
+        .ws-task-col-header {
+          display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+          padding-bottom: 10px; border-bottom: 2px solid;
+        }
+        .ws-task-col-header.backlog { border-color: rgba(123,175,212,0.3); }
+        .ws-task-col-header.todo { border-color: rgba(255,167,38,0.4); }
+        .ws-task-col-header.done { border-color: rgba(102,187,106,0.4); }
+        .ws-task-col-name { font-size: 13px; font-weight: 500; }
+        .ws-task-col-name.backlog { color: #7BAFD4; }
+        .ws-task-col-name.todo { color: #FFA726; }
+        .ws-task-col-name.done { color: #66BB6A; }
+        .ws-task-col-badge {
+          padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;
+        }
+        .ws-task-col-badge.backlog { background: rgba(123,175,212,0.1); color: #7BAFD4; }
+        .ws-task-col-badge.todo { background: rgba(255,167,38,0.1); color: #FFA726; }
+        .ws-task-col-badge.done { background: rgba(102,187,106,0.1); color: #66BB6A; }
+
+        .ws-task-card {
+          background: rgba(255,255,255,0.03); border: 1px solid rgba(0,180,255,0.1);
+          border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+          transition: all 0.15s;
+        }
+        .ws-task-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(0,180,255,0.2); }
+        .ws-task-card-name { font-size: 13px; font-weight: 500; color: #E8F4FF; margin-bottom: 6px; }
+        .ws-task-card-project { font-size: 11px; color: #00E5C4; margin-bottom: 8px; }
+        .ws-task-card-client { font-size: 11px; color: rgba(123,175,212,0.5); margin-bottom: 10px; }
+        .ws-task-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .ws-task-btn {
+          padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+          border: 1px solid; background: none; font-family: 'Outfit', sans-serif; transition: all 0.15s;
+        }
+        .ws-task-btn.backlog { border-color: rgba(123,175,212,0.3); color: #7BAFD4; }
+        .ws-task-btn.backlog:hover { background: rgba(123,175,212,0.1); }
+        .ws-task-btn.todo { border-color: rgba(255,167,38,0.3); color: #FFA726; }
+        .ws-task-btn.todo:hover { background: rgba(255,167,38,0.1); }
+        .ws-task-btn.done { border-color: rgba(102,187,106,0.3); color: #66BB6A; }
+        .ws-task-btn.done:hover { background: rgba(102,187,106,0.1); }
+
+        .ws-task-empty {
+          border: 1px dashed rgba(0,180,255,0.1); border-radius: 10px;
+          padding: 24px; text-align: center; color: rgba(123,175,212,0.25); font-size: 12px;
+        }
+
+        /* ─── LISTA TAREFAS ─── */
+        .ws-task-list { display: flex; flex-direction: column; gap: 8px; }
+        .ws-task-list-item {
+          background: rgba(255,255,255,0.03); border: 1px solid rgba(0,180,255,0.1);
+          border-radius: 10px; padding: 14px 18px;
+          display: flex; align-items: center; gap: 16px;
+        }
+        .ws-task-list-status {
+          width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        }
+        .ws-task-list-status.backlog { background: #7BAFD4; }
+        .ws-task-list-status.todo { background: #FFA726; }
+        .ws-task-list-status.done { background: #66BB6A; }
+        .ws-task-list-info { flex: 1; min-width: 0; }
+        .ws-task-list-name { font-size: 13px; font-weight: 500; color: #E8F4FF; }
+        .ws-task-list-meta { font-size: 11px; color: rgba(123,175,212,0.5); margin-top: 3px; }
+        .ws-task-list-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
         /* MODAL BRIEFING */
-        .at-modal-overlay {
+        .ws-modal-overlay {
           position: fixed; inset: 0; z-index: 100;
           background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
           display: flex; align-items: flex-start; justify-content: center;
           padding: 40px 20px; overflow-y: auto;
         }
-        .at-modal {
+        .ws-modal {
           background: #111f30; border: 1px solid rgba(0,180,255,0.15);
           border-radius: 16px; width: 100%; max-width: 620px;
           box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         }
-        .at-modal-header {
+        .ws-modal-header {
           display: flex; align-items: center; justify-content: space-between;
-          padding: 24px 28px; border-bottom: 1px solid rgba(0,180,255,0.1);
+          padding: 22px 28px; border-bottom: 1px solid rgba(0,180,255,0.1);
         }
-        .at-modal-title { font-size: 18px; font-weight: 400; }
-        .at-modal-title span { color: #00E5C4; }
-        .at-modal-close {
-          width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(0,180,255,0.15);
+        .ws-modal-title { font-size: 17px; font-weight: 400; }
+        .ws-modal-title span { color: #00E5C4; }
+        .ws-modal-close {
+          width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(0,180,255,0.15);
           background: none; color: #7BAFD4; font-size: 18px; cursor: pointer;
           display: flex; align-items: center; justify-content: center; transition: all 0.15s;
           font-family: 'Outfit', sans-serif;
         }
-        .at-modal-close:hover { background: rgba(231,76,60,0.1); color: #E74C3C; border-color: rgba(231,76,60,0.3); }
-        .at-modal-body { padding: 28px; display: flex; flex-direction: column; gap: 24px; }
-        .at-modal-section { display: flex; flex-direction: column; gap: 14px; }
-        .at-modal-section-title {
+        .ws-modal-close:hover { background: rgba(231,76,60,0.1); color: #E74C3C; border-color: rgba(231,76,60,0.3); }
+        .ws-modal-body { padding: 24px 28px; display: flex; flex-direction: column; gap: 22px; }
+        .ws-modal-section { display: flex; flex-direction: column; gap: 14px; }
+        .ws-modal-section-title {
           font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
           color: #00E5C4; padding-bottom: 10px; border-bottom: 1px solid rgba(0,229,196,0.1);
         }
-        .at-field { display: flex; flex-direction: column; gap: 7px; }
-        .at-field label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #7BAFD4; }
-        .at-field input, .at-field select {
+        .ws-field { display: flex; flex-direction: column; gap: 7px; }
+        .ws-field label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #7BAFD4; }
+        .ws-field input, .ws-field select {
           width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid rgba(0,180,255,0.15); background: rgba(255,255,255,0.04);
           color: #E8F4FF; font-family: 'Outfit', sans-serif; font-size: 13px; outline: none;
-          transition: border-color 0.2s;
         }
-        .at-field input:focus, .at-field select:focus { border-color: rgba(0,229,196,0.4); }
-        .at-field select option { background: #111f30; color: #E8F4FF; }
-        .at-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .at-question-item { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(0,180,255,0.08); border-radius: 10px; }
-        .at-question-text { font-size: 13px; color: #E8F4FF; line-height: 1.4; }
-        .at-question-required { color: #E74C3C; margin-left: 3px; }
-        .at-modal-footer {
-          display: flex; gap: 12px; padding: 20px 28px;
+        .ws-field input:focus, .ws-field select:focus { border-color: rgba(0,229,196,0.4); }
+        .ws-field select option { background: #111f30; color: #E8F4FF; }
+        .ws-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .ws-question-item { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(0,180,255,0.08); border-radius: 10px; }
+        .ws-question-text { font-size: 13px; color: #E8F4FF; line-height: 1.4; }
+        .ws-question-required { color: #E74C3C; margin-left: 3px; }
+        .ws-modal-footer {
+          display: flex; gap: 12px; padding: 18px 28px;
           border-top: 1px solid rgba(0,180,255,0.1);
         }
-        .at-btn-cancel-modal {
-          flex: 1; padding: 12px; border-radius: 10px; border: 1px solid rgba(0,180,255,0.15);
-          background: none; color: #7BAFD4; font-family: 'Outfit', sans-serif; font-size: 14px;
-          cursor: pointer; transition: all 0.15s;
+        .ws-btn-cancel-modal {
+          flex: 1; padding: 11px; border-radius: 10px; border: 1px solid rgba(0,180,255,0.15);
+          background: none; color: #7BAFD4; font-family: 'Outfit', sans-serif; font-size: 14px; cursor: pointer;
         }
-        .at-btn-cancel-modal:hover { background: rgba(255,255,255,0.04); color: #E8F4FF; }
-        .at-btn-save-briefing {
-          flex: 2; padding: 12px; border-radius: 10px; border: none; cursor: pointer;
+        .ws-btn-save {
+          flex: 2; padding: 11px; border-radius: 10px; border: none; cursor: pointer;
           background: linear-gradient(135deg, #00E5C4 0%, #0080FF 100%);
           color: #fff; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 500;
-          transition: opacity 0.2s;
         }
-        .at-btn-save-briefing:disabled { opacity: 0.6; cursor: not-allowed; }
-        .at-no-questions { padding: 20px; text-align: center; color: rgba(123,175,212,0.4); font-size: 13px; }
+        .ws-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+        .ws-no-questions { padding: 16px; text-align: center; color: rgba(123,175,212,0.4); font-size: 13px; }
 
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 900px) {
-          .at-sidebar { width: 60px; }
-          .at-sidebar-logo, .at-nav-item span, .at-user-name, .at-user-role, .at-sidebar-logo-sub { display: none; }
-          .at-main { margin-left: 60px; }
-          .at-content { grid-template-columns: 1fr; }
-          .at-field-row { grid-template-columns: 1fr; }
+          .ws-sidebar { width: 56px; }
+          .ws-logo-name, .ws-logo-sub, .ws-nav-item span, .ws-user-name, .ws-user-role { display: none; }
+          .ws-main { margin-left: 56px; }
+          .ws-tasks-kanban { grid-template-columns: 1fr; }
         }
       `}</style>
 
-      <div className="at-wrap">
+      <div className="ws-wrap">
 
         {/* SIDEBAR */}
-        <aside className="at-sidebar">
-          <div className="at-sidebar-logo">
-            <div className="at-sidebar-logo-name">realize<span>hub</span></div>
-            <div className="at-sidebar-logo-sub">Atendimento</div>
+        <aside className="ws-sidebar">
+          <div className="ws-logo">
+            <div className="ws-logo-name">realize<span>hub</span></div>
+            <div className="ws-logo-sub">{userData?.roleName || 'Workspace'}</div>
           </div>
-          <nav className="at-nav">
-            <button className="at-nav-item active">
-              <span className="at-nav-dot" /><span>Meus Projetos</span>
+          <nav className="ws-nav">
+            <button className="ws-nav-item active">
+              <span className="ws-nav-dot" /><span>Workspace</span>
             </button>
-            <button className="at-nav-item" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
-              <span className="at-nav-dot" /><span>Propostas</span>
+            <button className="ws-nav-item" style={{ opacity: 0.35, cursor: 'not-allowed' }}>
+              <span className="ws-nav-dot" /><span>Propostas</span>
             </button>
           </nav>
-          <div className="at-sidebar-user">
-            <div className="at-avatar">{userInitials}</div>
+          <div className="ws-sidebar-user">
+            <div className="ws-avatar">{userInitials}</div>
             <div>
-              <div className="at-user-name">{userName.split(' ')[0]}</div>
-              <div className="at-user-role">Atendimento</div>
+              <div className="ws-user-name">{userName.split(' ')[0]}</div>
+              <div className="ws-user-role">{userData?.roleName || ''}</div>
             </div>
-            <button className="at-logout" onClick={onLogout}>Sair</button>
+            <button className="ws-logout" onClick={onLogout}>Sair</button>
           </div>
         </aside>
 
         {/* MAIN */}
-        <main className="at-main">
+        <main className="ws-main">
 
           {/* HEADER */}
-          <div className="at-header">
-            <div>
-              <div className="at-header-greeting">Olá, <strong>{userName.split(' ')[0]}</strong>!</div>
-              <div className="at-header-sub">Aqui estão seus projetos e orçamentos atribuídos</div>
+          <div className="ws-header">
+            <div className="ws-header-left">
+              <h1>Olá, <strong>{userName.split(' ')[0]}</strong>!</h1>
+              <p>{userData?.areaName} · {userData?.roleName}</p>
             </div>
-            <button className="at-btn-briefing" onClick={() => setShowBriefing(true)}>
-              + Abrir novo briefing
-            </button>
+            {canOpenBriefing && (
+              <button className="ws-btn-briefing" onClick={() => setShowBriefing(true)}>
+                + Abrir novo briefing
+              </button>
+            )}
           </div>
 
-          {/* STATS */}
-          <div className="at-stats">
-            <div className="at-stat orange">
-              <div className="at-stat-num">{myBudgets.length}</div>
-              <div className="at-stat-label">Para Analisar</div>
+          {/* ── KANBAN PROJETOS ── */}
+          <div className="ws-section">
+            <div className="ws-section-header">
+              <span className="ws-section-title">Projetos</span>
+              <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)' }}>{allBudgets.length} projetos</span>
             </div>
-            <div className="at-stat green">
-              <div className="at-stat-num">{myProjects.length}</div>
-              <div className="at-stat-label">Em Andamento</div>
-            </div>
-            <div className="at-stat">
-              <div className="at-stat-num" style={{ color: '#7BAFD4' }}>{myBudgets.length + myProjects.length}</div>
-              <div className="at-stat-label">Total Ativo</div>
-            </div>
-          </div>
-
-          {/* CONTENT */}
-          <div className="at-content">
-
-            {/* PARA ANALISAR */}
-            <div className="at-section">
-              <div className="at-section-header">
-                <div className="at-section-title">Para Analisar</div>
-                <div className="at-section-badge orange">{myBudgets.length}</div>
-              </div>
-              {myBudgets.length > 0 ? myBudgets.map(b => (
-                <div key={b.id} className="at-card orange" onClick={() => setSelectedProjectId(b.id)}>
-                  <div className="at-card-top">
-                    <div className="at-card-name">{getProjectName(b)}</div>
-                    <div className="at-card-status orange">EM ANÁLISE</div>
-                  </div>
-                  <div className="at-card-info">
-                    <div className="at-card-type">{b.eventTypeName}</div>
-                    <div className="at-card-client">Cliente: {b.clientName || 'Não informado'}</div>
-                  </div>
-                  <div className="at-card-meta">
-                    <div className="at-card-num">#{b.budgetNumber}</div>
-                    {b.assignedAt && <div className="at-card-date">Atribuído: {formatDate(b.assignedAt)}</div>}
-                  </div>
-                </div>
-              )) : (
-                <div className="at-empty">
-                  <div className="at-empty-text">Nenhum orçamento para analisar</div>
-                  <div className="at-empty-sub">Aguardando novos projetos</div>
-                </div>
-              )}
-            </div>
-
-            {/* EM ANDAMENTO */}
-            <div className="at-section">
-              <div className="at-section-header">
-                <div className="at-section-title">Em Andamento</div>
-                <div className="at-section-badge green">{myProjects.length}</div>
-              </div>
-              {myProjects.length > 0 ? myProjects.map(p => (
-                <div key={p.id} className="at-card green" onClick={() => setSelectedProjectId(p.id)}>
-                  <div className="at-card-top">
-                    <div className="at-card-name">{getProjectName(p)}</div>
-                    <div className="at-card-status green">APROVADO</div>
-                  </div>
-                  <div className="at-card-info">
-                    <div className="at-card-type">{p.eventTypeName}</div>
-                    <div className="at-card-client">Cliente: {p.clientName || 'Não informado'}</div>
-                  </div>
-                  <div className="at-card-meta">
-                    <div className="at-card-num">#{p.budgetNumber}</div>
-                    {p.approvedAt && <div className="at-card-date">Aprovado: {formatDate(p.approvedAt)}</div>}
-                  </div>
-                  {p.taskProgress && (
-                    <div className="at-progress">
-                      <div className="at-progress-bar">
-                        <div className="at-progress-fill" style={{ width: `${p.taskProgress.percentage || 0}%` }} />
-                      </div>
-                      <div className="at-progress-text">{p.taskProgress.completed || 0}/{p.taskProgress.total || 0}</div>
+            <div className="ws-projects-kanban">
+              {KANBAN_STAGES.map(stage => {
+                const cards = allBudgets.filter(b => (b.kanbanStage || 'novo_pedido') === stage.id);
+                const hasCards = cards.length > 0;
+                return (
+                  <div key={stage.id} className={`ws-proj-col ${hasCards ? 'active' : ''}`}>
+                    <div className="ws-proj-col-header">
+                      <span className="ws-proj-col-name">{stage.label}</span>
+                      <span className="ws-proj-col-count">{cards.length}</span>
                     </div>
-                  )}
-                </div>
-              )) : (
-                <div className="at-empty">
-                  <div className="at-empty-text">Nenhum projeto em andamento</div>
-                  <div className="at-empty-sub">Projetos aprovados aparecerão aqui</div>
-                </div>
-              )}
+                    {cards.length === 0 ? (
+                      <div className="ws-proj-col-empty">—</div>
+                    ) : cards.map(b => (
+                      <div key={b.id} className="ws-proj-card" onClick={() => setSelectedProjectId(b.id)}>
+                        <div className="ws-proj-card-name">{getProjectName(b)}</div>
+                        <div className="ws-proj-card-client">{b.clientName || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          <div className="ws-divider" />
+
+          {/* ── KANBAN/LISTA TAREFAS ── */}
+          <div className="ws-section">
+            <div className="ws-section-header">
+              <span className="ws-section-title">Minhas Tarefas</span>
+              <div className="ws-view-toggle">
+                <button className={`ws-toggle-btn ${taskView === 'kanban' ? 'active' : ''}`} onClick={() => setTaskView('kanban')}>
+                  Kanban
+                </button>
+                <button className={`ws-toggle-btn ${taskView === 'list' ? 'active' : ''}`} onClick={() => setTaskView('list')}>
+                  Lista
+                </button>
+              </div>
+            </div>
+
+            {myTasks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(123,175,212,0.3)', fontSize: 13 }}>
+                Nenhuma tarefa atribuída a você ainda
+              </div>
+            ) : taskView === 'kanban' ? (
+              <div className="ws-tasks-kanban">
+                {TASK_STAGES.map(stage => {
+                  const tasks = tasksByStage(stage.id);
+                  return (
+                    <div key={stage.id} className="ws-task-col">
+                      <div className={`ws-task-col-header ${stage.id}`}>
+                        <span className={`ws-task-col-name ${stage.id}`}>{stage.label}</span>
+                        <span className={`ws-task-col-badge ${stage.id}`}>{tasks.length}</span>
+                      </div>
+                      {tasks.length === 0 ? (
+                        <div className="ws-task-empty">Nenhuma tarefa</div>
+                      ) : tasks.map((task, i) => (
+                        <div key={i} className="ws-task-card">
+                          <div className="ws-task-card-name">{task.name}</div>
+                          <div className="ws-task-card-project">{task.projectName}</div>
+                          <div className="ws-task-card-client">{task.clientName}</div>
+                          <div className="ws-task-card-actions">
+                            {stage.id !== 'backlog' && (
+                              <button className="ws-task-btn backlog" onClick={() => handleTaskStatusChange(task, 'backlog')}>← Backlog</button>
+                            )}
+                            {stage.id !== 'todo' && (
+                              <button className="ws-task-btn todo" onClick={() => handleTaskStatusChange(task, 'todo')}>To Do</button>
+                            )}
+                            {stage.id !== 'done' && (
+                              <button className="ws-task-btn done" onClick={() => handleTaskStatusChange(task, 'done')}>✓ Concluir</button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="ws-task-list">
+                {myTasks.map((task, i) => {
+                  const stage = task.taskStatus || task.status || 'backlog';
+                  return (
+                    <div key={i} className="ws-task-list-item">
+                      <div className={`ws-task-list-status ${stage}`} />
+                      <div className="ws-task-list-info">
+                        <div className="ws-task-list-name">{task.name}</div>
+                        <div className="ws-task-list-meta">{task.projectName} · {task.clientName}</div>
+                      </div>
+                      <div className="ws-task-list-actions">
+                        {stage !== 'todo' && (
+                          <button className="ws-task-btn todo" onClick={() => handleTaskStatusChange(task, 'todo')}>To Do</button>
+                        )}
+                        {stage !== 'done' && (
+                          <button className="ws-task-btn done" onClick={() => handleTaskStatusChange(task, 'done')}>✓ Concluir</button>
+                        )}
+                        {stage !== 'backlog' && (
+                          <button className="ws-task-btn backlog" onClick={() => handleTaskStatusChange(task, 'backlog')}>Backlog</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
         </main>
 
         {/* MODAL BRIEFING */}
         {showBriefing && (
-          <div className="at-modal-overlay" onClick={e => e.target === e.currentTarget && setShowBriefing(false)}>
-            <div className="at-modal">
-              <div className="at-modal-header">
-                <div className="at-modal-title">Abrir novo <span>briefing</span></div>
-                <button className="at-modal-close" onClick={() => setShowBriefing(false)}>×</button>
+          <div className="ws-modal-overlay" onClick={e => e.target === e.currentTarget && setShowBriefing(false)}>
+            <div className="ws-modal">
+              <div className="ws-modal-header">
+                <div className="ws-modal-title">Abrir novo <span>briefing</span></div>
+                <button className="ws-modal-close" onClick={() => setShowBriefing(false)}>×</button>
               </div>
-              <div className="at-modal-body">
-
-                <div className="at-modal-section">
-                  <div className="at-modal-section-title">Empresa e responsável</div>
-                  <div className="at-field">
+              <div className="ws-modal-body">
+                <div className="ws-modal-section">
+                  <div className="ws-modal-section-title">Empresa e responsável</div>
+                  <div className="ws-field">
                     <label>Empresa cliente *</label>
                     <select value={briefingForm.companyId} onChange={e => {
                       const c = companies.find(x => x.id === e.target.value);
@@ -571,20 +699,20 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
-                  <div className="at-field">
+                  <div className="ws-field">
                     <label>Nome do responsável *</label>
                     <input type="text" placeholder="Nome completo"
                       value={briefingForm.clientName}
                       onChange={e => setBriefingForm(f => ({ ...f, clientName: e.target.value }))} />
                   </div>
-                  <div className="at-field-row">
-                    <div className="at-field">
+                  <div className="ws-field-row">
+                    <div className="ws-field">
                       <label>Email</label>
                       <input type="email" placeholder="email@empresa.com"
                         value={briefingForm.clientEmail}
                         onChange={e => setBriefingForm(f => ({ ...f, clientEmail: e.target.value }))} />
                     </div>
-                    <div className="at-field">
+                    <div className="ws-field">
                       <label>Telefone</label>
                       <input type="tel" placeholder="(00) 00000-0000"
                         value={briefingForm.clientPhone}
@@ -593,9 +721,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                   </div>
                 </div>
 
-                <div className="at-modal-section">
-                  <div className="at-modal-section-title">Tipo de evento</div>
-                  <div className="at-field">
+                <div className="ws-modal-section">
+                  <div className="ws-modal-section-title">Tipo de evento</div>
+                  <div className="ws-field">
                     <label>Selecione o tipo *</label>
                     <select value={briefingForm.eventTypeId} onChange={e => handleEventTypeChange(e.target.value)}>
                       <option value="">Selecione o tipo de evento...</option>
@@ -605,28 +733,24 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                 </div>
 
                 {briefingForm.eventTypeId && (
-                  <div className="at-modal-section">
-                    <div className="at-modal-section-title">Perguntas do briefing</div>
+                  <div className="ws-modal-section">
+                    <div className="ws-modal-section-title">Perguntas do briefing</div>
                     {flowQuestions.length === 0 ? (
-                      <div className="at-no-questions">Nenhuma pergunta cadastrada para este tipo de evento</div>
-                    ) : (
-                      flowQuestions.map(q => (
-                        <div key={q.id} className="at-question-item">
-                          <div className="at-question-text">
-                            {q.text}
-                            {q.required && <span className="at-question-required">*</span>}
-                          </div>
-                          {renderQuestionInput(q)}
+                      <div className="ws-no-questions">Nenhuma pergunta cadastrada para este tipo</div>
+                    ) : flowQuestions.map(q => (
+                      <div key={q.id} className="ws-question-item">
+                        <div className="ws-question-text">
+                          {q.text}{q.required && <span className="ws-question-required">*</span>}
                         </div>
-                      ))
-                    )}
+                        {renderQuestionInput(q)}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-
-              <div className="at-modal-footer">
-                <button className="at-btn-cancel-modal" onClick={() => setShowBriefing(false)}>Cancelar</button>
-                <button className="at-btn-save-briefing" onClick={handleSaveBriefing} disabled={savingBriefing}>
+              <div className="ws-modal-footer">
+                <button className="ws-btn-cancel-modal" onClick={() => setShowBriefing(false)}>Cancelar</button>
+                <button className="ws-btn-save" onClick={handleSaveBriefing} disabled={savingBriefing}>
                   {savingBriefing ? 'Salvando...' : 'Criar briefing'}
                 </button>
               </div>
@@ -651,5 +775,4 @@ const styles = {
     borderTopColor: '#00E5C4',
     animation: 'spin 0.8s linear infinite',
   },
-  loadingText: { color: '#7BAFD4', fontSize: 14 },
 };
