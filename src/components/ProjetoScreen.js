@@ -525,10 +525,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const getAnswerLines = (question, answer, feiras = []) => {
     if (answer === null || answer === undefined || answer === '') return [{ key: 'single', value: 'Não respondido' }];
 
-    // Checklist (array de strings)
-    if (question?.type === 'checklist' && Array.isArray(answer)) {
-      if (answer.length === 0) return [{ key: 'single', value: 'Nenhum item' }];
-      return answer.map((item, i) => ({ key: `item-${i}`, label: null, value: String(item) }));
+    // Checklist — pode ser array ou string separada por vírgula
+    if (question?.type === 'checklist') {
+      const items = Array.isArray(answer)
+        ? answer
+        : String(answer).split(',').map(s => s.trim()).filter(Boolean);
+      if (items.length === 0) return [{ key: 'single', value: 'Nenhum item' }];
+      return items.map((item, i) => ({ key: `item-${i}`, label: null, value: item }));
     }
 
     // Multiselect (array)
