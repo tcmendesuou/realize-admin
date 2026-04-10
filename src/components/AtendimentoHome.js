@@ -119,6 +119,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               roleId: budget.plannerRoleId,
               status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
               isBudgetChild: true,
+              isMae: budget.feiraData?.isMae || false,
               budgetId: budget.id,
             });
           }
@@ -1081,14 +1082,19 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
         .ws-task-card {
           background: rgba(255,255,255,0.03); border: 1px solid rgba(0,180,255,0.1);
-          border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
-          transition: all 0.15s;
+          border-radius: 8px; padding: 8px 10px; margin-bottom: 6px;
+          transition: all 0.15s; position: relative;
         }
         .ws-task-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(0,180,255,0.2); }
-        .ws-task-card-name { font-size: 13px; font-weight: 500; color: #E8F4FF; margin-bottom: 6px; }
-        .ws-task-card-project { font-size: 11px; color: #00E5C4; margin-bottom: 8px; }
-        .ws-task-card-client { font-size: 11px; color: rgba(123,175,212,0.5); margin-bottom: 10px; }
+        .ws-task-card-name { font-size: 12px; font-weight: 500; color: #E8F4FF; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ws-task-card-project { font-size: 10px; color: #00E5C4; margin-bottom: 0; }
+        .ws-task-card-client { font-size: 10px; color: rgba(123,175,212,0.5); margin-bottom: 6px; }
         .ws-task-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .ws-task-card-mae-dot {
+          position: absolute; top: 7px; right: 8px;
+          width: 7px; height: 7px; border-radius: 50%;
+          background: #00E5C4; box-shadow: 0 0 4px rgba(0,229,196,0.6);
+        }
         .ws-task-btn {
           padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
           border: 1px solid; background: none; font-family: 'Outfit', sans-serif; transition: all 0.15s;
@@ -1305,10 +1311,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                         <div key={i} className={`ws-task-card ${task.isBudgetChild ? 'ws-task-card--planner' : ''}`}
                           onClick={task.isBudgetChild ? () => navigate(`/projeto/${task.budgetId}`) : undefined}
                           style={task.isBudgetChild ? { cursor: 'pointer' } : {}}>
-                          <div className="ws-task-card-name">
-                            {task.isBudgetChild && <span style={{ fontSize: 10, color: '#00E5C4', marginRight: 4 }}>⚡ FEIRA</span>}
-                            {task.name}
-                          </div>
+                          {task.isMae && <div className="ws-task-card-mae-dot" title="Feira Mãe" />}
+                          <div className="ws-task-card-name">{task.name}</div>
                           <div className="ws-task-card-project">{task.projectName}</div>
                           <div className="ws-task-card-client">{task.clientName}</div>
                           {!task.isBudgetChild && (
