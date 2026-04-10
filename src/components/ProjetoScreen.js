@@ -525,18 +525,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const getAnswerLines = (question, answer, feiras = []) => {
     if (answer === null || answer === undefined || answer === '') return [{ key: 'single', value: 'Não respondido' }];
 
-    // Checklist — pode ser array ou string separada por vírgula
-    if (question?.type === 'checklist') {
-      const items = Array.isArray(answer)
-        ? answer
-        : String(answer).split(',').map(s => s.trim()).filter(Boolean);
-      if (items.length === 0) return [{ key: 'single', value: 'Nenhum item' }];
-      return items.map((item, i) => ({ key: `item-${i}`, label: null, value: item }));
+    // Array genérico — checklist extraído do feiraIndex já vem como array
+    if (Array.isArray(answer)) {
+      if (answer.length === 0) return [{ key: 'single', value: 'Nenhum item' }];
+      return answer.map((item, i) => ({ key: `item-${i}`, label: null, value: String(item) }));
     }
 
-    // Multiselect (array)
-    if (question?.type === 'multiselect' && Array.isArray(answer)) {
-      return answer.map((item, i) => ({ key: `item-${i}`, label: null, value: String(item) }));
+    // Checklist salvo como string separada por vírgula (dados legados)
+    if (question?.type === 'checklist' && typeof answer === 'string') {
+      const items = answer.split(',').map(s => s.trim()).filter(Boolean);
+      if (items.length <= 1) return [{ key: 'single', label: null, value: answer }];
+      return items.map((item, i) => ({ key: `item-${i}`, label: null, value: item }));
     }
 
     // Resposta por feira (objeto com índices numéricos)
@@ -547,7 +546,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     if (isFeiraAnswer(answer)) {
       return Object.entries(answer).map(([idx, v]) => {
         const feira = feiras[parseInt(idx)];
-        return { key: `feira-${idx}`, label: feira?.nome || `Feira ${parseInt(idx) + 1}`, value: String(v) };
+        const value = Array.isArray(v) ? v.join(', ') : String(v);
+        return { key: `feira-${idx}`, label: feira?.nome || `Feira ${parseInt(idx) + 1}`, value };
       });
     }
 
