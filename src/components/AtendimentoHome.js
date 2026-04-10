@@ -430,6 +430,32 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
           </div>
         );
       }
+      if (q.type === 'checklist') {
+        const items = Array.isArray(val) ? val : [];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {items.map((item, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="text" value={item}
+                  onChange={e => {
+                    const updated = [...items];
+                    updated[i] = e.target.value;
+                    handleAnswerFeiraChange(q.id, feiraIndex, updated);
+                  }}
+                  style={{ ...base, flex: 1 }} placeholder={`Item ${i + 1}...`} />
+                <button onClick={() => handleAnswerFeiraChange(q.id, feiraIndex, items.filter((_, idx) => idx !== i))}
+                  style={{ ...base, width: 36, padding: 0, color: '#E74C3C', borderColor: 'rgba(231,76,60,0.3)', cursor: 'pointer', flexShrink: 0 }}>
+                  ✕
+                </button>
+              </div>
+            ))}
+            <button onClick={() => handleAnswerFeiraChange(q.id, feiraIndex, [...items, ''])}
+              style={{ ...base, cursor: 'pointer', color: '#00E5C4', borderColor: 'rgba(0,229,196,0.4)', borderStyle: 'dashed', textAlign: 'left' }}>
+              + Adicionar item
+            </button>
+          </div>
+        );
+      }
       if (q.type === 'upload') {
         const key = `${q.id}_${feiraIndex}`;
         const uploading = uploadingFiles[key];
@@ -513,6 +539,32 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                   }}>{opt.label}</button>
                 );
               })}
+            </div>
+          );
+        }
+        if (sub.type === 'checklist') {
+          const items = Array.isArray(subVal) ? subVal : [];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="text" value={item}
+                    onChange={e => {
+                      const updated = [...items];
+                      updated[i] = e.target.value;
+                      handleAnswerFeiraChange(sub.id, feiraIdx, updated);
+                    }}
+                    style={{ ...base, flex: 1, fontSize: 12 }} placeholder={`Item ${i + 1}...`} />
+                  <button onClick={() => handleAnswerFeiraChange(sub.id, feiraIdx, items.filter((_, idx) => idx !== i))}
+                    style={{ ...base, width: 30, padding: 0, color: '#E74C3C', borderColor: 'rgba(231,76,60,0.3)', cursor: 'pointer', flexShrink: 0, fontSize: 11 }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => handleAnswerFeiraChange(sub.id, feiraIdx, [...items, ''])}
+                style={{ ...base, cursor: 'pointer', color: '#00E5C4', borderColor: 'rgba(0,229,196,0.4)', borderStyle: 'dashed', textAlign: 'left', fontSize: 12 }}>
+                + Adicionar item
+              </button>
             </div>
           );
         }
@@ -819,6 +871,32 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               }}>{opt.label}</button>
             );
           })}
+        </div>
+      );
+    }
+    if (q.type === 'checklist') {
+      const items = Array.isArray(val) ? val : [];
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="text" value={item}
+                onChange={e => {
+                  const updated = [...items];
+                  updated[i] = e.target.value;
+                  handleAnswerChange(q.id, updated);
+                }}
+                style={{ ...base, flex: 1 }} placeholder={`Item ${i + 1}...`} />
+              <button onClick={() => handleAnswerChange(q.id, items.filter((_, idx) => idx !== i))}
+                style={{ ...base, width: 36, padding: 0, color: '#E74C3C', borderColor: 'rgba(231,76,60,0.3)', cursor: 'pointer', flexShrink: 0 }}>
+                ✕
+              </button>
+            </div>
+          ))}
+          <button onClick={() => handleAnswerChange(q.id, [...items, ''])}
+            style={{ ...base, cursor: 'pointer', color: '#00E5C4', borderColor: 'rgba(0,229,196,0.4)', borderStyle: 'dashed', textAlign: 'left' }}>
+            + Adicionar item
+          </button>
         </div>
       );
     }

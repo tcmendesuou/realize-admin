@@ -26,6 +26,7 @@ const QUESTION_TYPES = [
   { value: 'currency',    label: 'Valor em Reais' },
   { value: 'yesno',       label: 'Sim/Não' },
   { value: 'upload',      label: '📎 Upload de Arquivo' },
+  { value: 'checklist',   label: '☑ Checklist (itens livres)' },
   // ── Perguntas Fixas ──
   { value: 'fixed-client',      label: '⚙ Cliente (Fixa)', fixed: true },
   { value: 'fixed-responsible', label: '⚙ Responsável (Fixa)', fixed: true },
@@ -427,6 +428,17 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
               <div>
                 <strong>Upload de Arquivo</strong>
                 <small>O atendimento poderá subir imagens ou documentos (PDF, JPG, PNG). Os arquivos serão salvos no Firebase Storage.</small>
+              </div>
+            </div>
+          )}
+
+          {/* PREVIEW CHECKLIST */}
+          {formData.type === 'checklist' && (
+            <div className="qf-upload-preview" style={{ background: '#f0fff4', border: '2px solid #86efac', color: '#166534' }}>
+              <span>☑</span>
+              <div>
+                <strong>Checklist de Itens Livres</strong>
+                <small>O atendimento cria os itens na hora. Ex: "100 pães de forma", "50 ovos". Cada item pode virar uma tarefa.</small>
               </div>
             </div>
           )}
