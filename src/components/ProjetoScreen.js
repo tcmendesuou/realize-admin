@@ -384,89 +384,138 @@ export default function ProjetoScreen({ projectId, onBack }) {
           {/* ── VISÃO GERAL / BRIEFING DA FEIRA ── */}
           {activeTab === 'info' && (
             <>
-              {/* Para filhos: mostrar dados específicos da feira */}
-              {isFilho && project.feiraData && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Dados da Feira</div>
-                  <div className="ps-info-grid">
-                    <div className="ps-info-item">
-                      <span className="ps-info-label">Nome</span>
-                      <span className="ps-info-value">{project.feiraData.nome || '—'}</span>
-                    </div>
-                    <div className="ps-info-item">
-                      <span className="ps-info-label">Local</span>
-                      <span className="ps-info-value">{project.feiraData.local || '—'}</span>
-                    </div>
-                    <div className="ps-info-item">
-                      <span className="ps-info-label">Data Início</span>
-                      <span className="ps-info-value">{project.feiraData.dataInicio || '—'}</span>
-                    </div>
-                    <div className="ps-info-item">
-                      <span className="ps-info-label">Data Fim</span>
-                      <span className="ps-info-value">{project.feiraData.dataFim || '—'}</span>
-                    </div>
-                    {project.feiraData.isMae && (
-                      <div className="ps-info-item full">
-                        <span className="ps-info-label" style={{ color: '#00E5C4' }}>⭐ Feira Mãe</span>
+              {/* FILHO: Briefing completo desta feira */}
+              {isFilho ? (
+                <>
+                  {/* Cabeçalho da feira */}
+                  {project.feiraData && (
+                    <div className="ps-card" style={{ borderLeft: '3px solid #00E5C4' }}>
+                      <div className="ps-info-grid">
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Empresa</span>
+                          <span className="ps-info-value">{project.companyName || '—'}</span>
+                        </div>
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Responsável</span>
+                          <span className="ps-info-value">{project.clientName || '—'}</span>
+                        </div>
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Local</span>
+                          <span className="ps-info-value">{project.feiraData.local || '—'}</span>
+                        </div>
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Período</span>
+                          <span className="ps-info-value">
+                            {project.feiraData.dataInicio || '—'}{project.feiraData.dataFim ? ` até ${project.feiraData.dataFim}` : ''}
+                          </span>
+                        </div>
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Atendimento</span>
+                          <span className="ps-info-value">{project.assignedToName || '—'}</span>
+                        </div>
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Planner</span>
+                          <span className="ps-info-value">{project.plannerUserName || '—'}</span>
+                        </div>
+                        {project.feiraData.isMae && (
+                          <div className="ps-info-item">
+                            <span className="ps-info-label" style={{ color: '#00E5C4' }}>⭐ Feira Mãe</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Cliente */}
-              <div className="ps-card">
-                <div className="ps-card-title">Cliente</div>
-                <div className="ps-info-grid">
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Nome</span>
-                    <span className="ps-info-value">{project.clientName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Empresa</span>
-                    <span className="ps-info-value">{project.companyName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Email</span>
-                    <span className="ps-info-value">{project.clientEmail || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Telefone</span>
-                    <span className="ps-info-value">{project.clientPhone || '—'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Evento */}
-              <div className="ps-card">
-                <div className="ps-card-title">Evento</div>
-                <div className="ps-info-grid">
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Tipo de evento</span>
-                    <span className="ps-info-value">{project.eventTypeName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Solicitado em</span>
-                    <span className="ps-info-value">{formatDate(project.createdAt)}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Atendimento responsável</span>
-                    <span className="ps-info-value">{project.assignedToName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Atribuído em</span>
-                    <span className="ps-info-value">{formatDate(project.assignedAt)}</span>
-                  </div>
-                  {project.estimatedTotal > 0 && (
-                    <div className="ps-info-item full ps-highlight">
-                      <span className="ps-info-label">Valor estimado</span>
-                      <span className="ps-info-value">
-                        R$ {project.estimatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
                     </div>
                   )}
-                </div>
-              </div>
+
+                  {/* Respostas filtradas por feiraIndex */}
+                  <div className="ps-card">
+                    <div className="ps-card-title">Respostas do Briefing</div>
+                    {questions.length > 0 ? questions.map(q => {
+                      const raw = project.answers?.[q.id];
+                      const feiraIdx = project.feiraIndex ?? 0;
+                      const isFeiraAnswer = (val) =>
+                        val && typeof val === 'object' && !Array.isArray(val) &&
+                        Object.keys(val).every(k => !isNaN(k));
+
+                      // Se for resposta por feira, pega só o índice desta feira
+                      let display;
+                      if (isFeiraAnswer(raw)) {
+                        display = raw[feiraIdx] !== undefined ? String(raw[feiraIdx]) : 'Não respondido';
+                      } else {
+                        display = getAnswerDisplay(q, raw, project.answers?.['fixed-events'] || []);
+                      }
+
+                      return (
+                        <div key={q.id} className="ps-answer-item">
+                          <span className="ps-question-text">
+                            {q.text}
+                            {q.isShared && <span style={{ fontSize: 10, color: '#00E5C4', marginLeft: 6 }}>🔗 comum</span>}
+                          </span>
+                          <span className="ps-answer-text">{display}</span>
+                        </div>
+                      );
+                    }) : (
+                      <div className="ps-empty">Nenhuma pergunta no fluxo</div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                // MÃE: visão geral normal
+                <>
+                  {/* Cliente */}
+                  <div className="ps-card">
+                    <div className="ps-card-title">Cliente</div>
+                    <div className="ps-info-grid">
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Nome</span>
+                        <span className="ps-info-value">{project.clientName || '—'}</span>
+                      </div>
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Empresa</span>
+                        <span className="ps-info-value">{project.companyName || '—'}</span>
+                      </div>
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Email</span>
+                        <span className="ps-info-value">{project.clientEmail || '—'}</span>
+                      </div>
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Telefone</span>
+                        <span className="ps-info-value">{project.clientPhone || '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Evento */}
+                  <div className="ps-card">
+                    <div className="ps-card-title">Evento</div>
+                    <div className="ps-info-grid">
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Tipo de evento</span>
+                        <span className="ps-info-value">{project.eventTypeName || '—'}</span>
+                      </div>
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Solicitado em</span>
+                        <span className="ps-info-value">{formatDate(project.createdAt)}</span>
+                      </div>
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Atendimento responsável</span>
+                        <span className="ps-info-value">{project.assignedToName || '—'}</span>
+                      </div>
+                      <div className="ps-info-item">
+                        <span className="ps-info-label">Atribuído em</span>
+                        <span className="ps-info-value">{formatDate(project.assignedAt)}</span>
+                      </div>
+                      {project.estimatedTotal > 0 && (
+                        <div className="ps-info-item full ps-highlight">
+                          <span className="ps-info-label">Valor estimado</span>
+                          <span className="ps-info-value">
+                            R$ {project.estimatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
 
