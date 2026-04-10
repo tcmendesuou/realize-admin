@@ -301,6 +301,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   };
 
   const getProjectName = (item) => {
+    // Pega o nome da feira mãe de fixed-events
+    const feiras = item.answers?.['fixed-events'];
+    if (Array.isArray(feiras) && feiras.length > 0) {
+      const mae = feiras.find(f => f.isMae) || feiras[0];
+      if (mae?.nome) return mae.nome;
+    }
+    // Fallback legado
     if (item.answers?.['GApo1hcglkgdpAQGuSnn']) return item.answers['GApo1hcglkgdpAQGuSnn'];
     return item.eventTypeName || 'Evento';
   };
@@ -1119,7 +1126,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     ) : cards.map(b => (
                       <div key={b.id} className="ws-proj-card" onClick={() => setSelectedProjectId(b.id)}>
                         <div className="ws-proj-card-name">{getProjectName(b)}</div>
-                        <div className="ws-proj-card-client">{b.clientName || '—'}</div>
+                        <div className="ws-proj-card-client">{b.companyName || b.clientName || '—'}</div>
                       </div>
                     ))}
                   </div>
