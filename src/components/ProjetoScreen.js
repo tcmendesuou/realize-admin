@@ -34,34 +34,31 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
-    if (projectId) {
-      loadProject();
-      // Listener em tempo real
-      const unsub = onSnapshot(doc(db, 'budgets', projectId), (snap) => {
-        if (snap.exists()) {
-          setProject(prev => prev ? { ...prev, ...snap.data(), id: snap.id } : { id: snap.id, ...snap.data() });
-        }
-      });
-      return () => unsub();
-    }
-  }, [projectId]);
+    if (!projectId) return;
 
-  const loadProject = async () => {
-    try {
-      const docRef = doc(db, 'budgets', projectId);
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) { setLoading(false); return; }
-      const data = { id: docSnap.id, ...docSnap.data() };
+    // onSnapshot cuida de manter o project atualizado em tempo real
+    const unsub = onSnapshot(doc(db, 'budgets', projectId), async (snap) => {
+      if (!snap.exists()) { setLoading(false); return; }
+      const data = { id: snap.id, ...snap.data() };
       setProject(data);
 
-      // Se for filho, carrega o budget mãe
-      if (data.parentBudgetId) {
+      // Carrega budget mãe se for filho (só na primeira vez)
+      if (data.parentBudgetId && !parentProject) {
         const maeSnap = await getDoc(doc(db, 'budgets', data.parentBudgetId));
-        if (maeSnap.exists()) {
-          setParentProject({ id: maeSnap.id, ...maeSnap.data() });
-        }
+        if (maeSnap.exists()) setParentProject({ id: maeSnap.id, ...maeSnap.data() });
       }
 
+      setLoading(false);
+    });
+
+    // Carrega perguntas e usuários uma vez (não precisam de tempo real)
+    loadExtras();
+
+    return () => unsub();
+  }, [projectId]);
+
+  const loadExtras = async () => {
+    try {
       // Carregar usuários da agência para a sessão de planejamento
       const [usersSnap, utSnap] = await Promise.all([
         getDocs(collection(db, 'users')),
@@ -81,26 +78,28 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       const allQSnap = await getDocs(collection(db, 'questions'));
       setAllQuestions(allQSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
 
-      // Busca perguntas do fluxo para exibir as labels corretas
-      if (data.eventTypeId) {
-        const flowSnap = await getDocs(query(collection(db, 'eventFlows'), where('eventTypeId', '==', data.eventTypeId)));
-        if (!flowSnap.empty) {
-          const flow = flowSnap.docs[0].data();
-          const qIds = (flow.items || []).filter(i => i.itemType === 'question').map(i => i.itemId);
-          if (qIds.length > 0) {
-            const allQ = await getDocs(collection(db, 'questions'));
-            const qData = allQ.docs
-              .map(d => ({ id: d.id, ...d.data() }))
-              .filter(q => qIds.includes(q.id))
-              .sort((a, b) => (a.order || 0) - (b.order || 0));
-            setQuestions(qData);
+      // Busca perguntas do fluxo (eventTypeId vem do snapshot depois, tentamos pegar do doc direto)
+      const docSnap = await getDoc(doc(db, 'budgets', projectId));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.eventTypeId) {
+          const flowSnap = await getDocs(query(collection(db, 'eventFlows'), where('eventTypeId', '==', data.eventTypeId)));
+          if (!flowSnap.empty) {
+            const flow = flowSnap.docs[0].data();
+            const qIds = (flow.items || []).filter(i => i.itemType === 'question').map(i => i.itemId);
+            if (qIds.length > 0) {
+              const allQ = await getDocs(collection(db, 'questions'));
+              const qData = allQ.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter(q => qIds.includes(q.id))
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+              setQuestions(qData);
+            }
           }
         }
       }
     } catch (err) {
-      console.error('Erro ao carregar projeto:', err);
-    } finally {
-      setLoading(false);
+      console.error('Erro ao carregar extras:', err);
     }
   };
 
