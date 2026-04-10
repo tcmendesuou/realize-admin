@@ -36,16 +36,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   useEffect(() => {
     if (!projectId) return;
 
+    let unsubMae = null;
+
     // onSnapshot cuida de manter o project atualizado em tempo real
     const unsub = onSnapshot(doc(db, 'budgets', projectId), async (snap) => {
       if (!snap.exists()) { setLoading(false); return; }
       const data = { id: snap.id, ...snap.data() };
       setProject(data);
 
-      // Carrega budget mãe se for filho (só na primeira vez)
-      if (data.parentBudgetId && !parentProject) {
-        const maeSnap = await getDoc(doc(db, 'budgets', data.parentBudgetId));
-        if (maeSnap.exists()) setParentProject({ id: maeSnap.id, ...maeSnap.data() });
+      // Se for filho, inicia listener no budget mãe (uma vez só)
+      if (data.parentBudgetId && !unsubMae) {
+        unsubMae = onSnapshot(doc(db, 'budgets', data.parentBudgetId), (maeSnap) => {
+          if (maeSnap.exists()) {
+            setParentProject({ id: maeSnap.id, ...maeSnap.data() });
+          }
+        });
       }
 
       setLoading(false);
@@ -54,7 +59,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     // Carrega perguntas e usuários uma vez (não precisam de tempo real)
     loadExtras();
 
-    return () => unsub();
+    return () => {
+      unsub();
+      if (unsubMae) unsubMae();
+    };
   }, [projectId]);
 
   const loadExtras = async () => {
@@ -1005,39 +1013,39 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 ))
               ) : project.answers && Object.keys(project.answers).length > 0 ? (
                 (() => {
-                  const answers = project.answers;
-                  const feiras = answers['fixed-events'] || [];
+                  const feiras = project.answers['fixed-events'] || [];
                   const isFeiraAnswer = (val) =>
                     val && typeof val === 'object' && !Array.isArray(val) &&
                     Object.keys(val).every(k => !isNaN(k));
-                  const getDisplay = (key, val) => {
-                    if (val === null || val === undefined) return '—';
-                    if (key === 'fixed-events' && Array.isArray(val))
-                      return val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}`).join(' | ');
-                    if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) return val.userName || '—';
-                    if (isFeiraAnswer(val))
-                      return Object.entries(val).map(([idx, v]) => {
+
+                  return Object.entries(project.answers).map(([key, val]) => {
+                    let display = '';
+                    if (val === null || val === undefined) {
+                      display = '—';
+                    } else if (key === 'fixed-events' && Array.isArray(val)) {
+                      display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
+                    } else if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) {
+                      display = val.userName || '—';
+                    } else if (isFeiraAnswer(val)) {
+                      display = Object.entries(val).map(([idx, v]) => {
                         const feira = feiras[parseInt(idx)];
-                        return `${feira?.nome || `Feira ${parseInt(idx) + 1}`}: ${v}`;
+                        const label = feira?.nome ? feira.nome : `Feira ${parseInt(idx) + 1}`;
+                        return `${label}: ${v}`;
                       }).join(' | ');
-                    if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
-                    if (typeof val === 'object') return JSON.stringify(val);
-                    return String(val);
-                  };
-                  const fixedLabels = { 'fixed-events': { label: 'Feiras', order: -5 }, 'fixed-purpose': { label: 'Propósito', order: -4 }, 'fixed-client': { label: 'Empresa Cliente', order: -6 }, 'fixed-responsible': { label: 'Responsável', order: -3 }, 'fixed-attendant': { label: 'Atendimento', order: -2 }, 'fixed-date': { label: 'Data', order: -1 }, 'fixed-envio': { label: 'Encaminhado para', order: 9999 } };
-                  return Object.entries(answers)
-                    .map(([key, val]) => {
-                      const fixed = fixedLabels[key];
-                      const q = allQuestions.find(q => q.id === key);
-                      return { key, label: fixed?.label || q?.text || key, order: fixed?.order ?? (q?.order || 999), val };
-                    })
-                    .sort((a, b) => a.order - b.order)
-                    .map(({ key, label, val }) => (
+                    } else if (Array.isArray(val)) {
+                      display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
+                    } else if (typeof val === 'object') {
+                      display = JSON.stringify(val);
+                    } else {
+                      display = String(val);
+                    }
+                    return (
                       <div key={key} className="ps-answer-item">
-                        <span className="ps-question-text">{label}</span>
-                        <span className="ps-answer-text">{getDisplay(key, val)}</span>
+                        <span className="ps-question-text">{key}</span>
+                        <span className="ps-answer-text">{display}</span>
                       </div>
-                    ));
+                    );
+                  });
                 })()
               ) : (
                 <div className="ps-empty">Nenhuma resposta disponível</div>
@@ -1051,51 +1059,38 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               <div className="ps-card-title">Briefing Geral — Pacote Completo</div>
               {parentProject ? (
                 (() => {
-                  const answers = parentProject.answers || {};
-                  const feiras = answers['fixed-events'] || [];
+                  const feiras = parentProject.answers?.['fixed-events'] || [];
                   const isFeiraAnswer = (val) =>
                     val && typeof val === 'object' && !Array.isArray(val) &&
                     Object.keys(val).every(k => !isNaN(k));
-
-                  const getDisplay = (key, val) => {
-                    if (val === null || val === undefined) return '—';
-                    if (key === 'fixed-events' && Array.isArray(val))
-                      return val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
-                    if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val))
-                      return val.userName || '—';
-                    if (isFeiraAnswer(val))
-                      return Object.entries(val).map(([idx, v]) => {
+                  return Object.entries(parentProject.answers || {}).map(([key, val]) => {
+                    let display = '';
+                    if (val === null || val === undefined) {
+                      display = '—';
+                    } else if (key === 'fixed-events' && Array.isArray(val)) {
+                      display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
+                    } else if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) {
+                      display = val.userName || '—';
+                    } else if (isFeiraAnswer(val)) {
+                      display = Object.entries(val).map(([idx, v]) => {
                         const feira = feiras[parseInt(idx)];
-                        return `${feira?.nome || `Feira ${parseInt(idx) + 1}`}: ${v}`;
+                        const label = feira?.nome ? feira.nome : `Feira ${parseInt(idx) + 1}`;
+                        return `${label}: ${v}`;
                       }).join(' | ');
-                    if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
-                    if (typeof val === 'object') return JSON.stringify(val);
-                    return String(val);
-                  };
-
-                  // Perguntas com texto — ordena pelo order da pergunta
-                  const questionsWithText = Object.entries(answers)
-                    .map(([key, val]) => {
-                      // Chaves fixas
-                      if (key === 'fixed-events') return { key, label: 'Feiras', order: -5, val };
-                      if (key === 'fixed-purpose') return { key, label: 'Propósito', order: -4, val };
-                      if (key === 'fixed-client') return { key, label: 'Empresa Cliente', order: -6, val };
-                      if (key === 'fixed-responsible') return { key, label: 'Responsável', order: -3, val };
-                      if (key === 'fixed-attendant') return { key, label: 'Atendimento', order: -2, val };
-                      if (key === 'fixed-date') return { key, label: 'Data', order: -1, val };
-                      if (key === 'fixed-envio') return { key, label: 'Encaminhado para', order: 9999, val };
-                      // Perguntas variáveis — busca texto e order
-                      const q = allQuestions.find(q => q.id === key);
-                      return { key, label: q?.text || key, order: q?.order || 999, val };
-                    })
-                    .sort((a, b) => a.order - b.order);
-
-                  return questionsWithText.map(({ key, label, val }) => (
-                    <div key={key} className="ps-answer-item">
-                      <span className="ps-question-text">{label}</span>
-                      <span className="ps-answer-text">{getDisplay(key, val)}</span>
-                    </div>
-                  ));
+                    } else if (Array.isArray(val)) {
+                      display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
+                    } else if (typeof val === 'object') {
+                      display = JSON.stringify(val);
+                    } else {
+                      display = String(val);
+                    }
+                    return (
+                      <div key={key} className="ps-answer-item">
+                        <span className="ps-question-text">{key}</span>
+                        <span className="ps-answer-text">{display}</span>
+                      </div>
+                    );
+                  });
                 })()
               ) : (
                 <div className="ps-empty">Briefing geral não disponível</div>
