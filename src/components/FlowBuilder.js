@@ -19,15 +19,6 @@ const FIXED_BLOCKS = [
       { label: 'Feiras', type: 'fixed-events' },
     ],
   },
-  {
-    id: 'fixed-block-envio',
-    itemType: 'fixed-block',
-    text: 'Envio',
-    description: 'Seleciona o responsável da agência que vai receber o briefing',
-    fields: [
-      { label: 'Encaminhar para', type: 'fixed-envio' },
-    ],
-  },
 ];
 
 function FlowBuilder({ eventType, onClose }) {
@@ -39,6 +30,10 @@ function FlowBuilder({ eventType, onClose }) {
   const [draggedItem, setDraggedItem] = useState(null);
   const [draggedOverIndex, setDraggedOverIndex] = useState(null);
   const [flowExists, setFlowExists] = useState(false);
+  const [filterFixas, setFilterFixas] = useState(true);
+  const [filterVariaveis, setFilterVariaveis] = useState(true);
+  const [filterTarefas, setFilterTarefas] = useState(true);
+  const [filterEtapa, setFilterEtapa] = useState('');
 
   useEffect(() => {
     loadData();
@@ -246,14 +241,46 @@ function FlowBuilder({ eventType, onClose }) {
               <span className="count">{availableItems.length} disponíveis</span>
             </div>
 
+            {/* ── FILTROS ── */}
+            <div className="fb-filters">
+              <div className="fb-filter-checks">
+                <label className={`fb-check ${filterFixas ? 'on' : ''}`}>
+                  <input type="checkbox" checked={filterFixas} onChange={e => setFilterFixas(e.target.checked)} />
+                  Fixas
+                </label>
+                <label className={`fb-check ${filterVariaveis ? 'on' : ''}`}>
+                  <input type="checkbox" checked={filterVariaveis} onChange={e => setFilterVariaveis(e.target.checked)} />
+                  Variáveis
+                </label>
+                <label className={`fb-check ${filterTarefas ? 'on' : ''}`}>
+                  <input type="checkbox" checked={filterTarefas} onChange={e => setFilterTarefas(e.target.checked)} />
+                  Tarefas
+                </label>
+              </div>
+              <select className="fb-filter-etapa" value={filterEtapa} onChange={e => setFilterEtapa(e.target.value)}>
+                <option value="">Todas as etapas</option>
+                {['novo_pedido','orcamento','cliente','kickoff','criacao','producao','montagem','evento','desmontagem','fechamento'].map(e => (
+                  <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1).replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="questions-list">
-              {availableItems.length === 0 ? (
-                <div className="empty-state">
-                  <p>Nenhum item disponível</p>
-                  <small>Crie perguntas ou tarefas primeiro</small>
-                </div>
-              ) : (
-                availableItems.map((item) => {
+              {(() => {
+                const filtered = availableItems.filter(item => {
+                  if (item.itemType === 'fixed-block') return filterFixas;
+                  if (item.itemType === 'task') return filterTarefas;
+                  if (item.itemType === 'question') {
+                    if (!filterVariaveis) return false;
+                    if (filterEtapa && item.kanbanStage !== filterEtapa) return false;
+                    return true;
+                  }
+                  return true;
+                });
+                if (filtered.length === 0) return (
+                  <div className="empty-state"><p>Nenhum item</p><small>Ajuste os filtros</small></div>
+                );
+                return filtered.map((item) => {
                   const isInFlow = flowItems.find(i => i.id === item.id && i.itemType === item.itemType);
                   const isFixedBlock = item.itemType === 'fixed-block';
 
@@ -284,8 +311,8 @@ function FlowBuilder({ eventType, onClose }) {
                       </button>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           </div>
 
