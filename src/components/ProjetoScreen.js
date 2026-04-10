@@ -521,7 +521,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   };
 
   // Retorna array de { key, label, value } para renderizar linha a linha
-  // Checklist → um item por linha | Por feira → uma feira por linha | Outros → [{key:'single', value}]
   const getAnswerLines = (question, answer, feiras = []) => {
     if (answer === null || answer === undefined || answer === '') return [{ key: 'single', value: 'Não respondido' }];
 
@@ -554,6 +553,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     // Default — linha única
     return [{ key: 'single', label: null, value: getAnswerDisplay(question, answer, feiras) }];
   };
+
+  const STATUS_MAP = {
     analyzing: { label: 'EM ANÁLISE', color: '#FFA726', bg: 'rgba(255,167,38,0.15)' },
     approved:  { label: 'APROVADO',   color: '#66BB6A', bg: 'rgba(102,187,106,0.15)' },
     rejected:  { label: 'REJEITADO',  color: '#EF5350', bg: 'rgba(239,83,80,0.15)' },
@@ -974,10 +975,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         const isFeiraAnswerVal = raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).every(k => !isNaN(k));
                         const rawForFeira = isFeiraAnswerVal ? (raw[feiraIdx] !== undefined ? raw[feiraIdx] : '') : raw;
                         const answerLines = !modoEditarBriefing ? getAnswerLines(q, rawForFeira, project.answers?.['fixed-events'] || []) : null;
+                        const isMultiLine = answerLines && answerLines.length > 1;
                         const form = taskForms[q.id] || {};
                         const tasksCriadas = newTasks.filter(t => t.questionId === q.id);
                         const filteredUsers = form.cargoId ? agencyUsers.filter(u => u.roleId === form.cargoId) : agencyUsers;
-                        const isMultiLine = answerLines && answerLines.length > 1;
 
                         return (
                           <div key={q.id} style={{ padding: '14px 0', borderBottom: '1px solid #f0f2f5' }}>
@@ -1016,7 +1017,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               )}
                             </div>
 
-                            {/* Mini-forms por linha (checklist/feira) */}
+                            {/* Mini-forms por linha (checklist/itens múltiplos) */}
                             {modoEdicao && isMultiLine && answerLines.map(line => {
                               const k = `${q.id}__${line.key}`;
                               const lf = taskForms[k] || {};
@@ -1065,7 +1066,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             })}
 
                             {/* Mini-form tarefa resposta única */}
-                            {modoEdicao && form.open && !isMultiLine && (
+                            {modoEdicao && !isMultiLine && form.open && (
                               <div style={{ marginTop: 10, padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 <input placeholder="Tarefa *" value={form.tarefa || ''} onChange={e => updateTaskForm(q.id, 'tarefa', e.target.value)}
                                   style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
@@ -1381,9 +1382,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 return (
                   <>
                     {allQsGeral.map(({ key, label, val, isFixed, isFeiraAnswer, isExtra }) => {
-                      const q = allQuestions.find(q => q.id === key);
-                      const geralLines = !modoEditarGeral ? getAnswerLines(q || { type: isFeiraAnswer ? 'feira' : 'text' }, val, feiras) : null;
-                      const isMultiLineGeral = geralLines && geralLines.length > 1;
+                      const display = getDisplay(key, val);
                       const formG = taskFormsGeral[key] || {};
                       const tasksCriadasG = newTasksGeral.filter(t => t.questionId === key);
                       const filteredUsersG = formG.cargoId ? agencyUsers.filter(u => u.roleId === formG.cargoId) : agencyUsers;
@@ -1398,22 +1397,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               </span>
                               {modoEditarGeral && !isFixed
                                 ? <div style={{ marginTop:6 }}>{renderEditInputGeral(key, val)}</div>
-                                : (
-                                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                    {geralLines?.map(line => (
-                                      <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMultiLineGeral ? '4px 8px' : 0, background: isMultiLineGeral ? '#fafafa' : 'none', borderRadius: isMultiLineGeral ? 6 : 0, border: isMultiLineGeral ? '1px solid #f0f2f5' : 'none' }}>
-                                        <span className="ps-answer-text">
-                                          {line.label && <span style={{ color: '#8a9bb0', marginRight: 6, fontSize: 12, fontWeight: 500 }}>{line.label}:</span>}
-                                          {line.value}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )
+                                : <div className="ps-answer-text" style={{ marginTop:4 }}>{display}</div>
                               }
                             </div>
                             <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                              {modoPlanejarGeral && !isMultiLineGeral && (
+                              {modoPlanejarGeral && (
                                 <button onClick={() => toggleTaskFormGeral(key)} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, border:'1px solid rgba(0,229,196,0.4)', background: formG.open?'rgba(0,229,196,0.1)':'none', color:'#00E5C4', cursor:'pointer', fontFamily:'Outfit, sans-serif', whiteSpace:'nowrap' }}>
                                   {isFeiraAnswer ? `Gerar ${feiras.length}x` : 'Gerar Tarefa'}
                                 </button>
