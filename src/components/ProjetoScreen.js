@@ -520,7 +520,37 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     }
   };
 
-  const STATUS_MAP = {
+  // Retorna array de { key, label, value } para renderizar linha a linha
+  // Checklist → um item por linha | Por feira → uma feira por linha | Outros → [{key:'single', value}]
+  const getAnswerLines = (question, answer, feiras = []) => {
+    if (answer === null || answer === undefined || answer === '') return [{ key: 'single', value: 'Não respondido' }];
+
+    // Checklist (array de strings)
+    if (question?.type === 'checklist' && Array.isArray(answer)) {
+      if (answer.length === 0) return [{ key: 'single', value: 'Nenhum item' }];
+      return answer.map((item, i) => ({ key: `item-${i}`, label: null, value: String(item) }));
+    }
+
+    // Multiselect (array)
+    if (question?.type === 'multiselect' && Array.isArray(answer)) {
+      return answer.map((item, i) => ({ key: `item-${i}`, label: null, value: String(item) }));
+    }
+
+    // Resposta por feira (objeto com índices numéricos)
+    const isFeiraAnswer = (val) =>
+      val && typeof val === 'object' && !Array.isArray(val) &&
+      Object.keys(val).every(k => !isNaN(k));
+
+    if (isFeiraAnswer(answer)) {
+      return Object.entries(answer).map(([idx, v]) => {
+        const feira = feiras[parseInt(idx)];
+        return { key: `feira-${idx}`, label: feira?.nome || `Feira ${parseInt(idx) + 1}`, value: String(v) };
+      });
+    }
+
+    // Default — linha única
+    return [{ key: 'single', label: null, value: getAnswerDisplay(question, answer, feiras) }];
+  };
     analyzing: { label: 'EM ANÁLISE', color: '#FFA726', bg: 'rgba(255,167,38,0.15)' },
     approved:  { label: 'APROVADO',   color: '#66BB6A', bg: 'rgba(102,187,106,0.15)' },
     rejected:  { label: 'REJEITADO',  color: '#EF5350', bg: 'rgba(239,83,80,0.15)' },
@@ -938,15 +968,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
                       return allQsToShow.map(q => {
                         const raw = modoEditarBriefing ? editedAnswers[q.id] : project.answers?.[q.id];
-                        let display;
-                        if (isFeiraAnswer(raw)) {
-                          display = raw[feiraIdx] !== undefined ? String(raw[feiraIdx]) : 'Não respondido';
-                        } else {
-                          display = getAnswerDisplay(q, raw, project.answers?.['fixed-events'] || []);
-                        }
+                        const isFeiraAnswerVal = raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).every(k => !isNaN(k));
+                        const rawForFeira = isFeiraAnswerVal ? (raw[feiraIdx] !== undefined ? raw[feiraIdx] : '') : raw;
+                        const answerLines = !modoEditarBriefing ? getAnswerLines(q, rawForFeira, project.answers?.['fixed-events'] || []) : null;
                         const form = taskForms[q.id] || {};
                         const tasksCriadas = newTasks.filter(t => t.questionId === q.id);
                         const filteredUsers = form.cargoId ? agencyUsers.filter(u => u.roleId === form.cargoId) : agencyUsers;
+                        const isMultiLine = answerLines && answerLines.length > 1;
 
                         return (
                           <div key={q.id} style={{ padding: '14px 0', borderBottom: '1px solid #f0f2f5' }}>
@@ -957,27 +985,84 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                   {q.isShared && <span style={{ fontSize: 10, color: '#00E5C4', marginLeft: 6 }}>comum</span>}
                                   {extraQuestions.find(eq => eq.id === q.id) && <span style={{ fontSize: 10, color: '#FFA726', marginLeft: 6 }}>nova</span>}
                                 </span>
-                                {modoEditarBriefing
-                                  ? <div style={{ marginTop: 6 }}>{renderEditInput(q)}</div>
-                                  : <div className="ps-answer-text" style={{ marginTop: 4 }}>{display}</div>
-                                }
+                                {modoEditarBriefing ? (
+                                  <div style={{ marginTop: 6 }}>{renderEditInput(q)}</div>
+                                ) : (
+                                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {answerLines.map(line => (
+                                      <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMultiLine ? '4px 8px' : 0, background: isMultiLine ? '#fafafa' : 'none', borderRadius: isMultiLine ? 6 : 0, border: isMultiLine ? '1px solid #f0f2f5' : 'none' }}>
+                                        <span className="ps-answer-text">
+                                          {line.label && <span style={{ color: '#8a9bb0', marginRight: 6, fontSize: 12, fontWeight: 500 }}>{line.label}:</span>}
+                                          {line.value}
+                                        </span>
+                                        {modoEdicao && isMultiLine && (
+                                          <button onClick={() => { const k = `${q.id}__${line.key}`; setTaskForms(prev => ({ ...prev, [k]: prev[k]?.open ? { ...prev[k], open: false } : { open: true, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '', lineLabel: line.label, lineValue: line.value } })); }} style={{ flexShrink: 0, padding: '2px 8px', borderRadius: 5, fontSize: 10, border: '1px solid rgba(0,229,196,0.4)', background: 'none', color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginLeft: 8 }}>
+                                            Gerar Tarefa
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              {modoEdicao && !modoEditarBriefing && (
-                                <button onClick={() => toggleTaskForm(q.id)} style={{
-                                  flexShrink: 0, padding: '4px 10px', borderRadius: 6, fontSize: 11,
-                                  border: '1px solid rgba(0,229,196,0.4)', background: form.open ? 'rgba(0,229,196,0.1)' : 'none',
-                                  color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap'
-                                }}>Gerar Tarefa</button>
+                              {modoEdicao && !modoEditarBriefing && !isMultiLine && (
+                                <button onClick={() => toggleTaskForm(q.id)} style={{ flexShrink: 0, padding: '4px 10px', borderRadius: 6, fontSize: 11, border: '1px solid rgba(0,229,196,0.4)', background: form.open ? 'rgba(0,229,196,0.1)' : 'none', color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>Gerar Tarefa</button>
                               )}
                               {modoEditarBriefing && extraQuestions.find(eq => eq.id === q.id) && (
-                                <button onClick={() => setExtraQuestions(prev => prev.filter(eq => eq.id !== q.id))} style={{
-                                  background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13, flexShrink: 0
-                                }}>✕</button>
+                                <button onClick={() => setExtraQuestions(prev => prev.filter(eq => eq.id !== q.id))} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}>✕</button>
                               )}
                             </div>
 
-                            {/* Mini-form de tarefa */}
-                            {modoEdicao && form.open && (
+                            {/* Mini-forms por linha (checklist/feira) */}
+                            {modoEdicao && isMultiLine && answerLines.map(line => {
+                              const k = `${q.id}__${line.key}`;
+                              const lf = taskForms[k] || {};
+                              const lu = lf.cargoId ? agencyUsers.filter(u => u.roleId === lf.cargoId) : agencyUsers;
+                              const lt = newTasks.filter(t => t.questionId === k);
+                              if (!lf.open && lt.length === 0) return null;
+                              return (
+                                <div key={k}>
+                                  {lf.open && (
+                                    <div style={{ margin: '6px 0 6px 8px', padding: 12, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                      <span style={{ fontSize: 11, color: '#667eea', fontWeight: 600 }}>{line.label ? `${line.label}: ` : ''}{line.value}</span>
+                                      <input placeholder="Tarefa *" value={lf.tarefa||''} onChange={e => setTaskForms(prev => ({...prev,[k]:{...prev[k],tarefa:e.target.value}}))} style={{ padding:'7px 10px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }} />
+                                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                                        <select value={lf.cargoId||''} onChange={e => { const c=agencyRoles.find(r=>r.id===e.target.value); setTaskForms(prev=>({...prev,[k]:{...prev[k],cargoId:e.target.value,cargoNome:c?.name||'',pessoaId:'',pessoaNome:''}})); }} style={{ padding:'7px 8px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }}>
+                                          <option value="">Cargo...</option>
+                                          {agencyRoles.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                                        </select>
+                                        <select value={lf.pessoaId||''} onChange={e => { const p=agencyUsers.find(u=>u.id===e.target.value); setTaskForms(prev=>({...prev,[k]:{...prev[k],pessoaId:e.target.value,pessoaNome:p?.name||''}})); }} style={{ padding:'7px 8px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }}>
+                                          <option value="">Pessoa *</option>
+                                          {lu.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                                        </select>
+                                      </div>
+                                      <input placeholder="Valor (opcional)" value={lf.valor||''} onChange={e=>setTaskForms(prev=>({...prev,[k]:{...prev[k],valor:e.target.value}}))} type="number" min="0" style={{ padding:'7px 10px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }} />
+                                      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                                        <button onClick={()=>setTaskForms(prev=>({...prev,[k]:{...prev[k],open:false}}))} style={{ padding:'5px 10px', borderRadius:6, border:'1px solid #ddd', background:'none', color:'#666', fontSize:11, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>Cancelar</button>
+                                        <button onClick={()=>{
+                                          if(!lf.tarefa){alert('Descreva a tarefa');return;}
+                                          if(!lf.pessoaId){alert('Selecione a pessoa');return;}
+                                          setNewTasks(prev=>[...prev,{taskId:`task-${Date.now()}-${Math.random().toString(36).slice(2)}`,questionId:k,questionText:`${q.text}${line.label?` — ${line.label}`:''}`,briefingAnswer:line.value,name:lf.tarefa,cargoId:lf.cargoId,cargoNome:lf.cargoNome,assignedTo:lf.pessoaId,assignedToName:lf.pessoaNome,valor:lf.valor||'',status:'backlog',createdAt:new Date()}]);
+                                          setTaskForms(prev=>({...prev,[k]:{open:false,tarefa:'',cargoId:'',cargoNome:'',pessoaId:'',pessoaNome:'',valor:''}}));
+                                        }} style={{ padding:'5px 12px', borderRadius:6, border:'none', background:'linear-gradient(135deg,#667eea,#764ba2)', color:'white', fontSize:11, cursor:'pointer', fontFamily:'Outfit, sans-serif', fontWeight:600 }}>Criar</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {lt.map(t=>(
+                                    <div key={t.taskId} style={{ margin:'4px 0 4px 8px', display:'flex', alignItems:'center', gap:8, padding:'5px 8px', background:'rgba(102,126,234,0.06)', borderRadius:6, border:'1px solid rgba(102,126,234,0.2)' }}>
+                                      <span style={{ fontSize:10, color:'#667eea' }}>✓</span>
+                                      <span style={{ fontSize:11, flex:1, color:'#2c3e50' }}>{t.name}</span>
+                                      <span style={{ fontSize:10, color:'#1976d2' }}>{t.assignedToName}</span>
+                                      {t.valor&&<span style={{ fontSize:10, color:'#27ae60' }}>R$ {t.valor}</span>}
+                                      <button onClick={()=>setNewTasks(prev=>prev.filter(x=>x.taskId!==t.taskId))} style={{ background:'none', border:'none', color:'#e74c3c', cursor:'pointer', fontSize:11 }}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+
+                            {/* Mini-form tarefa resposta única */}
+                            {modoEdicao && form.open && !isMultiLine && (
                               <div style={{ marginTop: 10, padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 <input placeholder="Tarefa *" value={form.tarefa || ''} onChange={e => updateTaskForm(q.id, 'tarefa', e.target.value)}
                                   style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
@@ -998,7 +1083,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                   style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
                                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                                   <button onClick={() => toggleTaskForm(q.id)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                                  <button onClick={() => gerarTarefa(q, display)} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
+                                  <button onClick={() => gerarTarefa(q, answerLines?.[0]?.value || '')} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
                                 </div>
                               </div>
                             )}
@@ -1293,7 +1378,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 return (
                   <>
                     {allQsGeral.map(({ key, label, val, isFixed, isFeiraAnswer, isExtra }) => {
-                      const display = getDisplay(key, val);
+                      const q = allQuestions.find(q => q.id === key);
+                      const geralLines = !modoEditarGeral ? getAnswerLines(q || { type: isFeiraAnswer ? 'feira' : 'text' }, val, feiras) : null;
+                      const isMultiLineGeral = geralLines && geralLines.length > 1;
                       const formG = taskFormsGeral[key] || {};
                       const tasksCriadasG = newTasksGeral.filter(t => t.questionId === key);
                       const filteredUsersG = formG.cargoId ? agencyUsers.filter(u => u.roleId === formG.cargoId) : agencyUsers;
@@ -1308,11 +1395,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               </span>
                               {modoEditarGeral && !isFixed
                                 ? <div style={{ marginTop:6 }}>{renderEditInputGeral(key, val)}</div>
-                                : <div className="ps-answer-text" style={{ marginTop:4 }}>{display}</div>
+                                : (
+                                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {geralLines?.map(line => (
+                                      <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMultiLineGeral ? '4px 8px' : 0, background: isMultiLineGeral ? '#fafafa' : 'none', borderRadius: isMultiLineGeral ? 6 : 0, border: isMultiLineGeral ? '1px solid #f0f2f5' : 'none' }}>
+                                        <span className="ps-answer-text">
+                                          {line.label && <span style={{ color: '#8a9bb0', marginRight: 6, fontSize: 12, fontWeight: 500 }}>{line.label}:</span>}
+                                          {line.value}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
                               }
                             </div>
                             <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                              {modoPlanejarGeral && (
+                              {modoPlanejarGeral && !isMultiLineGeral && (
                                 <button onClick={() => toggleTaskFormGeral(key)} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, border:'1px solid rgba(0,229,196,0.4)', background: formG.open?'rgba(0,229,196,0.1)':'none', color:'#00E5C4', cursor:'pointer', fontFamily:'Outfit, sans-serif', whiteSpace:'nowrap' }}>
                                   {isFeiraAnswer ? `Gerar ${feiras.length}x` : 'Gerar Tarefa'}
                                 </button>
