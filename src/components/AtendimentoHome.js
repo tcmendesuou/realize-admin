@@ -1019,7 +1019,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .ws-proj-col { min-width: 0; }
         .ws-proj-col-header {
           display: flex; align-items: center; justify-content: space-between;
-          margin-bottom: 8px; padding: 0 2px;
+          margin-bottom: 6px; padding: 0 2px;
         }
         .ws-proj-col-name { font-size: 11px; font-weight: 500; color: #7BAFD4; letter-spacing: 0.5px; }
         .ws-proj-col-count {
@@ -1030,15 +1030,20 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .ws-proj-col.active .ws-proj-col-name { color: #00E5C4; }
         .ws-proj-col.active .ws-proj-col-count { background: rgba(0,229,196,0.15); color: #00E5C4; }
 
+        .ws-proj-col-cards { max-height: 220px; overflow-y: auto; }
+        .ws-proj-col-cards::-webkit-scrollbar { width: 3px; }
+        .ws-proj-col-cards::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.2); border-radius: 2px; }
+
         .ws-proj-card {
           background: rgba(255,255,255,0.03); border: 1px solid rgba(0,180,255,0.1);
-          border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
-          transition: all 0.15s;
+          border-radius: 6px; padding: 6px 8px; margin-bottom: 4px; cursor: pointer;
+          transition: all 0.15s; display: flex; align-items: center; gap: 5px;
         }
         .ws-proj-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(0,229,196,0.3); transform: translateY(-1px); }
-        .ws-proj-card-name { font-size: 12px; font-weight: 500; color: #E8F4FF; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ws-proj-card-client { font-size: 11px; color: rgba(123,175,212,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ws-proj-col-empty { font-size: 11px; color: rgba(123,175,212,0.2); text-align: center; padding: 12px 0; }
+        .ws-proj-card-name { font-size: 11px; font-weight: 500; color: #E8F4FF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+        .ws-proj-card-sep { font-size: 10px; color: rgba(123,175,212,0.3); flex-shrink: 0; }
+        .ws-proj-card-client { font-size: 10px; color: rgba(123,175,212,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; max-width: 45%; }
+        .ws-proj-col-empty { font-size: 11px; color: rgba(123,175,212,0.2); text-align: center; padding: 8px 0; }
 
         /* ─── DIVISOR ─── */
         .ws-divider { height: 1px; background: rgba(0,180,255,0.06); margin: 0 32px; }
@@ -1247,12 +1252,17 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     </div>
                     {cards.length === 0 ? (
                       <div className="ws-proj-col-empty">—</div>
-                    ) : cards.map(b => (
-                      <div key={b.id} className="ws-proj-card" onClick={() => navigate(`/projeto/${b.id}`)}>
-                        <div className="ws-proj-card-name">{getProjectName(b)}</div>
-                        <div className="ws-proj-card-client">{b.companyName || b.clientName || '—'}</div>
+                    ) : (
+                      <div className="ws-proj-col-cards">
+                        {cards.map(b => (
+                          <div key={b.id} className="ws-proj-card" onClick={() => navigate(`/projeto/${b.id}`)}>
+                            <div className="ws-proj-card-name">{getProjectName(b)}</div>
+                            <span className="ws-proj-card-sep">·</span>
+                            <div className="ws-proj-card-client">{b.companyName || b.clientName || '—'}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 );
               })}
