@@ -1,13 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-export default function ProjetoScreen({ projectId, onBack }) {
+export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [project, setProject] = useState(null);
-  const [parentProject, setParentProject] = useState(null); // budget mãe (se for filho)
+  const [parentProject, setParentProject] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
+
+  // Sessão de planejamento
+  const [modoEdicao, setModoEdicao] = useState(false);
+  const [agencyUsers, setAgencyUsers] = useState([]);
+  const [agencyRoles, setAgencyRoles] = useState([]);
+  const [savingSession, setSavingSession] = useState(false);
+  // taskForms: { [questionId]: { open, tarefa, cargoId, cargoNome, pessoaId, pessoaNome, valor } }
+  const [taskForms, setTaskForms] = useState({});
+  // tarefas geradas nesta sessão: [{ questionId, questionText, tarefa, cargoId, cargoNome, pessoaId, pessoaNome, valor }]
+  const [newTasks, setNewTasks] = useState([]);
+  // nova tarefa do zero
+  const [showNovaTask, setShowNovaTask] = useState(false);
+  const [novaTask, setNovaTask] = useState({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
+
+  const canEdit = userData?.permissions?.briefing?.edit !== false || userData?.systemRole === 'workspace';
 
   useEffect(() => {
     if (projectId) loadProject();
@@ -28,6 +43,21 @@ export default function ProjetoScreen({ projectId, onBack }) {
           setParentProject({ id: maeSnap.id, ...maeSnap.data() });
         }
       }
+
+      // Carregar usuários da agência para a sessão de planejamento
+      const [usersSnap, utSnap] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'userTypes')),
+      ]);
+      const agenciaTypeIds = utSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => t.systemRole === 'workspace' || t.systemRole === 'admin')
+        .map(t => t.id);
+      const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const agency = allUsers.filter(u => agenciaTypeIds.includes(u.userTypeId) && u.active !== false);
+      setAgencyUsers(agency);
+      const roles = [...new Map(agency.filter(u => u.roleId).map(u => [u.roleId, { id: u.roleId, name: u.roleName }])).values()];
+      setAgencyRoles(roles);
 
       // Busca perguntas do fluxo para exibir as labels corretas
       if (data.eventTypeId) {
@@ -65,6 +95,103 @@ export default function ProjetoScreen({ projectId, onBack }) {
   };
 
   const isFilho = !!project?.parentBudgetId;
+
+  const toggleTaskForm = (qId) => {
+    setTaskForms(prev => ({
+      ...prev,
+      [qId]: prev[qId]?.open
+        ? { ...prev[qId], open: false }
+        : { open: true, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' }
+    }));
+  };
+
+  const updateTaskForm = (qId, field, value) => {
+    setTaskForms(prev => ({ ...prev, [qId]: { ...prev[qId], [field]: value } }));
+    if (field === 'cargoId') {
+      const cargo = agencyRoles.find(r => r.id === value);
+      setTaskForms(prev => ({ ...prev, [qId]: { ...prev[qId], cargoId: value, cargoNome: cargo?.name || '', pessoaId: '', pessoaNome: '' } }));
+    }
+    if (field === 'pessoaId') {
+      const pessoa = agencyUsers.find(u => u.id === value);
+      setTaskForms(prev => ({ ...prev, [qId]: { ...prev[qId], pessoaId: value, pessoaNome: pessoa?.name || '' } }));
+    }
+  };
+
+  const gerarTarefa = (q, display) => {
+    const form = taskForms[q.id];
+    if (!form?.tarefa) { alert('Descreva a tarefa'); return; }
+    if (!form?.pessoaId) { alert('Selecione a pessoa responsável'); return; }
+    setNewTasks(prev => [...prev, {
+      taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      questionId: q.id,
+      questionText: q.text,
+      briefingAnswer: display,
+      name: form.tarefa,
+      cargoId: form.cargoId,
+      cargoNome: form.cargoNome,
+      assignedTo: form.pessoaId,
+      assignedToName: form.pessoaNome,
+      valor: form.valor || '',
+      status: 'backlog',
+      createdAt: new Date(),
+    }]);
+    setTaskForms(prev => ({ ...prev, [q.id]: { open: false, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' } }));
+  };
+
+  const gerarNovaTask = () => {
+    if (!novaTask.tarefa) { alert('Descreva a tarefa'); return; }
+    if (!novaTask.pessoaId) { alert('Selecione a pessoa responsável'); return; }
+    setNewTasks(prev => [...prev, {
+      taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      questionId: null,
+      questionText: null,
+      briefingAnswer: null,
+      name: novaTask.tarefa,
+      cargoId: novaTask.cargoId,
+      cargoNome: novaTask.cargoNome,
+      assignedTo: novaTask.pessoaId,
+      assignedToName: novaTask.pessoaNome,
+      valor: novaTask.valor || '',
+      status: 'backlog',
+      createdAt: new Date(),
+    }]);
+    setNovaTask({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
+    setShowNovaTask(false);
+  };
+
+  const removerNewTask = (taskId) => {
+    setNewTasks(prev => prev.filter(t => t.taskId !== taskId));
+  };
+
+  const salvarSessao = async () => {
+    if (newTasks.length === 0) { alert('Nenhuma tarefa criada nesta sessão'); return; }
+    setSavingSession(true);
+    try {
+      const existingTasks = project.tasks || [];
+      const updatedTasks = [...existingTasks, ...newTasks];
+      await updateDoc(doc(db, 'budgets', projectId), {
+        tasks: updatedTasks,
+        updatedAt: new Date(),
+        timeline: [...(project.timeline || []), {
+          action: 'planning_session',
+          description: `Sessão de planejamento: ${newTasks.length} tarefa(s) criada(s) por ${userData?.name || 'Planner'}`,
+          userId: userData?.id,
+          userName: userData?.name,
+          timestamp: new Date()
+        }]
+      });
+      setProject(prev => ({ ...prev, tasks: updatedTasks }));
+      setNewTasks([]);
+      setModoEdicao(false);
+      setTaskForms({});
+      alert(`✓ Sessão salva! ${newTasks.length} tarefa(s) enviada(s).`);
+    } catch (err) {
+      console.error('Erro ao salvar sessão:', err);
+      alert('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSavingSession(false);
+    }
+  };
 
   const getProjectName = () => {
     // Filho: usar nome da feira específica
@@ -428,34 +555,169 @@ export default function ProjetoScreen({ projectId, onBack }) {
 
                   {/* Respostas filtradas por feiraIndex */}
                   <div className="ps-card">
-                    <div className="ps-card-title">Respostas do Briefing</div>
+                    <div className="ps-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Respostas do Briefing</span>
+                      {canEdit && !modoEdicao && (
+                        <button onClick={() => setModoEdicao(true)} style={{
+                          padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(0,229,196,0.4)',
+                          background: 'none', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                        }}>⚡ Abrir Sessão de Planejamento</button>
+                      )}
+                      {modoEdicao && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: '#FFA726', alignSelf: 'center' }}>
+                            {newTasks.length} tarefa(s) criada(s)
+                          </span>
+                          <button onClick={salvarSessao} disabled={savingSession} style={{
+                            padding: '5px 14px', borderRadius: 6, border: 'none',
+                            background: newTasks.length > 0 ? 'linear-gradient(135deg,#00E5C4,#0080FF)' : '#ccc',
+                            color: 'white', fontSize: 11, cursor: newTasks.length > 0 ? 'pointer' : 'not-allowed',
+                            fontFamily: 'Outfit, sans-serif', fontWeight: 600
+                          }}>{savingSession ? 'Salvando...' : '💾 Salvar Sessão'}</button>
+                          <button onClick={() => { setModoEdicao(false); setNewTasks([]); setTaskForms({}); }} style={{
+                            padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd',
+                            background: 'none', color: '#666', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                          }}>Cancelar</button>
+                        </div>
+                      )}
+                    </div>
+
                     {questions.length > 0 ? questions.map(q => {
                       const raw = project.answers?.[q.id];
                       const feiraIdx = project.feiraIndex ?? 0;
                       const isFeiraAnswer = (val) =>
                         val && typeof val === 'object' && !Array.isArray(val) &&
                         Object.keys(val).every(k => !isNaN(k));
-
-                      // Se for resposta por feira, pega só o índice desta feira
                       let display;
                       if (isFeiraAnswer(raw)) {
                         display = raw[feiraIdx] !== undefined ? String(raw[feiraIdx]) : 'Não respondido';
                       } else {
                         display = getAnswerDisplay(q, raw, project.answers?.['fixed-events'] || []);
                       }
+                      const form = taskForms[q.id] || {};
+                      const tasksCriadas = newTasks.filter(t => t.questionId === q.id);
+                      const filteredUsers = form.cargoId
+                        ? agencyUsers.filter(u => u.roleId === form.cargoId)
+                        : agencyUsers;
 
                       return (
-                        <div key={q.id} className="ps-answer-item">
-                          <span className="ps-question-text">
-                            {q.text}
-                            {q.isShared && <span style={{ fontSize: 10, color: '#00E5C4', marginLeft: 6 }}>🔗 comum</span>}
-                          </span>
-                          <span className="ps-answer-text">{display}</span>
+                        <div key={q.id} style={{ padding: '14px 0', borderBottom: '1px solid #f0f2f5' }}>
+                          {/* Pergunta + resposta + botão */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                            <div style={{ flex: 1 }}>
+                              <span className="ps-question-text">
+                                {q.text}
+                                {q.isShared && <span style={{ fontSize: 10, color: '#00E5C4', marginLeft: 6 }}>🔗 comum</span>}
+                              </span>
+                              <div className="ps-answer-text" style={{ marginTop: 4 }}>{display}</div>
+                            </div>
+                            {modoEdicao && (
+                              <button onClick={() => toggleTaskForm(q.id)} style={{
+                                flexShrink: 0, padding: '4px 10px', borderRadius: 6, fontSize: 11,
+                                border: '1px solid rgba(0,229,196,0.4)', background: form.open ? 'rgba(0,229,196,0.1)' : 'none',
+                                color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap'
+                              }}>→ Gerar Tarefa</button>
+                            )}
+                          </div>
+
+                          {/* Mini-form de tarefa */}
+                          {modoEdicao && form.open && (
+                            <div style={{ marginTop: 10, padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              <input placeholder="Tarefa *" value={form.tarefa || ''} onChange={e => updateTaskForm(q.id, 'tarefa', e.target.value)}
+                                style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                <select value={form.cargoId || ''} onChange={e => updateTaskForm(q.id, 'cargoId', e.target.value)}
+                                  style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                                  <option value="">Cargo...</option>
+                                  {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                </select>
+                                <select value={form.pessoaId || ''} onChange={e => updateTaskForm(q.id, 'pessoaId', e.target.value)}
+                                  style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                                  <option value="">Pessoa *</option>
+                                  {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                </select>
+                              </div>
+                              <input placeholder="Valor estimado (opcional)" value={form.valor || ''} onChange={e => updateTaskForm(q.id, 'valor', e.target.value)}
+                                type="number" min="0"
+                                style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <button onClick={() => toggleTaskForm(q.id)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                                <button onClick={() => gerarTarefa(q, display)} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tarefas criadas para esta pergunta */}
+                          {tasksCriadas.map(t => (
+                            <div key={t.taskId} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
+                              <span style={{ fontSize: 11, color: '#667eea' }}>✓</span>
+                              <span style={{ fontSize: 12, flex: 1, color: '#2c3e50' }}>{t.name}</span>
+                              <span style={{ fontSize: 11, color: '#7b1fa2' }}>{t.cargoNome}</span>
+                              <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>
+                              {t.valor && <span style={{ fontSize: 11, color: '#27ae60' }}>R$ {t.valor}</span>}
+                              {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+                            </div>
+                          ))}
                         </div>
                       );
                     }) : (
                       <div className="ps-empty">Nenhuma pergunta no fluxo</div>
                     )}
+
+                    {/* Nova tarefa do zero */}
+                    {modoEdicao && (
+                      <div style={{ marginTop: 16 }}>
+                        {!showNovaTask ? (
+                          <button onClick={() => setShowNovaTask(true)} style={{
+                            width: '100%', padding: '10px', borderRadius: 8, border: '1.5px dashed #667eea',
+                            background: 'none', color: '#667eea', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                          }}>+ Nova Tarefa (sem vínculo com pergunta)</button>
+                        ) : (
+                          <div style={{ padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#667eea' }}>NOVA TAREFA</span>
+                            <input placeholder="Tarefa *" value={novaTask.tarefa} onChange={e => setNovaTask(p => ({ ...p, tarefa: e.target.value }))}
+                              style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              <select value={novaTask.cargoId} onChange={e => {
+                                const cargo = agencyRoles.find(r => r.id === e.target.value);
+                                setNovaTask(p => ({ ...p, cargoId: e.target.value, cargoNome: cargo?.name || '', pessoaId: '', pessoaNome: '' }));
+                              }} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                                <option value="">Cargo...</option>
+                                {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                              </select>
+                              <select value={novaTask.pessoaId} onChange={e => {
+                                const pessoa = agencyUsers.find(u => u.id === e.target.value);
+                                setNovaTask(p => ({ ...p, pessoaId: e.target.value, pessoaNome: pessoa?.name || '' }));
+                              }} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                                <option value="">Pessoa *</option>
+                                {(novaTask.cargoId ? agencyUsers.filter(u => u.roleId === novaTask.cargoId) : agencyUsers).map(u => (
+                                  <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <input placeholder="Valor estimado (opcional)" value={novaTask.valor} onChange={e => setNovaTask(p => ({ ...p, valor: e.target.value }))}
+                              type="number" min="0"
+                              style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button onClick={() => setShowNovaTask(false)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={gerarNovaTask} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tarefas do zero criadas nesta sessão */}
+                    {newTasks.filter(t => !t.questionId).map(t => (
+                      <div key={t.taskId} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
+                        <span style={{ fontSize: 11, color: '#667eea' }}>✓</span>
+                        <span style={{ fontSize: 12, flex: 1, color: '#2c3e50' }}>{t.name}</span>
+                        <span style={{ fontSize: 11, color: '#7b1fa2' }}>{t.cargoNome}</span>
+                        <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>
+                        {t.valor && <span style={{ fontSize: 11, color: '#27ae60' }}>R$ {t.valor}</span>}
+                        {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+                      </div>
+                    ))}
                   </div>
                 </>
               ) : (

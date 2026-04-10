@@ -932,7 +932,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   };
 
   if (selectedProjectId) {
-    return <ProjetoScreen projectId={selectedProjectId} onBack={() => setSelectedProjectId(null)} />;
+    return <ProjetoScreen projectId={selectedProjectId} onBack={() => setSelectedProjectId(null)} userData={userData} />;
   }
 
   if (loading) {
