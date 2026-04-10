@@ -32,6 +32,9 @@ const FIXED_BLOCK_FIELDS = {
     { id: 'fixed-date',       label: 'Data',               type: 'fixed-date' },
     { id: 'fixed-purpose',    label: 'Propósito',          type: 'textarea' },
     { id: 'fixed-events',     label: 'Quantas feiras?',    type: 'fixed-events' },
+  ],
+  'fixed-block-envio': [
+    { id: 'fixed-envio',      label: 'Encaminhar para',    type: 'fixed-envio' },
   ]
 };
 
@@ -58,6 +61,11 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   // Controle de uploads em andamento por questionId
   const [uploadingFiles, setUploadingFiles] = useState({});
+
+  // Envio — usuário da agência selecionado para receber o briefing
+  const [agencyUsers, setAgencyUsers] = useState([]);
+  const [envioFilterCargo, setEnvioFilterCargo] = useState('');
+  const [envioUser, setEnvioUser] = useState(null); // { id, name, roleId, roleName }
 
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
@@ -110,19 +118,23 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   const loadCompaniesAndEventTypes = async () => {
     try {
-      const [compSnap, etSnap, utSnap] = await Promise.all([
+      const [compSnap, etSnap, utSnap, usersSnap] = await Promise.all([
         getDocs(collection(db, 'companies')),
         getDocs(query(collection(db, 'eventTypes'), where('active', '==', true))),
         getDocs(collection(db, 'userTypes')),
+        getDocs(collection(db, 'users')),
       ]);
-      // IDs dos userTypes que NÃO são agência (systemRole !== 'workspace' e !== 'admin')
-      const clientTypeIds = utSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+      const allUserTypes = utSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const clientTypeIds = allUserTypes
         .filter(t => t.systemRole !== 'workspace' && t.systemRole !== 'admin')
         .map(t => t.id);
-      // Só empresas cujo typeId é de cliente
+      const agencyTypeIds = allUserTypes
+        .filter(t => t.systemRole === 'workspace' || t.systemRole === 'admin')
+        .map(t => t.id);
       const allCompanies = compSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setCompanies(allCompanies.filter(c => clientTypeIds.includes(c.typeId)));
+      setAgencyUsers(allUsers.filter(u => agencyTypeIds.includes(u.userTypeId) && u.active !== false));
       setEventTypes(etSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error('Erro ao carregar empresas/tipos:', err);
@@ -197,11 +209,31 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     if (!briefingForm.eventTypeId) { alert('Selecione o tipo de evento'); return; }
     if (!briefingForm.companyId) { alert('Selecione a empresa cliente'); return; }
     if (!briefingForm.clientName) { alert('Informe o nome do responsável'); return; }
+    if (!envioUser) { alert('Selecione para quem enviar o briefing'); return; }
 
     setSavingBriefing(true);
     try {
       const allBudgetsSnap = await getDocs(collection(db, 'budgets'));
       const maxNum = allBudgetsSnap.docs.reduce((max, d) => Math.max(max, d.data().budgetNumber || 0), 1000);
+
+      // Criar uma task por feira para o usuário selecionado
+      const fairTasks = feiras.map((feira, i) => ({
+        taskId: `feira-${Date.now()}-${i}`,
+        type: 'feira',
+        name: feira.nome || `Feira ${i + 1}`,
+        clientName: briefingForm.companyName,
+        feiraIndex: i,
+        isMae: feira.isMae || false,
+        local: feira.local || '',
+        dataInicio: feira.dataInicio || '',
+        dataFim: feira.dataFim || '',
+        assignedTo: envioUser.id,
+        assignedToName: envioUser.name,
+        roleId: envioUser.roleId,
+        roleName: envioUser.roleName,
+        status: 'backlog',
+        createdAt: new Date(),
+      }));
 
       await addDoc(collection(db, 'budgets'), {
         budgetNumber: maxNum + 1,
@@ -215,6 +247,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         answers: {
           ...briefingForm.answers,
           'fixed-events': feiras,
+          'fixed-envio': { userId: envioUser.id, userName: envioUser.name, roleId: envioUser.roleId, roleName: envioUser.roleName },
         },
         status: 'analyzing',
         kanbanStage: 'novo_pedido',
@@ -223,10 +256,10 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         assignedBy: userId,
         assignedAt: serverTimestamp(),
         createdBy: 'atendimento',
-        tasks: [],
+        tasks: fairTasks,
         timeline: [{
           action: 'created',
-          description: `Briefing aberto por ${userName}`,
+          description: `Briefing aberto por ${userName} — encaminhado para ${envioUser.name}`,
           userId, userName,
           timestamp: new Date()
         }],
@@ -240,6 +273,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       setFlowQuestions([]);
       setNumFeiras('');
       setFeiras([]);
+      setEnvioUser(null);
+      setEnvioFilterCargo('');
       await loadData();
     } catch (err) {
       console.error('Erro ao salvar briefing:', err);
@@ -630,6 +665,55 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               </div>
             </div>
           ))}
+        </div>
+      );
+    }
+
+    // ── Bloco de Envio ──
+    if (q.type === 'fixed-envio') {
+      // Cargos únicos dos usuários da agência
+      const cargos = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
+      const filteredUsers = envioFilterCargo
+        ? agencyUsers.filter(u => u.roleName === envioFilterCargo)
+        : agencyUsers;
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Filtro de cargo */}
+          <select value={envioFilterCargo} onChange={e => setEnvioFilterCargo(e.target.value)}
+            style={{ ...base, color: '#E8F4FF' }}>
+            <option value="" style={{ background: '#111f30' }}>Todos os cargos...</option>
+            {cargos.map(c => <option key={c} value={c} style={{ background: '#111f30' }}>{c}</option>)}
+          </select>
+          {/* Lista de pessoas */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {filteredUsers.map(u => (
+              <button key={u.id} onClick={() => setEnvioUser(u)} style={{
+                ...base, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                background: envioUser?.id === u.id ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                borderColor: envioUser?.id === u.id ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+              }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                  background: envioUser?.id === u.id ? 'rgba(0,229,196,0.3)' : 'rgba(0,180,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 600, color: envioUser?.id === u.id ? '#00E5C4' : '#7BAFD4'
+                }}>
+                  {(u.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: 13, color: envioUser?.id === u.id ? '#00E5C4' : '#E8F4FF', fontWeight: 500 }}>{u.name}</span>
+                  <span style={{ fontSize: 11, color: '#7BAFD4' }}>{u.roleName || u.areaName || ''}</span>
+                </div>
+                {envioUser?.id === u.id && <span style={{ marginLeft: 'auto', color: '#00E5C4', fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+            {filteredUsers.length === 0 && (
+              <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)', textAlign: 'center', padding: 12 }}>
+                Nenhum usuário encontrado
+              </div>
+            )}
+          </div>
         </div>
       );
     }

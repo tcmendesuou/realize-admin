@@ -20,6 +20,15 @@ const FIXED_BLOCKS = [
       { label: 'Feiras', type: 'fixed-events' },
     ],
   },
+  {
+    id: 'fixed-block-envio',
+    text: 'Envio',
+    type: 'fixed-block',
+    description: 'Bloco fixo de encaminhamento. Seleciona o responsável da agência que vai receber o briefing e gerar as tarefas.',
+    fields: [
+      { label: 'Encaminhar para', type: 'fixed-envio' },
+    ],
+  },
 ];
 
 function QuestionList() {
