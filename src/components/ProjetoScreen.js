@@ -438,12 +438,29 @@ export default function ProjetoScreen({ projectId, onBack }) {
                   </div>
                 ))
               ) : project.answers && Object.keys(project.answers).length > 0 ? (
-                Object.entries(project.answers).map(([key, val]) => (
-                  <div key={key} className="ps-answer-item">
-                    <span className="ps-question-text">{key}</span>
-                    <span className="ps-answer-text">{Array.isArray(val) ? val.join(', ') : val}</span>
-                  </div>
-                ))
+                Object.entries(project.answers).map(([key, val]) => {
+                  // Serializa qualquer valor para string segura
+                  let display = '';
+                  if (val === null || val === undefined) {
+                    display = '—';
+                  } else if (key === 'fixed-events' && Array.isArray(val)) {
+                    display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
+                  } else if (key === 'fixed-envio' && typeof val === 'object') {
+                    display = val.userName || '—';
+                  } else if (Array.isArray(val)) {
+                    display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
+                  } else if (typeof val === 'object') {
+                    display = JSON.stringify(val);
+                  } else {
+                    display = String(val);
+                  }
+                  return (
+                    <div key={key} className="ps-answer-item">
+                      <span className="ps-question-text">{key}</span>
+                      <span className="ps-answer-text">{display}</span>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="ps-empty">Nenhuma resposta disponível</div>
               )}
