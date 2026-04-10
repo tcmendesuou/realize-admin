@@ -25,13 +25,26 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const canPlan = userData?.permissions?.briefing?.planning !== false;
   const canEdit = userData?.permissions?.briefing?.edit !== false;
 
-  // Modo editar briefing
+  // Modo editar briefing (filho)
   const [modoEditarBriefing, setModoEditarBriefing] = useState(false);
   const [editedAnswers, setEditedAnswers] = useState({});
-  const [allQuestions, setAllQuestions] = useState([]); // banco completo
-  const [extraQuestions, setExtraQuestions] = useState([]); // perguntas adicionadas
+  const [allQuestions, setAllQuestions] = useState([]);
+  const [extraQuestions, setExtraQuestions] = useState([]);
   const [showAddPergunta, setShowAddPergunta] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Briefing Geral — editar e sessão de planejamento
+  const [modoEditarGeral, setModoEditarGeral] = useState(false);
+  const [editedAnswersGeral, setEditedAnswersGeral] = useState({});
+  const [extraQuestionsGeral, setExtraQuestionsGeral] = useState([]);
+  const [showAddPerguntaGeral, setShowAddPerguntaGeral] = useState(false);
+  const [savingEditGeral, setSavingEditGeral] = useState(false);
+  const [modoPlanejarGeral, setModoPlanejarGeral] = useState(false);
+  const [taskFormsGeral, setTaskFormsGeral] = useState({});
+  const [newTasksGeral, setNewTasksGeral] = useState([]);
+  const [showNovaTaskGeral, setShowNovaTaskGeral] = useState(false);
+  const [novaTaskGeral, setNovaTaskGeral] = useState({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
+  const [savingSessionGeral, setSavingSessionGeral] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -289,6 +302,159 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       alert('Erro ao salvar. Tente novamente.');
     } finally {
       setSavingSession(false);
+    }
+  };
+
+  // ── BRIEFING GERAL — Editar ──
+  const abrirEdicaoGeral = () => {
+    setEditedAnswersGeral({ ...(parentProject?.answers || {}) });
+    setExtraQuestionsGeral([]);
+    setModoEditarGeral(true);
+  };
+
+  const salvarEdicaoGeral = async () => {
+    if (!parentProject) return;
+    setSavingEditGeral(true);
+    try {
+      const timelineEntry = {
+        action: 'briefing_geral_edited',
+        description: `Briefing Geral editado por ${userData?.name || 'Usuário'}`,
+        userId: userData?.id, userName: userData?.name, timestamp: new Date()
+      };
+      await updateDoc(doc(db, 'budgets', parentProject.id), {
+        answers: editedAnswersGeral,
+        updatedAt: new Date(),
+        timeline: [...(parentProject.timeline || []), timelineEntry]
+      });
+      setModoEditarGeral(false);
+      setExtraQuestionsGeral([]);
+      alert('Briefing Geral atualizado!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar.');
+    } finally {
+      setSavingEditGeral(false);
+    }
+  };
+
+  // ── BRIEFING GERAL — Sessão de Planejamento ──
+  const toggleTaskFormGeral = (qId) => {
+    setTaskFormsGeral(prev => ({
+      ...prev,
+      [qId]: prev[qId]?.open
+        ? { ...prev[qId], open: false }
+        : { open: true, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' }
+    }));
+  };
+
+  const updateTaskFormGeral = (qId, field, value) => {
+    setTaskFormsGeral(prev => ({ ...prev, [qId]: { ...prev[qId], [field]: value } }));
+    if (field === 'cargoId') {
+      const cargo = agencyRoles.find(r => r.id === value);
+      setTaskFormsGeral(prev => ({ ...prev, [qId]: { ...prev[qId], cargoId: value, cargoNome: cargo?.name || '', pessoaId: '', pessoaNome: '' } }));
+    }
+    if (field === 'pessoaId') {
+      const pessoa = agencyUsers.find(u => u.id === value);
+      setTaskFormsGeral(prev => ({ ...prev, [qId]: { ...prev[qId], pessoaId: value, pessoaNome: pessoa?.name || '' } }));
+    }
+  };
+
+  const gerarTarefaGeral = (qId, qLabel, display, isFeiraAnswer) => {
+    const form = taskFormsGeral[qId];
+    if (!form?.tarefa) { alert('Descreva a tarefa'); return; }
+    if (!form?.pessoaId) { alert('Selecione a pessoa responsável'); return; }
+    setNewTasksGeral(prev => [...prev, {
+      taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      questionId: qId,
+      questionLabel: qLabel,
+      briefingAnswer: display,
+      isFeiraAnswer, // true = cria N tarefas (uma por filho), false = cria 1 na mãe
+      name: form.tarefa,
+      cargoId: form.cargoId,
+      cargoNome: form.cargoNome,
+      assignedTo: form.pessoaId,
+      assignedToName: form.pessoaNome,
+      valor: form.valor || '',
+      status: 'backlog',
+      createdAt: new Date(),
+    }]);
+    setTaskFormsGeral(prev => ({ ...prev, [qId]: { open: false, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' } }));
+  };
+
+  const gerarNovaTaskGeral = () => {
+    if (!novaTaskGeral.tarefa) { alert('Descreva a tarefa'); return; }
+    if (!novaTaskGeral.pessoaId) { alert('Selecione a pessoa responsável'); return; }
+    setNewTasksGeral(prev => [...prev, {
+      taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      questionId: null, questionLabel: null, briefingAnswer: null,
+      isFeiraAnswer: false,
+      name: novaTaskGeral.tarefa,
+      cargoId: novaTaskGeral.cargoId, cargoNome: novaTaskGeral.cargoNome,
+      assignedTo: novaTaskGeral.pessoaId, assignedToName: novaTaskGeral.pessoaNome,
+      valor: novaTaskGeral.valor || '',
+      status: 'backlog', createdAt: new Date(),
+    }]);
+    setNovaTaskGeral({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
+    setShowNovaTaskGeral(false);
+  };
+
+  const salvarSessaoGeral = async () => {
+    if (newTasksGeral.length === 0) { alert('Nenhuma tarefa criada nesta sessão'); return; }
+    if (!parentProject) return;
+    setSavingSessionGeral(true);
+    try {
+      const timelineEntry = {
+        action: 'planning_session_geral',
+        description: `Sessão de planejamento geral: ${newTasksGeral.length} tarefa(s) por ${userData?.name || 'Planner'}`,
+        userId: userData?.id, userName: userData?.name, timestamp: new Date()
+      };
+
+      // Buscar todos os filhos do budget mãe
+      const filhosSnap = await getDocs(query(collection(db, 'budgets'), where('parentBudgetId', '==', parentProject.id)));
+      const filhos = filhosSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.feiraIndex || 0) - (b.feiraIndex || 0));
+
+      // Tarefas para a mãe (isShared ou sem vínculo)
+      const tasksParaMae = newTasksGeral.filter(t => !t.isFeiraAnswer);
+      // Tarefas por feira
+      const tasksParaFeiras = newTasksGeral.filter(t => t.isFeiraAnswer);
+
+      // Salva na mãe
+      if (tasksParaMae.length > 0) {
+        await updateDoc(doc(db, 'budgets', parentProject.id), {
+          tasks: [...(parentProject.tasks || []), ...tasksParaMae],
+          updatedAt: new Date(),
+          timeline: [...(parentProject.timeline || []), timelineEntry]
+        });
+      }
+
+      // Para cada filho, cria uma cópia das tarefas por feira
+      for (const filho of filhos) {
+        const tasksParaFilho = tasksParaFeiras.map(t => ({
+          ...t,
+          taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          feiraIndex: filho.feiraIndex,
+          feiraNome: filho.feiraData?.nome || `Feira ${(filho.feiraIndex || 0) + 1}`,
+          name: `${t.name} — ${filho.feiraData?.nome || `Feira ${(filho.feiraIndex || 0) + 1}`}`,
+        }));
+        if (tasksParaFilho.length > 0) {
+          await updateDoc(doc(db, 'budgets', filho.id), {
+            tasks: [...(filho.tasks || []), ...tasksParaFilho],
+            updatedAt: new Date(),
+            timeline: [...(filho.timeline || []), timelineEntry]
+          });
+        }
+      }
+
+      const totalCriadas = tasksParaMae.length + (tasksParaFeiras.length * filhos.length);
+      setNewTasksGeral([]);
+      setModoPlanejarGeral(false);
+      setTaskFormsGeral({});
+      alert(`✓ Sessão salva! ${totalCriadas} tarefa(s) criada(s) em ${filhos.length} feira(s).`);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar sessão.');
+    } finally {
+      setSavingSessionGeral(false);
     }
   };
 
@@ -1056,43 +1222,190 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── BRIEFING GERAL (só filhos) ── */}
           {activeTab === 'briefing-geral' && (
             <div className="ps-card">
-              <div className="ps-card-title">Briefing Geral — Pacote Completo</div>
-              {parentProject ? (
-                (() => {
-                  const feiras = parentProject.answers?.['fixed-events'] || [];
-                  const isFeiraAnswer = (val) =>
-                    val && typeof val === 'object' && !Array.isArray(val) &&
-                    Object.keys(val).every(k => !isNaN(k));
-                  return Object.entries(parentProject.answers || {}).map(([key, val]) => {
-                    let display = '';
-                    if (val === null || val === undefined) {
-                      display = '—';
-                    } else if (key === 'fixed-events' && Array.isArray(val)) {
-                      display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
-                    } else if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) {
-                      display = val.userName || '—';
-                    } else if (isFeiraAnswer(val)) {
-                      display = Object.entries(val).map(([idx, v]) => {
-                        const feira = feiras[parseInt(idx)];
-                        const label = feira?.nome ? feira.nome : `Feira ${parseInt(idx) + 1}`;
-                        return `${label}: ${v}`;
-                      }).join(' | ');
-                    } else if (Array.isArray(val)) {
-                      display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
-                    } else if (typeof val === 'object') {
-                      display = JSON.stringify(val);
-                    } else {
-                      display = String(val);
-                    }
-                    return (
-                      <div key={key} className="ps-answer-item">
-                        <span className="ps-question-text">{key}</span>
-                        <span className="ps-answer-text">{display}</span>
+              <div className="ps-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Briefing Geral — Pacote Completo</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {canEdit && !modoEditarGeral && !modoPlanejarGeral && (
+                    <button onClick={abrirEdicaoGeral} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.4)', background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar Briefing</button>
+                  )}
+                  {modoEditarGeral && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={salvarEdicaoGeral} disabled={savingEditGeral} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#FFA726,#f57c00)', color: 'white', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>{savingEditGeral ? 'Salvando...' : 'Salvar Edição'}</button>
+                      <button onClick={() => setModoEditarGeral(false)} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                    </div>
+                  )}
+                  {canPlan && !modoPlanejarGeral && !modoEditarGeral && (
+                    <button onClick={() => setModoPlanejarGeral(true)} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(0,229,196,0.4)', background: 'none', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Sessão de Planejamento</button>
+                  )}
+                  {modoPlanejarGeral && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: '#FFA726', alignSelf: 'center' }}>{newTasksGeral.length} tarefa(s)</span>
+                      <button onClick={salvarSessaoGeral} disabled={savingSessionGeral} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: newTasksGeral.length > 0 ? 'linear-gradient(135deg,#00E5C4,#0080FF)' : '#ccc', color: 'white', fontSize: 11, cursor: newTasksGeral.length > 0 ? 'pointer' : 'not-allowed', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>{savingSessionGeral ? 'Salvando...' : 'Salvar Sessão'}</button>
+                      <button onClick={() => { setModoPlanejarGeral(false); setNewTasksGeral([]); setTaskFormsGeral({}); }} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {parentProject ? (() => {
+                const answers = modoEditarGeral ? editedAnswersGeral : (parentProject.answers || {});
+                const feiras = parentProject.answers?.['fixed-events'] || [];
+                const isFeiraAnswerFn = (val) =>
+                  val && typeof val === 'object' && !Array.isArray(val) &&
+                  Object.keys(val).every(k => !isNaN(k));
+
+                const getDisplay = (key, val) => {
+                  if (val === null || val === undefined) return '—';
+                  if (key === 'fixed-events' && Array.isArray(val))
+                    return val.map((f, i) => `Feira ${i+1}: ${f.nome||''}${f.local?` — ${f.local}`:''}${f.dataInicio?` (${f.dataInicio}${f.dataFim?` a ${f.dataFim}`:''})`:''}` ).join(' | ');
+                  if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) return val.userName || '—';
+                  if (isFeiraAnswerFn(val))
+                    return Object.entries(val).map(([idx, v]) => `${feiras[parseInt(idx)]?.nome || `Feira ${parseInt(idx)+1}`}: ${v}`).join(' | ');
+                  if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
+                  if (typeof val === 'object') return JSON.stringify(val);
+                  return String(val);
+                };
+
+                const inputStyle = { width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif', background: '#fff', color: '#1a2e40', outline: 'none' };
+
+                const renderEditInputGeral = (key, val) => {
+                  const q = allQuestions.find(q => q.id === key);
+                  if (q?.type === 'yesno') return (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {['Sim','Não'].map(opt => <button key={opt} onClick={() => setEditedAnswersGeral(p => ({...p,[key]:opt}))} style={{...inputStyle,width:'auto',padding:'6px 16px',cursor:'pointer',background:val===opt?'#e8f5e9':'#fff',borderColor:val===opt?'#66BB6A':'#dde',color:val===opt?'#27ae60':'#666'}}>{opt}</button>)}
+                    </div>
+                  );
+                  if (q?.type === 'textarea') return <textarea value={typeof val==='object'?JSON.stringify(val):(val||'')} onChange={e=>setEditedAnswersGeral(p=>({...p,[key]:e.target.value}))} rows={3} style={{...inputStyle,resize:'vertical'}} />;
+                  return <input type="text" value={typeof val==='object'?JSON.stringify(val):(val||'')} onChange={e=>setEditedAnswersGeral(p=>({...p,[key]:e.target.value}))} style={inputStyle} />;
+                };
+
+                const fixedLabels = { 'fixed-events':{label:'Feiras',order:-5}, 'fixed-purpose':{label:'Propósito',order:-4}, 'fixed-client':{label:'Empresa Cliente',order:-6}, 'fixed-responsible':{label:'Responsável',order:-3}, 'fixed-attendant':{label:'Atendimento',order:-2}, 'fixed-date':{label:'Data',order:-1}, 'fixed-envio':{label:'Encaminhado para',order:9999} };
+
+                const allQsGeral = [
+                  ...Object.entries(answers).map(([key, val]) => {
+                    const fixed = fixedLabels[key];
+                    const q = allQuestions.find(q => q.id === key);
+                    return { key, label: fixed?.label || q?.text || key, order: fixed?.order ?? (q?.order||999), val, isFixed: !!fixed, isFeiraAnswer: isFeiraAnswerFn(val) };
+                  }),
+                  ...extraQuestionsGeral.filter(q => !Object.keys(answers).includes(q.id)).map(q => ({ key: q.id, label: q.text, order: q.order||998, val: undefined, isFixed: false, isFeiraAnswer: false, isExtra: true }))
+                ].sort((a,b) => a.order - b.order);
+
+                return (
+                  <>
+                    {allQsGeral.map(({ key, label, val, isFixed, isFeiraAnswer, isExtra }) => {
+                      const display = getDisplay(key, val);
+                      const formG = taskFormsGeral[key] || {};
+                      const tasksCriadasG = newTasksGeral.filter(t => t.questionId === key);
+                      const filteredUsersG = formG.cargoId ? agencyUsers.filter(u => u.roleId === formG.cargoId) : agencyUsers;
+                      return (
+                        <div key={key} style={{ padding: '14px 0', borderBottom: '1px solid #f0f2f5' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                            <div style={{ flex: 1 }}>
+                              <span className="ps-question-text">
+                                {label}
+                                {isFeiraAnswer && <span style={{ fontSize:10, color:'#0080FF', marginLeft:6 }}>por feira</span>}
+                                {isExtra && <span style={{ fontSize:10, color:'#FFA726', marginLeft:6 }}>nova</span>}
+                              </span>
+                              {modoEditarGeral && !isFixed
+                                ? <div style={{ marginTop:6 }}>{renderEditInputGeral(key, val)}</div>
+                                : <div className="ps-answer-text" style={{ marginTop:4 }}>{display}</div>
+                              }
+                            </div>
+                            <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                              {modoPlanejarGeral && (
+                                <button onClick={() => toggleTaskFormGeral(key)} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, border:'1px solid rgba(0,229,196,0.4)', background: formG.open?'rgba(0,229,196,0.1)':'none', color:'#00E5C4', cursor:'pointer', fontFamily:'Outfit, sans-serif', whiteSpace:'nowrap' }}>
+                                  {isFeiraAnswer ? `Gerar ${feiras.length}x` : 'Gerar Tarefa'}
+                                </button>
+                              )}
+                              {modoEditarGeral && isExtra && (
+                                <button onClick={() => setExtraQuestionsGeral(prev => prev.filter(q => q.id !== key))} style={{ background:'none', border:'none', color:'#e74c3c', cursor:'pointer', fontSize:13 }}>✕</button>
+                              )}
+                            </div>
+                          </div>
+
+                          {modoPlanejarGeral && formG.open && (
+                            <div style={{ marginTop:10, padding:14, background:'#f8faff', borderRadius:8, border:'1px solid #e0e8ff', display:'flex', flexDirection:'column', gap:10 }}>
+                              {isFeiraAnswer && <div style={{ fontSize:11, color:'#0080FF', fontWeight:600 }}>Será criada 1 tarefa para cada feira ({feiras.length} no total)</div>}
+                              <input placeholder="Tarefa *" value={formG.tarefa||''} onChange={e=>updateTaskFormGeral(key,'tarefa',e.target.value)} style={{ padding:'8px 12px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }} />
+                              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                                <select value={formG.cargoId||''} onChange={e=>updateTaskFormGeral(key,'cargoId',e.target.value)} style={{ padding:'8px 10px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }}>
+                                  <option value="">Cargo...</option>
+                                  {agencyRoles.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                                </select>
+                                <select value={formG.pessoaId||''} onChange={e=>updateTaskFormGeral(key,'pessoaId',e.target.value)} style={{ padding:'8px 10px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }}>
+                                  <option value="">Pessoa *</option>
+                                  {filteredUsersG.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                                </select>
+                              </div>
+                              <input placeholder="Valor estimado (opcional)" value={formG.valor||''} onChange={e=>updateTaskFormGeral(key,'valor',e.target.value)} type="number" min="0" style={{ padding:'8px 12px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }} />
+                              <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                                <button onClick={()=>toggleTaskFormGeral(key)} style={{ padding:'6px 12px', borderRadius:6, border:'1px solid #ddd', background:'none', color:'#666', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>Cancelar</button>
+                                <button onClick={()=>gerarTarefaGeral(key, label, display, isFeiraAnswer)} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:'linear-gradient(135deg,#667eea,#764ba2)', color:'white', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif', fontWeight:600 }}>Criar Tarefa</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {tasksCriadasG.map(t => (
+                            <div key={t.taskId} style={{ marginTop:8, display:'flex', alignItems:'center', gap:8, padding:'6px 10px', background:'rgba(102,126,234,0.06)', borderRadius:6, border:'1px solid rgba(102,126,234,0.2)' }}>
+                              <span style={{ fontSize:11, color:'#667eea' }}>✓</span>
+                              <span style={{ fontSize:12, flex:1, color:'#2c3e50' }}>{t.name}</span>
+                              {t.isFeiraAnswer && <span style={{ fontSize:10, color:'#0080FF' }}>{feiras.length}x</span>}
+                              <span style={{ fontSize:11, color:'#7b1fa2' }}>{t.cargoNome}</span>
+                              <span style={{ fontSize:11, color:'#1976d2' }}>{t.assignedToName}</span>
+                              {t.valor && <span style={{ fontSize:11, color:'#27ae60' }}>R$ {t.valor}</span>}
+                              <button onClick={()=>setNewTasksGeral(prev=>prev.filter(x=>x.taskId!==t.taskId))} style={{ background:'none', border:'none', color:'#e74c3c', cursor:'pointer', fontSize:13 }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+
+                    {modoEditarGeral && (
+                      <div style={{ marginTop:16 }}>
+                        {!showAddPerguntaGeral ? (
+                          <button onClick={()=>setShowAddPerguntaGeral(true)} style={{ width:'100%', padding:'10px', borderRadius:8, border:'1.5px dashed #FFA726', background:'none', color:'#FFA726', fontSize:13, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>+ Adicionar Pergunta</button>
+                        ) : (
+                          <div style={{ padding:14, background:'#fffbf0', borderRadius:8, border:'1px solid #ffe0a0', display:'flex', flexDirection:'column', gap:10 }}>
+                            <select onChange={e=>{ const q=allQuestions.find(q=>q.id===e.target.value); if(q&&!extraQuestionsGeral.find(eq=>eq.id===q.id)) setExtraQuestionsGeral(prev=>[...prev,q]); setShowAddPerguntaGeral(false); }} defaultValue="" style={{ padding:'8px 10px', borderRadius:6, border:'1px solid #ffe0a0', fontSize:13, fontFamily:'Outfit, sans-serif' }}>
+                              <option value="">Selecione uma pergunta...</option>
+                              {allQuestions.filter(q=>!Object.keys(answers).includes(q.id)&&!extraQuestionsGeral.find(eq=>eq.id===q.id)).map(q=><option key={q.id} value={q.id}>{q.text}</option>)}
+                            </select>
+                            <button onClick={()=>setShowAddPerguntaGeral(false)} style={{ alignSelf:'flex-end', padding:'5px 12px', borderRadius:6, border:'1px solid #ddd', background:'none', color:'#666', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>Cancelar</button>
+                          </div>
+                        )}
                       </div>
-                    );
-                  });
-                })()
-              ) : (
+                    )}
+
+                    {modoPlanejarGeral && (
+                      <div style={{ marginTop:16 }}>
+                        {!showNovaTaskGeral ? (
+                          <button onClick={()=>setShowNovaTaskGeral(true)} style={{ width:'100%', padding:'10px', borderRadius:8, border:'1.5px dashed #667eea', background:'none', color:'#667eea', fontSize:13, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>+ Nova Tarefa (sem vínculo)</button>
+                        ) : (
+                          <div style={{ padding:14, background:'#f8faff', borderRadius:8, border:'1px solid #e0e8ff', display:'flex', flexDirection:'column', gap:10 }}>
+                            <span style={{ fontSize:11, fontWeight:600, color:'#667eea' }}>NOVA TAREFA</span>
+                            <input placeholder="Tarefa *" value={novaTaskGeral.tarefa} onChange={e=>setNovaTaskGeral(p=>({...p,tarefa:e.target.value}))} style={{ padding:'8px 12px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }} />
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                              <select value={novaTaskGeral.cargoId} onChange={e=>{ const c=agencyRoles.find(r=>r.id===e.target.value); setNovaTaskGeral(p=>({...p,cargoId:e.target.value,cargoNome:c?.name||'',pessoaId:'',pessoaNome:''})); }} style={{ padding:'8px 10px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }}>
+                                <option value="">Cargo...</option>
+                                {agencyRoles.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                              </select>
+                              <select value={novaTaskGeral.pessoaId} onChange={e=>{ const p=agencyUsers.find(u=>u.id===e.target.value); setNovaTaskGeral(prev=>({...prev,pessoaId:e.target.value,pessoaNome:p?.name||''})); }} style={{ padding:'8px 10px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }}>
+                                <option value="">Pessoa *</option>
+                                {(novaTaskGeral.cargoId?agencyUsers.filter(u=>u.roleId===novaTaskGeral.cargoId):agencyUsers).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                              </select>
+                            </div>
+                            <input placeholder="Valor estimado (opcional)" value={novaTaskGeral.valor} onChange={e=>setNovaTaskGeral(p=>({...p,valor:e.target.value}))} type="number" min="0" style={{ padding:'8px 12px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }} />
+                            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                              <button onClick={()=>setShowNovaTaskGeral(false)} style={{ padding:'6px 12px', borderRadius:6, border:'1px solid #ddd', background:'none', color:'#666', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={gerarNovaTaskGeral} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:'linear-gradient(135deg,#667eea,#764ba2)', color:'white', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif', fontWeight:600 }}>Criar Tarefa</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })() : (
                 <div className="ps-empty">Briefing geral não disponível</div>
               )}
             </div>
