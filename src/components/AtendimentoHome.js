@@ -82,25 +82,23 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   useEffect(() => {
     loadCompaniesAndEventTypes();
-    setLoading(false);
   }, [userId]);
-
-  const loadData = async () => {
-    try {
-      await loadMyTasks();
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ── Listener em tempo real para budgets ──
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'budgets'), (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const data = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        // Ordenar por createdAt para manter ordem estável
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
+          const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
+          return aTime - bTime;
+        });
+
       // Kanban mostra só mãe
       setAllBudgets(data.filter(b => b.isMae === true || !b.parentBudgetId));
+
       // Atualiza tarefas do usuário em tempo real
       if (userId) {
         const tasks = [];
@@ -129,6 +127,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         });
         setMyTasks(tasks);
       }
+
+      // Loading termina no primeiro snapshot
+      setLoading(false);
     });
     return () => unsub();
   }, [userId, userRoleId]);
@@ -322,7 +323,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       setFeiras([]);
       setEnvioUser(null);
       setEnvioFilterCargo('');
-      await loadData();
+      // onSnapshot atualiza automaticamente
     } catch (err) {
       console.error('Erro ao salvar briefing:', err);
       alert('Erro ao salvar. Tente novamente.');
@@ -341,7 +342,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         t.taskId === task.taskId ? { ...t, status: newStatus } : t
       );
       await updateDoc(budgetRef, { tasks: updatedTasks, updatedAt: new Date() });
-      await loadMyTasks();
+      // onSnapshot atualiza automaticamente
     } catch (err) {
       console.error('Erro ao atualizar tarefa:', err);
     }
