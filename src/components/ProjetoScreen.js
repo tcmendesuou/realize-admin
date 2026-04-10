@@ -61,21 +61,37 @@ export default function ProjetoScreen({ projectId, onBack }) {
   };
 
   const getAnswerDisplay = (question, answer) => {
-    if (!answer) return 'Não respondido';
-    switch (question.type) {
-      case 'text': case 'number': return answer;
+    if (answer === null || answer === undefined || answer === '') return 'Não respondido';
+    // Nunca retornar objeto diretamente — sempre converter para string
+    const safeString = (val) => {
+      if (val === null || val === undefined) return '—';
+      if (typeof val === 'string') return val;
+      if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+      if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
+      if (typeof val === 'object') return JSON.stringify(val);
+      return String(val);
+    };
+    switch (question?.type) {
+      case 'text': case 'number': case 'currency': return safeString(answer);
       case 'date':
         if (typeof answer === 'string') return answer;
-        if (answer.toDate) return answer.toDate().toLocaleDateString('pt-BR');
-        return answer;
-      case 'yesno': return answer === 'yes' ? 'Sim' : answer === 'Sim' ? 'Sim' : 'Não';
-      case 'multiple':
+        if (answer?.toDate) return answer.toDate().toLocaleDateString('pt-BR');
+        return safeString(answer);
+      case 'yesno': return answer === 'yes' || answer === 'Sim' ? 'Sim' : 'Não';
+      case 'multiple': {
         const opt = question.options?.find(o => o.id === answer || o.label === answer);
-        return opt?.label || answer;
+        return opt?.label || safeString(answer);
+      }
       case 'multiselect':
-        if (!Array.isArray(answer)) return answer;
+        if (!Array.isArray(answer)) return safeString(answer);
         return answer.join(', ');
-      default: return answer || 'Não informado';
+      case 'fixed-events':
+        if (!Array.isArray(answer)) return safeString(answer);
+        return answer.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}`).join(' | ');
+      case 'fixed-envio':
+        if (typeof answer === 'object') return answer.userName || '—';
+        return safeString(answer);
+      default: return safeString(answer);
     }
   };
 
