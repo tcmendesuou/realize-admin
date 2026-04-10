@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, getDocs, query, where, addDoc, updateDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 import ProjetoScreen from './ProjetoScreen';
@@ -81,13 +81,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const canOpenBriefing = userData?.permissions?.briefing?.create !== false;
 
   useEffect(() => {
-    loadData();
     loadCompaniesAndEventTypes();
+    setLoading(false);
   }, [userId]);
 
   const loadData = async () => {
     try {
-      await Promise.all([loadAllBudgets(), loadMyTasks()]);
+      await loadMyTasks();
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
     } finally {
@@ -95,47 +95,43 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     }
   };
 
-  const loadAllBudgets = async () => {
-    const snap = await getDocs(collection(db, 'budgets'));
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Kanban de projetos mostra só os budgets mãe (isMae: true ou sem parentBudgetId)
-    setAllBudgets(data.filter(b => b.isMae === true || !b.parentBudgetId));
-  };
-
-  const loadMyTasks = async () => {
-    if (!userId) return;
-    const snap = await getDocs(collection(db, 'budgets'));
-    const tasks = [];
-    snap.docs.forEach(d => {
-      const budget = { id: d.id, ...d.data() };
-
-      // Budgets filhos (feiras) atribuídos ao planner aparecem como tasks
-      if (budget.parentBudgetId && budget.plannerUserId === userId) {
-        tasks.push({
-          taskId: budget.id,
-          type: 'planejamento',
-          name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
-          projectId: budget.parentBudgetId,
-          projectName: budget.eventTypeName || 'Evento',
-          clientName: budget.companyName || budget.clientName,
-          assignedTo: budget.plannerUserId,
-          assignedToName: budget.plannerUserName,
-          roleId: budget.plannerRoleId,
-          status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
-          isBudgetChild: true,
-          budgetId: budget.id,
+  // ── Listener em tempo real para budgets ──
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'budgets'), (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Kanban mostra só mãe
+      setAllBudgets(data.filter(b => b.isMae === true || !b.parentBudgetId));
+      // Atualiza tarefas do usuário em tempo real
+      if (userId) {
+        const tasks = [];
+        data.forEach(budget => {
+          if (budget.parentBudgetId && budget.plannerUserId === userId) {
+            tasks.push({
+              taskId: budget.id,
+              type: 'planejamento',
+              name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
+              projectId: budget.parentBudgetId,
+              projectName: budget.eventTypeName || 'Evento',
+              clientName: budget.companyName || budget.clientName,
+              assignedTo: budget.plannerUserId,
+              assignedToName: budget.plannerUserName,
+              roleId: budget.plannerRoleId,
+              status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
+              isBudgetChild: true,
+              budgetId: budget.id,
+            });
+          }
+          (budget.tasks || []).forEach(task => {
+            if (task.type !== 'planejamento' && (task.assignedTo === userId || task.roleId === userRoleId)) {
+              tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
+            }
+          });
         });
+        setMyTasks(tasks);
       }
-
-      // Tasks normais dentro de qualquer budget
-      (budget.tasks || []).forEach(task => {
-        if (task.type !== 'planejamento' && (task.assignedTo === userId || task.roleId === userRoleId)) {
-          tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
-        }
-      });
     });
-    setMyTasks(tasks);
-  };
+    return () => unsub();
+  }, [userId, userRoleId]);
 
   const loadCompaniesAndEventTypes = async () => {
     try {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export default function ProjetoScreen({ projectId, onBack, userData }) {
@@ -34,7 +34,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
-    if (projectId) loadProject();
+    if (projectId) {
+      loadProject();
+      // Listener em tempo real
+      const unsub = onSnapshot(doc(db, 'budgets', projectId), (snap) => {
+        if (snap.exists()) {
+          setProject(prev => prev ? { ...prev, ...snap.data(), id: snap.id } : { id: snap.id, ...snap.data() });
+        }
+      });
+      return () => unsub();
+    }
   }, [projectId]);
 
   const loadProject = async () => {
@@ -185,18 +194,56 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const salvarEdicao = async () => {
     setSavingEdit(true);
     try {
+      const timelineEntry = {
+        action: 'briefing_edited',
+        description: `Briefing editado por ${userData?.name || 'Usuário'}`,
+        userId: userData?.id,
+        userName: userData?.name,
+        timestamp: new Date()
+      };
+
+      // Salva no filho
       await updateDoc(doc(db, 'budgets', projectId), {
         answers: editedAnswers,
         updatedAt: new Date(),
-        timeline: [...(project.timeline || []), {
-          action: 'briefing_edited',
-          description: `Briefing editado por ${userData?.name || 'Usuário'}`,
-          userId: userData?.id,
-          userName: userData?.name,
-          timestamp: new Date()
-        }]
+        timeline: [...(project.timeline || []), timelineEntry]
       });
-      setProject(prev => ({ ...prev, answers: editedAnswers }));
+
+      // Se for filho, sincroniza com o budget mãe
+      if (project.parentBudgetId) {
+        const maeSnap = await getDoc(doc(db, 'budgets', project.parentBudgetId));
+        if (maeSnap.exists()) {
+          const maeData = maeSnap.data();
+          const maeAnswers = { ...(maeData.answers || {}) };
+          const feiraIdx = project.feiraIndex ?? 0;
+
+          // Para cada resposta editada no filho
+          Object.entries(editedAnswers).forEach(([qId, val]) => {
+            const originalMae = maeAnswers[qId];
+            const isFeiraAnswer = (v) =>
+              v && typeof v === 'object' && !Array.isArray(v) &&
+              Object.keys(v).every(k => !isNaN(k));
+
+            if (isFeiraAnswer(originalMae)) {
+              // Resposta por feira — atualiza só o índice desta feira na mãe
+              maeAnswers[qId] = { ...(originalMae || {}), [feiraIdx]: val[feiraIdx] ?? val };
+            } else if (typeof val !== 'object' || Array.isArray(val)) {
+              // Resposta simples (isShared) — atualiza direto na mãe
+              maeAnswers[qId] = val;
+            }
+          });
+
+          // Perguntas extras adicionadas — só registra na mãe se for isShared
+          // (perguntas individuais ficam só no filho)
+
+          await updateDoc(doc(db, 'budgets', project.parentBudgetId), {
+            answers: maeAnswers,
+            updatedAt: new Date(),
+            timeline: [...(maeData.timeline || []), timelineEntry]
+          });
+        }
+      }
+
       setModoEditarBriefing(false);
       setExtraQuestions([]);
       alert('Briefing atualizado com sucesso!');
