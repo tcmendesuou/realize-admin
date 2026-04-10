@@ -19,6 +19,15 @@ const FIXED_BLOCKS = [
       { label: 'Feiras', type: 'fixed-events' },
     ],
   },
+  {
+    id: 'fixed-block-envio',
+    itemType: 'fixed-block',
+    text: 'Envio',
+    description: 'Seleciona o responsável da agência que vai receber o briefing',
+    fields: [
+      { label: 'Encaminhar para', type: 'fixed-envio' },
+    ],
+  },
 ];
 
 function FlowBuilder({ eventType, onClose }) {
