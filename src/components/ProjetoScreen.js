@@ -22,7 +22,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [showNovaTask, setShowNovaTask] = useState(false);
   const [novaTask, setNovaTask] = useState({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
 
-  const canEdit = userData?.permissions?.briefing?.edit !== false || userData?.systemRole === 'workspace';
+  const canPlan = userData?.permissions?.briefing?.planning !== false;
+  const canEdit = userData?.permissions?.briefing?.edit !== false;
+
+  // Modo editar briefing
+  const [modoEditarBriefing, setModoEditarBriefing] = useState(false);
+  const [editedAnswers, setEditedAnswers] = useState({});
+  const [allQuestions, setAllQuestions] = useState([]); // banco completo
+  const [extraQuestions, setExtraQuestions] = useState([]); // perguntas adicionadas
+  const [showAddPergunta, setShowAddPergunta] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (projectId) loadProject();
@@ -58,6 +67,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setAgencyUsers(agency);
       const roles = [...new Map(agency.filter(u => u.roleId).map(u => [u.roleId, { id: u.roleId, name: u.roleName }])).values()];
       setAgencyRoles(roles);
+
+      // Banco completo de perguntas para o modo editar
+      const allQSnap = await getDocs(collection(db, 'questions'));
+      setAllQuestions(allQSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
 
       // Busca perguntas do fluxo para exibir as labels corretas
       if (data.eventTypeId) {
@@ -161,6 +174,38 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   const removerNewTask = (taskId) => {
     setNewTasks(prev => prev.filter(t => t.taskId !== taskId));
+  };
+
+  const abrirEdicao = () => {
+    setEditedAnswers({ ...(project.answers || {}) });
+    setExtraQuestions([]);
+    setModoEditarBriefing(true);
+  };
+
+  const salvarEdicao = async () => {
+    setSavingEdit(true);
+    try {
+      await updateDoc(doc(db, 'budgets', projectId), {
+        answers: editedAnswers,
+        updatedAt: new Date(),
+        timeline: [...(project.timeline || []), {
+          action: 'briefing_edited',
+          description: `Briefing editado por ${userData?.name || 'Usuário'}`,
+          userId: userData?.id,
+          userName: userData?.name,
+          timestamp: new Date()
+        }]
+      });
+      setProject(prev => ({ ...prev, answers: editedAnswers }));
+      setModoEditarBriefing(false);
+      setExtraQuestions([]);
+      alert('Briefing atualizado com sucesso!');
+    } catch (err) {
+      console.error('Erro ao salvar edição:', err);
+      alert('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const salvarSessao = async () => {
@@ -557,114 +602,232 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   <div className="ps-card">
                     <div className="ps-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>Respostas do Briefing</span>
-                      {canEdit && !modoEdicao && (
-                        <button onClick={() => setModoEdicao(true)} style={{
-                          padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(0,229,196,0.4)',
-                          background: 'none', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
-                        }}>⚡ Abrir Sessão de Planejamento</button>
-                      )}
-                      {modoEdicao && (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: '#FFA726', alignSelf: 'center' }}>
-                            {newTasks.length} tarefa(s) criada(s)
-                          </span>
-                          <button onClick={salvarSessao} disabled={savingSession} style={{
-                            padding: '5px 14px', borderRadius: 6, border: 'none',
-                            background: newTasks.length > 0 ? 'linear-gradient(135deg,#00E5C4,#0080FF)' : '#ccc',
-                            color: 'white', fontSize: 11, cursor: newTasks.length > 0 ? 'pointer' : 'not-allowed',
-                            fontFamily: 'Outfit, sans-serif', fontWeight: 600
-                          }}>{savingSession ? 'Salvando...' : '💾 Salvar Sessão'}</button>
-                          <button onClick={() => { setModoEdicao(false); setNewTasks([]); setTaskForms({}); }} style={{
-                            padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd',
-                            background: 'none', color: '#666', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
-                          }}>Cancelar</button>
-                        </div>
-                      )}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {/* Botão Editar Briefing */}
+                        {canEdit && !modoEdicao && !modoEditarBriefing && (
+                          <button onClick={abrirEdicao} style={{
+                            padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.4)',
+                            background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                          }}>Editar Briefing</button>
+                        )}
+                        {modoEditarBriefing && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={salvarEdicao} disabled={savingEdit} style={{
+                              padding: '5px 14px', borderRadius: 6, border: 'none',
+                              background: 'linear-gradient(135deg,#FFA726,#f57c00)',
+                              color: 'white', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600
+                            }}>{savingEdit ? 'Salvando...' : 'Salvar Edição'}</button>
+                            <button onClick={() => setModoEditarBriefing(false)} style={{
+                              padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd',
+                              background: 'none', color: '#666', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                            }}>Cancelar</button>
+                          </div>
+                        )}
+                        {/* Botão Sessão de Planejamento */}
+                        {canPlan && !modoEdicao && !modoEditarBriefing && (
+                          <button onClick={() => setModoEdicao(true)} style={{
+                            padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(0,229,196,0.4)',
+                            background: 'none', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                          }}>Sessão de Planejamento</button>
+                        )}
+                        {modoEdicao && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: '#FFA726', alignSelf: 'center' }}>
+                              {newTasks.length} tarefa(s) criada(s)
+                            </span>
+                            <button onClick={salvarSessao} disabled={savingSession} style={{
+                              padding: '5px 14px', borderRadius: 6, border: 'none',
+                              background: newTasks.length > 0 ? 'linear-gradient(135deg,#00E5C4,#0080FF)' : '#ccc',
+                              color: 'white', fontSize: 11, cursor: newTasks.length > 0 ? 'pointer' : 'not-allowed',
+                              fontFamily: 'Outfit, sans-serif', fontWeight: 600
+                            }}>{savingSession ? 'Salvando...' : 'Salvar Sessão'}</button>
+                            <button onClick={() => { setModoEdicao(false); setNewTasks([]); setTaskForms({}); }} style={{
+                              padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd',
+                              background: 'none', color: '#666', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                            }}>Cancelar</button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {questions.length > 0 ? questions.map(q => {
-                      const raw = project.answers?.[q.id];
+                    {(() => {
+                      const allQsToShow = [...questions, ...extraQuestions];
                       const feiraIdx = project.feiraIndex ?? 0;
                       const isFeiraAnswer = (val) =>
                         val && typeof val === 'object' && !Array.isArray(val) &&
                         Object.keys(val).every(k => !isNaN(k));
-                      let display;
-                      if (isFeiraAnswer(raw)) {
-                        display = raw[feiraIdx] !== undefined ? String(raw[feiraIdx]) : 'Não respondido';
-                      } else {
-                        display = getAnswerDisplay(q, raw, project.answers?.['fixed-events'] || []);
-                      }
-                      const form = taskForms[q.id] || {};
-                      const tasksCriadas = newTasks.filter(t => t.questionId === q.id);
-                      const filteredUsers = form.cargoId
-                        ? agencyUsers.filter(u => u.roleId === form.cargoId)
-                        : agencyUsers;
 
-                      return (
-                        <div key={q.id} style={{ padding: '14px 0', borderBottom: '1px solid #f0f2f5' }}>
-                          {/* Pergunta + resposta + botão */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                            <div style={{ flex: 1 }}>
-                              <span className="ps-question-text">
-                                {q.text}
-                                {q.isShared && <span style={{ fontSize: 10, color: '#00E5C4', marginLeft: 6 }}>🔗 comum</span>}
-                              </span>
-                              <div className="ps-answer-text" style={{ marginTop: 4 }}>{display}</div>
-                            </div>
-                            {modoEdicao && (
-                              <button onClick={() => toggleTaskForm(q.id)} style={{
-                                flexShrink: 0, padding: '4px 10px', borderRadius: 6, fontSize: 11,
-                                border: '1px solid rgba(0,229,196,0.4)', background: form.open ? 'rgba(0,229,196,0.1)' : 'none',
-                                color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap'
-                              }}>→ Gerar Tarefa</button>
-                            )}
+                      const inputStyle = {
+                        width: '100%', padding: '7px 10px', borderRadius: 6,
+                        border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif',
+                        background: '#fff', color: '#1a2e40', outline: 'none'
+                      };
+
+                      const renderEditInput = (q) => {
+                        const cur = editedAnswers[q.id];
+                        if (q.type === 'yesno') return (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            {['Sim', 'Não'].map(opt => (
+                              <button key={opt} onClick={() => setEditedAnswers(p => ({ ...p, [q.id]: opt }))} style={{
+                                ...inputStyle, width: 'auto', padding: '6px 16px', cursor: 'pointer',
+                                background: cur === opt ? '#e8f5e9' : '#fff',
+                                borderColor: cur === opt ? '#66BB6A' : '#dde', color: cur === opt ? '#27ae60' : '#666'
+                              }}>{opt}</button>
+                            ))}
                           </div>
+                        );
+                        if (q.type === 'textarea') return (
+                          <textarea value={isFeiraAnswer(cur) ? (cur[feiraIdx] || '') : (cur || '')}
+                            onChange={e => {
+                              if (isFeiraAnswer(cur)) setEditedAnswers(p => ({ ...p, [q.id]: { ...cur, [feiraIdx]: e.target.value } }));
+                              else setEditedAnswers(p => ({ ...p, [q.id]: e.target.value }));
+                            }}
+                            rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+                        );
+                        if (q.type === 'multiple') return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {(q.options || []).map(opt => {
+                              const val = isFeiraAnswer(cur) ? (cur[feiraIdx] || '') : (cur || '');
+                              return (
+                                <button key={opt.id} onClick={() => {
+                                  if (isFeiraAnswer(cur)) setEditedAnswers(p => ({ ...p, [q.id]: { ...cur, [feiraIdx]: opt.label } }));
+                                  else setEditedAnswers(p => ({ ...p, [q.id]: opt.label }));
+                                }} style={{
+                                  ...inputStyle, textAlign: 'left', cursor: 'pointer',
+                                  background: val === opt.label ? '#e8f5e9' : '#fff',
+                                  borderColor: val === opt.label ? '#66BB6A' : '#dde'
+                                }}>{opt.label}</button>
+                              );
+                            })}
+                          </div>
+                        );
+                        // text, number, date, currency, checklist
+                        const val = isFeiraAnswer(cur) ? (cur[feiraIdx] || '') : (cur || '');
+                        return (
+                          <input type={q.type === 'currency' || q.type === 'number' ? 'number' : q.type === 'date' ? 'date' : 'text'}
+                            value={Array.isArray(val) ? val.join(', ') : val}
+                            onChange={e => {
+                              if (isFeiraAnswer(cur)) setEditedAnswers(p => ({ ...p, [q.id]: { ...cur, [feiraIdx]: e.target.value } }));
+                              else setEditedAnswers(p => ({ ...p, [q.id]: e.target.value }));
+                            }}
+                            style={inputStyle} />
+                        );
+                      };
 
-                          {/* Mini-form de tarefa */}
-                          {modoEdicao && form.open && (
-                            <div style={{ marginTop: 10, padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                              <input placeholder="Tarefa *" value={form.tarefa || ''} onChange={e => updateTaskForm(q.id, 'tarefa', e.target.value)}
-                                style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                <select value={form.cargoId || ''} onChange={e => updateTaskForm(q.id, 'cargoId', e.target.value)}
-                                  style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
-                                  <option value="">Cargo...</option>
-                                  {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                </select>
-                                <select value={form.pessoaId || ''} onChange={e => updateTaskForm(q.id, 'pessoaId', e.target.value)}
-                                  style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
-                                  <option value="">Pessoa *</option>
-                                  {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                </select>
-                              </div>
-                              <input placeholder="Valor estimado (opcional)" value={form.valor || ''} onChange={e => updateTaskForm(q.id, 'valor', e.target.value)}
-                                type="number" min="0"
-                                style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
-                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                <button onClick={() => toggleTaskForm(q.id)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                                <button onClick={() => gerarTarefa(q, display)} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
-                              </div>
-                            </div>
-                          )}
+                      if (allQsToShow.length === 0) return <div className="ps-empty">Nenhuma pergunta no fluxo</div>;
 
-                          {/* Tarefas criadas para esta pergunta */}
-                          {tasksCriadas.map(t => (
-                            <div key={t.taskId} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
-                              <span style={{ fontSize: 11, color: '#667eea' }}>✓</span>
-                              <span style={{ fontSize: 12, flex: 1, color: '#2c3e50' }}>{t.name}</span>
-                              <span style={{ fontSize: 11, color: '#7b1fa2' }}>{t.cargoNome}</span>
-                              <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>
-                              {t.valor && <span style={{ fontSize: 11, color: '#27ae60' }}>R$ {t.valor}</span>}
-                              {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+                      return allQsToShow.map(q => {
+                        const raw = modoEditarBriefing ? editedAnswers[q.id] : project.answers?.[q.id];
+                        let display;
+                        if (isFeiraAnswer(raw)) {
+                          display = raw[feiraIdx] !== undefined ? String(raw[feiraIdx]) : 'Não respondido';
+                        } else {
+                          display = getAnswerDisplay(q, raw, project.answers?.['fixed-events'] || []);
+                        }
+                        const form = taskForms[q.id] || {};
+                        const tasksCriadas = newTasks.filter(t => t.questionId === q.id);
+                        const filteredUsers = form.cargoId ? agencyUsers.filter(u => u.roleId === form.cargoId) : agencyUsers;
+
+                        return (
+                          <div key={q.id} style={{ padding: '14px 0', borderBottom: '1px solid #f0f2f5' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                              <div style={{ flex: 1 }}>
+                                <span className="ps-question-text">
+                                  {q.text}
+                                  {q.isShared && <span style={{ fontSize: 10, color: '#00E5C4', marginLeft: 6 }}>comum</span>}
+                                  {extraQuestions.find(eq => eq.id === q.id) && <span style={{ fontSize: 10, color: '#FFA726', marginLeft: 6 }}>nova</span>}
+                                </span>
+                                {modoEditarBriefing
+                                  ? <div style={{ marginTop: 6 }}>{renderEditInput(q)}</div>
+                                  : <div className="ps-answer-text" style={{ marginTop: 4 }}>{display}</div>
+                                }
+                              </div>
+                              {modoEdicao && !modoEditarBriefing && (
+                                <button onClick={() => toggleTaskForm(q.id)} style={{
+                                  flexShrink: 0, padding: '4px 10px', borderRadius: 6, fontSize: 11,
+                                  border: '1px solid rgba(0,229,196,0.4)', background: form.open ? 'rgba(0,229,196,0.1)' : 'none',
+                                  color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap'
+                                }}>Gerar Tarefa</button>
+                              )}
+                              {modoEditarBriefing && extraQuestions.find(eq => eq.id === q.id) && (
+                                <button onClick={() => setExtraQuestions(prev => prev.filter(eq => eq.id !== q.id))} style={{
+                                  background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13, flexShrink: 0
+                                }}>✕</button>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      );
-                    }) : (
-                      <div className="ps-empty">Nenhuma pergunta no fluxo</div>
+
+                            {/* Mini-form de tarefa */}
+                            {modoEdicao && form.open && (
+                              <div style={{ marginTop: 10, padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <input placeholder="Tarefa *" value={form.tarefa || ''} onChange={e => updateTaskForm(q.id, 'tarefa', e.target.value)}
+                                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                  <select value={form.cargoId || ''} onChange={e => updateTaskForm(q.id, 'cargoId', e.target.value)}
+                                    style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                                    <option value="">Cargo...</option>
+                                    {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                  </select>
+                                  <select value={form.pessoaId || ''} onChange={e => updateTaskForm(q.id, 'pessoaId', e.target.value)}
+                                    style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                                    <option value="">Pessoa *</option>
+                                    {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                  </select>
+                                </div>
+                                <input placeholder="Valor estimado (opcional)" value={form.valor || ''} onChange={e => updateTaskForm(q.id, 'valor', e.target.value)}
+                                  type="number" min="0"
+                                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                  <button onClick={() => toggleTaskForm(q.id)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                                  <button onClick={() => gerarTarefa(q, display)} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {tasksCriadas.map(t => (
+                              <div key={t.taskId} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
+                                <span style={{ fontSize: 11, color: '#667eea' }}>✓</span>
+                                <span style={{ fontSize: 12, flex: 1, color: '#2c3e50' }}>{t.name}</span>
+                                <span style={{ fontSize: 11, color: '#7b1fa2' }}>{t.cargoNome}</span>
+                                <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>
+                                {t.valor && <span style={{ fontSize: 11, color: '#27ae60' }}>R$ {t.valor}</span>}
+                                {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      });
+                    })()}
+
+                    {/* Adicionar pergunta (modo editar) */}
+                    {modoEditarBriefing && (
+                      <div style={{ marginTop: 16 }}>
+                        {!showAddPergunta ? (
+                          <button onClick={() => setShowAddPergunta(true)} style={{
+                            width: '100%', padding: '10px', borderRadius: 8, border: '1.5px dashed #FFA726',
+                            background: 'none', color: '#FFA726', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif'
+                          }}>+ Adicionar Pergunta</button>
+                        ) : (
+                          <div style={{ padding: 14, background: '#fffbf0', borderRadius: 8, border: '1px solid #ffe0a0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#FFA726' }}>ADICIONAR PERGUNTA DO BANCO</span>
+                            <select onChange={e => {
+                              const q = allQuestions.find(q => q.id === e.target.value);
+                              if (q && !questions.find(eq => eq.id === q.id) && !extraQuestions.find(eq => eq.id === q.id)) {
+                                setExtraQuestions(prev => [...prev, q]);
+                              }
+                              setShowAddPergunta(false);
+                            }} defaultValue="" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #ffe0a0', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+                              <option value="">Selecione uma pergunta...</option>
+                              {allQuestions
+                                .filter(q => !questions.find(eq => eq.id === q.id) && !extraQuestions.find(eq => eq.id === q.id))
+                                .map(q => <option key={q.id} value={q.id}>{q.text}</option>)}
+                            </select>
+                            <button onClick={() => setShowAddPergunta(false)} style={{ alignSelf: 'flex-end', padding: '5px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                          </div>
+                        )}
+                      </div>
                     )}
 
-                    {/* Nova tarefa do zero */}
+                    {/* Nova tarefa do zero (sessão planejamento) */}
                     {modoEdicao && (
                       <div style={{ marginTop: 16 }}>
                         {!showNovaTask ? (
