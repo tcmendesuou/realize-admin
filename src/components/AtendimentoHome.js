@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
-import ProjetoScreen from './ProjetoScreen';
+import { useNavigate } from 'react-router-dom';
+
 
 const KANBAN_STAGES = [
   { id: 'novo_pedido',  label: 'Novo Pedido' },
@@ -39,11 +40,11 @@ const FIXED_BLOCK_FIELDS = {
 };
 
 export default function AtendimentoHome({ user, userData, onLogout }) {
+  const navigate = useNavigate();
   const [allBudgets, setAllBudgets] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [taskView, setTaskView] = useState('kanban');
-  const [selectedProjectId, setSelectedProjectId] = useState(null);
 
   // Briefing modal
   const [showBriefing, setShowBriefing] = useState(false);
@@ -82,23 +83,25 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   useEffect(() => {
     loadCompaniesAndEventTypes();
+    setLoading(false);
   }, [userId]);
+
+  const loadData = async () => {
+    try {
+      await loadMyTasks();
+    } catch (err) {
+      console.error('Erro ao carregar dados:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Listener em tempo real para budgets ──
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'budgets'), (snap) => {
-      const data = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        // Ordenar por createdAt para manter ordem estável
-        .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
-          const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
-          return aTime - bTime;
-        });
-
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       // Kanban mostra só mãe
       setAllBudgets(data.filter(b => b.isMae === true || !b.parentBudgetId));
-
       // Atualiza tarefas do usuário em tempo real
       if (userId) {
         const tasks = [];
@@ -127,9 +130,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         });
         setMyTasks(tasks);
       }
-
-      // Loading termina no primeiro snapshot
-      setLoading(false);
     });
     return () => unsub();
   }, [userId, userRoleId]);
@@ -323,7 +323,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       setFeiras([]);
       setEnvioUser(null);
       setEnvioFilterCargo('');
-      // onSnapshot atualiza automaticamente
+      await loadData();
     } catch (err) {
       console.error('Erro ao salvar briefing:', err);
       alert('Erro ao salvar. Tente novamente.');
@@ -342,7 +342,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         t.taskId === task.taskId ? { ...t, status: newStatus } : t
       );
       await updateDoc(budgetRef, { tasks: updatedTasks, updatedAt: new Date() });
-      // onSnapshot atualiza automaticamente
+      await loadMyTasks();
     } catch (err) {
       console.error('Erro ao atualizar tarefa:', err);
     }
@@ -928,9 +928,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     return <input type="text" value={val} onChange={e => handleAnswerChange(q.id, e.target.value)} style={base} placeholder="Sua resposta..." />;
   };
 
-  if (selectedProjectId) {
-    return <ProjetoScreen projectId={selectedProjectId} onBack={() => setSelectedProjectId(null)} userData={userData} />;
-  }
+  // Navegação para projeto via URL
 
   if (loading) {
     return (
@@ -1250,7 +1248,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     {cards.length === 0 ? (
                       <div className="ws-proj-col-empty">—</div>
                     ) : cards.map(b => (
-                      <div key={b.id} className="ws-proj-card" onClick={() => setSelectedProjectId(b.id)}>
+                      <div key={b.id} className="ws-proj-card" onClick={() => navigate(`/projeto/${b.id}`)}>
                         <div className="ws-proj-card-name">{getProjectName(b)}</div>
                         <div className="ws-proj-card-client">{b.companyName || b.clientName || '—'}</div>
                       </div>
@@ -1295,7 +1293,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                         <div className="ws-task-empty">Nenhuma tarefa</div>
                       ) : tasks.map((task, i) => (
                         <div key={i} className={`ws-task-card ${task.isBudgetChild ? 'ws-task-card--planner' : ''}`}
-                          onClick={task.isBudgetChild ? () => setSelectedProjectId(task.budgetId) : undefined}
+                          onClick={task.isBudgetChild ? () => navigate(`/projeto/${task.budgetId}`) : undefined}
                           style={task.isBudgetChild ? { cursor: 'pointer' } : {}}>
                           <div className="ws-task-card-name">
                             {task.isBudgetChild && <span style={{ fontSize: 10, color: '#00E5C4', marginRight: 4 }}>⚡ FEIRA</span>}

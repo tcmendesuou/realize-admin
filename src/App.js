@@ -15,7 +15,20 @@ import RoleManagement from './components/RoleManagement';
 import CompaniesManager from './components/CompaniesManager';
 import UserManagement from './components/UserManagement';
 import AtendimentoHome from './components/AtendimentoHome';
+import ProjetoScreen from './components/ProjetoScreen';
 import './App.css';
+
+// Wrapper para ProjetoScreen via URL
+function ProjetoScreenWrapper({ user, userData, onLogout }) {
+  const { id } = useParams();
+  return (
+    <ProjetoScreen
+      projectId={id}
+      userData={userData || user}
+      onBack={() => window.history.back()}
+    />
+  );
+}
 
 function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -93,11 +106,24 @@ function App() {
     // Equipe interna → Workspace (atendimento, planner, produtor, etc.)
     if (systemRole === 'workspace') {
       return (
-        <AtendimentoHome
-          user={firestoreUser}
-          userData={firestoreUser}
-          onLogout={handleLogout}
-        />
+        <Router>
+          <Routes>
+            <Route path="/projeto/:id" element={
+              <ProjetoScreenWrapper
+                user={firestoreUser}
+                userData={firestoreUser}
+                onLogout={handleLogout}
+              />
+            } />
+            <Route path="*" element={
+              <AtendimentoHome
+                user={firestoreUser}
+                userData={firestoreUser}
+                onLogout={handleLogout}
+              />
+            } />
+          </Routes>
+        </Router>
       );
     }
 
