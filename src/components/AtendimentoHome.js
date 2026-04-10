@@ -98,7 +98,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const loadAllBudgets = async () => {
     const snap = await getDocs(collection(db, 'budgets'));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setAllBudgets(data);
+    // Kanban de projetos mostra só os budgets mãe (isMae: true ou sem parentBudgetId)
+    setAllBudgets(data.filter(b => b.isMae === true || !b.parentBudgetId));
   };
 
   const loadMyTasks = async () => {
@@ -107,9 +108,29 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     const tasks = [];
     snap.docs.forEach(d => {
       const budget = { id: d.id, ...d.data() };
+
+      // Budgets filhos (feiras) atribuídos ao planner aparecem como tasks
+      if (budget.parentBudgetId && budget.plannerUserId === userId) {
+        tasks.push({
+          taskId: budget.id,
+          type: 'planejamento',
+          name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
+          projectId: budget.parentBudgetId,
+          projectName: budget.eventTypeName || 'Evento',
+          clientName: budget.companyName || budget.clientName,
+          assignedTo: budget.plannerUserId,
+          assignedToName: budget.plannerUserName,
+          roleId: budget.plannerRoleId,
+          status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
+          isBudgetChild: true,
+          budgetId: budget.id,
+        });
+      }
+
+      // Tasks normais dentro de qualquer budget
       (budget.tasks || []).forEach(task => {
-        if (task.assignedTo === userId || task.roleId === userRoleId) {
-          tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.clientName });
+        if (task.type !== 'planejamento' && (task.assignedTo === userId || task.roleId === userRoleId)) {
+          tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
         }
       });
     });
@@ -216,27 +237,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       const allBudgetsSnap = await getDocs(collection(db, 'budgets'));
       const maxNum = allBudgetsSnap.docs.reduce((max, d) => Math.max(max, d.data().budgetNumber || 0), 1000);
 
-      // Criar uma task por feira para o usuário selecionado
-      const fairTasks = feiras.map((feira, i) => ({
-        taskId: `feira-${Date.now()}-${i}`,
-        type: 'feira',
-        name: feira.nome || `Feira ${i + 1}`,
-        clientName: briefingForm.companyName,
-        feiraIndex: i,
-        isMae: feira.isMae || false,
-        local: feira.local || '',
-        dataInicio: feira.dataInicio || '',
-        dataFim: feira.dataFim || '',
-        assignedTo: envioUser.id,
-        assignedToName: envioUser.name,
-        roleId: envioUser.roleId,
-        roleName: envioUser.roleName,
-        status: 'backlog',
-        createdAt: new Date(),
-      }));
+      const commonAnswers = {
+        ...briefingForm.answers,
+        'fixed-events': feiras,
+        'fixed-envio': { userId: envioUser.id, userName: envioUser.name, roleId: envioUser.roleId, roleName: envioUser.roleName },
+      };
 
-      await addDoc(collection(db, 'budgets'), {
-        budgetNumber: maxNum + 1,
+      const baseData = {
         clientId: briefingForm.companyId,
         clientName: briefingForm.clientName,
         clientEmail: briefingForm.clientEmail,
@@ -244,11 +251,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         companyName: briefingForm.companyName,
         eventTypeId: briefingForm.eventTypeId,
         eventTypeName: briefingForm.eventTypeName,
-        answers: {
-          ...briefingForm.answers,
-          'fixed-events': feiras,
-          'fixed-envio': { userId: envioUser.id, userName: envioUser.name, roleId: envioUser.roleId, roleName: envioUser.roleName },
-        },
         status: 'analyzing',
         kanbanStage: 'novo_pedido',
         assignedTo: userId,
@@ -256,7 +258,11 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         assignedBy: userId,
         assignedAt: serverTimestamp(),
         createdBy: 'atendimento',
-        tasks: fairTasks,
+        plannerUserId: envioUser.id,
+        plannerUserName: envioUser.name,
+        plannerRoleId: envioUser.roleId,
+        plannerRoleName: envioUser.roleName,
+        tasks: [],
         timeline: [{
           action: 'created',
           description: `Briefing aberto por ${userName} — encaminhado para ${envioUser.name}`,
@@ -265,9 +271,54 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         }],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
+      };
+
+      // ── 1. Criar budget MÃE ──
+      const maeRef = await addDoc(collection(db, 'budgets'), {
+        ...baseData,
+        budgetNumber: maxNum + 1,
+        isMae: true,
+        parentBudgetId: null,
+        feiraIndex: null,
+        feiraData: null,
+        answers: commonAnswers,
       });
 
-      alert('Briefing criado com sucesso!');
+      // ── 2. Criar N budgets FILHOS (um por feira) ──
+      const feiraPromises = feiras.map((feira, i) =>
+        addDoc(collection(db, 'budgets'), {
+          ...baseData,
+          budgetNumber: maxNum + 2 + i,
+          isMae: feira.isMae || false,
+          parentBudgetId: maeRef.id,
+          feiraIndex: i,
+          feiraData: {
+            nome: feira.nome || `Feira ${i + 1}`,
+            local: feira.local || '',
+            dataInicio: feira.dataInicio || '',
+            dataFim: feira.dataFim || '',
+            isMae: feira.isMae || false,
+          },
+          // Filhos herdam as answers comuns mas sem fixed-events (pertencem à mãe)
+          answers: commonAnswers,
+          tasks: [{
+            taskId: `planner-${Date.now()}-${i}`,
+            type: 'planejamento',
+            name: `Planejar: ${feira.nome || `Feira ${i + 1}`}`,
+            description: `Sessão de planejamento para ${feira.nome || `Feira ${i + 1}`}`,
+            assignedTo: envioUser.id,
+            assignedToName: envioUser.name,
+            roleId: envioUser.roleId,
+            roleName: envioUser.roleName,
+            status: 'backlog',
+            createdAt: new Date(),
+          }],
+        })
+      );
+
+      await Promise.all(feiraPromises);
+
+      alert(`Briefing criado! ${feiras.length} feira(s) encaminhada(s) para ${envioUser.name}.`);
       setShowBriefing(false);
       setBriefingForm({ companyId: '', companyName: '', clientName: '', clientEmail: '', clientPhone: '', eventTypeId: '', eventTypeName: '', answers: {} });
       setFlowQuestions([]);
@@ -1168,21 +1219,28 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       {tasks.length === 0 ? (
                         <div className="ws-task-empty">Nenhuma tarefa</div>
                       ) : tasks.map((task, i) => (
-                        <div key={i} className="ws-task-card">
-                          <div className="ws-task-card-name">{task.name}</div>
+                        <div key={i} className={`ws-task-card ${task.isBudgetChild ? 'ws-task-card--planner' : ''}`}
+                          onClick={task.isBudgetChild ? () => setSelectedProjectId(task.budgetId) : undefined}
+                          style={task.isBudgetChild ? { cursor: 'pointer' } : {}}>
+                          <div className="ws-task-card-name">
+                            {task.isBudgetChild && <span style={{ fontSize: 10, color: '#00E5C4', marginRight: 4 }}>⚡ FEIRA</span>}
+                            {task.name}
+                          </div>
                           <div className="ws-task-card-project">{task.projectName}</div>
                           <div className="ws-task-card-client">{task.clientName}</div>
-                          <div className="ws-task-card-actions">
-                            {stage.id !== 'backlog' && (
-                              <button className="ws-task-btn backlog" onClick={() => handleTaskStatusChange(task, 'backlog')}>← Backlog</button>
-                            )}
-                            {stage.id !== 'todo' && (
-                              <button className="ws-task-btn todo" onClick={() => handleTaskStatusChange(task, 'todo')}>To Do</button>
-                            )}
-                            {stage.id !== 'done' && (
-                              <button className="ws-task-btn done" onClick={() => handleTaskStatusChange(task, 'done')}>✓ Concluir</button>
-                            )}
-                          </div>
+                          {!task.isBudgetChild && (
+                            <div className="ws-task-card-actions">
+                              {stage.id !== 'backlog' && (
+                                <button className="ws-task-btn backlog" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'backlog'); }}>← Backlog</button>
+                              )}
+                              {stage.id !== 'todo' && (
+                                <button className="ws-task-btn todo" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'todo'); }}>To Do</button>
+                              )}
+                              {stage.id !== 'done' && (
+                                <button className="ws-task-btn done" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'done'); }}>✓ Concluir</button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
