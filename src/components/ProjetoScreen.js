@@ -60,9 +60,9 @@ export default function ProjetoScreen({ projectId, onBack }) {
     return project?.eventTypeName || 'Evento';
   };
 
-  const getAnswerDisplay = (question, answer) => {
+  const getAnswerDisplay = (question, answer, feiras = []) => {
     if (answer === null || answer === undefined || answer === '') return 'Não respondido';
-    // Nunca retornar objeto diretamente — sempre converter para string
+
     const safeString = (val) => {
       if (val === null || val === undefined) return '—';
       if (typeof val === 'string') return val;
@@ -71,6 +71,20 @@ export default function ProjetoScreen({ projectId, onBack }) {
       if (typeof val === 'object') return JSON.stringify(val);
       return String(val);
     };
+
+    // ── Resposta por feira: objeto com chaves numéricas {"0":"val","1":"val"} ──
+    const isFeiraAnswer = (val) =>
+      val && typeof val === 'object' && !Array.isArray(val) &&
+      Object.keys(val).every(k => !isNaN(k));
+
+    if (isFeiraAnswer(answer)) {
+      return Object.entries(answer).map(([idx, val]) => {
+        const feira = feiras[parseInt(idx)];
+        const feiraLabel = feira?.nome ? feira.nome : `Feira ${parseInt(idx) + 1}`;
+        return `${feiraLabel}: ${safeString(val)}`;
+      }).join(' | ');
+    }
+
     switch (question?.type) {
       case 'text': case 'number': case 'currency': return safeString(answer);
       case 'date':
@@ -449,34 +463,46 @@ export default function ProjetoScreen({ projectId, onBack }) {
                   <div key={q.id} className="ps-answer-item">
                     <span className="ps-question-text">{q.text}</span>
                     <span className="ps-answer-text">
-                      {getAnswerDisplay(q, project.answers?.[q.id])}
+                      {getAnswerDisplay(q, project.answers?.[q.id], project.answers?.['fixed-events'] || [])}
                     </span>
                   </div>
                 ))
               ) : project.answers && Object.keys(project.answers).length > 0 ? (
-                Object.entries(project.answers).map(([key, val]) => {
-                  // Serializa qualquer valor para string segura
-                  let display = '';
-                  if (val === null || val === undefined) {
-                    display = '—';
-                  } else if (key === 'fixed-events' && Array.isArray(val)) {
-                    display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
-                  } else if (key === 'fixed-envio' && typeof val === 'object') {
-                    display = val.userName || '—';
-                  } else if (Array.isArray(val)) {
-                    display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
-                  } else if (typeof val === 'object') {
-                    display = JSON.stringify(val);
-                  } else {
-                    display = String(val);
-                  }
-                  return (
-                    <div key={key} className="ps-answer-item">
-                      <span className="ps-question-text">{key}</span>
-                      <span className="ps-answer-text">{display}</span>
-                    </div>
-                  );
-                })
+                (() => {
+                  const feiras = project.answers['fixed-events'] || [];
+                  const isFeiraAnswer = (val) =>
+                    val && typeof val === 'object' && !Array.isArray(val) &&
+                    Object.keys(val).every(k => !isNaN(k));
+
+                  return Object.entries(project.answers).map(([key, val]) => {
+                    let display = '';
+                    if (val === null || val === undefined) {
+                      display = '—';
+                    } else if (key === 'fixed-events' && Array.isArray(val)) {
+                      display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
+                    } else if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) {
+                      display = val.userName || '—';
+                    } else if (isFeiraAnswer(val)) {
+                      display = Object.entries(val).map(([idx, v]) => {
+                        const feira = feiras[parseInt(idx)];
+                        const label = feira?.nome ? feira.nome : `Feira ${parseInt(idx) + 1}`;
+                        return `${label}: ${v}`;
+                      }).join(' | ');
+                    } else if (Array.isArray(val)) {
+                      display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
+                    } else if (typeof val === 'object') {
+                      display = JSON.stringify(val);
+                    } else {
+                      display = String(val);
+                    }
+                    return (
+                      <div key={key} className="ps-answer-item">
+                        <span className="ps-question-text">{key}</span>
+                        <span className="ps-answer-text">{display}</span>
+                      </div>
+                    );
+                  });
+                })()
               ) : (
                 <div className="ps-empty">Nenhuma resposta disponível</div>
               )}
