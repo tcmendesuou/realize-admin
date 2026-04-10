@@ -328,8 +328,8 @@
 
 /* FOOTER */
 .flow-builder-footer {
-  padding: 1.5rem 2rem;
-  border-top: 2px solid #e0e0e0;
+  padding: 10px 20px;
+  border-top: 1px solid #e0e0e0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -339,19 +339,19 @@
 
 .footer-left {
   display: flex;
-  gap: 1rem;
+  gap: 8px;
 }
 
 .btn-cancel {
-  padding: 0.75rem 2rem;
-  border: 2px solid #ddd;
+  padding: 7px 16px;
+  border: 1.5px solid #ddd;
   background: white;
   color: #666;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 7px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .btn-cancel:hover {
@@ -360,22 +360,22 @@
 }
 
 .btn-delete-flow {
-  padding: 0.75rem 1.5rem;
+  padding: 7px 14px;
   background: #e74c3c;
   border: none;
   color: white;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 7px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.25);
 }
 
 .btn-delete-flow:hover:not(:disabled) {
   background: #c0392b;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.35);
 }
 
 .btn-delete-flow:disabled {
@@ -385,21 +385,21 @@
 }
 
 .btn-save {
-  padding: 0.75rem 2rem;
+  padding: 7px 18px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
   color: white;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 7px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
 }
 
 .btn-save:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-save:disabled {
@@ -410,7 +410,7 @@
 
 .btn-save:disabled:hover {
   transform: none;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
 }
 
 /* SCROLLBAR CUSTOMIZADA */
