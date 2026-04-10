@@ -4,6 +4,7 @@ import { db } from '../firebase/config';
 
 export default function ProjetoScreen({ projectId, onBack }) {
   const [project, setProject] = useState(null);
+  const [parentProject, setParentProject] = useState(null); // budget mãe (se for filho)
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
@@ -19,6 +20,14 @@ export default function ProjetoScreen({ projectId, onBack }) {
       if (!docSnap.exists()) { setLoading(false); return; }
       const data = { id: docSnap.id, ...docSnap.data() };
       setProject(data);
+
+      // Se for filho, carrega o budget mãe
+      if (data.parentBudgetId) {
+        const maeSnap = await getDoc(doc(db, 'budgets', data.parentBudgetId));
+        if (maeSnap.exists()) {
+          setParentProject({ id: maeSnap.id, ...maeSnap.data() });
+        }
+      }
 
       // Busca perguntas do fluxo para exibir as labels corretas
       if (data.eventTypeId) {
@@ -55,7 +64,17 @@ export default function ProjetoScreen({ projectId, onBack }) {
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  const isFilho = !!project?.parentBudgetId;
+
   const getProjectName = () => {
+    // Filho: usar nome da feira específica
+    if (isFilho && project?.feiraData?.nome) return project.feiraData.nome;
+    // Mãe: usar nome da feira mãe de fixed-events
+    const feiras = project?.answers?.['fixed-events'];
+    if (Array.isArray(feiras) && feiras.length > 0) {
+      const mae = feiras.find(f => f.isMae) || feiras[0];
+      if (mae?.nome) return mae.nome;
+    }
     if (project?.answers?.['GApo1hcglkgdpAQGuSnn']) return project.answers['GApo1hcglkgdpAQGuSnn'];
     return project?.eventTypeName || 'Evento';
   };
@@ -136,10 +155,15 @@ export default function ProjetoScreen({ projectId, onBack }) {
     );
   }
 
-  const tabs = [
-    { id: 'info', label: 'Visão Geral' },
+  const tabs = isFilho ? [
+    { id: 'info',           label: 'Briefing da Feira' },
+    { id: 'briefing-geral', label: 'Briefing Geral' },
+    { id: 'tasks',          label: `Tarefas${project.tasks?.length ? ` (${project.tasks.length})` : ''}` },
+    { id: 'timeline',       label: 'Histórico' },
+  ] : [
+    { id: 'info',     label: 'Visão Geral' },
     { id: 'briefing', label: 'Briefing' },
-    { id: 'tasks', label: `Tarefas${project.tasks?.length ? ` (${project.tasks.length})` : ''}` },
+    { id: 'tasks',    label: `Tarefas${project.tasks?.length ? ` (${project.tasks.length})` : ''}` },
     { id: 'timeline', label: 'Histórico' },
   ];
 
@@ -357,41 +381,33 @@ export default function ProjetoScreen({ projectId, onBack }) {
         {/* BODY */}
         <div className="ps-body">
 
-          {/* ── VISÃO GERAL ── */}
+          {/* ── VISÃO GERAL / BRIEFING DA FEIRA ── */}
           {activeTab === 'info' && (
             <>
-              {/* Status cards */}
-              {project.status === 'approved' && (
-                <div className="ps-status-card approved">
-                  <div className="ps-status-card-title">Aprovado</div>
+              {/* Para filhos: mostrar dados específicos da feira */}
+              {isFilho && project.feiraData && (
+                <div className="ps-card">
+                  <div className="ps-card-title">Dados da Feira</div>
                   <div className="ps-info-grid">
                     <div className="ps-info-item">
-                      <span className="ps-info-label">Por</span>
-                      <span className="ps-info-value">{project.approvedByName || '—'}</span>
+                      <span className="ps-info-label">Nome</span>
+                      <span className="ps-info-value">{project.feiraData.nome || '—'}</span>
                     </div>
                     <div className="ps-info-item">
-                      <span className="ps-info-label">Em</span>
-                      <span className="ps-info-value">{formatDate(project.approvedAt)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {project.status === 'rejected' && (
-                <div className="ps-status-card rejected">
-                  <div className="ps-status-card-title">Rejeitado</div>
-                  <div className="ps-info-grid">
-                    <div className="ps-info-item">
-                      <span className="ps-info-label">Por</span>
-                      <span className="ps-info-value">{project.rejectedByName || '—'}</span>
+                      <span className="ps-info-label">Local</span>
+                      <span className="ps-info-value">{project.feiraData.local || '—'}</span>
                     </div>
                     <div className="ps-info-item">
-                      <span className="ps-info-label">Em</span>
-                      <span className="ps-info-value">{formatDate(project.rejectedAt)}</span>
+                      <span className="ps-info-label">Data Início</span>
+                      <span className="ps-info-value">{project.feiraData.dataInicio || '—'}</span>
                     </div>
-                    {project.rejectionReason && (
+                    <div className="ps-info-item">
+                      <span className="ps-info-label">Data Fim</span>
+                      <span className="ps-info-value">{project.feiraData.dataFim || '—'}</span>
+                    </div>
+                    {project.feiraData.isMae && (
                       <div className="ps-info-item full">
-                        <span className="ps-info-label">Motivo</span>
-                        <span className="ps-info-value">{project.rejectionReason}</span>
+                        <span className="ps-info-label" style={{ color: '#00E5C4' }}>⭐ Feira Mãe</span>
                       </div>
                     )}
                   </div>
@@ -505,6 +521,51 @@ export default function ProjetoScreen({ projectId, onBack }) {
                 })()
               ) : (
                 <div className="ps-empty">Nenhuma resposta disponível</div>
+              )}
+            </div>
+          )}
+
+          {/* ── BRIEFING GERAL (só filhos) ── */}
+          {activeTab === 'briefing-geral' && (
+            <div className="ps-card">
+              <div className="ps-card-title">Briefing Geral — Pacote Completo</div>
+              {parentProject ? (
+                (() => {
+                  const feiras = parentProject.answers?.['fixed-events'] || [];
+                  const isFeiraAnswer = (val) =>
+                    val && typeof val === 'object' && !Array.isArray(val) &&
+                    Object.keys(val).every(k => !isNaN(k));
+                  return Object.entries(parentProject.answers || {}).map(([key, val]) => {
+                    let display = '';
+                    if (val === null || val === undefined) {
+                      display = '—';
+                    } else if (key === 'fixed-events' && Array.isArray(val)) {
+                      display = val.map((f, i) => `Feira ${i + 1}: ${f.nome || ''}${f.local ? ` — ${f.local}` : ''}${f.dataInicio ? ` (${f.dataInicio}${f.dataFim ? ` a ${f.dataFim}` : ''})` : ''}`).join(' | ');
+                    } else if (key === 'fixed-envio' && typeof val === 'object' && !Array.isArray(val)) {
+                      display = val.userName || '—';
+                    } else if (isFeiraAnswer(val)) {
+                      display = Object.entries(val).map(([idx, v]) => {
+                        const feira = feiras[parseInt(idx)];
+                        const label = feira?.nome ? feira.nome : `Feira ${parseInt(idx) + 1}`;
+                        return `${label}: ${v}`;
+                      }).join(' | ');
+                    } else if (Array.isArray(val)) {
+                      display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
+                    } else if (typeof val === 'object') {
+                      display = JSON.stringify(val);
+                    } else {
+                      display = String(val);
+                    }
+                    return (
+                      <div key={key} className="ps-answer-item">
+                        <span className="ps-question-text">{key}</span>
+                        <span className="ps-answer-text">{display}</span>
+                      </div>
+                    );
+                  });
+                })()
+              ) : (
+                <div className="ps-empty">Briefing geral não disponível</div>
               )}
             </div>
           )}
