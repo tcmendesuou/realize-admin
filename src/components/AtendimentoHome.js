@@ -239,7 +239,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       const allBudgetsSnap = await getDocs(collection(db, 'budgets'));
       const jobsDoClienteNoAno = allBudgetsSnap.docs
         .map(d => d.data())
-        .filter(d => d.isMae === true && d.clientId === briefingForm.companyId && d.jobCode?.endsWith(`- ${anoAtual}`));
+        .filter(d => !d.parentBudgetId && d.clientId === briefingForm.companyId && d.jobCode?.endsWith(`- ${anoAtual}`));
       const proximoNum = (jobsDoClienteNoAno.length + 1).toString().padStart(4, '0'); // "0005"
       const jobCode = `${prefixo} - ${proximoNum} - ${anoAtual}`; // "FOR - 0005 - 26"
 
