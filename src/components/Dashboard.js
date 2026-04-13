@@ -25,10 +25,9 @@ function Dashboard() {
     try {
       const q = query(collection(db, 'budgets'), orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
-      const budgetsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const budgetsData = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(d => !d.parentBudgetId);
       
       setBudgets(budgetsData);
       calculateStats(budgetsData);
