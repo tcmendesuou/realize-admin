@@ -358,13 +358,14 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   };
 
   const getProjectName = (item) => {
-    // Pega o nome da feira mãe de fixed-events
+    // Filho: usar feiraData.nome
+    if (item.feiraData?.nome) return item.feiraData.nome;
+    // Mãe: usar feira mãe de fixed-events
     const feiras = item.answers?.['fixed-events'];
     if (Array.isArray(feiras) && feiras.length > 0) {
       const mae = feiras.find(f => f.isMae) || feiras[0];
       if (mae?.nome) return mae.nome;
     }
-    // Fallback legado
     if (item.answers?.['GApo1hcglkgdpAQGuSnn']) return item.answers['GApo1hcglkgdpAQGuSnn'];
     return item.eventTypeName || 'Evento';
   };
