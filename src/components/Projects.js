@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ProjectDetailModal from './ProjectDetailModal';
 import '../styles/Projects.css';
@@ -123,6 +123,7 @@ function Projects() {
       filtered = filtered.filter(p => 
         p.clientName?.toLowerCase().includes(term) ||
         p.eventTypeName?.toLowerCase().includes(term) ||
+        p.jobCode?.toLowerCase().includes(term) ||
         p.budgetNumber?.toString().includes(term) ||
         getProjectName(p).toLowerCase().includes(term)
       );
@@ -164,10 +165,30 @@ function Projects() {
   };
 
   const getProjectName = (project) => {
-    if (project.answers && project.answers['GApo1hcglkgdpAQGuSnn']) {
-      return project.answers['GApo1hcglkgdpAQGuSnn'];
+    const feiras = project.answers?.['fixed-events'];
+    if (Array.isArray(feiras) && feiras.length > 0) {
+      const mae = feiras.find(f => f.isMae) || feiras[0];
+      if (mae?.nome) return mae.nome;
     }
+    if (project.answers?.['GApo1hcglkgdpAQGuSnn']) return project.answers['GApo1hcglkgdpAQGuSnn'];
     return project.eventTypeName || 'Evento';
+  };
+
+  const handleDelete = async (project) => {
+    const jobLabel = project.jobCode || `#${project.id}`;
+    if (!window.confirm(`Excluir o projeto "${jobLabel}"?\n\nEsta ação não pode ser desfeita. Todos os budgets filhos (feiras) também serão excluídos.`)) return;
+    try {
+      // Excluir filhos
+      const allSnap = await getDocs(collection(db, 'budgets'));
+      const filhos = allSnap.docs.filter(d => d.data().parentBudgetId === project.id);
+      await Promise.all(filhos.map(d => deleteDoc(doc(db, 'budgets', d.id))));
+      // Excluir mãe
+      await deleteDoc(doc(db, 'budgets', project.id));
+      await loadProjects();
+    } catch (err) {
+      console.error('Erro ao excluir:', err);
+      alert('Erro ao excluir projeto.');
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -299,7 +320,7 @@ function Projects() {
                 const statusBadge = getStatusBadge(project.status);
                 return (
                   <tr key={project.id}>
-                    <td className="number-cell">#{project.budgetNumber}</td>
+                    <td className="number-cell">{project.jobCode || `#${project.id.slice(0,8)}`}</td>
                     <td className="name-cell">
                       <strong>{getProjectName(project)}</strong>
                     </td>
@@ -318,6 +339,12 @@ function Projects() {
                         onClick={() => handleViewDetails(project.id)}
                       >
                         Ver Detalhes
+                      </button>
+                      <button
+                        className="btn-action btn-delete"
+                        onClick={() => handleDelete(project)}
+                      >
+                        Excluir
                       </button>
                     </td>
                   </tr>
