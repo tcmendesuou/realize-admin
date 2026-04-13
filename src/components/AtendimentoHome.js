@@ -101,7 +101,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     const unsub = onSnapshot(collection(db, 'budgets'), (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       // Kanban mostra só mãe
-      setAllBudgets(data.filter(b => b.isMae === true || !b.parentBudgetId));
+      setAllBudgets(data.filter(b => !b.parentBudgetId));
       // Atualiza tarefas do usuário em tempo real
       if (userId) {
         const tasks = [];
@@ -240,8 +240,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       const jobsDoClienteNoAno = allBudgetsSnap.docs
         .map(d => d.data())
         .filter(d => !d.parentBudgetId && d.clientId === briefingForm.companyId && d.jobCode?.endsWith(`- ${anoAtual}`));
-      const proximoNum = (jobsDoClienteNoAno.length + 1).toString().padStart(4, '0');
-      const jobCode = `${prefixo} - ${proximoNum} - ${anoAtual}`;
+      const proximoNum = (jobsDoClienteNoAno.length + 1).toString().padStart(4, '0'); // "0005"
+      const jobCode = `${prefixo} - ${proximoNum} - ${anoAtual}`; // "FOR - 0005 - 26"
+      console.log('🔑 jobCode gerado:', jobCode, '| jobs encontrados:', jobsDoClienteNoAno.length);
 
       const commonAnswers = {
         ...briefingForm.answers,
@@ -357,14 +358,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   };
 
   const getProjectName = (item) => {
-    // Filho: usar feiraData.nome
-    if (item.feiraData?.nome) return item.feiraData.nome;
-    // Mãe: usar feira mãe de fixed-events
+    // Pega o nome da feira mãe de fixed-events
     const feiras = item.answers?.['fixed-events'];
     if (Array.isArray(feiras) && feiras.length > 0) {
       const mae = feiras.find(f => f.isMae) || feiras[0];
       if (mae?.nome) return mae.nome;
     }
+    // Fallback legado
     if (item.answers?.['GApo1hcglkgdpAQGuSnn']) return item.answers['GApo1hcglkgdpAQGuSnn'];
     return item.eventTypeName || 'Evento';
   };
@@ -1046,12 +1046,12 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .ws-proj-card {
           background: rgba(255,255,255,0.03); border: 1px solid rgba(0,180,255,0.1);
           border-radius: 6px; padding: 6px 8px; margin-bottom: 4px; cursor: pointer;
-          transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+          transition: all 0.15s; display: flex; flex-direction: column; gap: 2px;
         }
         .ws-proj-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(0,229,196,0.3); transform: translateY(-1px); }
-        .ws-proj-card-name { font-size: 11px; font-weight: 500; color: #E8F4FF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
-        .ws-proj-card-sep { font-size: 10px; color: rgba(123,175,212,0.3); flex-shrink: 0; }
-        .ws-proj-card-client { font-size: 10px; color: rgba(123,175,212,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; max-width: 45%; }
+        .ws-proj-card-name { font-size: 11px; font-weight: 500; color: #E8F4FF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ws-proj-card-sep { display: none; }
+        .ws-proj-card-client { font-size: 10px; color: rgba(0,229,196,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.3px; }
         .ws-proj-col-empty { font-size: 11px; color: rgba(123,175,212,0.2); text-align: center; padding: 8px 0; }
 
         /* ─── DIVISOR ─── */
