@@ -59,7 +59,7 @@ function Projects() {
       const snapshot = await getDocs(q);
       const projectsData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(d => d.isMae === true || (!d.parentBudgetId && !d.isMae));
+        .filter(d => !d.parentBudgetId);
       setProjects(projectsData);
       calculateStats(projectsData);
     } catch (error) {
