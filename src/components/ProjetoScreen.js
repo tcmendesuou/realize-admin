@@ -1382,7 +1382,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 return (
                   <>
                     {allQsGeral.map(({ key, label, val, isFixed, isFeiraAnswer, isExtra }) => {
-                      const display = getDisplay(key, val);
+                      const q = allQuestions.find(q => q.id === key);
+                      const geralLines = !modoEditarGeral ? getAnswerLines(q, val, feiras) : null;
+                      const isMultiLineGeral = geralLines && geralLines.length > 1;
                       const formG = taskFormsGeral[key] || {};
                       const tasksCriadasG = newTasksGeral.filter(t => t.questionId === key);
                       const filteredUsersG = formG.cargoId ? agencyUsers.filter(u => u.roleId === formG.cargoId) : agencyUsers;
@@ -1397,13 +1399,29 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               </span>
                               {modoEditarGeral && !isFixed
                                 ? <div style={{ marginTop:6 }}>{renderEditInputGeral(key, val)}</div>
-                                : <div className="ps-answer-text" style={{ marginTop:4 }}>{display}</div>
+                                : (
+                                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {geralLines?.map(line => (
+                                      <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMultiLineGeral ? '4px 8px' : 0, background: isMultiLineGeral ? '#fafafa' : 'none', borderRadius: isMultiLineGeral ? 6 : 0, border: isMultiLineGeral ? '1px solid #f0f2f5' : 'none' }}>
+                                        <span className="ps-answer-text">
+                                          {line.label && <span style={{ color: '#8a9bb0', marginRight: 6, fontSize: 12, fontWeight: 500 }}>{line.label}:</span>}
+                                          {line.value}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
                               }
                             </div>
                             <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                              {modoPlanejarGeral && (
+                              {modoPlanejarGeral && !isMultiLineGeral && (
                                 <button onClick={() => toggleTaskFormGeral(key)} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, border:'1px solid rgba(0,229,196,0.4)', background: formG.open?'rgba(0,229,196,0.1)':'none', color:'#00E5C4', cursor:'pointer', fontFamily:'Outfit, sans-serif', whiteSpace:'nowrap' }}>
                                   {isFeiraAnswer ? `Gerar ${feiras.length}x` : 'Gerar Tarefa'}
+                                </button>
+                              )}
+                              {modoPlanejarGeral && isMultiLineGeral && (
+                                <button onClick={() => toggleTaskFormGeral(key)} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, border:'1px solid rgba(0,229,196,0.4)', background: formG.open?'rgba(0,229,196,0.1)':'none', color:'#00E5C4', cursor:'pointer', fontFamily:'Outfit, sans-serif', whiteSpace:'nowrap' }}>
+                                  Gerar {geralLines.length}x
                                 </button>
                               )}
                               {modoEditarGeral && isExtra && (
