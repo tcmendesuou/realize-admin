@@ -545,9 +545,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     if (isFeiraAnswer(answer)) {
       return Object.entries(answer).map(([idx, v]) => {
         const feira = feiras[parseInt(idx)];
-        const value = Array.isArray(v) ? v.join(', ') : String(v);
+        let value;
+        if (v === null || v === undefined || v === '') value = '';
+        else if (Array.isArray(v)) value = v.filter(Boolean).join(', ');
+        else if (typeof v === 'object') value = '';
+        else value = String(v);
+        if (!value) return null; // pula feiras sem resposta
         return { key: `feira-${idx}`, label: feira?.nome || `Feira ${parseInt(idx) + 1}`, value };
-      });
+      }).filter(Boolean);
     }
 
     // Default — linha única
@@ -1447,7 +1452,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <input placeholder="Valor estimado (opcional)" value={formG.valor||''} onChange={e=>updateTaskFormGeral(key,'valor',e.target.value)} type="number" min="0" style={{ padding:'8px 12px', borderRadius:6, border:'1px solid #dde', fontSize:13, fontFamily:'Outfit, sans-serif' }} />
                               <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
                                 <button onClick={()=>toggleTaskFormGeral(key)} style={{ padding:'6px 12px', borderRadius:6, border:'1px solid #ddd', background:'none', color:'#666', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>Cancelar</button>
-                                <button onClick={()=>gerarTarefaGeral(key, label, display, isFeiraAnswer)} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:'linear-gradient(135deg,#667eea,#764ba2)', color:'white', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif', fontWeight:600 }}>Criar Tarefa</button>
+                                <button onClick={()=>gerarTarefaGeral(key, label, geralLines?.map(l=>`${l.label?l.label+': ':''}${l.value}`).join(' | ') || '', isFeiraAnswer)} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:'linear-gradient(135deg,#667eea,#764ba2)', color:'white', fontSize:12, cursor:'pointer', fontFamily:'Outfit, sans-serif', fontWeight:600 }}>Criar Tarefa</button>
                               </div>
                             </div>
                           )}
