@@ -232,8 +232,16 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
     setSavingBriefing(true);
     try {
+      const anoAtual = new Date().getFullYear().toString().slice(-2); // "26"
+      const prefixo = (briefingForm.companyName || 'XXX').slice(0, 3).toUpperCase(); // "FOR"
+
+      // Buscar quantos jobs esse cliente já tem neste ano
       const allBudgetsSnap = await getDocs(collection(db, 'budgets'));
-      const maxNum = allBudgetsSnap.docs.reduce((max, d) => Math.max(max, d.data().budgetNumber || 0), 1000);
+      const jobsDoClienteNoAno = allBudgetsSnap.docs
+        .map(d => d.data())
+        .filter(d => d.isMae === true && d.clientId === briefingForm.companyId && d.jobCode?.endsWith(`- ${anoAtual}`));
+      const proximoNum = (jobsDoClienteNoAno.length + 1).toString().padStart(4, '0'); // "0005"
+      const jobCode = `${prefixo} - ${proximoNum} - ${anoAtual}`; // "FOR - 0005 - 26"
 
       const commonAnswers = {
         ...briefingForm.answers,
@@ -242,6 +250,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       };
 
       const baseData = {
+        jobCode,
         clientId: briefingForm.companyId,
         clientName: briefingForm.clientName,
         clientEmail: briefingForm.clientEmail,
@@ -274,7 +283,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       // ── 1. Criar budget MÃE ──
       const maeRef = await addDoc(collection(db, 'budgets'), {
         ...baseData,
-        budgetNumber: maxNum + 1,
         isMae: true,
         parentBudgetId: null,
         feiraIndex: null,
@@ -286,7 +294,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       const feiraPromises = feiras.map((feira, i) =>
         addDoc(collection(db, 'budgets'), {
           ...baseData,
-          budgetNumber: maxNum + 2 + i,
           isMae: feira.isMae || false,
           parentBudgetId: maeRef.id,
           feiraIndex: i,
@@ -1264,7 +1271,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                           <div key={b.id} className="ws-proj-card" onClick={() => navigate(`/projeto/${b.id}`)}>
                             <div className="ws-proj-card-name">{getProjectName(b)}</div>
                             <span className="ws-proj-card-sep">·</span>
-                            <div className="ws-proj-card-client">{b.companyName || b.clientName || '—'}</div>
+                            <div className="ws-proj-card-client">{b.jobCode || b.companyName || b.clientName || '—'}</div>
                           </div>
                         ))}
                       </div>
