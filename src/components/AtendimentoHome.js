@@ -242,6 +242,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         .filter(d => !d.parentBudgetId && d.clientId === briefingForm.companyId && d.jobCode?.endsWith(`- ${anoAtual}`));
       const proximoNum = (jobsDoClienteNoAno.length + 1).toString().padStart(4, '0'); // "0005"
       const jobCode = `${prefixo} - ${proximoNum} - ${anoAtual}`; // "FOR - 0005 - 26"
+      console.log('🔑 jobCode gerado:', jobCode, '| jobs encontrados:', jobsDoClienteNoAno.length);
 
       const commonAnswers = {
         ...briefingForm.answers,
