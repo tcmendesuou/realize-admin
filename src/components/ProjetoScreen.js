@@ -9,7 +9,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
   const [taskFilterUser, setTaskFilterUser] = useState('');
-  const [selectedTask, setSelectedTask] = useState(null); // tarefa aberta no modal
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [editTask, setEditTask] = useState(null);
+  const [savingTask, setSavingTask] = useState(false);
 
   // Sessão de planejamento
   const [modoEdicao, setModoEdicao] = useState(false);
@@ -1660,7 +1662,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               const st = STATUS_TASK[t.status] || STATUS_TASK.backlog;
               const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
               return (
-                <div onClick={() => setSelectedTask(t)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f2f5', background: 'white', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 6 }}
+                <div onClick={() => { setSelectedTask(t); setEditTask({ ...t }); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f2f5', background: 'white', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 6 }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = '#c7d2fe'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = '#f0f2f5'}>
                   {t.requisicaoCodigo && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: reqColor + '22', color: reqColor, flexShrink: 0 }}>{t.requisicaoCodigo}</span>}
@@ -1722,10 +1724,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           })()}
 
           {/* ── TASK MODAL ── */}
-          {selectedTask && (() => {
+          {selectedTask && editTask && (() => {
             const t = selectedTask;
-            const [editTask, setEditTask] = React.useState({ ...t });
-            const [saving, setSaving] = React.useState(false);
             const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
             const PRIORIDADE_COLOR = { baixa: '#94a3b8', normal: '#64748b', alta: '#f97316', urgente: '#ef4444' };
             const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box' };
@@ -1733,27 +1733,27 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
             const handleConcluir = async () => {
               if (!window.confirm('Marcar esta tarefa como concluída?')) return;
-              setSaving(true);
+              setSavingTask(true);
               try {
                 const updatedTasks = (project.tasks || []).map(tk =>
                   tk.taskId === t.taskId ? { ...tk, ...editTask, status: 'done', completedAt: new Date() } : tk
                 );
                 await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, updatedAt: serverTimestamp() });
-                setSelectedTask(null);
+                setSelectedTask(null); setEditTask(null);
               } catch (e) { console.error(e); alert('Erro ao salvar.'); }
-              finally { setSaving(false); }
+              finally { setSavingTask(false); }
             };
 
             const handleSalvar = async () => {
-              setSaving(true);
+              setSavingTask(true);
               try {
                 const updatedTasks = (project.tasks || []).map(tk =>
                   tk.taskId === t.taskId ? { ...tk, ...editTask } : tk
                 );
                 await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, updatedAt: serverTimestamp() });
-                setSelectedTask(null);
+                setSelectedTask(null); setEditTask(null);
               } catch (e) { console.error(e); alert('Erro ao salvar.'); }
-              finally { setSaving(false); }
+              finally { setSavingTask(false); }
             };
 
             return (
@@ -1843,10 +1843,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
                   {/* Footer */}
                   <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 10 }}>
-                    <button onClick={() => setSelectedTask(null)} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Fechar</button>
-                    <button onClick={handleSalvar} disabled={saving} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#f0f3ff', color: '#667eea', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Salvar Rascunho</button>
-                    <button onClick={handleConcluir} disabled={saving || t.status === 'done' || t.status === 'completed'} style={{ flex: 1, padding: '10px 20px', borderRadius: 8, border: 'none', background: t.status === 'done' || t.status === 'completed' ? '#d1fae5' : 'linear-gradient(135deg,#10b981,#059669)', color: t.status === 'done' || t.status === 'completed' ? '#10b981' : 'white', fontSize: 14, cursor: t.status === 'done' || t.status === 'completed' ? 'default' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
-                      {saving ? 'Salvando...' : t.status === 'done' || t.status === 'completed' ? 'Concluída' : 'Marcar como Concluída'}
+                    <button onClick={() => { setSelectedTask(null); setEditTask(null); }} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Fechar</button>
+                    <button onClick={handleSalvar} disabled={savingTask} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#f0f3ff', color: '#667eea', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Salvar Rascunho</button>
+                    <button onClick={handleConcluir} disabled={savingTask || t.status === 'done' || t.status === 'completed'} style={{ flex: 1, padding: '10px 20px', borderRadius: 8, border: 'none', background: t.status === 'done' || t.status === 'completed' ? '#d1fae5' : 'linear-gradient(135deg,#10b981,#059669)', color: t.status === 'done' || t.status === 'completed' ? '#10b981' : 'white', fontSize: 14, cursor: t.status === 'done' || t.status === 'completed' ? 'default' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+                      {savingTask ? 'Salvando...' : t.status === 'done' || t.status === 'completed' ? 'Concluída' : 'Marcar como Concluída'}
                     </button>
                   </div>
                 </div>
