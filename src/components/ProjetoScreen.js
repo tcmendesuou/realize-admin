@@ -285,6 +285,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               {campos.includes('custoUnitario') && <div><label style={lbl}>Custo Unitário (R$)</label><input type="number" min="0" value={form.custoUnitario || ''} onChange={e => setF({ custoUnitario: e.target.value })} style={inp} /></div>}
               {campos.includes('bv')            && <div><label style={lbl}>BV % (padrão: {reqSel.defaults?.bvPct || 0}%)</label><input type="number" min="0" max="100" value={form.bvPct || ''} onChange={e => setF({ bvPct: e.target.value })} style={inp} /></div>}
               {campos.includes('credito')       && <div><label style={lbl}>Crédito (R$)</label><input type="number" min="0" value={form.credito || ''} onChange={e => setF({ credito: e.target.value })} style={inp} /></div>}
+              {/* Custo Total calculado */}
+              {campos.includes('custoUnitario') && campos.includes('periodo') && campos.includes('quantidade') && (() => {
+                const total = (parseFloat(form.periodo) || 0) * (parseFloat(form.quantidade) || 0) * (parseFloat(form.custoUnitario) || 0);
+                return (
+                  <div style={{ background: '#f0fff4', border: '1px solid #86efac', borderRadius: 6, padding: '7px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <label style={{ ...lbl, color: '#166534' }}>Custo Total</label>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#166534' }}>
+                      {total > 0 ? `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             {campos.includes('fornecedores') && (
