@@ -24,6 +24,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   const canPlan = userData?.permissions?.briefing?.planning !== false;
   const canEdit = userData?.permissions?.briefing?.edit !== false;
+  const [requisitions, setRequisitions] = useState([]);
 
   // Modo editar briefing (filho)
   const [modoEditarBriefing, setModoEditarBriefing] = useState(false);
@@ -99,6 +100,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       const allQSnap = await getDocs(collection(db, 'questions'));
       setAllQuestions(allQSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
 
+      const reqSnap = await getDocs(collection(db, 'requisitions'));
+      setRequisitions(reqSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.ativo !== false).sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '')));
+
       // Busca perguntas do fluxo (eventTypeId vem do snapshot depois, tentamos pegar do doc direto)
       const docSnap = await getDoc(doc(db, 'budgets', projectId));
       if (docSnap.exists()) {
@@ -143,7 +147,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       ...prev,
       [qId]: prev[qId]?.open
         ? { ...prev[qId], open: false }
-        : { open: true, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' }
+        : {
+            open: true, tarefa: '', descricao: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '',
+            prazo: '', prioridade: 'normal',
+            requisicaoId: '', requisicaoCodigo: '', requisicaoNome: '',
+            periodo: '', quantidade: '', custoUnitario: '',
+            fornecedor1: '', fornecedor1Valor: '', fornecedor2: '', fornecedor2Valor: '', fornecedor3: '', fornecedor3Valor: '',
+            justificativa: '', bvPct: '', credito: '', observacao: '',
+          }
     }));
   };
 
@@ -165,19 +176,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     if (!form?.pessoaId) { alert('Selecione a pessoa responsável'); return; }
     setNewTasks(prev => [...prev, {
       taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      questionId: q.id,
-      questionText: q.text,
-      briefingAnswer: display,
-      name: form.tarefa,
-      cargoId: form.cargoId,
-      cargoNome: form.cargoNome,
-      assignedTo: form.pessoaId,
-      assignedToName: form.pessoaNome,
-      valor: form.valor || '',
-      status: 'backlog',
-      createdAt: new Date(),
+      questionId: q.id, questionText: q.text, briefingAnswer: display,
+      name: form.tarefa, descricao: form.descricao || '',
+      cargoId: form.cargoId, cargoNome: form.cargoNome,
+      assignedTo: form.pessoaId, assignedToName: form.pessoaNome,
+      prazo: form.prazo || '', prioridade: form.prioridade || 'normal',
+      requisicaoId: form.requisicaoId || '', requisicaoCodigo: form.requisicaoCodigo || '', requisicaoNome: form.requisicaoNome || '',
+      periodo: form.periodo || '', quantidade: form.quantidade || '', custoUnitario: form.custoUnitario || '',
+      fornecedor1: form.fornecedor1 || '', fornecedor1Valor: form.fornecedor1Valor || '',
+      fornecedor2: form.fornecedor2 || '', fornecedor2Valor: form.fornecedor2Valor || '',
+      fornecedor3: form.fornecedor3 || '', fornecedor3Valor: form.fornecedor3Valor || '',
+      justificativa: form.justificativa || '', bvPct: form.bvPct || '',
+      credito: form.credito || '', observacao: form.observacao || '',
+      status: 'backlog', createdAt: new Date(),
     }]);
-    setTaskForms(prev => ({ ...prev, [q.id]: { open: false, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' } }));
+    setTaskForms(prev => ({ ...prev, [q.id]: { ...prev[q.id], open: false } }));
   };
 
   const gerarNovaTask = () => {
@@ -185,24 +198,118 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     if (!novaTask.pessoaId) { alert('Selecione a pessoa responsável'); return; }
     setNewTasks(prev => [...prev, {
       taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      questionId: null,
-      questionText: null,
-      briefingAnswer: null,
+      questionId: null, questionText: null, briefingAnswer: null,
       name: novaTask.tarefa,
-      cargoId: novaTask.cargoId,
-      cargoNome: novaTask.cargoNome,
-      assignedTo: novaTask.pessoaId,
-      assignedToName: novaTask.pessoaNome,
+      cargoId: novaTask.cargoId, cargoNome: novaTask.cargoNome,
+      assignedTo: novaTask.pessoaId, assignedToName: novaTask.pessoaNome,
       valor: novaTask.valor || '',
-      status: 'backlog',
-      createdAt: new Date(),
+      status: 'backlog', createdAt: new Date(),
     }]);
     setNovaTask({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
     setShowNovaTask(false);
   };
 
-  const removerNewTask = (taskId) => {
-    setNewTasks(prev => prev.filter(t => t.taskId !== taskId));
+  const removerNewTask = (taskId) => setNewTasks(prev => prev.filter(t => t.taskId !== taskId));
+
+  // Mini-form com seletor de requisição e campos dinâmicos
+  const renderMiniForm = (qId, onCriar) => {
+    const form = taskForms[qId] || {};
+    const setF = (updater) => setTaskForms(prev => ({ ...prev, [qId]: { ...prev[qId], ...(typeof updater === 'function' ? updater(prev[qId] || {}) : updater) } }));
+    const reqSel = requisitions.find(r => r.id === form.requisicaoId);
+    const campos = reqSel?.campos || [];
+    const filteredUsers = form.cargoId ? agencyUsers.filter(u => u.roleId === form.cargoId) : agencyUsers;
+    const inp = { padding: '7px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 12, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box' };
+    const lbl = { fontSize: 11, fontWeight: 600, color: '#5a6a7a', display: 'block', marginBottom: 3 };
+
+    return (
+      <div style={{ marginTop: 10, padding: 16, background: '#f8faff', borderRadius: 10, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* Seletor de requisição */}
+        <div>
+          <label style={lbl}>Tipo de Requisição</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+            {requisitions.length === 0 && <span style={{ fontSize: 12, color: '#aaa' }}>Nenhuma requisição cadastrada no admin.</span>}
+            {requisitions.map(r => (
+              <button key={r.id} onClick={() => setF({ requisicaoId: r.id, requisicaoCodigo: r.codigo, requisicaoNome: r.nome, bvPct: r.defaults?.bvPct?.toString() || '' })}
+                style={{ padding: '4px 12px', borderRadius: 20, border: `1.5px solid ${r.cor || '#667eea'}`, background: form.requisicaoId === r.id ? (r.cor || '#667eea') : 'white', color: form.requisicaoId === r.id ? 'white' : (r.cor || '#667eea'), fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+                {r.codigo}
+              </button>
+            ))}
+            {form.requisicaoId && <span style={{ fontSize: 11, color: '#667', alignSelf: 'center' }}>{reqSel?.nome}</span>}
+          </div>
+        </div>
+
+        {/* Tarefa + Descrição */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div><label style={lbl}>Tarefa *</label><input placeholder="Nome da tarefa..." value={form.tarefa || ''} onChange={e => setF({ tarefa: e.target.value })} style={inp} /></div>
+          <div><label style={lbl}>Instrução / Descrição</label><input placeholder="Detalhes para quem executa..." value={form.descricao || ''} onChange={e => setF({ descricao: e.target.value })} style={inp} /></div>
+        </div>
+
+        {/* Cargo + Pessoa + Prazo + Prioridade */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 130px 120px', gap: 10 }}>
+          <div>
+            <label style={lbl}>Cargo</label>
+            <select value={form.cargoId || ''} onChange={e => { const c = agencyRoles.find(r => r.id === e.target.value); setF({ cargoId: e.target.value, cargoNome: c?.name || '', pessoaId: '', pessoaNome: '' }); }} style={inp}>
+              <option value="">Cargo...</option>
+              {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Pessoa *</label>
+            <select value={form.pessoaId || ''} onChange={e => { const p = agencyUsers.find(u => u.id === e.target.value); setF({ pessoaId: e.target.value, pessoaNome: p?.name || '' }); }} style={inp}>
+              <option value="">Pessoa...</option>
+              {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div><label style={lbl}>Prazo</label><input type="date" value={form.prazo || ''} onChange={e => setF({ prazo: e.target.value })} style={inp} /></div>
+          <div>
+            <label style={lbl}>Prioridade</label>
+            <select value={form.prioridade || 'normal'} onChange={e => setF({ prioridade: e.target.value })} style={inp}>
+              <option value="baixa">Baixa</option>
+              <option value="normal">Normal</option>
+              <option value="alta">Alta</option>
+              <option value="urgente">Urgente</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Campos dinâmicos da requisição */}
+        {reqSel && (
+          <div style={{ borderTop: `2px solid ${reqSel.cor || '#667eea'}33`, paddingTop: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: reqSel.cor || '#667eea', marginBottom: 10, letterSpacing: 1, textTransform: 'uppercase' }}>
+              Requisição {reqSel.codigo} — {reqSel.nome}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+              {campos.includes('periodo')       && <div><label style={lbl}>Período (dias)</label><input type="number" min="0" value={form.periodo || ''} onChange={e => setF({ periodo: e.target.value })} style={inp} /></div>}
+              {campos.includes('quantidade')    && <div><label style={lbl}>Quantidade</label><input type="number" min="0" value={form.quantidade || ''} onChange={e => setF({ quantidade: e.target.value })} style={inp} /></div>}
+              {campos.includes('custoUnitario') && <div><label style={lbl}>Custo Unitário (R$)</label><input type="number" min="0" value={form.custoUnitario || ''} onChange={e => setF({ custoUnitario: e.target.value })} style={inp} /></div>}
+              {campos.includes('bv')            && <div><label style={lbl}>BV % (padrão: {reqSel.defaults?.bvPct || 0}%)</label><input type="number" min="0" max="100" value={form.bvPct || ''} onChange={e => setF({ bvPct: e.target.value })} style={inp} /></div>}
+              {campos.includes('credito')       && <div><label style={lbl}>Crédito (R$)</label><input type="number" min="0" value={form.credito || ''} onChange={e => setF({ credito: e.target.value })} style={inp} /></div>}
+            </div>
+
+            {campos.includes('fornecedores') && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ ...lbl, marginBottom: 8 }}>3 Fornecedores para Orçar</label>
+                {[1,2,3].map(n => (
+                  <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8, marginBottom: 6 }}>
+                    <input placeholder={`Fornecedor ${n} — nome`} value={form[`fornecedor${n}`] || ''} onChange={e => setF({ [`fornecedor${n}`]: e.target.value })} style={inp} />
+                    <input type="number" placeholder="Valor est." value={form[`fornecedor${n}Valor`] || ''} onChange={e => setF({ [`fornecedor${n}Valor`]: e.target.value })} style={inp} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {campos.includes('justificativa') && <div style={{ marginTop: 6 }}><label style={lbl}>Justificativa</label><input placeholder="Ex: Fornecedor parceiro..." value={form.justificativa || ''} onChange={e => setF({ justificativa: e.target.value })} style={inp} /></div>}
+            {campos.includes('observacao')    && <div style={{ marginTop: 6 }}><label style={lbl}>Observação</label><input placeholder="Observações adicionais..." value={form.observacao || ''} onChange={e => setF({ observacao: e.target.value })} style={inp} /></div>}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={() => toggleTaskForm(qId)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+          <button onClick={onCriar} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
+        </div>
+      </div>
+    );
   };
 
   const abrirEdicao = () => {
@@ -1066,39 +1173,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             })}
 
                             {/* Mini-form tarefa resposta única */}
-                            {modoEdicao && !isMultiLine && form.open && (
-                              <div style={{ marginTop: 10, padding: 14, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <input placeholder="Tarefa *" value={form.tarefa || ''} onChange={e => updateTaskForm(q.id, 'tarefa', e.target.value)}
-                                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                  <select value={form.cargoId || ''} onChange={e => updateTaskForm(q.id, 'cargoId', e.target.value)}
-                                    style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
-                                    <option value="">Cargo...</option>
-                                    {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                  </select>
-                                  <select value={form.pessoaId || ''} onChange={e => updateTaskForm(q.id, 'pessoaId', e.target.value)}
-                                    style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
-                                    <option value="">Pessoa *</option>
-                                    {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                  </select>
-                                </div>
-                                <input placeholder="Valor estimado (opcional)" value={form.valor || ''} onChange={e => updateTaskForm(q.id, 'valor', e.target.value)}
-                                  type="number" min="0"
-                                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif' }} />
-                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                  <button onClick={() => toggleTaskForm(q.id)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: 'none', color: '#666', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                                  <button onClick={() => gerarTarefa(q, answerLines?.[0]?.value || '')} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Criar Tarefa</button>
-                                </div>
-                              </div>
-                            )}
+                            {modoEdicao && !isMultiLine && form.open && renderMiniForm(q.id, () => gerarTarefa(q, answerLines?.[0]?.value || ''))}
 
                             {tasksCriadas.map(t => (
                               <div key={t.taskId} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
                                 <span style={{ fontSize: 11, color: '#667eea' }}>✓</span>
+                                {t.requisicaoCodigo && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#667eea22', color: '#667eea' }}>{t.requisicaoCodigo}</span>}
                                 <span style={{ fontSize: 12, flex: 1, color: '#2c3e50' }}>{t.name}</span>
                                 <span style={{ fontSize: 11, color: '#7b1fa2' }}>{t.cargoNome}</span>
                                 <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>
-                                {t.valor && <span style={{ fontSize: 11, color: '#27ae60' }}>R$ {t.valor}</span>}
+                                {t.prazo && <span style={{ fontSize: 10, color: '#e67e22' }}>{t.prazo}</span>}
                                 {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
                               </div>
                             ))}
