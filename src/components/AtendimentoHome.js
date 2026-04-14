@@ -802,35 +802,37 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             <option value="" style={{ background: '#111f30' }}>Todos os cargos...</option>
             {cargos.map(c => <option key={c} value={c} style={{ background: '#111f30' }}>{c}</option>)}
           </select>
-          {/* Lista de pessoas */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {filteredUsers.map(u => (
-              <button key={u.id} onClick={() => setEnvioUser(u)} style={{
-                ...base, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
-                background: envioUser?.id === u.id ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
-                borderColor: envioUser?.id === u.id ? '#00E5C4' : 'rgba(0,180,255,0.15)',
-              }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                  background: envioUser?.id === u.id ? 'rgba(0,229,196,0.3)' : 'rgba(0,180,255,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 600, color: envioUser?.id === u.id ? '#00E5C4' : '#7BAFD4'
+          {/* Lista de pessoas — só aparece após selecionar cargo ou se já houver selecionado */}
+          {(envioFilterCargo || envioUser) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {filteredUsers.map(u => (
+                <button key={u.id} onClick={() => setEnvioUser(u)} style={{
+                  ...base, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                  background: envioUser?.id === u.id ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                  borderColor: envioUser?.id === u.id ? '#00E5C4' : 'rgba(0,180,255,0.15)',
                 }}>
-                  {(u.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  <div style={{
+                    width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                    background: envioUser?.id === u.id ? 'rgba(0,229,196,0.3)' : 'rgba(0,180,255,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 600, color: envioUser?.id === u.id ? '#00E5C4' : '#7BAFD4'
+                  }}>
+                    {(u.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 13, color: envioUser?.id === u.id ? '#00E5C4' : '#E8F4FF', fontWeight: 500 }}>{u.name}</span>
+                    <span style={{ fontSize: 11, color: '#7BAFD4' }}>{u.roleName || u.areaName || ''}</span>
+                  </div>
+                  {envioUser?.id === u.id && <span style={{ marginLeft: 'auto', color: '#00E5C4', fontSize: 16 }}>✓</span>}
+                </button>
+              ))}
+              {filteredUsers.length === 0 && (
+                <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)', textAlign: 'center', padding: 12 }}>
+                  Nenhum usuário encontrado
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 13, color: envioUser?.id === u.id ? '#00E5C4' : '#E8F4FF', fontWeight: 500 }}>{u.name}</span>
-                  <span style={{ fontSize: 11, color: '#7BAFD4' }}>{u.roleName || u.areaName || ''}</span>
-                </div>
-                {envioUser?.id === u.id && <span style={{ marginLeft: 'auto', color: '#00E5C4', fontSize: 16 }}>✓</span>}
-              </button>
-            ))}
-            {filteredUsers.length === 0 && (
-              <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)', textAlign: 'center', padding: 12 }}>
-                Nenhum usuário encontrado
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       );
     }
@@ -936,6 +938,86 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       );
     }
     return <input type="text" value={val} onChange={e => handleAnswerChange(q.id, e.target.value)} style={base} placeholder="Sua resposta..." />;
+  };
+
+  // Renderiza subperguntas condicionais recursivamente
+  const renderSubQuestions = (subQuestions, parentId, depth = 0) => {
+    if (!subQuestions || subQuestions.length === 0) return null;
+    const parentVal = briefingForm.answers[parentId];
+
+    const activeSubs = subQuestions.filter(sub => {
+      if (!sub.trigger) return true;
+      if (sub.trigger === 'yes') return parentVal === 'Sim';
+      if (sub.trigger === 'no') return parentVal === 'Não';
+      // múltipla escolha: trigger é o id da opção
+      if (Array.isArray(parentVal)) return parentVal.some(v => v === sub.trigger || v === sub.trigger);
+      return parentVal === sub.trigger || (typeof parentVal === 'string' && parentVal === sub.trigger);
+    });
+
+    if (activeSubs.length === 0) return null;
+
+    const depthColors = ['#667eea', '#00bcd4', '#ff9800', '#4caf50', '#e91e63'];
+    const color = depthColors[Math.min(depth, depthColors.length - 1)];
+    const base = {
+      width: '100%', padding: '10px 14px', borderRadius: 8,
+      border: '1px solid rgba(0,180,255,0.15)',
+      background: 'rgba(255,255,255,0.04)', color: '#E8F4FF',
+      fontFamily: 'Outfit, sans-serif', fontSize: 13, outline: 'none'
+    };
+
+    return activeSubs.map(sub => {
+      const subVal = briefingForm.answers[sub.id] || '';
+      const needsOptions = sub.type === 'multiple' || sub.type === 'multiselect';
+      return (
+        <div key={sub.id} style={{ marginTop: 10, marginLeft: 16, paddingLeft: 12, borderLeft: `2px solid ${color}55` }}>
+          <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 6, fontWeight: 400 }}>
+            {sub.text}{sub.required && <span style={{ color: '#E74C3C', marginLeft: 3 }}>*</span>}
+          </div>
+          {/* Input da subpergunta */}
+          {(sub.type === 'text' || sub.type === 'number' || sub.type === 'date') && (
+            <input type={sub.type} value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} style={base} placeholder="Sua resposta..." />
+          )}
+          {sub.type === 'textarea' && (
+            <textarea value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} rows={3} style={{ ...base, resize: 'vertical' }} />
+          )}
+          {sub.type === 'yesno' && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              {['Sim', 'Não'].map(opt => (
+                <button key={opt} onClick={() => handleAnswerChange(sub.id, opt)} style={{
+                  ...base, width: 'auto', padding: '8px 20px', cursor: 'pointer',
+                  background: subVal === opt ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                  borderColor: subVal === opt ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                  color: subVal === opt ? '#00E5C4' : '#E8F4FF'
+                }}>{opt}</button>
+              ))}
+            </div>
+          )}
+          {needsOptions && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(sub.options || []).map(opt => {
+                const selected = sub.type === 'multiple' ? subVal === opt.label : (Array.isArray(subVal) ? subVal.includes(opt.label) : false);
+                return (
+                  <button key={opt.id} onClick={() => {
+                    if (sub.type === 'multiple') handleAnswerChange(sub.id, opt.label);
+                    else {
+                      const arr = Array.isArray(subVal) ? subVal : [];
+                      handleAnswerChange(sub.id, selected ? arr.filter(v => v !== opt.label) : [...arr, opt.label]);
+                    }
+                  }} style={{
+                    ...base, textAlign: 'left', cursor: 'pointer',
+                    background: selected ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.04)',
+                    borderColor: selected ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                    color: selected ? '#00E5C4' : '#E8F4FF'
+                  }}>{opt.label}</button>
+                );
+              })}
+            </div>
+          )}
+          {/* Recursivo: subperguntas das subperguntas */}
+          {sub.subQuestions && renderSubQuestions(sub.subQuestions, sub.id, depth + 1)}
+        </div>
+      );
+    });
   };
 
   // Navegação para projeto via URL
@@ -1442,6 +1524,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                                   {group[0].label || group[0].text}{group[0].required && <span className="ws-question-required">*</span>}
                                 </div>
                                 {renderQuestionInput(group[0])}
+                                {renderSubQuestions(group[0].subQuestions, group[0].id)}
                               </div>
                             )
                         )
