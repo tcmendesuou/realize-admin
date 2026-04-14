@@ -186,12 +186,14 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const [areas, setAreas] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [requisitions, setRequisitions] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     text: '', type: 'multiple',
     areaId: '', areaName: '',
     roleId: '', roleName: '',
+    requisicaoId: '', requisicaoCodigo: '',
     kanbanStage: '',
     required: true, active: true, isShared: false,
     order: 1, specialType: specialType || null
@@ -211,6 +213,8 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         areaName: editQuestion.areaName || '',
         roleId: editQuestion.roleId || '',
         roleName: editQuestion.roleName || '',
+        requisicaoId: editQuestion.requisicaoId || '',
+        requisicaoCodigo: editQuestion.requisicaoCodigo || '',
         kanbanStage: editQuestion.kanbanStage || '',
         required: editQuestion.required !== undefined ? editQuestion.required : true,
         active: editQuestion.active !== undefined ? editQuestion.active : true,
@@ -231,10 +235,11 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const loadAreasRoles = async () => {
     try {
-      const [areasSnap, rolesSnap, utSnap] = await Promise.all([
+      const [areasSnap, rolesSnap, utSnap, reqSnap] = await Promise.all([
         getDocs(collection(db, 'areas')),
         getDocs(collection(db, 'roles')),
         getDocs(collection(db, 'userTypes')),
+        getDocs(collection(db, 'requisitions')),
       ]);
       const agenciaTypeIds = utSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -244,6 +249,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
       const allRoles = rolesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setAreas(allAreas.filter(a => agenciaTypeIds.includes(a.userTypeId)).sort((a, b) => (a.order || 0) - (b.order || 0)));
       setRoles(allRoles.filter(r => agenciaTypeIds.includes(r.userTypeId)).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setRequisitions(reqSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.ativo !== false).sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '')));
     } catch (error) {
       console.error('Erro ao carregar áreas/cargos:', error);
     }
@@ -338,11 +344,34 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {!isSpecialMode && !isFixed && (
-              <label className={`qf-header-toggle ${formData.isShared ? 'qf-header-toggle--on' : ''}`}>
-                <input type="checkbox" name="isShared" checked={formData.isShared} onChange={handleChange} />
-                <span>🔗</span>
-                <span>Comum a todos os eventos</span>
-              </label>
+              <>
+                <label className={`qf-header-toggle ${formData.isShared ? 'qf-header-toggle--on' : ''}`}>
+                  <input type="checkbox" name="isShared" checked={formData.isShared} onChange={handleChange} />
+                  <span>🔗</span>
+                  <span>Comum a todos os eventos</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>Requisição padrão:</span>
+                  <select
+                    value={formData.requisicaoId}
+                    onChange={e => {
+                      const req = requisitions.find(r => r.id === e.target.value);
+                      setFormData(prev => ({ ...prev, requisicaoId: e.target.value, requisicaoCodigo: req?.codigo || '' }));
+                    }}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', background: 'white', color: '#1a2e40' }}
+                  >
+                    <option value="">Nenhuma</option>
+                    {requisitions.map(r => (
+                      <option key={r.id} value={r.id}>{r.codigo} — {r.nome}</option>
+                    ))}
+                  </select>
+                  {formData.requisicaoCodigo && (
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: requisitions.find(r => r.id === formData.requisicaoId)?.cor + '22' || '#667eea22', color: requisitions.find(r => r.id === formData.requisicaoId)?.cor || '#667eea' }}>
+                      {formData.requisicaoCodigo}
+                    </span>
+                  )}
+                </div>
+              </>
             )}
             <button className="close-btn" onClick={onClose}>×</button>
           </div>
