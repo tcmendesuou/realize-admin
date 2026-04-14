@@ -941,17 +941,27 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   };
 
   // Renderiza subperguntas condicionais recursivamente
-  const renderSubQuestions = (subQuestions, parentId, depth = 0) => {
+  const renderSubQuestions = (subQuestions, parentId, parentOptions = [], depth = 0) => {
     if (!subQuestions || subQuestions.length === 0) return null;
     const parentVal = briefingForm.answers[parentId];
 
     const activeSubs = subQuestions.filter(sub => {
       if (!sub.trigger) return true;
+      // yesno: trigger é 'yes' ou 'no', resposta é 'Sim' ou 'Não'
       if (sub.trigger === 'yes') return parentVal === 'Sim';
       if (sub.trigger === 'no') return parentVal === 'Não';
-      // múltipla escolha: trigger é o id da opção
-      if (Array.isArray(parentVal)) return parentVal.some(v => v === sub.trigger || v === sub.trigger);
-      return parentVal === sub.trigger || (typeof parentVal === 'string' && parentVal === sub.trigger);
+      // múltipla escolha: trigger é opt.id, resposta é opt.label — precisa mapear
+      if (parentOptions && parentOptions.length > 0) {
+        const triggerOpt = parentOptions.find(o => o.id === sub.trigger);
+        const triggerLabel = triggerOpt?.label;
+        if (triggerLabel) {
+          if (Array.isArray(parentVal)) return parentVal.includes(triggerLabel);
+          return parentVal === triggerLabel;
+        }
+      }
+      // texto livre: trigger é o valor digitado
+      if (Array.isArray(parentVal)) return parentVal.includes(sub.trigger);
+      return parentVal === sub.trigger;
     });
 
     if (activeSubs.length === 0) return null;
@@ -968,6 +978,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     return activeSubs.map(sub => {
       const subVal = briefingForm.answers[sub.id] || '';
       const needsOptions = sub.type === 'multiple' || sub.type === 'multiselect';
+      const uploading = uploadingFiles[sub.id];
       return (
         <div key={sub.id} style={{ marginTop: 10, marginLeft: 16, paddingLeft: 12, borderLeft: `2px solid ${color}55` }}>
           <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 6, fontWeight: 400 }}>
@@ -1013,8 +1024,28 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               })}
             </div>
           )}
-          {/* Recursivo: subperguntas das subperguntas */}
-          {sub.subQuestions && renderSubQuestions(sub.subQuestions, sub.id, depth + 1)}
+          {sub.type === 'upload' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 14px', borderRadius: 8, cursor: uploading ? 'not-allowed' : 'pointer',
+                border: '1px dashed rgba(0,229,196,0.4)', background: 'rgba(0,229,196,0.04)',
+                color: '#00E5C4', fontSize: 13, opacity: uploading ? 0.6 : 1
+              }}>
+                <span>📎</span>
+                <span>{uploading ? 'Enviando...' : 'Clique para selecionar arquivo'}</span>
+                <input type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }}
+                  disabled={uploading} onChange={e => handleUpload(sub.id, e.target.files[0])} />
+              </label>
+              {subVal && (
+                <a href={subVal} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#7BAFD4', textDecoration: 'underline' }}>
+                  ✓ Arquivo enviado — clique para visualizar
+                </a>
+              )}
+            </div>
+          )}
+          {/* Recursivo: subperguntas das subperguntas — passa as options do sub atual para resolver trigger */}
+          {sub.subQuestions && renderSubQuestions(sub.subQuestions, sub.id, sub.options || [], depth + 1)}
         </div>
       );
     });
@@ -1524,7 +1555,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                                   {group[0].label || group[0].text}{group[0].required && <span className="ws-question-required">*</span>}
                                 </div>
                                 {renderQuestionInput(group[0])}
-                                {renderSubQuestions(group[0].subQuestions, group[0].id)}
+                                {renderSubQuestions(group[0].subQuestions, group[0].id, group[0].options || [])}
                               </div>
                             )
                         )
