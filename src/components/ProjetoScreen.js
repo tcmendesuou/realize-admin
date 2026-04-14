@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export default function ProjetoScreen({ projectId, onBack, userData }) {
@@ -1779,6 +1779,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         </div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{t.name}</div>
                         {t.descricao && <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{t.descricao}</div>}
+                        {t.questionText && (
+                          <div style={{ marginTop: 8, padding: '8px 12px', background: '#f8faff', borderRadius: 8, borderLeft: '3px solid #667eea' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#667eea', marginBottom: 2, letterSpacing: 0.5 }}>PERGUNTA DO BRIEFING</div>
+                            <div style={{ fontSize: 13, color: '#334155' }}>{t.questionText}</div>
+                          </div>
+                        )}
                       </div>
                       <button onClick={() => setSelectedTask(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}>✕</button>
                     </div>
