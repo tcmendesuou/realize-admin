@@ -31,6 +31,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const canPlan = userData?.permissions?.briefing?.planning !== false;
   const canEdit = userData?.permissions?.briefing?.edit !== false;
   const [requisitions, setRequisitions] = useState([]);
+  // Collapse das cascatas de tarefas no Paper (key = questionId ou questionKey)
+  const [collapsedTasks, setCollapsedTasks] = useState({});
+  const toggleCollapse = (key) => setCollapsedTasks(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Modo editar briefing (filho)
   const [modoEditarBriefing, setModoEditarBriefing] = useState(false);
@@ -726,8 +729,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   }
 
   const tabs = isFilho ? [
-    { id: 'info',           label: 'Briefing da Feira' },
-    { id: 'briefing-geral', label: 'Briefing Geral' },
+    { id: 'info',           label: 'Paper Feira' },
+    { id: 'briefing-geral', label: 'Paper Geral' },
     { id: 'tasks',          label: `Tarefas${project.tasks?.length ? ` (${project.tasks.length})` : ''}` },
     { id: 'timeline',       label: 'Histórico' },
   ] : [
@@ -1223,6 +1226,70 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
                               </div>
                             ))}
+
+                            {/* ── CASCATA PAPER FEIRA: tarefas salvas vinculadas a esta pergunta ── */}
+                            {!modoEdicao && !modoEditarBriefing && (() => {
+                              const tarefasSalvas = (project.tasks || []).filter(t => t.questionId === q.id || t.questionId === `${q.id}__${answerLines?.[0]?.key}`);
+                              if (tarefasSalvas.length === 0) return null;
+                              const collapsed = collapsedTasks[q.id];
+                              return (
+                                <div style={{ marginTop: 8 }}>
+                                  <button onClick={() => toggleCollapse(q.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Outfit, sans-serif' }}>
+                                    <span style={{ fontSize: 10, color: '#667eea', fontWeight: 700, letterSpacing: 0.5 }}>
+                                      {collapsed ? '▶' : '▼'} PLANNER / PRÉ-PRODUÇÃO ({tarefasSalvas.length})
+                                    </span>
+                                  </button>
+                                  {!collapsed && tarefasSalvas.map(t => {
+                                    const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
+                                    const temFornecedor = t.fornecedor1 || t.fornecedor2 || t.fornecedor3;
+                                    const fornecedorEscolhido = [1,2,3].map(n => ({ nome: t[`fornecedor${n}`], valor: t[`fornecedor${n}Valor`], status: t[`fornecedor${n}Status`] })).find(f => f.status === 'recebido' && f.nome);
+                                    return (
+                                      <div key={t.taskId} style={{ marginTop: 6, marginLeft: 16, borderLeft: `2px solid ${reqColor}44`, paddingLeft: 12 }}>
+                                        {/* Linha Planner */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                          <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: reqColor, padding: '1px 7px', borderRadius: 10 }}>{t.requisicaoCodigo || 'T'}</span>
+                                          <span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{t.name}</span>
+                                          {t.descricao && <span style={{ fontSize: 12, color: '#64748b' }}>— {t.descricao}</span>}
+                                          <span style={{ fontSize: 11, color: '#7b1fa2' }}>{t.cargoNome}</span>
+                                          {t.assignedToName && <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>}
+                                          {t.prazo && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600 }}>{t.prazo}</span>}
+                                          {(t.periodo || t.quantidade || t.custoUnitario) && (
+                                            <span style={{ fontSize: 11, color: '#475569' }}>
+                                              {[t.periodo && `${t.periodo}d`, t.quantidade && `${t.quantidade}x`, t.custoUnitario && `R$${parseFloat(t.custoUnitario).toLocaleString('pt-BR',{minimumFractionDigits:2})}`].filter(Boolean).join(' · ')}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {/* Linha Pré-Produção (se tiver fornecedor ou status done) */}
+                                        {(temFornecedor || t.status === 'done' || t.status === 'completed') && (
+                                          <div style={{ marginTop: 4, marginLeft: 16, borderLeft: '2px solid #10b98144', paddingLeft: 10 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                              {fornecedorEscolhido ? (
+                                                <>
+                                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>Fornecedor:</span>
+                                                  <span style={{ fontSize: 12, color: '#1e293b' }}>{fornecedorEscolhido.nome}</span>
+                                                  {fornecedorEscolhido.valor && <span style={{ fontSize: 11, color: '#475569' }}>R$ {parseFloat(fornecedorEscolhido.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}/dia</span>}
+                                                  {t.periodo && fornecedorEscolhido.valor && (
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>
+                                                      Total: R$ {(parseFloat(t.periodo||1)*parseFloat(t.quantidade||1)*parseFloat(fornecedorEscolhido.valor)).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                                                    </span>
+                                                  )}
+                                                </>
+                                              ) : temFornecedor ? (
+                                                <span style={{ fontSize: 11, color: '#f59e0b' }}>Fornecedores em orçamento...</span>
+                                              ) : null}
+                                              {(t.status === 'done' || t.status === 'completed') && (
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#10b981', padding: '1px 8px', borderRadius: 10 }}>CONCLUÍDA</span>
+                                              )}
+                                              {t.justificativa && <span style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>{t.justificativa}</span>}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       });
@@ -1584,6 +1651,74 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <button onClick={()=>setNewTasksGeral(prev=>prev.filter(x=>x.taskId!==t.taskId))} style={{ background:'none', border:'none', color:'#e74c3c', cursor:'pointer', fontSize:13 }}>✕</button>
                             </div>
                           ))}
+
+                          {/* ── CASCATA PAPER GERAL: tarefas salvas vinculadas a esta pergunta ── */}
+                          {!modoPlanejarGeral && !modoEditarGeral && (() => {
+                            // Busca tarefas nos filhos E na mãe vinculadas a esta pergunta
+                            const tarefasFilhos = (project.tasks || []).filter(t => t.questionId === key);
+                            const tarefasMae = (parentProject.tasks || []).filter(t => t.questionId === key);
+                            const tarefasSalvas = [...tarefasMae, ...tarefasFilhos];
+                            if (tarefasSalvas.length === 0) return null;
+                            const colKey = `geral_${key}`;
+                            const collapsed = collapsedTasks[colKey] !== false; // Paper Geral começa colapsado
+                            return (
+                              <div style={{ marginTop: 8 }}>
+                                <button onClick={() => toggleCollapse(colKey)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Outfit, sans-serif' }}>
+                                  <span style={{ fontSize: 10, color: '#667eea', fontWeight: 700, letterSpacing: 0.5 }}>
+                                    {collapsed ? '▶' : '▼'} PLANNER / PRÉ-PRODUÇÃO ({tarefasSalvas.length})
+                                  </span>
+                                </button>
+                                {!collapsed && tarefasSalvas.map(t => {
+                                  const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
+                                  const temFornecedor = t.fornecedor1 || t.fornecedor2 || t.fornecedor3;
+                                  const fornecedorEscolhido = [1,2,3].map(n => ({ nome: t[`fornecedor${n}`], valor: t[`fornecedor${n}Valor`], status: t[`fornecedor${n}Status`] })).find(f => f.status === 'recebido' && f.nome);
+                                  return (
+                                    <div key={t.taskId} style={{ marginTop: 6, marginLeft: 16, borderLeft: `2px solid ${reqColor}44`, paddingLeft: 12 }}>
+                                      {/* Linha Planner */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        {t.feiraNome && <span style={{ fontSize: 10, color: '#0080FF', fontWeight: 600 }}>[{t.feiraNome}]</span>}
+                                        <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: reqColor, padding: '1px 7px', borderRadius: 10 }}>{t.requisicaoCodigo || 'T'}</span>
+                                        <span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{t.name}</span>
+                                        {t.descricao && <span style={{ fontSize: 12, color: '#64748b' }}>— {t.descricao}</span>}
+                                        {t.assignedToName && <span style={{ fontSize: 11, color: '#1976d2' }}>{t.assignedToName}</span>}
+                                        {t.prazo && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600 }}>{t.prazo}</span>}
+                                        {(t.periodo || t.quantidade || t.custoUnitario) && (
+                                          <span style={{ fontSize: 11, color: '#475569' }}>
+                                            {[t.periodo && `${t.periodo}d`, t.quantidade && `${t.quantidade}x`, t.custoUnitario && `R$${parseFloat(t.custoUnitario).toLocaleString('pt-BR',{minimumFractionDigits:2})}`].filter(Boolean).join(' · ')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* Linha Pré-Produção */}
+                                      {(temFornecedor || t.status === 'done' || t.status === 'completed') && (
+                                        <div style={{ marginTop: 4, marginLeft: 16, borderLeft: '2px solid #10b98144', paddingLeft: 10 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            {fornecedorEscolhido ? (
+                                              <>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>Fornecedor:</span>
+                                                <span style={{ fontSize: 12, color: '#1e293b' }}>{fornecedorEscolhido.nome}</span>
+                                                {fornecedorEscolhido.valor && <span style={{ fontSize: 11, color: '#475569' }}>R$ {parseFloat(fornecedorEscolhido.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}/dia</span>}
+                                                {t.periodo && fornecedorEscolhido.valor && (
+                                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>
+                                                    Total: R$ {(parseFloat(t.periodo||1)*parseFloat(t.quantidade||1)*parseFloat(fornecedorEscolhido.valor)).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                                                  </span>
+                                                )}
+                                              </>
+                                            ) : temFornecedor ? (
+                                              <span style={{ fontSize: 11, color: '#f59e0b' }}>Fornecedores em orçamento...</span>
+                                            ) : null}
+                                            {(t.status === 'done' || t.status === 'completed') && (
+                                              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#10b981', padding: '1px 8px', borderRadius: 10 }}>CONCLUÍDA</span>
+                                            )}
+                                            {t.justificativa && <span style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>{t.justificativa}</span>}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
