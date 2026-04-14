@@ -985,8 +985,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             {sub.text}{sub.required && <span style={{ color: '#E74C3C', marginLeft: 3 }}>*</span>}
           </div>
           {/* Input da subpergunta */}
-          {(sub.type === 'text' || sub.type === 'number' || sub.type === 'date') && (
-            <input type={sub.type} value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} style={base} placeholder="Sua resposta..." />
+          {(sub.type === 'text' || sub.type === 'number' || sub.type === 'date' || sub.type === 'currency') && (
+            <input type={sub.type === 'currency' ? 'number' : sub.type} value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} style={base} placeholder="Sua resposta..." />
           )}
           {sub.type === 'textarea' && (
             <textarea value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} rows={3} style={{ ...base, resize: 'vertical' }} />
@@ -1044,8 +1044,12 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               )}
             </div>
           )}
+          {/* Fallback: se nenhum tipo acima bateu, renderiza text */}
+          {!['text','number','date','currency','textarea','yesno','multiple','multiselect','upload'].includes(sub.type) && (
+            <input type="text" value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} style={base} placeholder="Sua resposta..." />
+          )}
           {/* Recursivo: subperguntas das subperguntas — passa as options do sub atual para resolver trigger */}
-          {sub.subQuestions && renderSubQuestions(sub.subQuestions, sub.id, sub.options || [], depth + 1)}
+          {sub.subQuestions && sub.subQuestions.length > 0 && renderSubQuestions(sub.subQuestions, sub.id, sub.options || [], depth + 1)}
         </div>
       );
     });
