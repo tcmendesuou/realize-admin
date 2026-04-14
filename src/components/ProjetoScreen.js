@@ -785,6 +785,125 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     });
   };
 
+  // Renderiza inputs de edição para subperguntas recursivamente no modo Editar Briefing
+  const renderSubEditInputs = (subQuestions, answers, setAnswers, parentId, parentOptions = [], depth = 0) => {
+    if (!subQuestions || subQuestions.length === 0) return null;
+    const parentVal = answers[parentId];
+
+    const activeSubs = subQuestions.filter(sub => {
+      if (!sub.trigger) return true;
+      if (sub.trigger === 'yes') return parentVal === 'Sim';
+      if (sub.trigger === 'no') return parentVal === 'Não';
+      if (parentOptions && parentOptions.length > 0) {
+        const triggerOpt = parentOptions.find(o => o.id === sub.trigger);
+        const triggerLabel = triggerOpt?.label;
+        if (triggerLabel) {
+          if (Array.isArray(parentVal)) return parentVal.includes(triggerLabel);
+          return parentVal === triggerLabel;
+        }
+      }
+      if (Array.isArray(parentVal)) return parentVal.includes(sub.trigger);
+      return parentVal === sub.trigger;
+    });
+
+    if (activeSubs.length === 0) return null;
+
+    const depthColors = ['#667eea', '#00bcd4', '#ff9800', '#4caf50', '#e91e63'];
+    const color = depthColors[Math.min(depth, depthColors.length - 1)];
+    const inp = { width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 13, fontFamily: 'Outfit, sans-serif', background: '#fff', color: '#1a2e40', outline: 'none' };
+
+    return activeSubs.map(sub => {
+      const cur = answers[sub.id];
+      const setCur = (val) => setAnswers(p => ({ ...p, [sub.id]: val }));
+
+      const renderInput = () => {
+        if (sub.type === 'yesno') return (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['Sim', 'Não'].map(opt => (
+              <button key={opt} onClick={() => setCur(opt)} style={{
+                ...inp, width: 'auto', padding: '6px 16px', cursor: 'pointer',
+                background: cur === opt ? '#e8f5e9' : '#fff',
+                borderColor: cur === opt ? '#66BB6A' : '#dde',
+                color: cur === opt ? '#27ae60' : '#666'
+              }}>{opt}</button>
+            ))}
+          </div>
+        );
+        if (sub.type === 'textarea') return (
+          <textarea value={cur || ''} onChange={e => setCur(e.target.value)}
+            rows={3} style={{ ...inp, resize: 'vertical' }} />
+        );
+        if (sub.type === 'multiple') return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(sub.options || []).map(opt => (
+              <button key={opt.id} onClick={() => setCur(opt.label)} style={{
+                ...inp, textAlign: 'left', cursor: 'pointer',
+                background: cur === opt.label ? '#e8f5e9' : '#fff',
+                borderColor: cur === opt.label ? '#66BB6A' : '#dde'
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        );
+        if (sub.type === 'multiselect') return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(sub.options || []).map(opt => {
+              const arr = Array.isArray(cur) ? cur : [];
+              const sel = arr.includes(opt.label);
+              return (
+                <button key={opt.id} onClick={() => setCur(sel ? arr.filter(v => v !== opt.label) : [...arr, opt.label])} style={{
+                  ...inp, textAlign: 'left', cursor: 'pointer',
+                  background: sel ? '#e8f5e9' : '#fff',
+                  borderColor: sel ? '#66BB6A' : '#dde'
+                }}>{opt.label}</button>
+              );
+            })}
+          </div>
+        );
+        if (sub.type === 'checklist') {
+          const items = Array.isArray(cur) ? cur : [];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6 }}>
+                  <input type="text" value={item}
+                    onChange={e => { const u = [...items]; u[i] = e.target.value; setCur(u); }}
+                    style={{ ...inp, flex: 1 }} placeholder={`Item ${i + 1}...`} />
+                  <button onClick={() => setCur(items.filter((_, idx) => idx !== i))}
+                    style={{ ...inp, width: 32, padding: 0, color: '#e74c3c', borderColor: 'rgba(231,76,60,0.3)', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+              <button onClick={() => setCur([...items, ''])}
+                style={{ ...inp, cursor: 'pointer', color: '#667eea', borderColor: 'rgba(102,126,234,0.4)', borderStyle: 'dashed', textAlign: 'left' }}>
+                + Adicionar item
+              </button>
+            </div>
+          );
+        }
+        // text, number, date, currency — fallback
+        return (
+          <input
+            type={sub.type === 'currency' || sub.type === 'number' ? 'number' : sub.type === 'date' ? 'date' : 'text'}
+            value={cur || ''}
+            onChange={e => setCur(e.target.value)}
+            style={inp} />
+        );
+      };
+
+      return (
+        <div key={sub.id} style={{ marginTop: 10, marginLeft: 16, paddingLeft: 12, borderLeft: `2px solid ${color}55` }}>
+          <div style={{ fontSize: 12, color: '#8a9bb0', marginBottom: 5, fontWeight: 500 }}>
+            {sub.text}{sub.required && <span style={{ color: '#e74c3c', marginLeft: 3 }}>*</span>}
+          </div>
+          {renderInput()}
+          {/* Recursivo */}
+          {sub.subQuestions && sub.subQuestions.length > 0 && renderSubEditInputs(
+            sub.subQuestions, answers, setAnswers, sub.id, sub.options || [], depth + 1
+          )}
+        </div>
+      );
+    });
+  };
+
   const STATUS_MAP = {
     analyzing: { label: 'EM ANÁLISE', color: '#FFA726', bg: 'rgba(255,167,38,0.15)' },
     approved:  { label: 'APROVADO',   color: '#66BB6A', bg: 'rgba(102,187,106,0.15)' },
@@ -1252,6 +1371,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {!modoEditarBriefing && q.subQuestions && q.subQuestions.length > 0 && renderSubAnswers(
                               q.subQuestions, project.answers || {}, q.id, q.options || [],
                               0, modoEdicao, newTasks, setNewTasks, taskForms, setTaskForms
+                            )}
+                            {/* Edição de subrespostas no Paper Feira */}
+                            {modoEditarBriefing && q.subQuestions && q.subQuestions.length > 0 && renderSubEditInputs(
+                              q.subQuestions, editedAnswers, setEditedAnswers, q.id, q.options || []
                             )}
                             {modoEdicao && isMultiLine && answerLines.map(line => {
                               const k = `${q.id}__${line.key}`;
@@ -1815,6 +1938,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             return renderSubAnswers(
                               qObj.subQuestions, answers, key, qObj.options || [],
                               0, modoPlanejarGeral, newTasksGeral, setNewTasksGeral, taskFormsGeral, setTaskFormsGeral
+                            );
+                          })()}
+                          {/* Edição de subrespostas no Paper Geral */}
+                          {modoEditarGeral && (() => {
+                            const qObj = allQuestions.find(q => q.id === key);
+                            if (!qObj?.subQuestions || qObj.subQuestions.length === 0) return null;
+                            return renderSubEditInputs(
+                              qObj.subQuestions, editedAnswersGeral, setEditedAnswersGeral, key, qObj.options || []
                             );
                           })()}
                         </div>
