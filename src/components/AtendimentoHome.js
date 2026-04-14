@@ -1044,8 +1044,32 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               )}
             </div>
           )}
+          {sub.type === 'checklist' && (() => {
+            const items = Array.isArray(subVal) ? subVal : [];
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {items.map((item, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="text" value={item}
+                      onChange={e => {
+                        const updated = [...items];
+                        updated[i] = e.target.value;
+                        handleAnswerChange(sub.id, updated);
+                      }}
+                      style={{ ...base, flex: 1 }} placeholder={`Item ${i + 1}...`} />
+                    <button onClick={() => handleAnswerChange(sub.id, items.filter((_, idx) => idx !== i))}
+                      style={{ ...base, width: 36, padding: 0, color: '#E74C3C', borderColor: 'rgba(231,76,60,0.3)', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                  </div>
+                ))}
+                <button onClick={() => handleAnswerChange(sub.id, [...items, ''])}
+                  style={{ ...base, cursor: 'pointer', color: '#00E5C4', borderColor: 'rgba(0,229,196,0.4)', borderStyle: 'dashed', textAlign: 'left' }}>
+                  + Adicionar item
+                </button>
+              </div>
+            );
+          })()}
           {/* Fallback: se nenhum tipo acima bateu, renderiza text */}
-          {!['text','number','date','currency','textarea','yesno','multiple','multiselect','upload'].includes(sub.type) && (
+          {!['text','number','date','currency','textarea','yesno','multiple','multiselect','upload','checklist'].includes(sub.type) && (
             <input type="text" value={subVal} onChange={e => handleAnswerChange(sub.id, e.target.value)} style={base} placeholder="Sua resposta..." />
           )}
           {/* Recursivo: subperguntas das subperguntas — passa as options do sub atual para resolver trigger */}
