@@ -14,6 +14,7 @@ import FlowBuilderWrapper from './components/FlowBuilderWrapper';
 import RoleManagement from './components/RoleManagement';
 import CompaniesManager from './components/CompaniesManager';
 import UserManagement from './components/UserManagement';
+import RequisitionManager from './components/RequisitionManager';
 import AtendimentoHome from './components/AtendimentoHome';
 import ProjetoScreen from './components/ProjetoScreen';
 import './App.css';
@@ -214,6 +215,9 @@ function App() {
             <button className={activeView === 'tasks' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tasks')}>
               <span className="nav-text">Tarefas</span>
             </button>
+            <button className={activeView === 'requisitions' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('requisitions')}>
+              <span className="nav-text">Requisições</span>
+            </button>
             <div className="nav-separator" />
             <button className={activeView === 'roles' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('roles')}>
               <span className="nav-text">Gestão de Acessos</span>
@@ -247,6 +251,7 @@ function App() {
                 {activeView === 'flows'      && 'Fluxos de Eventos'}
                 {activeView === 'questions'  && 'Banco de Perguntas'}
                 {activeView === 'tasks'      && 'Banco de Tarefas'}
+                {activeView === 'requisitions' && 'Requisições'}
                 {activeView === 'eventTypes' && 'Tipos de Eventos'}
                 {activeView === 'roles'      && 'Gestão de Acessos'}
                 {activeView === 'companies'  && 'Empresas'}
@@ -267,6 +272,7 @@ function App() {
             {activeView === 'flows'      && <FlowBuilderWrapper />}
             {activeView === 'questions'  && <QuestionList />}
             {activeView === 'tasks'      && <TaskList />}
+            {activeView === 'requisitions' && <RequisitionManager />}
             {activeView === 'eventTypes' && <EventTypesList />}
             {activeView === 'roles'      && <RoleManagement />}
             {activeView === 'companies'  && <CompaniesManager />}
