@@ -701,6 +701,90 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     return [{ key: 'single', label: null, value: getAnswerDisplay(question, answer, feiras) }];
   };
 
+  // Renderiza respostas de subperguntas recursivamente no Paper
+  const renderSubAnswers = (subQuestions, answers, parentId, parentOptions = [], depth = 0, modoEdicaoAtivo = false, newTasksArr = [], setNewTasksArr = null, taskFormsObj = {}, setTaskFormsObj = null) => {
+    if (!subQuestions || subQuestions.length === 0) return null;
+    const parentVal = answers[parentId];
+
+    const activeSubs = subQuestions.filter(sub => {
+      if (!sub.trigger) return true;
+      if (sub.trigger === 'yes') return parentVal === 'Sim';
+      if (sub.trigger === 'no') return parentVal === 'Não';
+      if (parentOptions && parentOptions.length > 0) {
+        const triggerOpt = parentOptions.find(o => o.id === sub.trigger);
+        const triggerLabel = triggerOpt?.label;
+        if (triggerLabel) {
+          if (Array.isArray(parentVal)) return parentVal.includes(triggerLabel);
+          return parentVal === triggerLabel;
+        }
+      }
+      if (Array.isArray(parentVal)) return parentVal.includes(sub.trigger);
+      return parentVal === sub.trigger;
+    });
+
+    if (activeSubs.length === 0) return null;
+
+    const depthColors = ['#667eea', '#00bcd4', '#ff9800', '#4caf50', '#e91e63'];
+    const color = depthColors[Math.min(depth, depthColors.length - 1)];
+
+    return activeSubs.map(sub => {
+      const subVal = answers[sub.id];
+      const displayVal = subVal === null || subVal === undefined || subVal === ''
+        ? 'Não respondido'
+        : Array.isArray(subVal) ? subVal.join(', ') : String(subVal);
+      const subFormKey = `sub__${sub.id}`;
+      const subForm = taskFormsObj[subFormKey] || {};
+      const subTasksCriadas = newTasksArr.filter(t => t.questionId === subFormKey);
+
+      return (
+        <div key={sub.id} style={{ marginTop: 8, marginLeft: 16, paddingLeft: 12, borderLeft: `2px solid ${color}33` }}>
+          <div style={{ fontSize: 12, color: '#8a9bb0', marginBottom: 2 }}>{sub.text}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+            <div style={{ fontSize: 13, color: '#1a2e40', fontWeight: 400, flex: 1 }}>{displayVal}</div>
+            {/* Botão Gerar Tarefa para subpergunta no modo Sessão de Planejamento */}
+            {modoEdicaoAtivo && setTaskFormsObj && (
+              <button onClick={() => setTaskFormsObj(prev => ({
+                ...prev,
+                [subFormKey]: prev[subFormKey]?.open ? { ...prev[subFormKey], open: false } : { open: true, tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', prazo: '', prioridade: 'normal', requisicaoId: '', requisicaoCodigo: '', requisicaoNome: '', periodo: '', quantidade: '', custoUnitario: '', justificativa: '', bvPct: '', credito: '', observacao: '' }
+              }))} style={{ flexShrink: 0, padding: '2px 8px', borderRadius: 5, fontSize: 10, border: '1px solid rgba(0,229,196,0.4)', background: subForm.open ? 'rgba(0,229,196,0.1)' : 'none', color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>
+                Gerar Tarefa
+              </button>
+            )}
+          </div>
+          {/* Mini-form de tarefa para subpergunta */}
+          {modoEdicaoAtivo && subForm.open && setNewTasksArr && renderMiniForm(subFormKey, () => {
+            const f = taskFormsObj[subFormKey];
+            if (!f?.tarefa) { alert('Descreva a tarefa'); return; }
+            if (!f?.pessoaId) { alert('Selecione a pessoa responsável'); return; }
+            setNewTasksArr(prev => [...prev, {
+              taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              questionId: subFormKey, questionText: sub.text, briefingAnswer: displayVal,
+              name: f.tarefa, descricao: f.descricao || '',
+              cargoId: f.cargoId, cargoNome: f.cargoNome,
+              assignedTo: f.pessoaId, assignedToName: f.pessoaNome,
+              prazo: f.prazo || '', prioridade: f.prioridade || 'normal',
+              requisicaoId: f.requisicaoId || '', requisicaoCodigo: f.requisicaoCodigo || '', requisicaoNome: f.requisicaoNome || '',
+              periodo: f.periodo || '', quantidade: f.quantidade || '', custoUnitario: f.custoUnitario || '',
+              status: 'backlog', createdAt: new Date(),
+            }]);
+            setTaskFormsObj(prev => ({ ...prev, [subFormKey]: { open: false } }));
+          })}
+          {subTasksCriadas.map(t => (
+            <div key={t.taskId} style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
+              <span style={{ fontSize: 10, color: '#667eea' }}>✓</span>
+              {t.requisicaoCodigo && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 8, background: '#667eea22', color: '#667eea' }}>{t.requisicaoCodigo}</span>}
+              <span style={{ fontSize: 11, flex: 1, color: '#2c3e50' }}>{t.name}</span>
+              <span style={{ fontSize: 10, color: '#1976d2' }}>{t.assignedToName}</span>
+              {modoEdicaoAtivo && setNewTasksArr && <button onClick={() => setNewTasksArr(prev => prev.filter(x => x.taskId !== t.taskId))} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 11 }}>✕</button>}
+            </div>
+          ))}
+          {/* Recursivo */}
+          {sub.subQuestions && sub.subQuestions.length > 0 && renderSubAnswers(sub.subQuestions, answers, sub.id, sub.options || [], depth + 1, modoEdicaoAtivo, newTasksArr, setNewTasksArr, taskFormsObj, setTaskFormsObj)}
+        </div>
+      );
+    });
+  };
+
   const STATUS_MAP = {
     analyzing: { label: 'EM ANÁLISE', color: '#FFA726', bg: 'rgba(255,167,38,0.15)' },
     approved:  { label: 'APROVADO',   color: '#66BB6A', bg: 'rgba(102,187,106,0.15)' },
@@ -1164,7 +1248,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               )}
                             </div>
 
-                            {/* Mini-forms por linha (checklist/itens múltiplos) */}
+                            {/* Subrespostas no Paper Feira */}
+                            {!modoEditarBriefing && q.subQuestions && q.subQuestions.length > 0 && renderSubAnswers(
+                              q.subQuestions, project.answers || {}, q.id, q.options || [],
+                              0, modoEdicao, newTasks, setNewTasks, taskForms, setTaskForms
+                            )}
                             {modoEdicao && isMultiLine && answerLines.map(line => {
                               const k = `${q.id}__${line.key}`;
                               const lf = taskForms[k] || {};
@@ -1717,6 +1805,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                   );
                                 })}
                               </div>
+                            );
+                          })()}
+
+                          {/* Subrespostas no Paper Geral */}
+                          {!modoEditarGeral && (() => {
+                            const qObj = allQuestions.find(q => q.id === key);
+                            if (!qObj?.subQuestions || qObj.subQuestions.length === 0) return null;
+                            return renderSubAnswers(
+                              qObj.subQuestions, answers, key, qObj.options || [],
+                              0, modoPlanejarGeral, newTasksGeral, setNewTasksGeral, taskFormsGeral, setTaskFormsGeral
                             );
                           })()}
                         </div>
