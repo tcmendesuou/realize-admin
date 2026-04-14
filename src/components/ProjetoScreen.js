@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -8,7 +9,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
-  const [taskFilterUser, setTaskFilterUser] = useState('');
+  const [searchParams] = useSearchParams();
+  const [taskFilterUser, setTaskFilterUser] = useState(searchParams.get('user') || '');
   const [selectedTask, setSelectedTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
   const [savingTask, setSavingTask] = useState(false);
@@ -50,6 +52,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [showNovaTaskGeral, setShowNovaTaskGeral] = useState(false);
   const [novaTaskGeral, setNovaTaskGeral] = useState({ tarefa: '', cargoId: '', cargoNome: '', pessoaId: '', pessoaNome: '', valor: '' });
   const [savingSessionGeral, setSavingSessionGeral] = useState(false);
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl) setActiveTab(tabFromUrl);
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -1785,52 +1792,70 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   {/* Body */}
                   <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
 
-                    {/* Infos do Planner — readonly */}
-                    {(t.periodo || t.quantidade || t.custoUnitario) && (
-                      <div style={{ background: '#f8faff', borderRadius: 10, padding: 14, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                        {t.periodo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>PERÍODO</div><div style={{ fontSize: 14, fontWeight: 600 }}>{t.periodo} dias</div></div>}
-                        {t.quantidade && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>QUANTIDADE</div><div style={{ fontSize: 14, fontWeight: 600 }}>{t.quantidade}</div></div>}
-                        {t.custoUnitario && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>CUSTO UNIT.</div><div style={{ fontSize: 14, fontWeight: 600 }}>R$ {parseFloat(t.custoUnitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
-                        {t.periodo && t.quantidade && t.custoUnitario && (
-                          <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '6px 12px' }}>
-                            <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>CUSTO TOTAL</div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>R$ {(parseFloat(t.periodo) * parseFloat(t.quantidade) * parseFloat(t.custoUnitario)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Fornecedores editáveis */}
-                    {(t.fornecedor1 || t.fornecedor2 || t.fornecedor3) && (
-                      <div>
-                        <label style={{ ...lbl, fontSize: 13 }}>Fornecedores</label>
-                        {[1,2,3].map(n => {
-                          if (!editTask[`fornecedor${n}`] && !t[`fornecedor${n}`]) return null;
-                          const status = editTask[`fornecedor${n}Status`] || '';
-                          const statusColor = status === 'recebido' ? '#16a34a' : status === 'aguardando' ? '#d97706' : '#94a3b8';
-                          return (
-                            <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px', gap: 8, marginBottom: 8 }}>
-                              <input value={editTask[`fornecedor${n}`] || ''} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}`]: e.target.value }))} placeholder={`Fornecedor ${n}`} style={inp} />
-                              <input type="number" value={editTask[`fornecedor${n}Valor`] || ''} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}Valor`]: e.target.value }))} placeholder="Valor" style={inp} />
-                              <select value={status} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}Status`]: e.target.value }))}
-                                style={{ ...inp, color: statusColor, fontWeight: status ? 600 : 400, border: `1px solid ${statusColor}66` }}>
-                                <option value="">Status...</option>
-                                <option value="aguardando">Aguardando orçamento</option>
-                                <option value="recebido">Orçamento recebido</option>
-                              </select>
+                    {/* Campos da requisição — referência */}
+                    {(() => {
+                      const reqModal = requisitions.find(r => r.id === t.requisicaoId || r.codigo === t.requisicaoCodigo);
+                      const camposReq = reqModal?.campos || [];
+                      return (
+                        <>
+                          {/* Infos do Planner — readonly */}
+                          {(t.periodo || t.quantidade || t.custoUnitario) && (
+                            <div style={{ background: '#f8faff', borderRadius: 10, padding: 14, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                              {t.periodo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>PERÍODO</div><div style={{ fontSize: 14, fontWeight: 600 }}>{t.periodo} dias</div></div>}
+                              {t.quantidade && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>QUANTIDADE</div><div style={{ fontSize: 14, fontWeight: 600 }}>{t.quantidade}</div></div>}
+                              {t.custoUnitario && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>CUSTO UNIT.</div><div style={{ fontSize: 14, fontWeight: 600 }}>R$ {parseFloat(t.custoUnitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
+                              {t.periodo && t.quantidade && t.custoUnitario && (
+                                <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '6px 12px' }}>
+                                  <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>CUSTO TOTAL</div>
+                                  <div style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>R$ {(parseFloat(t.periodo) * parseFloat(t.quantidade) * parseFloat(t.custoUnitario)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                </div>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          )}
 
-                    {/* Justificativa + Observação editáveis */}
-                    {t.justificativa !== undefined && (
-                      <div><label style={lbl}>Justificativa</label><input value={editTask.justificativa || ''} onChange={e => setEditTask(p => ({ ...p, justificativa: e.target.value }))} style={inp} /></div>
-                    )}
-                    {t.observacao !== undefined && (
-                      <div><label style={lbl}>Observação</label><input value={editTask.observacao || ''} onChange={e => setEditTask(p => ({ ...p, observacao: e.target.value }))} style={inp} /></div>
-                    )}
+                          {/* Fornecedores — sempre mostra se a requisição tem esse campo */}
+                          {(camposReq.includes('fornecedores') || t.fornecedor1 || t.fornecedor2 || t.fornecedor3) && (
+                            <div>
+                              <label style={{ ...lbl, fontSize: 13, marginBottom: 8 }}>Fornecedores</label>
+                              {[1,2,3].map(n => {
+                                const status = editTask[`fornecedor${n}Status`] || '';
+                                const statusColor = status === 'recebido' ? '#16a34a' : status === 'aguardando' ? '#d97706' : '#94a3b8';
+                                return (
+                                  <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 170px', gap: 8, marginBottom: 8 }}>
+                                    <input value={editTask[`fornecedor${n}`] || ''} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}`]: e.target.value }))} placeholder={`Fornecedor ${n} — nome`} style={inp} />
+                                    <input type="number" value={editTask[`fornecedor${n}Valor`] || ''} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}Valor`]: e.target.value }))} placeholder="Valor (R$)" style={inp} />
+                                    <select value={status} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}Status`]: e.target.value }))}
+                                      style={{ ...inp, color: statusColor, fontWeight: status ? 600 : 400, border: `1px solid ${statusColor}66` }}>
+                                      <option value="">Status...</option>
+                                      <option value="aguardando">Aguardando orçamento</option>
+                                      <option value="recebido">Orçamento recebido</option>
+                                    </select>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* BV e Crédito */}
+                          {(camposReq.includes('bv') || camposReq.includes('credito')) && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              {camposReq.includes('bv') && <div><label style={lbl}>BV %</label><input type="number" min="0" max="100" value={editTask.bvPct || ''} onChange={e => setEditTask(p => ({ ...p, bvPct: e.target.value }))} style={inp} /></div>}
+                              {camposReq.includes('credito') && <div><label style={lbl}>Crédito (R$)</label><input type="number" min="0" value={editTask.credito || ''} onChange={e => setEditTask(p => ({ ...p, credito: e.target.value }))} style={inp} /></div>}
+                            </div>
+                          )}
+
+                          {/* Justificativa */}
+                          {(camposReq.includes('justificativa') || t.justificativa) && (
+                            <div><label style={lbl}>Justificativa</label><input value={editTask.justificativa || ''} onChange={e => setEditTask(p => ({ ...p, justificativa: e.target.value }))} placeholder="Justificativa do fornecedor escolhido..." style={inp} /></div>
+                          )}
+
+                          {/* Observação */}
+                          {(camposReq.includes('observacao') || t.observacao) && (
+                            <div><label style={lbl}>Observação</label><input value={editTask.observacao || ''} onChange={e => setEditTask(p => ({ ...p, observacao: e.target.value }))} placeholder="Observações adicionais..." style={inp} /></div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {/* Briefing que gerou a tarefa */}
                     {t.briefingAnswer && (
