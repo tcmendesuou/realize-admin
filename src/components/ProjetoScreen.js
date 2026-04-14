@@ -152,7 +152,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             prazo: '', prioridade: 'normal',
             requisicaoId: '', requisicaoCodigo: '', requisicaoNome: '',
             periodo: '', quantidade: '', custoUnitario: '',
-            fornecedor1: '', fornecedor1Valor: '', fornecedor2: '', fornecedor2Valor: '', fornecedor3: '', fornecedor3Valor: '',
+            fornecedor1: '', fornecedor1Valor: '', fornecedor1Status: '',
+            fornecedor2: '', fornecedor2Valor: '', fornecedor2Status: '',
+            fornecedor3: '', fornecedor3Valor: '', fornecedor3Status: '',
             justificativa: '', bvPct: '', credito: '', observacao: '',
           }
     }));
@@ -183,7 +185,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       prazo: form.prazo || '', prioridade: form.prioridade || 'normal',
       requisicaoId: form.requisicaoId || '', requisicaoCodigo: form.requisicaoCodigo || '', requisicaoNome: form.requisicaoNome || '',
       periodo: form.periodo || '', quantidade: form.quantidade || '', custoUnitario: form.custoUnitario || '',
-      fornecedor1: form.fornecedor1 || '', fornecedor1Valor: form.fornecedor1Valor || '',
+      fornecedor1: form.fornecedor1 || '', fornecedor1Valor: form.fornecedor1Valor || '', fornecedor1Status: form.fornecedor1Status || '',
+      fornecedor2: form.fornecedor2 || '', fornecedor2Valor: form.fornecedor2Valor || '', fornecedor2Status: form.fornecedor2Status || '',
+      fornecedor3: form.fornecedor3 || '', fornecedor3Valor: form.fornecedor3Valor || '', fornecedor3Status: form.fornecedor3Status || '',
       fornecedor2: form.fornecedor2 || '', fornecedor2Valor: form.fornecedor2Valor || '',
       fornecedor3: form.fornecedor3 || '', fornecedor3Valor: form.fornecedor3Valor || '',
       justificativa: form.justificativa || '', bvPct: form.bvPct || '',
@@ -302,12 +306,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             {campos.includes('fornecedores') && (
               <div style={{ marginTop: 10 }}>
                 <label style={{ ...lbl, marginBottom: 8 }}>3 Fornecedores para Orçar</label>
-                {[1,2,3].map(n => (
-                  <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8, marginBottom: 6 }}>
-                    <input placeholder={`Fornecedor ${n} — nome`} value={form[`fornecedor${n}`] || ''} onChange={e => setF({ [`fornecedor${n}`]: e.target.value })} style={inp} />
-                    <input type="number" placeholder="Valor est." value={form[`fornecedor${n}Valor`] || ''} onChange={e => setF({ [`fornecedor${n}Valor`]: e.target.value })} style={inp} />
-                  </div>
-                ))}
+                {[1,2,3].map(n => {
+                  const status = form[`fornecedor${n}Status`] || '';
+                  const statusColor = status === 'recebido' ? '#16a34a' : status === 'aguardando' ? '#d97706' : '#94a3b8';
+                  return (
+                    <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px', gap: 8, marginBottom: 6 }}>
+                      <input placeholder={`Fornecedor ${n} — nome`} value={form[`fornecedor${n}`] || ''} onChange={e => setF({ [`fornecedor${n}`]: e.target.value })} style={inp} />
+                      <input type="number" placeholder="Valor est." value={form[`fornecedor${n}Valor`] || ''} onChange={e => setF({ [`fornecedor${n}Valor`]: e.target.value })} style={inp} />
+                      <select value={status} onChange={e => setF({ [`fornecedor${n}Status`]: e.target.value })}
+                        style={{ ...inp, color: statusColor, fontWeight: status ? 600 : 400, border: `1px solid ${statusColor}66` }}>
+                        <option value="">Status...</option>
+                        <option value="aguardando">Aguardando orçamento</option>
+                        <option value="recebido">Orçamento recebido</option>
+                      </select>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
