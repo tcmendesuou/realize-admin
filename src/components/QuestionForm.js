@@ -194,19 +194,15 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
     roleId: '', roleName: '',
     kanbanStage: '',
     required: true, active: true, isShared: false,
-    isVinculada: false,
-    triggerQuestionId: '', triggerQuestionText: '', triggerAnswer: '',
     order: 1, specialType: specialType || null
   });
 
   const [options, setOptions] = useState([]);
   const [subQuestions, setSubQuestions] = useState([]);
-  const [allQuestionsForTrigger, setAllQuestionsForTrigger] = useState([]);
   const showOptions = formData.type === 'multiple' || formData.type === 'multiselect';
 
   useEffect(() => {
     loadAreasRoles();
-    loadAllQuestionsForTrigger();
     if (isEditMode) {
       setFormData({
         text: editQuestion.text || '',
@@ -219,10 +215,6 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         required: editQuestion.required !== undefined ? editQuestion.required : true,
         active: editQuestion.active !== undefined ? editQuestion.active : true,
         isShared: editQuestion.isShared || false,
-        isVinculada: editQuestion.isVinculada || false,
-        triggerQuestionId: editQuestion.triggerQuestionId || '',
-        triggerQuestionText: editQuestion.triggerQuestionText || '',
-        triggerAnswer: editQuestion.triggerAnswer || '',
         order: editQuestion.order || 1,
         specialType: editQuestion.specialType || null
       });
@@ -236,13 +228,6 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
       loadQuestionsForOrder();
     }
   }, [isEditMode, editQuestion, specialType]);
-
-  const loadAllQuestionsForTrigger = async () => {
-    try {
-      const snap = await getDocs(collection(db, 'questions'));
-      setAllQuestionsForTrigger(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
-    } catch (e) { console.error(e); }
-  };
 
   const loadAreasRoles = async () => {
     try {
@@ -312,10 +297,6 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
         order: Number(formData.order),
         options: showOptions ? options.map(o => ({ ...o, basePrice: Number(o.basePrice), pricePerPerson: Number(o.pricePerPerson) })) : [],
         subQuestions,
-        isVinculada: formData.isVinculada || false,
-        triggerQuestionId: formData.isVinculada ? formData.triggerQuestionId : '',
-        triggerQuestionText: formData.isVinculada ? formData.triggerQuestionText : '',
-        triggerAnswer: formData.isVinculada ? formData.triggerAnswer : '',
         updatedAt: new Date()
       };
       if (isEditMode) {
@@ -459,72 +440,6 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
                 <strong>Checklist de Itens Livres</strong>
                 <small>O atendimento cria os itens na hora. Ex: "100 pães de forma", "50 ovos". Cada item pode virar uma tarefa.</small>
               </div>
-            </div>
-          )}
-
-          {/* TOGGLE VINCULADA */}
-          {!isFixed && !isSpecialMode && (
-            <label className="qf-toggle" style={formData.isVinculada ? { borderColor: '#7c3aed', background: '#f5f3ff' } : {}}>
-              <input type="checkbox" checked={formData.isVinculada}
-                onChange={e => setFormData(p => ({ ...p, isVinculada: e.target.checked, triggerQuestionId: '', triggerQuestionText: '', triggerAnswer: '' }))} />
-              <span className="qf-toggle-icon">🔗</span>
-              <span>
-                <strong style={{ color: formData.isVinculada ? '#7c3aed' : undefined }}>Pergunta Vinculada</strong>
-                <small>Aparece automaticamente quando outra pergunta atinge um gatilho específico</small>
-              </span>
-            </label>
-          )}
-
-          {/* CAMPOS DE GATILHO */}
-          {formData.isVinculada && (
-            <div style={{ background: '#f5f3ff', border: '2px solid #7c3aed', borderRadius: 10, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, marginBottom: '1rem' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed' }}>Configurar Gatilho</div>
-
-              {/* Pergunta gatilho */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Pergunta que dispara esta</label>
-                <select value={formData.triggerQuestionId} onChange={e => {
-                  const q = allQuestionsForTrigger.find(q => q.id === e.target.value);
-                  setFormData(p => ({ ...p, triggerQuestionId: e.target.value, triggerQuestionText: q?.text || '', triggerAnswer: '' }));
-                }}>
-                  <option value="">Selecione a pergunta gatilho...</option>
-                  {allQuestionsForTrigger.filter(q => q.id !== (editQuestion?.id)).map(q => (
-                    <option key={q.id} value={q.id}>{q.text}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Resposta gatilho */}
-              {formData.triggerQuestionId && (() => {
-                const tq = allQuestionsForTrigger.find(q => q.id === formData.triggerQuestionId);
-                if (!tq) return null;
-                if (tq.type === 'yesno') return (
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label>Quando a resposta for</label>
-                    <select value={formData.triggerAnswer} onChange={e => setFormData(p => ({ ...p, triggerAnswer: e.target.value }))}>
-                      <option value="">Selecione...</option>
-                      <option value="Sim">Sim</option>
-                      <option value="Não">Não</option>
-                    </select>
-                  </div>
-                );
-                if (tq.type === 'multiple' || tq.type === 'multiselect') return (
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label>Quando a resposta for</label>
-                    <select value={formData.triggerAnswer} onChange={e => setFormData(p => ({ ...p, triggerAnswer: e.target.value }))}>
-                      <option value="">Selecione...</option>
-                      {(tq.options || []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
-                    </select>
-                  </div>
-                );
-                return (
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label>Quando a resposta contiver</label>
-                    <input type="text" placeholder="Ex: sim, 5, qualquer texto..." value={formData.triggerAnswer}
-                      onChange={e => setFormData(p => ({ ...p, triggerAnswer: e.target.value }))} />
-                  </div>
-                );
-              })()}
             </div>
           )}
 
