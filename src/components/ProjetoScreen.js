@@ -8,6 +8,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
+  const [taskFilterUser, setTaskFilterUser] = useState('');
+  const [selectedTask, setSelectedTask] = useState(null); // tarefa aberta no modal
 
   // Sessão de planejamento
   const [modoEdicao, setModoEdicao] = useState(false);
@@ -1629,32 +1631,228 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           )}
 
           {/* ── TAREFAS ── */}
-          {activeTab === 'tasks' && (
-            <div className="ps-card">
-              <div className="ps-card-title">Tarefas do Projeto</div>
-              {project.tasks && project.tasks.length > 0 ? (
-                project.tasks.map((task, i) => (
-                  <div key={i} className="ps-task-item">
-                    <div className="ps-task-num">{i + 1}</div>
-                    <div className="ps-task-body">
-                      <div className="ps-task-name">{task.name}</div>
-                      {task.description && <div className="ps-task-desc">{task.description}</div>}
-                      <div className="ps-task-footer">
-                        <span className={`ps-task-status ${task.status || 'pending'}`}>
-                          {task.status === 'completed' ? 'Concluída' : task.status === 'in_progress' ? 'Em Andamento' : 'Pendente'}
-                        </span>
-                        {task.assignedToName && (
-                          <span className="ps-task-assigned">Responsável: {task.assignedToName}</span>
-                        )}
-                      </div>
+          {activeTab === 'tasks' && (() => {
+            const allTasks = project.tasks || [];
+            const filteredTasks = taskFilterUser ? allTasks.filter(t => t.assignedTo === taskFilterUser) : allTasks;
+
+            // Agrupar por requisição
+            const grupos = {};
+            const semReq = [];
+            filteredTasks.forEach(t => {
+              if (t.requisicaoCodigo) {
+                const key = t.requisicaoCodigo;
+                if (!grupos[key]) grupos[key] = { codigo: t.requisicaoCodigo, nome: t.requisicaoNome, tasks: [] };
+                grupos[key].tasks.push(t);
+              } else {
+                semReq.push(t);
+              }
+            });
+
+            const STATUS_TASK = {
+              backlog:     { label: 'Pendente',     color: '#64748b', bg: 'rgba(100,116,139,0.1)' },
+              todo:        { label: 'A Fazer',      color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
+              in_progress: { label: 'Em Andamento', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)'  },
+              done:        { label: 'Concluída',    color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
+              completed:   { label: 'Concluída',    color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
+            };
+
+            const TaskCard = ({ t }) => {
+              const st = STATUS_TASK[t.status] || STATUS_TASK.backlog;
+              const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
+              return (
+                <div onClick={() => setSelectedTask(t)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f2f5', background: 'white', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 6 }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#c7d2fe'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#f0f2f5'}>
+                  {t.requisicaoCodigo && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: reqColor + '22', color: reqColor, flexShrink: 0 }}>{t.requisicaoCodigo}</span>}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      {t.assignedToName && <span>{t.assignedToName}</span>}
+                      {t.prazo && <span style={{ marginLeft: 8, color: '#f59e0b' }}>Prazo: {t.prazo}</span>}
+                      {t.prioridade === 'urgente' && <span style={{ marginLeft: 8, color: '#ef4444', fontWeight: 600 }}>URGENTE</span>}
+                      {t.prioridade === 'alta' && <span style={{ marginLeft: 8, color: '#f97316' }}>Alta</span>}
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="ps-empty">Nenhuma tarefa atribuída ainda</div>
-              )}
-            </div>
-          )}
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12, background: st.bg, color: st.color, flexShrink: 0 }}>{st.label}</span>
+                  <span style={{ fontSize: 16, color: '#cbd5e1', flexShrink: 0 }}>›</span>
+                </div>
+              );
+            };
+
+            const gruposList = Object.values(grupos).sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+            return (
+              <div className="ps-card">
+                {/* Header com filtro */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div className="ps-card-title" style={{ margin: 0 }}>Tarefas do Projeto ({filteredTasks.length})</div>
+                  <select value={taskFilterUser} onChange={e => setTaskFilterUser(e.target.value)}
+                    style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, color: '#475569', fontFamily: 'Outfit, sans-serif', background: 'white' }}>
+                    <option value="">Todos os responsáveis</option>
+                    {[...new Map(allTasks.filter(t => t.assignedTo).map(t => [t.assignedTo, t])).values()].map(t => (
+                      <option key={t.assignedTo} value={t.assignedTo}>{t.assignedToName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {filteredTasks.length === 0 ? (
+                  <div className="ps-empty">Nenhuma tarefa encontrada</div>
+                ) : (
+                  <>
+                    {gruposList.map(g => (
+                      <div key={g.codigo} style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid #f1f5f9' }}>
+                          Requisição {g.codigo} — {g.nome} ({g.tasks.length})
+                        </div>
+                        {g.tasks.map((t, i) => <TaskCard key={t.taskId || i} t={t} />)}
+                      </div>
+                    ))}
+                    {semReq.length > 0 && (
+                      <div style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid #f1f5f9' }}>
+                          Outras tarefas ({semReq.length})
+                        </div>
+                        {semReq.map((t, i) => <TaskCard key={t.taskId || i} t={t} />)}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ── TASK MODAL ── */}
+          {selectedTask && (() => {
+            const t = selectedTask;
+            const [editTask, setEditTask] = React.useState({ ...t });
+            const [saving, setSaving] = React.useState(false);
+            const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
+            const PRIORIDADE_COLOR = { baixa: '#94a3b8', normal: '#64748b', alta: '#f97316', urgente: '#ef4444' };
+            const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box' };
+            const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
+
+            const handleConcluir = async () => {
+              if (!window.confirm('Marcar esta tarefa como concluída?')) return;
+              setSaving(true);
+              try {
+                const updatedTasks = (project.tasks || []).map(tk =>
+                  tk.taskId === t.taskId ? { ...tk, ...editTask, status: 'done', completedAt: new Date() } : tk
+                );
+                await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, updatedAt: serverTimestamp() });
+                setSelectedTask(null);
+              } catch (e) { console.error(e); alert('Erro ao salvar.'); }
+              finally { setSaving(false); }
+            };
+
+            const handleSalvar = async () => {
+              setSaving(true);
+              try {
+                const updatedTasks = (project.tasks || []).map(tk =>
+                  tk.taskId === t.taskId ? { ...tk, ...editTask } : tk
+                );
+                await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, updatedAt: serverTimestamp() });
+                setSelectedTask(null);
+              } catch (e) { console.error(e); alert('Erro ao salvar.'); }
+              finally { setSaving(false); }
+            };
+
+            return (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                onClick={() => setSelectedTask(null)}>
+                <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 680, maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+                  onClick={e => e.stopPropagation()}>
+
+                  {/* Header */}
+                  <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          {t.requisicaoCodigo && <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: reqColor + '22', color: reqColor }}>{t.requisicaoCodigo} — {t.requisicaoNome}</span>}
+                          {t.prioridade && t.prioridade !== 'normal' && <span style={{ fontSize: 11, fontWeight: 700, color: PRIORIDADE_COLOR[t.prioridade] }}>{t.prioridade.toUpperCase()}</span>}
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{t.name}</div>
+                        {t.descricao && <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{t.descricao}</div>}
+                      </div>
+                      <button onClick={() => setSelectedTask(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}>✕</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 12, color: '#64748b' }}>
+                      {t.assignedToName && <span>Responsável: <strong>{t.assignedToName}</strong></span>}
+                      {t.cargoNome && <span>Cargo: <strong>{t.cargoNome}</strong></span>}
+                      {t.prazo && <span>Prazo: <strong style={{ color: '#f59e0b' }}>{t.prazo}</strong></span>}
+                    </div>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+
+                    {/* Infos do Planner — readonly */}
+                    {(t.periodo || t.quantidade || t.custoUnitario) && (
+                      <div style={{ background: '#f8faff', borderRadius: 10, padding: 14, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                        {t.periodo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>PERÍODO</div><div style={{ fontSize: 14, fontWeight: 600 }}>{t.periodo} dias</div></div>}
+                        {t.quantidade && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>QUANTIDADE</div><div style={{ fontSize: 14, fontWeight: 600 }}>{t.quantidade}</div></div>}
+                        {t.custoUnitario && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>CUSTO UNIT.</div><div style={{ fontSize: 14, fontWeight: 600 }}>R$ {parseFloat(t.custoUnitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
+                        {t.periodo && t.quantidade && t.custoUnitario && (
+                          <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '6px 12px' }}>
+                            <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>CUSTO TOTAL</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>R$ {(parseFloat(t.periodo) * parseFloat(t.quantidade) * parseFloat(t.custoUnitario)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fornecedores editáveis */}
+                    {(t.fornecedor1 || t.fornecedor2 || t.fornecedor3) && (
+                      <div>
+                        <label style={{ ...lbl, fontSize: 13 }}>Fornecedores</label>
+                        {[1,2,3].map(n => {
+                          if (!editTask[`fornecedor${n}`] && !t[`fornecedor${n}`]) return null;
+                          const status = editTask[`fornecedor${n}Status`] || '';
+                          const statusColor = status === 'recebido' ? '#16a34a' : status === 'aguardando' ? '#d97706' : '#94a3b8';
+                          return (
+                            <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 160px', gap: 8, marginBottom: 8 }}>
+                              <input value={editTask[`fornecedor${n}`] || ''} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}`]: e.target.value }))} placeholder={`Fornecedor ${n}`} style={inp} />
+                              <input type="number" value={editTask[`fornecedor${n}Valor`] || ''} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}Valor`]: e.target.value }))} placeholder="Valor" style={inp} />
+                              <select value={status} onChange={e => setEditTask(p => ({ ...p, [`fornecedor${n}Status`]: e.target.value }))}
+                                style={{ ...inp, color: statusColor, fontWeight: status ? 600 : 400, border: `1px solid ${statusColor}66` }}>
+                                <option value="">Status...</option>
+                                <option value="aguardando">Aguardando orçamento</option>
+                                <option value="recebido">Orçamento recebido</option>
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Justificativa + Observação editáveis */}
+                    {t.justificativa !== undefined && (
+                      <div><label style={lbl}>Justificativa</label><input value={editTask.justificativa || ''} onChange={e => setEditTask(p => ({ ...p, justificativa: e.target.value }))} style={inp} /></div>
+                    )}
+                    {t.observacao !== undefined && (
+                      <div><label style={lbl}>Observação</label><input value={editTask.observacao || ''} onChange={e => setEditTask(p => ({ ...p, observacao: e.target.value }))} style={inp} /></div>
+                    )}
+
+                    {/* Briefing que gerou a tarefa */}
+                    {t.briefingAnswer && (
+                      <div style={{ background: '#fffbeb', borderRadius: 8, padding: 12, borderLeft: '3px solid #f59e0b' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>RESPOSTA DO BRIEFING</div>
+                        <div style={{ fontSize: 13, color: '#78350f' }}>{t.briefingAnswer}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 10 }}>
+                    <button onClick={() => setSelectedTask(null)} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Fechar</button>
+                    <button onClick={handleSalvar} disabled={saving} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#f0f3ff', color: '#667eea', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Salvar Rascunho</button>
+                    <button onClick={handleConcluir} disabled={saving || t.status === 'done' || t.status === 'completed'} style={{ flex: 1, padding: '10px 20px', borderRadius: 8, border: 'none', background: t.status === 'done' || t.status === 'completed' ? '#d1fae5' : 'linear-gradient(135deg,#10b981,#059669)', color: t.status === 'done' || t.status === 'completed' ? '#10b981' : 'white', fontSize: 14, cursor: t.status === 'done' || t.status === 'completed' ? 'default' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+                      {saving ? 'Salvando...' : t.status === 'done' || t.status === 'completed' ? 'Concluída' : 'Marcar como Concluída'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── HISTÓRICO ── */}
           {activeTab === 'timeline' && (
