@@ -36,10 +36,7 @@ const FIXED_BLOCK_FIELDS = {
   ],
   'fixed-block-envio': [
     { id: 'fixed-envio',      label: 'Encaminhar para',    type: 'fixed-envio' },
-  ],
-  'fixed-block-reuniao': [
-    { id: 'fixed-reuniao',    label: 'Reunião',             type: 'fixed-reuniao' },
-  ],
+  ]
 };
 
 export default function AtendimentoHome({ user, userData, onLogout }) {
@@ -174,9 +171,18 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
       for (const item of items.sort((a, b) => a.order - b.order)) {
         if (item.itemType === 'fixed-block') {
-          // Expande os campos do bloco fixo como perguntas virtuais
-          const fields = FIXED_BLOCK_FIELDS[item.itemId] || [];
-          fields.forEach(f => result.push({ ...f, isFixedBlockField: true }));
+          // Bloco de reunião pode ter id dinâmico — mapeia para fixed-block-reuniao
+          const blockKey = item.itemId.startsWith('fixed-block-reuniao')
+            ? 'fixed-block-reuniao'
+            : item.itemId;
+          const fields = FIXED_BLOCK_FIELDS[blockKey] || [];
+          fields.forEach(f => result.push({
+            ...f,
+            // Para reunião, usa o itemId dinâmico como id único para salvar separado
+            id: item.itemId.startsWith('fixed-block-reuniao') ? item.itemId : f.id,
+            label: item.label || f.label,
+            isFixedBlockField: true,
+          }));
         } else if (item.itemType === 'question') {
           // Pergunta normal do Firestore
           const allQSnap = await getDocs(collection(db, 'questions'));

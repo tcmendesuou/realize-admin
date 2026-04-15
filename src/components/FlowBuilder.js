@@ -93,6 +93,11 @@ function FlowBuilder({ eventType, onClose }) {
           .map(flowItem => {
             // Verificar primeiro nos blocos fixos
             if (flowItem.itemType === 'fixed-block') {
+              // Bloco de reunião pode ter id dinâmico (fixed-block-reuniao-timestamp)
+              if (flowItem.itemId.startsWith('fixed-block-reuniao')) {
+                const base = FIXED_BLOCKS.find(b => b.id === 'fixed-block-reuniao');
+                return base ? { ...base, id: flowItem.itemId, text: flowItem.label || base.text } : undefined;
+              }
               return FIXED_BLOCKS.find(b => b.id === flowItem.itemId);
             }
             return allItems.find(item =>
@@ -115,6 +120,13 @@ function FlowBuilder({ eventType, onClose }) {
   };
 
   const addToFlow = (item) => {
+    // Bloco de Reunião pode ser adicionado múltiplas vezes — cria cópia com id único
+    if (item.id === 'fixed-block-reuniao') {
+      const count = flowItems.filter(i => i.id.startsWith('fixed-block-reuniao')).length;
+      const newItem = { ...item, id: `fixed-block-reuniao-${Date.now()}`, text: `Reunião ${count + 1}` };
+      setFlowItems([...flowItems, newItem]);
+      return;
+    }
     const alreadyInFlow = flowItems.find(i => i.id === item.id && i.itemType === item.itemType);
     if (alreadyInFlow) {
       alert('Este item já está no fluxo!');
@@ -167,6 +179,7 @@ function FlowBuilder({ eventType, onClose }) {
         items: flowItems.map((item, index) => ({
           itemId: item.id,
           itemType: item.itemType,
+          label: item.text, // preserva "Reunião 1", "Reunião 2", etc.
           order: index + 1
         })),
         updatedAt: new Date()
