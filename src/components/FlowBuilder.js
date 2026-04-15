@@ -28,6 +28,15 @@ const FIXED_BLOCKS = [
       { label: 'Encaminhar para', type: 'fixed-envio' },
     ],
   },
+  {
+    id: 'fixed-block-reuniao',
+    itemType: 'fixed-block',
+    text: 'Reunião',
+    description: 'Tipo de reunião, data, hora, sala e participantes por cargo',
+    fields: [
+      { label: 'Reunião', type: 'fixed-reuniao' },
+    ],
+  },
 ];
 
 function FlowBuilder({ eventType, onClose }) {
