@@ -33,9 +33,10 @@ const QUESTION_TYPES = [
   { value: 'fixed-attendant',   label: '⚙ Atendimento (Fixa)', fixed: true },
   { value: 'fixed-date',        label: '⚙ Data do Evento (Fixa)', fixed: true },
   { value: 'fixed-events',      label: '⚙ Múltiplos Eventos (Fixa)', fixed: true },
+  { value: 'fixed-reuniao',     label: '⚙ Reunião (Fixa)', fixed: true },
 ];
 
-const FIXED_TYPES = ['fixed-client', 'fixed-responsible', 'fixed-attendant', 'fixed-date', 'fixed-events'];
+const FIXED_TYPES = ['fixed-client', 'fixed-responsible', 'fixed-attendant', 'fixed-date', 'fixed-events', 'fixed-reuniao'];
 const isFixedType = (type) => FIXED_TYPES.includes(type);
 
 const newSubQuestion = (trigger = '') => ({
@@ -447,6 +448,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
               {formData.type === 'fixed-attendant' && <><span>🎯</span><span>Preenchido automaticamente com o <strong>atendimento logado</strong> (editável)</span></>}
               {formData.type === 'fixed-date' && <><span>📅</span><span>Preenchido automaticamente com a <strong>data de hoje</strong> (editável)</span></>}
               {formData.type === 'fixed-events' && <><span>✂️</span><span>Define <strong>quantos eventos</strong> o briefing vai gerar — abre boxes de nome, local e data para cada um</span></>}
+              {formData.type === 'fixed-reuniao' && <><span>📅</span><span>Bloco de <strong>agendamento de reunião</strong> — tipo, data, hora, sala e participantes por cargo</span></>}
             </div>
           )}
 
