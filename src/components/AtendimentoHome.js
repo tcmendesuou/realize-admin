@@ -124,7 +124,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             });
           }
           (budget.tasks || []).forEach(task => {
-            if (task.type !== 'planejamento' && (task.assignedTo === userId || task.roleId === userRoleId)) {
+            if (task.type !== 'planejamento' && task.status !== 'blocked' && (task.assignedTo === userId || task.roleId === userRoleId)) {
               tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
             }
           });

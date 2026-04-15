@@ -427,13 +427,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     setSavingSession(true);
     try {
       const existingTasks = project.tasks || [];
-      const updatedTasks = [...existingTasks, ...newTasks];
+      // Tarefas salvas pelo Planner ficam bloqueadas até o avanço de etapa
+      const tasksToSave = newTasks.map(t => ({ ...t, status: 'blocked' }));
+      const updatedTasks = [...existingTasks, ...tasksToSave];
       await updateDoc(doc(db, 'budgets', projectId), {
         tasks: updatedTasks,
         updatedAt: new Date(),
         timeline: [...(project.timeline || []), {
           action: 'planning_session',
-          description: `Sessão de planejamento: ${newTasks.length} tarefa(s) criada(s) por ${userData?.name || 'Planner'}`,
+          description: `Sessão de planejamento: ${newTasks.length} tarefa(s) criada(s) por ${userData?.name || 'Planner'} (aguardando liberação)`,
           userId: userData?.id,
           userName: userData?.name,
           timestamp: new Date()
@@ -443,7 +445,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setNewTasks([]);
       setModoEdicao(false);
       setTaskForms({});
-      alert(`✓ Sessão salva! ${newTasks.length} tarefa(s) enviada(s).`);
+      alert(`✓ Sessão salva! ${newTasks.length} tarefa(s) criada(s) — aguardando liberação na próxima etapa.`);
     } catch (err) {
       console.error('Erro ao salvar sessão:', err);
       alert('Erro ao salvar. Tente novamente.');
@@ -1664,14 +1666,20 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const handleAvancarEtapa = async () => {
                         if (isLast) return;
                         const nextStage = STEPS[currentIdx + 1];
-                        if (!window.confirm(`Avançar para "${nextStage.label}"?`)) return;
+                        if (!window.confirm(`Avançar para "${nextStage.label}"?\n\nIsso vai liberar todas as tarefas bloqueadas para os responsáveis.`)) return;
                         try {
+                          // Desbloqueia todas as tarefas com status 'blocked'
+                          const updatedTasks = (project.tasks || []).map(t =>
+                            t.status === 'blocked' ? { ...t, status: 'backlog', unlockedAt: new Date(), unlockedBy: userData?.name } : t
+                          );
+                          const blockedCount = (project.tasks || []).filter(t => t.status === 'blocked').length;
                           await updateDoc(doc(db, 'budgets', projectId), {
                             jobStage: nextStage.id,
+                            tasks: updatedTasks,
                             updatedAt: new Date(),
                             timeline: [...(project.timeline || []), {
                               action: 'stage_advanced',
-                              description: `Etapa avançada para "${nextStage.label}" por ${userData?.name || 'Usuário'}`,
+                              description: `Etapa avançada para "${nextStage.label}" por ${userData?.name || 'Usuário'}${blockedCount > 0 ? ` — ${blockedCount} tarefa(s) liberada(s)` : ''}`,
                               userId: userData?.id,
                               userName: userData?.name,
                               timestamp: new Date(),
@@ -2149,6 +2157,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             });
 
             const STATUS_TASK = {
+              blocked:     { label: 'Aguardando',   color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
               backlog:     { label: 'Pendente',     color: '#64748b', bg: 'rgba(100,116,139,0.1)' },
               todo:        { label: 'A Fazer',      color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
               in_progress: { label: 'Em Andamento', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)'  },
