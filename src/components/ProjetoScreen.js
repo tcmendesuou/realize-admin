@@ -34,6 +34,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   // Collapse das cascatas de tarefas no Paper (key = questionId ou questionKey)
   const [collapsedTasks, setCollapsedTasks] = useState({});
   const toggleCollapse = (key) => setCollapsedTasks(prev => ({ ...prev, [key]: !prev[key] }));
+  // Cronograma
+  const [savingCronograma, setSavingCronograma] = useState(false);
 
   // Modo editar briefing (filho)
   const [modoEditarBriefing, setModoEditarBriefing] = useState(false);
@@ -936,7 +938,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const tabs = isFilho ? [
     { id: 'info',           label: 'Paper Feira' },
     { id: 'briefing-geral', label: 'Paper Geral' },
-    { id: 'tasks',          label: `Tarefas${project.tasks?.length ? ` (${project.tasks.length})` : ''}` },
+    { id: 'cronograma',     label: 'Cronograma' },
+    { id: 'tasks',          label: `Tarefas${project.tasks?.filter(t => t.status !== 'blocked').length ? ` (${project.tasks.filter(t => t.status !== 'blocked').length})` : ''}` },
     { id: 'timeline',       label: 'Histórico' },
   ] : [
     { id: 'info',     label: 'Visão Geral' },
@@ -2137,6 +2140,104 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               )}
             </div>
           )}
+
+          {/* ── CRONOGRAMA ── */}
+          {activeTab === 'cronograma' && (() => {
+            const ETAPAS = [
+              { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',         desc: 'Documento de briefing no sistema e reunião de briefing com todas as áreas.' },
+              { id: 'cronograma',           num: 2,  label: 'Cronograma',             area: 'Atendimento',         desc: 'Documento de cronograma do job, compartilhado com todas as áreas.' },
+              { id: 'kickoff',              num: 3,  label: 'Kick-off',               area: 'Todas as áreas',      desc: 'Trabalho em equipe para iniciar o job. Reunião inicial com todos os envolvidos.' },
+              { id: 'paper',                num: 4,  label: 'Paper',                  area: 'Planejamento',        desc: 'Reunião para compartilhar o documento de Paper e direcionar áreas.' },
+              { id: 'planilha_inicial',     num: 5,  label: 'Planilha Inicial',       area: 'Produção',            desc: 'A partir do Paper, a Produção desenha um primeiro estudo de orçamento.' },
+              { id: 'apresentacao_interna', num: 6,  label: 'Apresentação Interna',   area: 'Atendimento',         desc: 'Reunião com todas as áreas para repassar o job e planilha antes da apresentação.' },
+              { id: 'apresentacao_cliente', num: 7,  label: 'Apresentação Cliente',   area: 'Atendimento',         desc: 'Idealmente com a participação de todas as áreas.' },
+              { id: 'ajustes',              num: 8,  label: 'Ajustes',                area: 'Atendimento',         desc: 'Reunião para compartilhar os ajustes solicitados para todas as áreas.' },
+              { id: 'aprovacao',            num: 9,  label: 'Aprovação',              area: 'Atendimento',         desc: 'Compartilhar com todas as áreas a aprovação formal do projeto pelo cliente.' },
+              { id: 'finalizacoes',         num: 10, label: 'Finalizações',           area: 'Criação + Produção',  desc: 'Preparação de todos os detalhamentos técnicos e artes finais do projeto.' },
+              { id: 'caderno_artes',        num: 11, label: 'Caderno de Artes',       area: 'Criação + Produção',  desc: 'Documento com todas as artes finais e imagens finalizadas para início da produção.' },
+              { id: 'book_producao',        num: 12, label: 'Book de Produção',       area: 'Produção',            desc: 'Documento Book do Projeto com todas as informações do job.' },
+              { id: 'passadao_interno',     num: 13, label: 'Passadão Interno',       area: 'Atend. + Produção',   desc: 'Reunião final com todas as áreas para repassar o projeto e o Book do Projeto.' },
+              { id: 'producao',             num: 14, label: 'Produção',               area: 'Produção + Arquit.',  desc: 'Processo de produção supervisionado com relatório de montagem / produção diário.' },
+              { id: 'entrega_job',          num: 15, label: 'Entrega do Job',         area: 'Produção',            desc: 'Produção prepara o TM para Atendimento compartilhar com cliente.' },
+              { id: 'fechamento_financeiro',num: 16, label: 'Fechamento Financeiro',  area: 'Produção + Financ.',  desc: 'Entrega das prestações de contas, planilhas extras e relatórios de despesas.' },
+              { id: 'reuniao_encerramento', num: 17, label: 'Reunião Encerramento',   area: 'Atend. + Produção',   desc: 'Reunião com todas as áreas para compartilhar o Relatório final e aprendizados.' },
+              { id: 'relatorio_cliente',    num: 18, label: 'Relatório Cliente',      area: 'Atendimento',         desc: 'Reunião para compartilhar os ajustes solicitados para todas as áreas.' },
+            ];
+
+            const currentStage = project.jobStage || 'briefing';
+            const currentIdx = ETAPAS.findIndex(e => e.id === currentStage);
+            const cronograma = project.cronograma || {}; // { [etapaId]: { data, obs } }
+
+            const handleSaveCronograma = async (etapaId, field, value) => {
+              const updated = {
+                ...cronograma,
+                [etapaId]: { ...(cronograma[etapaId] || {}), [field]: value }
+              };
+              try {
+                await updateDoc(doc(db, 'budgets', projectId), { cronograma: updated, updatedAt: new Date() });
+              } catch (e) { console.error(e); }
+            };
+
+            const inp = { padding: '5px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', background: 'white', color: '#1a2e40', outline: 'none' };
+
+            return (
+              <div className="ps-card">
+                <div className="ps-card-title">Cronograma do Job</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {ETAPAS.map((etapa, i) => {
+                    const isDone = i < currentIdx;
+                    const isActive = i === currentIdx;
+                    const etapaData = cronograma[etapa.id] || {};
+                    const dotColor = isDone ? '#10b981' : isActive ? '#0080FF' : '#cbd5e1';
+                    const labelColor = isDone ? '#10b981' : isActive ? '#0080FF' : '#94a3b8';
+                    return (
+                      <div key={etapa.id} style={{ display: 'flex', gap: 16, paddingBottom: 20, position: 'relative' }}>
+                        {/* Linha vertical conectora */}
+                        {i < ETAPAS.length - 1 && (
+                          <div style={{ position: 'absolute', left: 15, top: 28, bottom: 0, width: 1, background: isDone ? '#10b98133' : '#e2e8f0' }} />
+                        )}
+                        {/* Bolinha + número */}
+                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: isDone ? '#10b981' : isActive ? '#0080FF' : '#f1f5f9', border: `2px solid ${dotColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: isDone || isActive ? 'white' : '#94a3b8', zIndex: 1 }}>
+                            {isDone ? '✓' : etapa.num}
+                          </div>
+                        </div>
+                        {/* Conteúdo */}
+                        <div style={{ flex: 1, paddingTop: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: isDone ? '#10b981' : isActive ? '#0080FF' : '#1a2e40' }}>{etapa.label}</span>
+                            <span style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>{etapa.area}</span>
+                            {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: '#0080FF', background: 'rgba(0,128,255,0.1)', padding: '2px 8px', borderRadius: 10 }}>ETAPA ATUAL</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.desc}</div>
+                          {/* Campos editáveis — data e observação */}
+                          {(canEdit || canPlan) && (
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                                <input type="date" defaultValue={etapaData.data || ''} onBlur={e => handleSaveCronograma(etapa.id, 'data', e.target.value)} style={inp} />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>OBS</span>
+                                <input type="text" defaultValue={etapaData.obs || ''} onBlur={e => handleSaveCronograma(etapa.id, 'obs', e.target.value)} placeholder="Observação..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+                              </div>
+                            </div>
+                          )}
+                          {/* Readonly para quem não pode editar */}
+                          {!canEdit && !canPlan && (etapaData.data || etapaData.obs) && (
+                            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#475569' }}>
+                              {etapaData.data && <span>{etapaData.data}</span>}
+                              {etapaData.obs && <span style={{ color: '#94a3b8' }}>{etapaData.obs}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── TAREFAS ── */}
           {activeTab === 'tasks' && (() => {
