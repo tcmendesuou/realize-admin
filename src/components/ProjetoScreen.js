@@ -969,7 +969,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           display: flex; align-items: center; gap: 12px;
         }
         .ps-topbar-name { font-size: 15px; font-weight: 400; color: #E8F4FF; }
-        .ps-topbar-num { font-size: 12px; color: rgba(123,175,212,0.5); }
+        .ps-topbar-num { font-size: 12px; color: rgba(200,225,245,0.75); }
         .ps-status-pill {
           padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; letter-spacing: 1px;
         }
@@ -987,8 +987,52 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           border-bottom: 1px solid rgba(0,180,255,0.08);
         }
         .ps-hero-title { font-size: 26px; font-weight: 300; color: #E8F4FF; margin-bottom: 6px; }
-        .ps-hero-meta { display: flex; gap: 20px; font-size: 13px; color: #7BAFD4; margin-bottom: 20px; flex-wrap: wrap; }
+        .ps-hero-meta { display: flex; gap: 20px; font-size: 13px; color: #7BAFD4; margin-bottom: 12px; flex-wrap: wrap; }
         .ps-hero-meta span { display: flex; align-items: center; gap: 5px; }
+
+        /* HERO INFOS DA FEIRA */
+        .ps-hero-infos {
+          display: flex; gap: 28px; flex-wrap: wrap;
+          padding: 14px 0 18px; border-top: 1px solid rgba(0,180,255,0.08);
+          margin-bottom: 0;
+        }
+        .ps-hero-info-item { display: flex; flex-direction: column; gap: 2px; }
+        .ps-hero-info-label { font-size: 9px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(123,175,212,0.5); }
+        .ps-hero-info-value { font-size: 13px; color: #E8F4FF; font-weight: 400; }
+
+        /* TIMELINE VERTICAL */
+        .ps-timeline-side {
+          width: 200px; flex-shrink: 0;
+          background: white; border-radius: 12px;
+          padding: 20px 16px;
+          border: 1px solid #e8eaed;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+          align-self: flex-start;
+          position: sticky; top: 76px;
+        }
+        .ps-timeline-side-title {
+          font-size: 9px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+          color: #00E5C4; margin-bottom: 16px;
+        }
+        .ps-timeline-step {
+          display: flex; align-items: flex-start; gap: 10px;
+          position: relative; padding-bottom: 16px;
+        }
+        .ps-timeline-step:last-child { padding-bottom: 0; }
+        .ps-timeline-step:not(:last-child)::before {
+          content: ''; position: absolute; left: 7px; top: 16px;
+          width: 1px; bottom: 0; background: #e8eaed;
+        }
+        .ps-timeline-dot {
+          width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
+          border: 2px solid #e8eaed; background: white; z-index: 1;
+          margin-top: 1px;
+        }
+        .ps-timeline-dot.done { background: #10b981; border-color: #10b981; }
+        .ps-timeline-dot.active { background: #0080FF; border-color: #0080FF; box-shadow: 0 0 0 3px rgba(0,128,255,0.15); }
+        .ps-timeline-step-label { font-size: 12px; color: #8a9bb0; line-height: 1.4; }
+        .ps-timeline-step-label.active { color: #0080FF; font-weight: 600; }
+        .ps-timeline-step-label.done { color: #10b981; }
 
         /* TABS */
         .ps-tabs { display: flex; gap: 4px; }
@@ -1143,6 +1187,56 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             {project.assignedToName && <span>Atendimento: {project.assignedToName}</span>}
           </div>
 
+          {/* Infos da feira no hero — só para filhos */}
+          {isFilho && project.feiraData && (
+            <div className="ps-hero-infos">
+              {project.companyName && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label">Empresa</span>
+                  <span className="ps-hero-info-value">{project.companyName}</span>
+                </div>
+              )}
+              {project.clientName && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label">Responsável</span>
+                  <span className="ps-hero-info-value">{project.clientName}</span>
+                </div>
+              )}
+              {project.feiraData.local && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label">Local</span>
+                  <span className="ps-hero-info-value">{project.feiraData.local}</span>
+                </div>
+              )}
+              {(project.feiraData.dataInicio || project.feiraData.dataFim) && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label">Período</span>
+                  <span className="ps-hero-info-value">
+                    {project.feiraData.dataInicio || '—'}{project.feiraData.dataFim ? ` até ${project.feiraData.dataFim}` : ''}
+                  </span>
+                </div>
+              )}
+              {project.assignedToName && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label">Atendimento</span>
+                  <span className="ps-hero-info-value">{project.assignedToName}</span>
+                </div>
+              )}
+              {project.plannerUserName && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label">Planner</span>
+                  <span className="ps-hero-info-value">{project.plannerUserName}</span>
+                </div>
+              )}
+              {project.feiraData.isMae && (
+                <div className="ps-hero-info-item">
+                  <span className="ps-hero-info-label" style={{ color: '#00E5C4' }}>Feira Mãe</span>
+                  <span className="ps-hero-info-value" style={{ color: '#00E5C4' }}>Sim</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TABS */}
           <div className="ps-tabs">
             {tabs.map(t => (
@@ -1163,44 +1257,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               {/* FILHO: Briefing completo desta feira */}
               {isFilho ? (
                 <>
-                  {/* Cabeçalho da feira */}
-                  {project.feiraData && (
-                    <div className="ps-card" style={{ borderLeft: '3px solid #00E5C4' }}>
-                      <div className="ps-info-grid">
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Empresa</span>
-                          <span className="ps-info-value">{project.companyName || '—'}</span>
-                        </div>
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Responsável</span>
-                          <span className="ps-info-value">{project.clientName || '—'}</span>
-                        </div>
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Local</span>
-                          <span className="ps-info-value">{project.feiraData.local || '—'}</span>
-                        </div>
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Período</span>
-                          <span className="ps-info-value">
-                            {project.feiraData.dataInicio || '—'}{project.feiraData.dataFim ? ` até ${project.feiraData.dataFim}` : ''}
-                          </span>
-                        </div>
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Atendimento</span>
-                          <span className="ps-info-value">{project.assignedToName || '—'}</span>
-                        </div>
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Planner</span>
-                          <span className="ps-info-value">{project.plannerUserName || '—'}</span>
-                        </div>
-                        {project.feiraData.isMae && (
-                          <div className="ps-info-item">
-                            <span className="ps-info-label" style={{ color: '#00E5C4' }}>⭐ Feira Mãe</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Layout: briefing à esquerda, timeline à direita */}
+                  <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+
+                    {/* Coluna esquerda — briefing */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
 
                   {/* Respostas filtradas por feiraIndex */}
                   <div className="ps-card">
@@ -1589,10 +1650,45 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
                       </div>
                     ))}
-                  </div>
+                    </div>{/* fim coluna esquerda */}
+
+                    {/* Coluna direita — Timeline do job */}
+                    {(() => {
+                      const STEPS = [
+                        { id: 'orcamento',   label: 'Orçamento' },
+                        { id: 'cliente',     label: 'Cliente' },
+                        { id: 'kickoff',     label: 'Kick Off' },
+                        { id: 'criacao',     label: 'Criação' },
+                        { id: 'producao',    label: 'Produção' },
+                        { id: 'montagem',    label: 'Montagem' },
+                        { id: 'evento',      label: 'Evento' },
+                        { id: 'desmontagem', label: 'Desmontagem' },
+                        { id: 'fechamento',  label: 'Fechamento' },
+                      ];
+                      const currentStage = project.kanbanStage || 'orcamento';
+                      const currentIdx = STEPS.findIndex(s => s.id === currentStage);
+                      return (
+                        <div className="ps-timeline-side">
+                          <div className="ps-timeline-side-title">Etapa do Job</div>
+                          {STEPS.map((step, i) => {
+                            const isDone = i < currentIdx;
+                            const isActive = i === currentIdx;
+                            return (
+                              <div key={step.id} className="ps-timeline-step">
+                                <div className={`ps-timeline-dot${isDone ? ' done' : isActive ? ' active' : ''}`} />
+                                <span className={`ps-timeline-step-label${isDone ? ' done' : isActive ? ' active' : ''}`}>
+                                  {step.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                  </div>{/* fim layout dois colunas */}
                 </>
               ) : (
-                // MÃE: visão geral normal
                 <>
                   {/* Cliente */}
                   <div className="ps-card">
