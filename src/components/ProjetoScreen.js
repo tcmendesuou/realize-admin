@@ -9,144 +9,168 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
   const [filtCargo, setFiltCargo] = React.useState('');
   const cargos = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
   const usersFiltered = filtCargo ? agencyUsers.filter(u => u.roleName === filtCargo) : agencyUsers;
+  const isAgendada = !!etapaData.agendada && !isConcluida;
 
   return (
-    <div style={{ display: 'flex', gap: 16, paddingBottom: 24, position: 'relative' }}>
-      {!isLast && <div style={{ position: 'absolute', left: 15, top: 30, bottom: 0, width: 1, background: isConcluida ? '#10b98133' : '#e2e8f0' }} />}
-      {/* Bolinha */}
-      <div style={{ flexShrink: 0 }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: dotBg, border: `2px solid ${dotBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: isConcluida || isActive ? 'white' : '#94a3b8', zIndex: 1 }}>
-          {isConcluida ? '✓' : etapa.num}
-        </div>
-      </div>
-      {/* Conteúdo */}
-      <div style={{ flex: 1, paddingTop: 4 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: labelCol }}>{etapa.label}</span>
-          <span style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>{etapa.area}</span>
-          {isReuniao && <span style={{ fontSize: 10, fontWeight: 700, color: '#667eea', background: 'rgba(102,126,234,0.1)', padding: '2px 8px', borderRadius: 10 }}>REUNIÃO</span>}
-          {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', background: 'rgba(255,167,38,0.1)', padding: '2px 8px', borderRadius: 10 }}>ETAPA ATUAL</span>}
-          {isConcluida && <span style={{ fontSize: 10, color: '#10b981' }}>Concluída por {etapaData.concluidaPor}</span>}
-        </div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.desc}</div>
-        {/* Trigger */}
-        {etapa.trigger && !isConcluida && (
-          <div style={{ fontSize: 11, color: '#667eea', background: 'rgba(102,126,234,0.06)', borderRadius: 6, padding: '5px 10px', marginBottom: 10, borderLeft: '2px solid #667eea' }}>
-            {etapa.trigger}
+    <>
+      <div style={{ display: 'flex', gap: 16, padding: '20px 0', position: 'relative' }}>
+        {/* Bolinha */}
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: dotBg, border: `2px solid ${dotBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: isConcluida || isActive ? 'white' : '#94a3b8', zIndex: 1 }}>
+            {isConcluida ? '✓' : etapa.num}
           </div>
-        )}
-        {/* Campos editáveis */}
-        {!isConcluida && (canEdit || canPlan) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {isReuniao ? (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                  <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>HORA</span>
-                  <input type="time" defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>SALA</span>
-                  <input type="text" defaultValue={etapaData.sala || ''} onBlur={e => saveCrono(etapa.id, 'sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...inp, minWidth: 120 }} />
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                  <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>OBS</span>
-                  <input type="text" defaultValue={etapaData.obs || ''} onBlur={e => saveCrono(etapa.id, 'obs', e.target.value)} placeholder="Observação..." style={{ ...inp, minWidth: 160 }} />
-                </div>
-              </div>
-            )}
-            {/* Participantes — reuniões exceto briefing */}
-            {isReuniao && !etapa.semParticipantes && (
-              <div>
-                {participantes.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
-                    {participantes.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 20, background: 'rgba(102,126,234,0.1)', border: '1px solid rgba(102,126,234,0.2)', fontSize: 11 }}>
-                        <span style={{ color: '#667eea' }}>{p.name}</span>
-                        <span style={{ color: '#94a3b8', fontSize: 10 }}>{p.roleName}</span>
-                        <button onClick={() => toggleParticipante(etapa.id, p)} style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button onClick={() => setShowPart(s => !s)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  {showPart ? 'Fechar' : '+ Participantes'}
-                </button>
-                {showPart && (
-                  <div style={{ marginTop: 8, padding: 10, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff' }}>
-                    <select value={filtCargo} onChange={e => setFiltCargo(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 6 }}>
-                      <option value="">Todos os cargos...</option>
-                      {cargos.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
-                      {usersFiltered.map(u => {
-                        const sel = participantes.some(p => p.id === u.id);
-                        return (
-                          <button key={u.id} onClick={() => toggleParticipante(etapa.id, u)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, border: `1px solid ${sel ? '#667eea' : '#e2e8f0'}`, background: sel ? 'rgba(102,126,234,0.08)' : 'white', cursor: 'pointer', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
-                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: sel ? '#667eea' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: sel ? 'white' : '#94a3b8', flexShrink: 0 }}>
-                              {(u.name || '').split(' ').map(n => n[0]).join('').slice(0, 2)}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 12, color: sel ? '#667eea' : '#1a2e40', fontWeight: sel ? 600 : 400 }}>{u.name}</div>
-                              <div style={{ fontSize: 10, color: '#94a3b8' }}>{u.roleName}</div>
-                            </div>
-                            {sel && <span style={{ marginLeft: 'auto', color: '#667eea', fontSize: 12 }}>✓</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {/* Botões Agendar / Concluída */}
-            <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
-              {isReuniao ? (
-                <>
-                  <button onClick={() => agendarReuniao(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid rgba(0,128,255,0.4)', background: 'none', color: '#0080FF', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                    Agendar
-                  </button>
-                  <button onClick={() => concluirEtapa(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                    Concluída
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => concluirEtapa(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  Marcar como Concluída
-                </button>
-              )}
+        </div>
+        {/* Conteúdo */}
+        <div style={{ flex: 1, paddingTop: 4 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: labelCol }}>{etapa.label}</span>
+            <span style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>{etapa.area}</span>
+            {isReuniao && <span style={{ fontSize: 10, fontWeight: 700, color: '#667eea', background: 'rgba(102,126,234,0.1)', padding: '2px 8px', borderRadius: 10 }}>REUNIÃO</span>}
+            {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', background: 'rgba(255,167,38,0.1)', padding: '2px 8px', borderRadius: 10 }}>ETAPA ATUAL</span>}
+            {isAgendada && <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', background: 'rgba(255,167,38,0.1)', padding: '2px 8px', borderRadius: 10 }}>AGENDADA</span>}
+            {isConcluida && <span style={{ fontSize: 10, color: '#10b981' }}>Concluída por {etapaData.concluidaPor}</span>}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.desc}</div>
+
+          {/* Trigger */}
+          {etapa.trigger && !isConcluida && (
+            <div style={{ fontSize: 11, color: '#667eea', background: 'rgba(102,126,234,0.06)', borderRadius: 6, padding: '5px 10px', marginBottom: 10, borderLeft: '2px solid #667eea' }}>
+              {etapa.trigger}
             </div>
-          </div>
-        )}
-        {/* Info readonly quando concluída */}
-        {isConcluida && (
-          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#94a3b8', flexWrap: 'wrap' }}>
-            {etapaData.data && <span>{etapaData.data}</span>}
-            {etapaData.hora && <span>{etapaData.hora}</span>}
-            {etapaData.sala && <span>{etapaData.sala}</span>}
-            {etapaData.obs && <span>{etapaData.obs}</span>}
-          </div>
-        )}
-        {isConcluida && participantes.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-            {participantes.map(p => (
-              <span key={p.id} style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '2px 7px', borderRadius: 10 }}>{p.name}</span>
-            ))}
-          </div>
-        )}
+          )}
+
+          {/* Campos editáveis */}
+          {!isConcluida && (canEdit || canPlan) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {isReuniao ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                    <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>HORA</span>
+                    <input type="time" defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>SALA</span>
+                    <input type="text" defaultValue={etapaData.sala || ''} onBlur={e => saveCrono(etapa.id, 'sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...inp, minWidth: 120 }} />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                    <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>OBS</span>
+                    <input type="text" defaultValue={etapaData.obs || ''} onBlur={e => saveCrono(etapa.id, 'obs', e.target.value)} placeholder="Observação..." style={{ ...inp, minWidth: 160 }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Participantes — reuniões exceto briefing */}
+              {isReuniao && !etapa.semParticipantes && (
+                <div>
+                  {participantes.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                      {participantes.map(p => (
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 20, background: 'rgba(102,126,234,0.1)', border: '1px solid rgba(102,126,234,0.2)', fontSize: 11 }}>
+                          <span style={{ color: '#667eea' }}>{p.name}</span>
+                          <span style={{ color: '#94a3b8', fontSize: 10 }}>{p.roleName}</span>
+                          <button onClick={() => toggleParticipante(etapa.id, p)} style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={() => setShowPart(s => !s)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    {showPart ? 'Fechar' : '+ Participantes'}
+                  </button>
+                  {showPart && (
+                    <div style={{ marginTop: 8, padding: 10, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff' }}>
+                      <select value={filtCargo} onChange={e => setFiltCargo(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 6 }}>
+                        <option value="">Todos os cargos...</option>
+                        {cargos.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+                        {usersFiltered.map(u => {
+                          const sel = participantes.some(p => p.id === u.id);
+                          return (
+                            <button key={u.id} onClick={() => toggleParticipante(etapa.id, u)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, border: `1px solid ${sel ? '#667eea' : '#e2e8f0'}`, background: sel ? 'rgba(102,126,234,0.08)' : 'white', cursor: 'pointer', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
+                              <div style={{ width: 24, height: 24, borderRadius: '50%', background: sel ? '#667eea' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: sel ? 'white' : '#94a3b8', flexShrink: 0 }}>
+                                {(u.name || '').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 12, color: sel ? '#667eea' : '#1a2e40', fontWeight: sel ? 600 : 400 }}>{u.name}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>{u.roleName}</div>
+                              </div>
+                              {sel && <span style={{ marginLeft: 'auto', color: '#667eea', fontSize: 12 }}>✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Botões */}
+              <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
+                {isReuniao ? (
+                  <>
+                    {/* Agendar — laranja vazio → laranja preenchido após agendar */}
+                    <button onClick={() => agendarReuniao(etapa.id)} style={{
+                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                      border: 'none',
+                      background: isAgendada ? '#FFA726' : 'none',
+                      color: isAgendada ? 'white' : '#FFA726',
+                      outline: isAgendada ? 'none' : '1.5px solid #FFA726',
+                    }}>
+                      {isAgendada ? 'Agendada' : 'Agendar'}
+                    </button>
+                    {/* Concluída — fundo branco letra verde → verde preenchido ao concluir */}
+                    <button onClick={() => concluirEtapa(etapa.id)} style={{
+                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                      border: '1.5px solid #10b981', background: 'white', color: '#10b981',
+                    }}>
+                      Concluída
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => concluirEtapa(etapa.id)} style={{
+                    padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                    border: '1.5px solid #10b981', background: 'white', color: '#10b981',
+                  }}>
+                    Marcar como Concluída
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Info readonly quando concluída */}
+          {isConcluida && (
+            <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#94a3b8', flexWrap: 'wrap' }}>
+              {etapaData.data && <span>{etapaData.data}</span>}
+              {etapaData.hora && <span>{etapaData.hora}</span>}
+              {etapaData.sala && <span>{etapaData.sala}</span>}
+              {etapaData.obs && <span>{etapaData.obs}</span>}
+            </div>
+          )}
+          {isConcluida && participantes.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {participantes.map(p => (
+                <span key={p.id} style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '2px 7px', borderRadius: 10 }}>{p.name}</span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+      {/* Linha separadora entre etapas */}
+      {!isLast && <div style={{ height: 1, background: '#f0f2f5', margin: '0 0 0 46px' }} />}
+    </>
   );
 }
 
