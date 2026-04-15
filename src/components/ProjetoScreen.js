@@ -1650,6 +1650,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         {modoEdicao && <button onClick={() => removerNewTask(t.taskId)} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>✕</button>}
                       </div>
                     ))}
+                    </div>{/* fim ps-card */}
                     </div>{/* fim coluna esquerda */}
 
                     {/* Coluna direita — Timeline do job */}
