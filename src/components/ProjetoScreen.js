@@ -4,7 +4,7 @@ import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot, 
 import { db } from '../firebase/config';
 
 // ── Componente de etapa do cronograma (precisa de state local para toggle participantes) ──
-function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa, agendarReuniao }) {
+function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa, agendarReuniao, handleReprovado }) {
   const [showPart, setShowPart] = React.useState(false);
   const [filtCargo, setFiltCargo] = React.useState('');
   const cargos = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
@@ -58,7 +58,14 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
                     <input type="text" defaultValue={etapaData.sala || ''} onBlur={e => saveCrono(etapa.id, 'sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...inp, minWidth: 120 }} />
                   </div>
                 </div>
-              ) : (
+              ) : etapa.tipo === 'aprovacao' ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                    <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                  </div>
+                </div>
+              ) : etapa.tipo === 'conclusao' ? null : (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
@@ -120,7 +127,6 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
               <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
                 {isReuniao ? (
                   <>
-                    {/* Agendar — laranja vazio → laranja preenchido após agendar */}
                     <button onClick={() => agendarReuniao(etapa.id)} style={{
                       padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
                       border: 'none',
@@ -130,12 +136,26 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
                     }}>
                       {isAgendada ? 'Agendada' : 'Agendar'}
                     </button>
-                    {/* Concluída — fundo branco letra verde → verde preenchido ao concluir */}
                     <button onClick={() => concluirEtapa(etapa.id)} style={{
                       padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
                       border: '1.5px solid #10b981', background: 'white', color: '#10b981',
                     }}>
                       Concluída
+                    </button>
+                  </>
+                ) : etapa.tipo === 'aprovacao' ? (
+                  <>
+                    <button onClick={() => handleReprovado()} style={{
+                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                      border: '1.5px solid #ef4444', background: 'white', color: '#ef4444',
+                    }}>
+                      Reprovado
+                    </button>
+                    <button onClick={() => concluirEtapa(etapa.id)} style={{
+                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                      border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white',
+                    }}>
+                      Aprovado
                     </button>
                   </>
                 ) : (
@@ -2366,6 +2386,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 } else if (etapaId === 'paper') {
                   updates.jobStage = 'planilha_inicial';
                   timelineEntry.description = 'Reunião de Paper concluída — equipe alinhada';
+                } else if (etapaId === 'aprovacao') {
+                  // Aprovação: desbloqueia tarefas blocked restantes + avança
+                  const unlockedTasks = (project.tasks || []).map(t =>
+                    t.status === 'blocked' ? { ...t, status: 'backlog', unlockedAt: new Date(), unlockedBy: userData?.name } : t
+                  );
+                  const blockedCount = (project.tasks || []).filter(t => t.status === 'blocked').length;
+                  updates.tasks = unlockedTasks;
+                  updates.jobStage = 'finalizacoes';
+                  updates.status = 'approved';
+                  timelineEntry.description = `Job aprovado pelo cliente — ${blockedCount} tarefa(s) liberada(s)`;
                 } else {
                   timelineEntry.description = `Etapa concluída por ${userData?.name}`;
                 }
@@ -2373,6 +2403,24 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 updates.timeline = [...(project.timeline || []), timelineEntry];
                 await updateDoc(doc(db, 'budgets', projectId), updates);
               } catch (e) { console.error(e); alert('Erro ao concluir etapa.'); }
+            };
+
+            const handleReprovado = async () => {
+              if (!window.confirm('Marcar como Reprovado? Todos os cards de tarefas pendentes serão eliminados e registrado no histórico.')) return;
+              try {
+                const tasksLimpas = (project.tasks || []).filter(t => t.status !== 'blocked' && t.status !== 'backlog');
+                await updateDoc(doc(db, 'budgets', projectId), {
+                  cronograma: { ...cronograma, aprovacao: { ...(cronograma.aprovacao || {}), reprovada: true, reprovadaEm: new Date(), reprovadaPor: userData?.name } },
+                  tasks: tasksLimpas,
+                  status: 'rejected',
+                  updatedAt: new Date(),
+                  timeline: [...(project.timeline || []), {
+                    action: 'reprovado',
+                    description: `Job reprovado pelo cliente — ${(project.tasks || []).filter(t => t.status === 'blocked' || t.status === 'backlog').length} tarefa(s) eliminada(s)`,
+                    userId: userData?.id, userName: userData?.name, timestamp: new Date(),
+                  }]
+                });
+              } catch (e) { console.error(e); alert('Erro ao reprovar.'); }
             };
 
             const agendarReuniao = async (etapaId) => {
@@ -2428,11 +2476,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               { id: 'reuniao_briefing',     num: 2,  label: 'Reunião de Briefing',    area: 'Atendimento',        tipo: 'reuniao', desc: 'Objetivo: decidir se vamos participar do job e criar o cronograma.', trigger: 'Ao concluir: Planner recebe tarefa "Criar Paper" no To Do' },
               { id: 'kickoff',              num: 3,  label: 'Reunião Kick-off',       area: 'Todas as áreas',     tipo: 'reuniao', desc: 'Objetivo: Planner apresenta o planejamento completo. Equipe aprova ou pede ajustes.', trigger: 'Ao concluir: todas as tarefas são liberadas para os responsáveis' },
               { id: 'paper',                num: 4,  label: 'Reunião de Paper',       area: 'Planejamento',       tipo: 'reuniao', desc: 'Objetivo: Planner explica o job para as áreas. Todo mundo já tem seus cards no To Do.', trigger: 'Ao concluir: avança para Planilha Inicial' },
-              { id: 'planilha_inicial',     num: 5,  label: 'Planilha Inicial',       area: 'Produção',           tipo: 'etapa',   desc: 'A partir do Paper, a Produção desenha um primeiro estudo de orçamento.' },
-              { id: 'apresentacao_interna', num: 6,  label: 'Apresentação Interna',   area: 'Atendimento',        tipo: 'etapa',   desc: 'Reunião com todas as áreas para repassar o job e planilha antes da apresentação.' },
-              { id: 'apresentacao_cliente', num: 7,  label: 'Apresentação Cliente',   area: 'Atendimento',        tipo: 'etapa',   desc: 'Idealmente com a participação de todas as áreas.' },
-              { id: 'ajustes',              num: 8,  label: 'Ajustes',                area: 'Atendimento',        tipo: 'etapa',   desc: 'Reunião para compartilhar os ajustes solicitados para todas as áreas.' },
-              { id: 'aprovacao',            num: 9,  label: 'Aprovação',              area: 'Atendimento',        tipo: 'etapa',   desc: 'Aprovação formal do projeto pelo cliente.' },
+              { id: 'planilha_inicial',     num: 5,  label: 'Planilha Inicial',       area: 'Produção',           tipo: 'conclusao', desc: 'A partir do Paper, a Produção desenha um primeiro estudo de orçamento.' },
+              { id: 'apresentacao_interna', num: 6,  label: 'Reunião Pré-Apresentação', area: 'Atendimento',        tipo: 'reuniao',   desc: 'Reunião com todas as áreas para repassar o job e planilha antes da apresentação.' },
+              { id: 'apresentacao_cliente', num: 7,  label: 'Reunião de Apresentação',  area: 'Atendimento',        tipo: 'reuniao',   desc: 'Apresentação do planejamento para o cliente. Idealmente com a participação de todas as áreas.' },
+              { id: 'ajustes',              num: 8,  label: 'Reunião de Ajustes',       area: 'Atendimento',        tipo: 'reuniao',   desc: 'Reunião para compartilhar os ajustes solicitados pelo cliente para todas as áreas.' },
+              { id: 'aprovacao',            num: 9,  label: 'Aprovação',                area: 'Atendimento',        tipo: 'aprovacao', desc: 'Aprovação formal do projeto pelo cliente.' },
               { id: 'finalizacoes',         num: 10, label: 'Finalizações',           area: 'Criação + Produção', tipo: 'etapa',   desc: 'Preparação de todos os detalhamentos técnicos e artes finais.' },
               { id: 'caderno_artes',        num: 11, label: 'Caderno de Artes',       area: 'Criação + Produção', tipo: 'etapa',   desc: 'Documento com todas as artes finais para início da produção.' },
               { id: 'book_producao',        num: 12, label: 'Book de Produção',       area: 'Produção',           tipo: 'etapa',   desc: 'Documento Book do Projeto com todas as informações do job.' },
@@ -2471,7 +2519,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         isLast={i === ETAPAS.length - 1}
                         canEdit={canEdit} canPlan={canPlan}
                         agencyUsers={agencyUsers} inp={inp}
-                        saveCrono={saveCrono} toggleParticipante={toggleParticipanteCrono} concluirEtapa={concluirEtapa} agendarReuniao={agendarReuniao}
+                        saveCrono={saveCrono} toggleParticipante={toggleParticipanteCrono} concluirEtapa={concluirEtapa} agendarReuniao={agendarReuniao} handleReprovado={handleReprovado}
                       />
                     );
                   })}
