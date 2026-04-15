@@ -3,6 +3,142 @@ import { useSearchParams } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
+// ── Componente de etapa do cronograma (precisa de state local para toggle participantes) ──
+function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa }) {
+  const [showPart, setShowPart] = React.useState(false);
+  const [filtCargo, setFiltCargo] = React.useState('');
+  const cargos = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
+  const usersFiltered = filtCargo ? agencyUsers.filter(u => u.roleName === filtCargo) : agencyUsers;
+
+  return (
+    <div style={{ display: 'flex', gap: 16, paddingBottom: 24, position: 'relative' }}>
+      {!isLast && <div style={{ position: 'absolute', left: 15, top: 30, bottom: 0, width: 1, background: isConcluida ? '#10b98133' : '#e2e8f0' }} />}
+      {/* Bolinha */}
+      <div style={{ flexShrink: 0 }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: dotBg, border: `2px solid ${dotBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: isConcluida || isActive ? 'white' : '#94a3b8', zIndex: 1 }}>
+          {isConcluida ? '✓' : etapa.num}
+        </div>
+      </div>
+      {/* Conteúdo */}
+      <div style={{ flex: 1, paddingTop: 4 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: labelCol }}>{etapa.label}</span>
+          <span style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>{etapa.area}</span>
+          {isReuniao && <span style={{ fontSize: 10, fontWeight: 700, color: '#667eea', background: 'rgba(102,126,234,0.1)', padding: '2px 8px', borderRadius: 10 }}>REUNIÃO</span>}
+          {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', background: 'rgba(255,167,38,0.1)', padding: '2px 8px', borderRadius: 10 }}>ETAPA ATUAL</span>}
+          {isConcluida && <span style={{ fontSize: 10, color: '#10b981' }}>Concluída por {etapaData.concluidaPor}</span>}
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.desc}</div>
+        {/* Trigger */}
+        {etapa.trigger && !isConcluida && (
+          <div style={{ fontSize: 11, color: '#667eea', background: 'rgba(102,126,234,0.06)', borderRadius: 6, padding: '5px 10px', marginBottom: 10, borderLeft: '2px solid #667eea' }}>
+            {etapa.trigger}
+          </div>
+        )}
+        {/* Campos editáveis */}
+        {!isConcluida && (canEdit || canPlan) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {isReuniao ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                  <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>HORA</span>
+                  <input type="time" defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>SALA</span>
+                  <input type="text" defaultValue={etapaData.sala || ''} onBlur={e => saveCrono(etapa.id, 'sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...inp, minWidth: 120 }} />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                  <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>OBS</span>
+                  <input type="text" defaultValue={etapaData.obs || ''} onBlur={e => saveCrono(etapa.id, 'obs', e.target.value)} placeholder="Observação..." style={{ ...inp, minWidth: 160 }} />
+                </div>
+              </div>
+            )}
+            {/* Participantes — reuniões exceto briefing */}
+            {isReuniao && !etapa.semParticipantes && (
+              <div>
+                {participantes.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                    {participantes.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 20, background: 'rgba(102,126,234,0.1)', border: '1px solid rgba(102,126,234,0.2)', fontSize: 11 }}>
+                        <span style={{ color: '#667eea' }}>{p.name}</span>
+                        <span style={{ color: '#94a3b8', fontSize: 10 }}>{p.roleName}</span>
+                        <button onClick={() => toggleParticipante(etapa.id, p)} style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setShowPart(s => !s)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  {showPart ? 'Fechar' : '+ Participantes'}
+                </button>
+                {showPart && (
+                  <div style={{ marginTop: 8, padding: 10, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff' }}>
+                    <select value={filtCargo} onChange={e => setFiltCargo(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 6 }}>
+                      <option value="">Todos os cargos...</option>
+                      {cargos.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+                      {usersFiltered.map(u => {
+                        const sel = participantes.some(p => p.id === u.id);
+                        return (
+                          <button key={u.id} onClick={() => toggleParticipante(etapa.id, u)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, border: `1px solid ${sel ? '#667eea' : '#e2e8f0'}`, background: sel ? 'rgba(102,126,234,0.08)' : 'white', cursor: 'pointer', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: sel ? '#667eea' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: sel ? 'white' : '#94a3b8', flexShrink: 0 }}>
+                              {(u.name || '').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 12, color: sel ? '#667eea' : '#1a2e40', fontWeight: sel ? 600 : 400 }}>{u.name}</div>
+                              <div style={{ fontSize: 10, color: '#94a3b8' }}>{u.roleName}</div>
+                            </div>
+                            {sel && <span style={{ marginLeft: 'auto', color: '#667eea', fontSize: 12 }}>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Botão Concluir */}
+            <div style={{ marginTop: 4 }}>
+              <button onClick={() => concluirEtapa(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                Marcar como Concluída
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Info readonly quando concluída */}
+        {isConcluida && (
+          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#94a3b8', flexWrap: 'wrap' }}>
+            {etapaData.data && <span>{etapaData.data}</span>}
+            {etapaData.hora && <span>{etapaData.hora}</span>}
+            {etapaData.sala && <span>{etapaData.sala}</span>}
+            {etapaData.obs && <span>{etapaData.obs}</span>}
+          </div>
+        )}
+        {isConcluida && participantes.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+            {participantes.map(p => (
+              <span key={p.id} style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '2px 7px', borderRadius: 10 }}>{p.name}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [project, setProject] = useState(null);
   const [parentProject, setParentProject] = useState(null);
@@ -2143,95 +2279,117 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
           {/* ── CRONOGRAMA ── */}
           {activeTab === 'cronograma' && (() => {
-            const ETAPAS = [
-              { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',         desc: 'Documento de briefing no sistema e reunião de briefing com todas as áreas.' },
-              { id: 'cronograma',           num: 2,  label: 'Cronograma',             area: 'Atendimento',         desc: 'Documento de cronograma do job, compartilhado com todas as áreas.' },
-              { id: 'kickoff',              num: 3,  label: 'Kick-off',               area: 'Todas as áreas',      desc: 'Trabalho em equipe para iniciar o job. Reunião inicial com todos os envolvidos.' },
-              { id: 'paper',                num: 4,  label: 'Paper',                  area: 'Planejamento',        desc: 'Reunião para compartilhar o documento de Paper e direcionar áreas.' },
-              { id: 'planilha_inicial',     num: 5,  label: 'Planilha Inicial',       area: 'Produção',            desc: 'A partir do Paper, a Produção desenha um primeiro estudo de orçamento.' },
-              { id: 'apresentacao_interna', num: 6,  label: 'Apresentação Interna',   area: 'Atendimento',         desc: 'Reunião com todas as áreas para repassar o job e planilha antes da apresentação.' },
-              { id: 'apresentacao_cliente', num: 7,  label: 'Apresentação Cliente',   area: 'Atendimento',         desc: 'Idealmente com a participação de todas as áreas.' },
-              { id: 'ajustes',              num: 8,  label: 'Ajustes',                area: 'Atendimento',         desc: 'Reunião para compartilhar os ajustes solicitados para todas as áreas.' },
-              { id: 'aprovacao',            num: 9,  label: 'Aprovação',              area: 'Atendimento',         desc: 'Compartilhar com todas as áreas a aprovação formal do projeto pelo cliente.' },
-              { id: 'finalizacoes',         num: 10, label: 'Finalizações',           area: 'Criação + Produção',  desc: 'Preparação de todos os detalhamentos técnicos e artes finais do projeto.' },
-              { id: 'caderno_artes',        num: 11, label: 'Caderno de Artes',       area: 'Criação + Produção',  desc: 'Documento com todas as artes finais e imagens finalizadas para início da produção.' },
-              { id: 'book_producao',        num: 12, label: 'Book de Produção',       area: 'Produção',            desc: 'Documento Book do Projeto com todas as informações do job.' },
-              { id: 'passadao_interno',     num: 13, label: 'Passadão Interno',       area: 'Atend. + Produção',   desc: 'Reunião final com todas as áreas para repassar o projeto e o Book do Projeto.' },
-              { id: 'producao',             num: 14, label: 'Produção',               area: 'Produção + Arquit.',  desc: 'Processo de produção supervisionado com relatório de montagem / produção diário.' },
-              { id: 'entrega_job',          num: 15, label: 'Entrega do Job',         area: 'Produção',            desc: 'Produção prepara o TM para Atendimento compartilhar com cliente.' },
-              { id: 'fechamento_financeiro',num: 16, label: 'Fechamento Financeiro',  area: 'Produção + Financ.',  desc: 'Entrega das prestações de contas, planilhas extras e relatórios de despesas.' },
-              { id: 'reuniao_encerramento', num: 17, label: 'Reunião Encerramento',   area: 'Atend. + Produção',   desc: 'Reunião com todas as áreas para compartilhar o Relatório final e aprendizados.' },
-              { id: 'relatorio_cliente',    num: 18, label: 'Relatório Cliente',      area: 'Atendimento',         desc: 'Reunião para compartilhar os ajustes solicitados para todas as áreas.' },
-            ];
-
+            const cronograma = project.cronograma || {};
             const currentStage = project.jobStage || 'briefing';
-            const currentIdx = ETAPAS.findIndex(e => e.id === currentStage);
-            const cronograma = project.cronograma || {}; // { [etapaId]: { data, obs } }
 
-            const handleSaveCronograma = async (etapaId, field, value) => {
-              const updated = {
-                ...cronograma,
-                [etapaId]: { ...(cronograma[etapaId] || {}), [field]: value }
-              };
-              try {
-                await updateDoc(doc(db, 'budgets', projectId), { cronograma: updated, updatedAt: new Date() });
-              } catch (e) { console.error(e); }
+            const saveCrono = async (etapaId, field, value) => {
+              const updated = { ...cronograma, [etapaId]: { ...(cronograma[etapaId] || {}), [field]: value } };
+              try { await updateDoc(doc(db, 'budgets', projectId), { cronograma: updated, updatedAt: new Date() }); }
+              catch (e) { console.error(e); }
             };
+
+            const toggleParticipanteCrono = async (etapaId, user) => {
+              const current = cronograma[etapaId]?.participantes || [];
+              const exists = current.find(p => p.id === user.id);
+              const updated = exists ? current.filter(p => p.id !== user.id) : [...current, { id: user.id, name: user.name, roleName: user.roleName || '' }];
+              await saveCrono(etapaId, 'participantes', updated);
+            };
+
+            const concluirEtapa = async (etapaId) => {
+              if (!window.confirm('Marcar esta etapa como concluída?')) return;
+              try {
+                const updates = {
+                  cronograma: { ...cronograma, [etapaId]: { ...(cronograma[etapaId] || {}), concluida: true, concluidaEm: new Date(), concluidaPor: userData?.name } },
+                  updatedAt: new Date()
+                };
+                const timelineEntry = { action: 'etapa_concluida', description: '', userId: userData?.id, userName: userData?.name, timestamp: new Date() };
+
+                if (etapaId === 'reuniao_briefing') {
+                  const plannerUserId = project.plannerUserId;
+                  const plannerName = project.plannerUserName;
+                  if (plannerUserId) {
+                    const tarefaPaper = {
+                      taskId: `task-paper-${Date.now()}`,
+                      name: 'Criar Paper do Job',
+                      descricao: 'Planejar e detalhar o paper completo do job para apresentação no Kick-off.',
+                      assignedTo: plannerUserId, assignedToName: plannerName,
+                      status: 'backlog', prioridade: 'alta',
+                      createdAt: new Date(), createdBy: userData?.name, type: 'planejamento',
+                    };
+                    updates.tasks = [...(project.tasks || []), tarefaPaper];
+                    timelineEntry.description = `Reunião de Briefing concluída — tarefa "Criar Paper" enviada para ${plannerName}`;
+                  }
+                  updates.jobStage = 'kickoff';
+                } else if (etapaId === 'kickoff') {
+                  const unlockedTasks = (project.tasks || []).map(t =>
+                    t.status === 'blocked' ? { ...t, status: 'backlog', unlockedAt: new Date(), unlockedBy: userData?.name } : t
+                  );
+                  const blockedCount = (project.tasks || []).filter(t => t.status === 'blocked').length;
+                  updates.tasks = unlockedTasks;
+                  updates.jobStage = 'paper';
+                  timelineEntry.description = `Kick-off concluído — ${blockedCount} tarefa(s) liberada(s) para os responsáveis`;
+                } else if (etapaId === 'paper') {
+                  updates.jobStage = 'planilha_inicial';
+                  timelineEntry.description = 'Reunião de Paper concluída — equipe alinhada';
+                } else {
+                  timelineEntry.description = `Etapa concluída por ${userData?.name}`;
+                }
+
+                updates.timeline = [...(project.timeline || []), timelineEntry];
+                await updateDoc(doc(db, 'budgets', projectId), updates);
+              } catch (e) { console.error(e); alert('Erro ao concluir etapa.'); }
+            };
+
+            const ETAPAS = [
+              { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',        tipo: 'etapa',   semParticipantes: true, desc: 'Briefing preenchido no sistema. Job criado e encaminhado para o Planner.' },
+              { id: 'reuniao_briefing',     num: 2,  label: 'Reunião de Briefing',    area: 'Atendimento',        tipo: 'reuniao', desc: 'Objetivo: decidir se vamos participar do job e criar o cronograma.', trigger: 'Ao concluir: Planner recebe tarefa "Criar Paper" no To Do' },
+              { id: 'kickoff',              num: 3,  label: 'Reunião Kick-off',       area: 'Todas as áreas',     tipo: 'reuniao', desc: 'Objetivo: Planner apresenta o planejamento completo. Equipe aprova ou pede ajustes.', trigger: 'Ao concluir: todas as tarefas são liberadas para os responsáveis' },
+              { id: 'paper',                num: 4,  label: 'Reunião de Paper',       area: 'Planejamento',       tipo: 'reuniao', desc: 'Objetivo: Planner explica o job para as áreas. Todo mundo já tem seus cards no To Do.', trigger: 'Ao concluir: avança para Planilha Inicial' },
+              { id: 'planilha_inicial',     num: 5,  label: 'Planilha Inicial',       area: 'Produção',           tipo: 'etapa',   desc: 'A partir do Paper, a Produção desenha um primeiro estudo de orçamento.' },
+              { id: 'apresentacao_interna', num: 6,  label: 'Apresentação Interna',   area: 'Atendimento',        tipo: 'etapa',   desc: 'Reunião com todas as áreas para repassar o job e planilha antes da apresentação.' },
+              { id: 'apresentacao_cliente', num: 7,  label: 'Apresentação Cliente',   area: 'Atendimento',        tipo: 'etapa',   desc: 'Idealmente com a participação de todas as áreas.' },
+              { id: 'ajustes',              num: 8,  label: 'Ajustes',                area: 'Atendimento',        tipo: 'etapa',   desc: 'Reunião para compartilhar os ajustes solicitados para todas as áreas.' },
+              { id: 'aprovacao',            num: 9,  label: 'Aprovação',              area: 'Atendimento',        tipo: 'etapa',   desc: 'Aprovação formal do projeto pelo cliente.' },
+              { id: 'finalizacoes',         num: 10, label: 'Finalizações',           area: 'Criação + Produção', tipo: 'etapa',   desc: 'Preparação de todos os detalhamentos técnicos e artes finais.' },
+              { id: 'caderno_artes',        num: 11, label: 'Caderno de Artes',       area: 'Criação + Produção', tipo: 'etapa',   desc: 'Documento com todas as artes finais para início da produção.' },
+              { id: 'book_producao',        num: 12, label: 'Book de Produção',       area: 'Produção',           tipo: 'etapa',   desc: 'Documento Book do Projeto com todas as informações do job.' },
+              { id: 'passadao_interno',     num: 13, label: 'Passadão Interno',       area: 'Atend. + Produção',  tipo: 'etapa',   desc: 'Reunião final com todas as áreas para repassar o projeto e o Book.' },
+              { id: 'producao',             num: 14, label: 'Produção',               area: 'Produção + Arquit.', tipo: 'etapa',   desc: 'Processo de produção supervisionado com relatório diário.' },
+              { id: 'entrega_job',          num: 15, label: 'Entrega do Job',         area: 'Produção',           tipo: 'etapa',   desc: 'Produção prepara o TM para Atendimento compartilhar com cliente.' },
+              { id: 'fechamento_financeiro',num: 16, label: 'Fechamento Financeiro',  area: 'Produção + Financ.', tipo: 'etapa',   desc: 'Entrega das prestações de contas, planilhas e relatórios de despesas.' },
+              { id: 'reuniao_encerramento', num: 17, label: 'Reunião Encerramento',   area: 'Atend. + Produção',  tipo: 'etapa',   desc: 'Reunião com todas as áreas para compartilhar o Relatório final.' },
+              { id: 'relatorio_cliente',    num: 18, label: 'Relatório Cliente',      area: 'Atendimento',        tipo: 'etapa',   desc: 'Relatório final compartilhado com o cliente.' },
+            ];
 
             const inp = { padding: '5px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', background: 'white', color: '#1a2e40', outline: 'none' };
 
             return (
               <div className="ps-card">
                 <div className="ps-card-title">Cronograma do Job</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {ETAPAS.map((etapa, i) => {
-                    const isDone = i < currentIdx;
-                    const isActive = i === currentIdx;
                     const etapaData = cronograma[etapa.id] || {};
-                    const dotColor = isDone ? '#10b981' : isActive ? '#0080FF' : '#cbd5e1';
-                    const labelColor = isDone ? '#10b981' : isActive ? '#0080FF' : '#94a3b8';
+                    const isConcluida = !!etapaData.concluida;
+                    const primeiraNConcluida = ETAPAS.findIndex(e => !cronograma[e.id]?.concluida);
+                    const isActive = i === primeiraNConcluida;
+                    const isReuniao = etapa.tipo === 'reuniao';
+                    const participantes = etapaData.participantes || [];
+
+                    const dotBg = isConcluida ? '#10b981' : isActive ? '#FFA726' : '#f1f5f9';
+                    const dotBorder = isConcluida ? '#10b981' : isActive ? '#FFA726' : '#e2e8f0';
+                    const labelCol = isConcluida ? '#10b981' : isActive ? '#FFA726' : '#1a2e40';
+
                     return (
-                      <div key={etapa.id} style={{ display: 'flex', gap: 16, paddingBottom: 20, position: 'relative' }}>
-                        {/* Linha vertical conectora */}
-                        {i < ETAPAS.length - 1 && (
-                          <div style={{ position: 'absolute', left: 15, top: 28, bottom: 0, width: 1, background: isDone ? '#10b98133' : '#e2e8f0' }} />
-                        )}
-                        {/* Bolinha + número */}
-                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: isDone ? '#10b981' : isActive ? '#0080FF' : '#f1f5f9', border: `2px solid ${dotColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: isDone || isActive ? 'white' : '#94a3b8', zIndex: 1 }}>
-                            {isDone ? '✓' : etapa.num}
-                          </div>
-                        </div>
-                        {/* Conteúdo */}
-                        <div style={{ flex: 1, paddingTop: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: isDone ? '#10b981' : isActive ? '#0080FF' : '#1a2e40' }}>{etapa.label}</span>
-                            <span style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>{etapa.area}</span>
-                            {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: '#0080FF', background: 'rgba(0,128,255,0.1)', padding: '2px 8px', borderRadius: 10 }}>ETAPA ATUAL</span>}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.desc}</div>
-                          {/* Campos editáveis — data e observação */}
-                          {(canEdit || canPlan) && (
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                                <input type="date" defaultValue={etapaData.data || ''} onBlur={e => handleSaveCronograma(etapa.id, 'data', e.target.value)} style={inp} />
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>OBS</span>
-                                <input type="text" defaultValue={etapaData.obs || ''} onBlur={e => handleSaveCronograma(etapa.id, 'obs', e.target.value)} placeholder="Observação..." style={{ ...inp, flex: 1, minWidth: 160 }} />
-                              </div>
-                            </div>
-                          )}
-                          {/* Readonly para quem não pode editar */}
-                          {!canEdit && !canPlan && (etapaData.data || etapaData.obs) && (
-                            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#475569' }}>
-                              {etapaData.data && <span>{etapaData.data}</span>}
-                              {etapaData.obs && <span style={{ color: '#94a3b8' }}>{etapaData.obs}</span>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <EtapaCrono
+                        key={etapa.id}
+                        etapa={etapa} etapaData={etapaData} isConcluida={isConcluida} isActive={isActive}
+                        isReuniao={isReuniao} participantes={participantes}
+                        dotBg={dotBg} dotBorder={dotBorder} labelCol={labelCol}
+                        isLast={i === ETAPAS.length - 1}
+                        canEdit={canEdit} canPlan={canPlan}
+                        agencyUsers={agencyUsers} inp={inp}
+                        saveCrono={saveCrono} toggleParticipante={toggleParticipanteCrono} concluirEtapa={concluirEtapa}
+                      />
                     );
                   })}
                 </div>
