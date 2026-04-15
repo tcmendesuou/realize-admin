@@ -1638,21 +1638,64 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     {/* Coluna direita — Timeline do job */}
                     {(() => {
                       const STEPS = [
-                        { id: 'orcamento',   label: 'Orçamento' },
-                        { id: 'cliente',     label: 'Cliente' },
-                        { id: 'kickoff',     label: 'Kick Off' },
-                        { id: 'criacao',     label: 'Criação' },
-                        { id: 'producao',    label: 'Produção' },
-                        { id: 'montagem',    label: 'Montagem' },
-                        { id: 'evento',      label: 'Evento' },
-                        { id: 'desmontagem', label: 'Desmontagem' },
-                        { id: 'fechamento',  label: 'Fechamento' },
+                        { id: 'briefing',             label: 'Briefing' },
+                        { id: 'cronograma',           label: 'Cronograma' },
+                        { id: 'kickoff',              label: 'Kick-off' },
+                        { id: 'paper',                label: 'Paper' },
+                        { id: 'planilha_inicial',     label: 'Planilha Inicial' },
+                        { id: 'apresentacao_interna', label: 'Apres. Interna' },
+                        { id: 'apresentacao_cliente', label: 'Apres. Cliente' },
+                        { id: 'ajustes',              label: 'Ajustes' },
+                        { id: 'aprovacao',            label: 'Aprovação' },
+                        { id: 'finalizacoes',         label: 'Finalizações' },
+                        { id: 'caderno_artes',        label: 'Caderno de Artes' },
+                        { id: 'book_producao',        label: 'Book de Produção' },
+                        { id: 'passadao_interno',     label: 'Passadão Interno' },
+                        { id: 'producao',             label: 'Produção' },
+                        { id: 'entrega_job',          label: 'Entrega do Job' },
+                        { id: 'fechamento_financeiro',label: 'Fechamento Fin.' },
+                        { id: 'reuniao_encerramento', label: 'Reunião Encerr.' },
+                        { id: 'relatorio_cliente',    label: 'Relatório Cliente' },
                       ];
-                      const currentStage = project.kanbanStage || 'orcamento';
+                      const currentStage = project.jobStage || 'briefing';
                       const currentIdx = STEPS.findIndex(s => s.id === currentStage);
+                      const isLast = currentIdx === STEPS.length - 1;
+
+                      const handleAvancarEtapa = async () => {
+                        if (isLast) return;
+                        const nextStage = STEPS[currentIdx + 1];
+                        if (!window.confirm(`Avançar para "${nextStage.label}"?`)) return;
+                        try {
+                          await updateDoc(doc(db, 'budgets', projectId), {
+                            jobStage: nextStage.id,
+                            updatedAt: new Date(),
+                            timeline: [...(project.timeline || []), {
+                              action: 'stage_advanced',
+                              description: `Etapa avançada para "${nextStage.label}" por ${userData?.name || 'Usuário'}`,
+                              userId: userData?.id,
+                              userName: userData?.name,
+                              timestamp: new Date(),
+                            }]
+                          });
+                        } catch (e) {
+                          console.error(e);
+                          alert('Erro ao avançar etapa.');
+                        }
+                      };
+
                       return (
                         <div className="ps-timeline-side">
-                          <div className="ps-timeline-side-title">Etapa do Job</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <div className="ps-timeline-side-title" style={{ marginBottom: 0 }}>TIMELINE</div>
+                            {(canEdit || canPlan) && !isLast && (
+                              <button onClick={handleAvancarEtapa} style={{
+                                fontSize: 9, padding: '3px 8px', borderRadius: 6,
+                                border: '1px solid rgba(0,229,196,0.4)', background: 'none',
+                                color: '#00E5C4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                                fontWeight: 600, letterSpacing: 0.5, whiteSpace: 'nowrap'
+                              }}>Avançar ›</button>
+                            )}
+                          </div>
                           {STEPS.map((step, i) => {
                             const isDone = i < currentIdx;
                             const isActive = i === currentIdx;
@@ -1665,6 +1708,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               </div>
                             );
                           })}
+                          {isLast && (
+                            <div style={{ marginTop: 12, fontSize: 10, color: '#10b981', fontWeight: 600, letterSpacing: 0.5, textAlign: 'center' }}>
+                              JOB CONCLUÍDO
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
