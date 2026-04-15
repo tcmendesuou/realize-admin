@@ -68,6 +68,10 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [envioFilterCargo, setEnvioFilterCargo] = useState('');
   const [envioUser, setEnvioUser] = useState(null); // { id, name, roleId, roleName }
 
+  // Reunião — estado por questionId (suporta múltiplas perguntas de reunião no fluxo)
+  const [reuniaoData, setReuniaoData] = useState({}); // { [qId]: { tipo, data, hora, sala, participantes: [{id,name,roleName}] } }
+  const [reuniaoFilterCargo, setReuniaoFilterCargo] = useState({}); // { [qId]: cargo }
+
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
     clientName: '', clientEmail: '', clientPhone: '',
@@ -248,6 +252,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         ...briefingForm.answers,
         'fixed-events': feiras,
         'fixed-envio': { userId: envioUser.id, userName: envioUser.name, roleId: envioUser.roleId, roleName: envioUser.roleName },
+        // Salva cada bloco de reunião pelo questionId
+        ...Object.fromEntries(Object.entries(reuniaoData).map(([qId, val]) => [qId, val])),
       };
 
       const baseData = {
@@ -782,6 +788,118 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               </div>
             </div>
           ))}
+        </div>
+      );
+    }
+
+    // ── Bloco de Reunião ──
+    if (q.type === 'fixed-reuniao') {
+      const TIPOS_REUNIAO = [
+        'Reunião de Briefing',
+        'Reunião Inicial',
+        'Reunião de Paper',
+        'Reunião Pré-Apresentação',
+        'Reunião de Ajustes',
+        'Reunião de Pré-Produção',
+        'Reunião de Encerramento',
+        'Reunião de Ajustes Finais',
+      ];
+      const rd = reuniaoData[q.id] || {};
+      const setRd = (field, value) => setReuniaoData(prev => ({
+        ...prev,
+        [q.id]: { ...(prev[q.id] || {}), [field]: value }
+      }));
+      const cargosReuniao = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
+      const filtroCargo = reuniaoFilterCargo[q.id] || '';
+      const usersParaReuniao = filtroCargo
+        ? agencyUsers.filter(u => u.roleName === filtroCargo)
+        : agencyUsers;
+      const participantes = rd.participantes || [];
+      const toggleParticipante = (u) => {
+        const existe = participantes.find(p => p.id === u.id);
+        setRd('participantes', existe
+          ? participantes.filter(p => p.id !== u.id)
+          : [...participantes, { id: u.id, name: u.name, roleName: u.roleName }]
+        );
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Tipo de reunião */}
+          <div>
+            <div style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 1, marginBottom: 6 }}>TIPO DE REUNIÃO</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {TIPOS_REUNIAO.map(tipo => (
+                <button key={tipo} onClick={() => setRd('tipo', tipo)} style={{
+                  ...base, textAlign: 'left', cursor: 'pointer',
+                  background: rd.tipo === tipo ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                  borderColor: rd.tipo === tipo ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                  color: rd.tipo === tipo ? '#00E5C4' : '#E8F4FF',
+                }}>{tipo}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Data, Hora, Sala */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 1, marginBottom: 4 }}>DATA</div>
+              <input type="date" value={rd.data || ''} onChange={e => setRd('data', e.target.value)} style={{ ...base }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 1, marginBottom: 4 }}>HORA</div>
+              <input type="time" value={rd.hora || ''} onChange={e => setRd('hora', e.target.value)} style={{ ...base }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 1, marginBottom: 4 }}>SALA / LOCAL</div>
+              <input type="text" value={rd.sala || ''} onChange={e => setRd('sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...base }} />
+            </div>
+          </div>
+
+          {/* Participantes */}
+          <div>
+            <div style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 1, marginBottom: 6 }}>PARTICIPANTES</div>
+            {/* Participantes já selecionados */}
+            {participantes.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {participantes.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: 'rgba(0,229,196,0.15)', border: '1px solid rgba(0,229,196,0.3)' }}>
+                    <span style={{ fontSize: 12, color: '#00E5C4' }}>{p.name}</span>
+                    <span style={{ fontSize: 10, color: 'rgba(0,229,196,0.6)' }}>{p.roleName}</span>
+                    <button onClick={() => toggleParticipante(p)} style={{ background: 'none', border: 'none', color: '#00E5C4', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Filtro de cargo */}
+            <select value={filtroCargo} onChange={e => setReuniaoFilterCargo(prev => ({ ...prev, [q.id]: e.target.value }))}
+              style={{ ...base, marginBottom: 6, color: '#E8F4FF' }}>
+              <option value="" style={{ background: '#111f30' }}>Filtrar por cargo...</option>
+              {cargosReuniao.map(c => <option key={c} value={c} style={{ background: '#111f30' }}>{c}</option>)}
+            </select>
+            {/* Lista de usuários */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 200, overflowY: 'auto' }}>
+              {usersParaReuniao.map(u => {
+                const selecionado = participantes.some(p => p.id === u.id);
+                return (
+                  <button key={u.id} onClick={() => toggleParticipante(u)} style={{
+                    ...base, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                    background: selecionado ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.04)',
+                    borderColor: selecionado ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                  }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: selecionado ? 'rgba(0,229,196,0.3)' : 'rgba(0,180,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, color: selecionado ? '#00E5C4' : '#7BAFD4' }}>
+                      {(u.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <span style={{ fontSize: 13, color: selecionado ? '#00E5C4' : '#E8F4FF', fontWeight: 500 }}>{u.name}</span>
+                      <span style={{ fontSize: 10, color: '#7BAFD4' }}>{u.roleName}</span>
+                    </div>
+                    {selecionado && <span style={{ marginLeft: 'auto', color: '#00E5C4', fontSize: 14 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       );
     }
