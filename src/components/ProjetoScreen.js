@@ -4,7 +4,7 @@ import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot, 
 import { db } from '../firebase/config';
 
 // ── Componente de etapa do cronograma (precisa de state local para toggle participantes) ──
-function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa }) {
+function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa, agendarReuniao }) {
   const [showPart, setShowPart] = React.useState(false);
   const [filtCargo, setFiltCargo] = React.useState('');
   const cargos = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
@@ -110,11 +110,22 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
                 )}
               </div>
             )}
-            {/* Botão Concluir */}
-            <div style={{ marginTop: 4 }}>
-              <button onClick={() => concluirEtapa(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                Marcar como Concluída
-              </button>
+            {/* Botões Agendar / Concluída */}
+            <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
+              {isReuniao ? (
+                <>
+                  <button onClick={() => agendarReuniao(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid rgba(0,128,255,0.4)', background: 'none', color: '#0080FF', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Agendar
+                  </button>
+                  <button onClick={() => concluirEtapa(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Concluída
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => concluirEtapa(etapa.id)} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  Marcar como Concluída
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -2340,7 +2351,53 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               } catch (e) { console.error(e); alert('Erro ao concluir etapa.'); }
             };
 
-            const ETAPAS = [
+            const agendarReuniao = async (etapaId) => {
+              const etapaData = cronograma[etapaId] || {};
+              if (!etapaData.data || !etapaData.hora) {
+                alert('Preencha a data e hora antes de agendar.');
+                return;
+              }
+              if (!window.confirm('Agendar esta reunião? Os participantes vão receber o card no To Do.')) return;
+              try {
+                // Salva status agendada no cronograma
+                const updatedCrono = { ...cronograma, [etapaId]: { ...etapaData, agendada: true, agendadaEm: new Date(), agendadaPor: userData?.name } };
+
+                // Cria cards de reunião no budget para cada participante
+                const participantes = etapaData.participantes || [];
+                const etapaLabel = (() => {
+                  const found = [
+                    { id: 'reuniao_briefing', label: 'Reunião de Briefing' },
+                    { id: 'kickoff', label: 'Reunião Kick-off' },
+                    { id: 'paper', label: 'Reunião de Paper' },
+                  ].find(e => e.id === etapaId);
+                  return found?.label || 'Reunião';
+                })();
+
+                const cardsReuniao = participantes.map(p => ({
+                  taskId: `reuniao-${etapaId}-${p.id}-${Date.now()}`,
+                  type: 'reuniao',
+                  etapaId,
+                  name: etapaLabel,
+                  feiraNome: project.feiraData?.nome || '',
+                  clientName: project.companyName || '',
+                  data: etapaData.data,
+                  hora: etapaData.hora,
+                  sala: etapaData.sala || '',
+                  assignedTo: p.id,
+                  assignedToName: p.name,
+                  status: 'backlog',
+                  createdAt: new Date(),
+                }));
+
+                const existingTasks = (project.tasks || []).filter(t => !(t.type === 'reuniao' && t.etapaId === etapaId));
+                await updateDoc(doc(db, 'budgets', projectId), {
+                  cronograma: updatedCrono,
+                  tasks: [...existingTasks, ...cardsReuniao],
+                  updatedAt: new Date(),
+                });
+                alert(`✓ Reunião agendada! ${participantes.length} participante(s) notificado(s).`);
+              } catch (e) { console.error(e); alert('Erro ao agendar reunião.'); }
+            };
               { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',        tipo: 'etapa',   semParticipantes: true, desc: 'Briefing preenchido no sistema. Job criado e encaminhado para o Planner.' },
               { id: 'reuniao_briefing',     num: 2,  label: 'Reunião de Briefing',    area: 'Atendimento',        tipo: 'reuniao', desc: 'Objetivo: decidir se vamos participar do job e criar o cronograma.', trigger: 'Ao concluir: Planner recebe tarefa "Criar Paper" no To Do' },
               { id: 'kickoff',              num: 3,  label: 'Reunião Kick-off',       area: 'Todas as áreas',     tipo: 'reuniao', desc: 'Objetivo: Planner apresenta o planejamento completo. Equipe aprova ou pede ajustes.', trigger: 'Ao concluir: todas as tarefas são liberadas para os responsáveis' },
@@ -2388,7 +2445,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         isLast={i === ETAPAS.length - 1}
                         canEdit={canEdit} canPlan={canPlan}
                         agencyUsers={agencyUsers} inp={inp}
-                        saveCrono={saveCrono} toggleParticipante={toggleParticipanteCrono} concluirEtapa={concluirEtapa}
+                        saveCrono={saveCrono} toggleParticipante={toggleParticipanteCrono} concluirEtapa={concluirEtapa} agendarReuniao={agendarReuniao}
                       />
                     );
                   })}
