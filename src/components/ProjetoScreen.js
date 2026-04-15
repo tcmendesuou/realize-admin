@@ -2398,6 +2398,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 alert(`✓ Reunião agendada! ${participantes.length} participante(s) notificado(s).`);
               } catch (e) { console.error(e); alert('Erro ao agendar reunião.'); }
             };
+
+            const ETAPAS = [
               { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',        tipo: 'etapa',   semParticipantes: true, desc: 'Briefing preenchido no sistema. Job criado e encaminhado para o Planner.' },
               { id: 'reuniao_briefing',     num: 2,  label: 'Reunião de Briefing',    area: 'Atendimento',        tipo: 'reuniao', desc: 'Objetivo: decidir se vamos participar do job e criar o cronograma.', trigger: 'Ao concluir: Planner recebe tarefa "Criar Paper" no To Do' },
               { id: 'kickoff',              num: 3,  label: 'Reunião Kick-off',       area: 'Todas as áreas',     tipo: 'reuniao', desc: 'Objetivo: Planner apresenta o planejamento completo. Equipe aprova ou pede ajustes.', trigger: 'Ao concluir: todas as tarefas são liberadas para os responsáveis' },
