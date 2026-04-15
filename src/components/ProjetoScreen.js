@@ -1002,11 +1002,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
         /* TIMELINE VERTICAL */
         .ps-timeline-side {
-          width: 200px; flex-shrink: 0;
-          background: white; border-radius: 12px;
-          padding: 20px 16px;
-          border: 1px solid #e8eaed;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+          width: 180px; flex-shrink: 0;
+          padding: 4px 0 0 8px;
           align-self: flex-start;
           position: sticky; top: 76px;
         }
@@ -1021,17 +1018,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         .ps-timeline-step:last-child { padding-bottom: 0; }
         .ps-timeline-step:not(:last-child)::before {
           content: ''; position: absolute; left: 7px; top: 16px;
-          width: 1px; bottom: 0; background: #e8eaed;
+          width: 1px; bottom: 0; background: #e2e8f0;
         }
         .ps-timeline-dot {
           width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
-          border: 2px solid #e8eaed; background: white; z-index: 1;
+          border: 2px solid #e2e8f0; background: white; z-index: 1;
           margin-top: 1px;
         }
         .ps-timeline-dot.done { background: #10b981; border-color: #10b981; }
-        .ps-timeline-dot.active { background: #0080FF; border-color: #0080FF; box-shadow: 0 0 0 3px rgba(0,128,255,0.15); }
-        .ps-timeline-step-label { font-size: 12px; color: #8a9bb0; line-height: 1.4; }
-        .ps-timeline-step-label.active { color: #0080FF; font-weight: 600; }
+        .ps-timeline-dot.active { background: #00E5C4; border-color: #00E5C4; box-shadow: 0 0 0 3px rgba(0,229,196,0.2); }
+        .ps-timeline-step-label { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+        .ps-timeline-step-label.active { color: #00E5C4; font-weight: 600; }
         .ps-timeline-step-label.done { color: #10b981; }
 
         /* TABS */
@@ -1178,42 +1175,27 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
         {/* HERO */}
         <div className="ps-hero">
-          <h1 className="ps-hero-title">{getProjectName()}</h1>
+          <h1 className="ps-hero-title">
+            {getProjectName()}
+            {project.companyName && <span style={{ fontSize: 16, fontWeight: 300, color: '#7BAFD4', marginLeft: 14 }}>{project.companyName}</span>}
+          </h1>
           <div className="ps-hero-meta">
             <span>{project.jobCode || `Projeto #${project.budgetNumber || ''}`}</span>
             <span>{project.eventTypeName}</span>
-            {project.companyName && <span>{project.companyName}</span>}
+            {isFilho && project.feiraData?.local && <span>{project.feiraData.local}</span>}
+            {isFilho && project.feiraData?.dataInicio && (
+              <span>{project.feiraData.dataInicio}{project.feiraData.dataFim ? ` até ${project.feiraData.dataFim}` : ''}</span>
+            )}
             <span>Criado em {formatDateShort(project.createdAt)}</span>
-            {project.assignedToName && <span>Atendimento: {project.assignedToName}</span>}
           </div>
 
           {/* Infos da feira no hero — só para filhos */}
           {isFilho && project.feiraData && (
             <div className="ps-hero-infos">
-              {project.companyName && (
-                <div className="ps-hero-info-item">
-                  <span className="ps-hero-info-label">Empresa</span>
-                  <span className="ps-hero-info-value">{project.companyName}</span>
-                </div>
-              )}
               {project.clientName && (
                 <div className="ps-hero-info-item">
                   <span className="ps-hero-info-label">Responsável</span>
                   <span className="ps-hero-info-value">{project.clientName}</span>
-                </div>
-              )}
-              {project.feiraData.local && (
-                <div className="ps-hero-info-item">
-                  <span className="ps-hero-info-label">Local</span>
-                  <span className="ps-hero-info-value">{project.feiraData.local}</span>
-                </div>
-              )}
-              {(project.feiraData.dataInicio || project.feiraData.dataFim) && (
-                <div className="ps-hero-info-item">
-                  <span className="ps-hero-info-label">Período</span>
-                  <span className="ps-hero-info-value">
-                    {project.feiraData.dataInicio || '—'}{project.feiraData.dataFim ? ` até ${project.feiraData.dataFim}` : ''}
-                  </span>
                 </div>
               )}
               {project.assignedToName && (
