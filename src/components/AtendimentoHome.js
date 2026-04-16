@@ -856,12 +856,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>HORA</div>
-              <select value={reuniaoBriefing.hora} onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))} style={base}>
-                <option value="">Selecione...</option>
+              <select value={reuniaoBriefing.hora} onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))}
+                style={{ ...base, color: '#E8F4FF', background: 'rgba(255,255,255,0.04)' }}>
+                <option value="" style={{ background: '#111f30', color: '#E8F4FF' }}>Selecione...</option>
                 {Array.from({ length: 48 }, (_, i) => {
                   const h = String(Math.floor(i / 2)).padStart(2, '0');
                   const m = i % 2 === 0 ? '00' : '30';
-                  return <option key={i} value={`${h}:${m}`}>{`${h}:${m}`}</option>;
+                  return <option key={i} value={`${h}:${m}`} style={{ background: '#111f30', color: '#E8F4FF' }}>{`${h}:${m}`}</option>;
                 })}
               </select>
             </div>
