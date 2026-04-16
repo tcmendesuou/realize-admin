@@ -36,7 +36,10 @@ const FIXED_BLOCK_FIELDS = {
   ],
   'fixed-block-envio': [
     { id: 'fixed-envio',      label: 'Encaminhar para',    type: 'fixed-envio' },
-  ]
+  ],
+  'fixed-block-reuniao': [
+    { id: 'fixed-reuniao',    label: 'Reunião de Briefing', type: 'fixed-reuniao' },
+  ],
 };
 
 export default function AtendimentoHome({ user, userData, onLogout }) {
