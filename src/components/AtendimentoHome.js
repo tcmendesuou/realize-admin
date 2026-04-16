@@ -1557,8 +1557,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         {/* MAIN */}
         <main className="ws-main">
 
-        <main className="ws-main">
-
           {/* HEADER */}
           <div className="ws-header">
             <div className="ws-header-left">
