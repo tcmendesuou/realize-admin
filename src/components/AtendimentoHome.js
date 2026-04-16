@@ -322,8 +322,12 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
       // ── 2. Criar N budgets FILHOS (um por feira) ──
       const feiraPromises = feiras.map((feira, i) => {
-        // Cards de reunião de briefing para cada participante
-        const cardsReuniao = reuniaoBriefing.participantes.map(p => ({
+        // Cards de reunião de briefing — inclui o Atendimento automaticamente
+        const todosParticipantes = [
+          { id: userId, name: userName, roleName: userData?.roleName || '' },
+          ...reuniaoBriefing.participantes.filter(p => p.id !== userId),
+        ];
+        const cardsReuniao = todosParticipantes.map(p => ({
           taskId: `reuniao-briefing-${p.id}-${Date.now()}-${i}`,
           type: 'reuniao',
           etapaId: 'reuniao_briefing',
@@ -359,8 +363,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               data: reuniaoBriefing.data,
               hora: reuniaoBriefing.hora,
               sala: reuniaoBriefing.local,
-              participantes: reuniaoBriefing.participantes,
-              agendada: reuniaoBriefing.participantes.length > 0,
+              participantes: todosParticipantes,
+              agendada: todosParticipantes.length > 0,
             }
           } : {},
         });
