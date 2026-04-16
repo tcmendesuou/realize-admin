@@ -172,7 +172,7 @@ function FlowBuilder({ eventType, onClose }) {
         items: flowItems.map((item, index) => ({
           itemId: item.id,
           itemType: item.itemType,
-          label: item.text, // preserva "Reunião 1", "Reunião 2", etc.
+          label: item.text || item.name || '',
           order: index + 1
         })),
         updatedAt: new Date()
