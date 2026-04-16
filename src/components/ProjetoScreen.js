@@ -1713,45 +1713,43 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             )}
                             {modoEdicao && isMultiLine && answerLines.map(line => {
                               const k = `${q.id}__${line.key}`;
-                              const lf = taskForms[k] || {};
-                              const lu = lf.cargoId ? agencyUsers.filter(u => u.roleId === lf.cargoId) : agencyUsers;
                               const lt = newTasks.filter(t => t.questionId === k);
-                              if (!lf.open && lt.length === 0) return null;
+                              const form = taskForms[k] || {};
+                              if (!form.open && lt.length === 0) return null;
                               return (
                                 <div key={k}>
-                                  {lf.open && (
-                                    <div style={{ margin: '6px 0 6px 8px', padding: 12, background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                      <span style={{ fontSize: 11, color: '#667eea', fontWeight: 600 }}>{line.label ? `${line.label}: ` : ''}{line.value}</span>
-                                      <input placeholder="Tarefa *" value={lf.tarefa||''} onChange={e => setTaskForms(prev => ({...prev,[k]:{...prev[k],tarefa:e.target.value}}))} style={{ padding:'7px 10px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }} />
-                                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                                        <select value={lf.cargoId||''} onChange={e => { const c=agencyRoles.find(r=>r.id===e.target.value); setTaskForms(prev=>({...prev,[k]:{...prev[k],cargoId:e.target.value,cargoNome:c?.name||'',pessoaId:'',pessoaNome:''}})); }} style={{ padding:'7px 8px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }}>
-                                          <option value="">Cargo...</option>
-                                          {agencyRoles.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                                        </select>
-                                        <select value={lf.pessoaId||''} onChange={e => { const p=agencyUsers.find(u=>u.id===e.target.value); setTaskForms(prev=>({...prev,[k]:{...prev[k],pessoaId:e.target.value,pessoaNome:p?.name||''}})); }} style={{ padding:'7px 8px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }}>
-                                          <option value="">Pessoa *</option>
-                                          {lu.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-                                        </select>
-                                      </div>
-                                      <input placeholder="Valor (opcional)" value={lf.valor||''} onChange={e=>setTaskForms(prev=>({...prev,[k]:{...prev[k],valor:e.target.value}}))} type="number" min="0" style={{ padding:'7px 10px', borderRadius:6, border:'1px solid #dde', fontSize:12, fontFamily:'Outfit, sans-serif' }} />
-                                      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-                                        <button onClick={()=>setTaskForms(prev=>({...prev,[k]:{...prev[k],open:false}}))} style={{ padding:'5px 10px', borderRadius:6, border:'1px solid #ddd', background:'none', color:'#666', fontSize:11, cursor:'pointer', fontFamily:'Outfit, sans-serif' }}>Cancelar</button>
-                                        <button onClick={()=>{
-                                          if(!lf.tarefa){alert('Descreva a tarefa');return;}
-                                          if(!lf.pessoaId){alert('Selecione a pessoa');return;}
-                                          setNewTasks(prev=>[...prev,{taskId:`task-${Date.now()}-${Math.random().toString(36).slice(2)}`,questionId:k,questionText:`${q.text}${line.label?` — ${line.label}`:''}`,briefingAnswer:line.value,name:lf.tarefa,cargoId:lf.cargoId,cargoNome:lf.cargoNome,assignedTo:lf.pessoaId,assignedToName:lf.pessoaNome,valor:lf.valor||'',status:'backlog',createdAt:new Date()}]);
-                                          setTaskForms(prev=>({...prev,[k]:{open:false,tarefa:'',cargoId:'',cargoNome:'',pessoaId:'',pessoaNome:'',valor:''}}));
-                                        }} style={{ padding:'5px 12px', borderRadius:6, border:'none', background:'linear-gradient(135deg,#667eea,#764ba2)', color:'white', fontSize:11, cursor:'pointer', fontFamily:'Outfit, sans-serif', fontWeight:600 }}>Criar</button>
-                                      </div>
+                                  {form.open && (
+                                    <div style={{ marginTop: 6 }}>
+                                      <span style={{ fontSize: 11, color: '#667eea', fontWeight: 600, display: 'block', marginBottom: 4 }}>{line.label ? `${line.label}: ` : ''}{line.value}</span>
+                                      {renderMiniForm(k, () => {
+                                        const lf = taskForms[k] || {};
+                                        if (!lf.tarefa) { alert('Descreva a tarefa'); return; }
+                                        if (!lf.pessoaId) { alert('Selecione a pessoa'); return; }
+                                        setNewTasks(prev => [...prev, {
+                                          taskId: `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                                          questionId: k,
+                                          questionText: `${q.text}${line.label ? ` — ${line.label}` : ''}`,
+                                          briefingAnswer: line.value,
+                                          name: lf.tarefa, descricao: lf.descricao || '',
+                                          cargoId: lf.cargoId, cargoNome: lf.cargoNome,
+                                          assignedTo: lf.pessoaId, assignedToName: lf.pessoaNome,
+                                          requisicaoId: lf.requisicaoId || '', requisicaoCodigo: lf.requisicaoCodigo || '', requisicaoNome: lf.requisicaoNome || '',
+                                          prioridade: lf.prioridade || 'normal', prazo: lf.prazo || '',
+                                          periodo: lf.periodo || '', quantidade: lf.quantidade || '', custoUnitario: lf.custoUnitario || '',
+                                          bvPct: lf.bvPct || '', credito: lf.credito || '',
+                                          status: 'backlog', createdAt: new Date(),
+                                        }]);
+                                        setTaskForms(prev => ({ ...prev, [k]: { open: false } }));
+                                      })}
                                     </div>
                                   )}
-                                  {lt.map(t=>(
-                                    <div key={t.taskId} style={{ margin:'4px 0 4px 8px', display:'flex', alignItems:'center', gap:8, padding:'5px 8px', background:'rgba(102,126,234,0.06)', borderRadius:6, border:'1px solid rgba(102,126,234,0.2)' }}>
-                                      <span style={{ fontSize:10, color:'#667eea' }}>✓</span>
-                                      <span style={{ fontSize:11, flex:1, color:'#2c3e50' }}>{t.name}</span>
-                                      <span style={{ fontSize:10, color:'#1976d2' }}>{t.assignedToName}</span>
-                                      {t.valor&&<span style={{ fontSize:10, color:'#27ae60' }}>R$ {t.valor}</span>}
-                                      <button onClick={()=>setNewTasks(prev=>prev.filter(x=>x.taskId!==t.taskId))} style={{ background:'none', border:'none', color:'#e74c3c', cursor:'pointer', fontSize:11 }}>✕</button>
+                                  {lt.map(t => (
+                                    <div key={t.taskId} style={{ margin: '4px 0 4px 8px', display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(102,126,234,0.06)', borderRadius: 6, border: '1px solid rgba(102,126,234,0.2)' }}>
+                                      <span style={{ fontSize: 10, color: '#667eea' }}>✓</span>
+                                      {t.requisicaoCodigo && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: '#667eea22', color: '#667eea' }}>{t.requisicaoCodigo}</span>}
+                                      <span style={{ fontSize: 11, flex: 1, color: '#2c3e50' }}>{t.name}</span>
+                                      <span style={{ fontSize: 10, color: '#1976d2' }}>{t.assignedToName}</span>
+                                      <button onClick={() => setNewTasks(prev => prev.filter(x => x.taskId !== t.taskId))} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 11 }}>✕</button>
                                     </div>
                                   ))}
                                 </div>
@@ -2721,6 +2719,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               const st = STATUS_TASK[t.status] || STATUS_TASK.backlog;
               const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
               const isTemplate = t.status === 'template';
+
+              const handleDelete = async (e) => {
+                e.stopPropagation();
+                if (!window.confirm(`Excluir tarefa "${t.name}"?`)) return;
+                const updated = (project.tasks || []).filter(task => task.taskId !== t.taskId);
+                try { await updateDoc(doc(db, 'budgets', projectId), { tasks: updated, updatedAt: new Date() }); }
+                catch(err) { console.error(err); alert('Erro ao excluir tarefa'); }
+              };
+
               return (
                 <div onClick={() => { setSelectedTask(t); setEditTask({ ...t }); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: `1px solid ${isTemplate ? '#e2e8f0' : '#f0f2f5'}`, background: isTemplate ? '#fafafa' : 'white', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 6, opacity: isTemplate ? 0.55 : 1 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.opacity = '1'; }}
@@ -2739,6 +2746,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12, background: st.bg, color: st.color, flexShrink: 0 }}>{st.label}</span>
                   <span style={{ fontSize: 16, color: '#cbd5e1', flexShrink: 0 }}>›</span>
+                  {(canEdit || canPlan) && (
+                    <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 14, padding: '0 2px', flexShrink: 0, lineHeight: 1 }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}>✕</button>
+                  )}
                 </div>
               );
             };

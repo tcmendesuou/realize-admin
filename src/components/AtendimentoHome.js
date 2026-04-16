@@ -144,7 +144,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               assignedTo: budget.plannerUserId,
               assignedToName: budget.plannerUserName,
               roleId: budget.plannerRoleId,
-              status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
+              status: budget.kanbanStage === 'fechamento' ? 'done' : 'backlog',
               isBudgetChild: true,
               isMae: budget.feiraData?.isMae || false,
               budgetId: budget.id,
