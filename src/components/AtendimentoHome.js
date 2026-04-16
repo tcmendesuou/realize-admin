@@ -79,6 +79,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [activeSection, setActiveSection] = React.useState('workspace');
   const [calendarDate, setCalendarDate] = React.useState(new Date());
   const [selectedCalendarEvent, setSelectedCalendarEvent] = React.useState(null);
+
+  const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
     clientName: '', clientEmail: '', clientPhone: '',
     eventTypeId: '', eventTypeName: '',
