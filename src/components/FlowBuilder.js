@@ -52,6 +52,9 @@ function FlowBuilder({ eventType, onClose }) {
   const [filterVariaveis, setFilterVariaveis] = useState(true);
   const [filterTarefas, setFilterTarefas] = useState(true);
   const [filterEtapa, setFilterEtapa] = useState('');
+  // linkedTasks: { [itemId]: [taskId, ...] } — tarefas vinculadas a cada pergunta
+  const [linkedTasks, setLinkedTasks] = useState({});
+  const [linkingItemId, setLinkingItemId] = useState(null); // id da pergunta sendo editada
 
   useEffect(() => {
     loadData();
@@ -107,6 +110,8 @@ function FlowBuilder({ eventType, onClose }) {
           .filter(item => item !== undefined);
 
         setFlowItems(orderedItems);
+        // Carregar linkedTasks existentes
+        setLinkedTasks(flowData.linkedTasks || {});
       } else {
         setFlowExists(false);
       }
@@ -175,7 +180,8 @@ function FlowBuilder({ eventType, onClose }) {
           label: item.text || item.name || '',
           order: index + 1
         })),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        linkedTasks,
       };
 
       await setDoc(doc(db, 'eventFlows', eventType.id), flowData);
@@ -374,8 +380,21 @@ function FlowBuilder({ eventType, onClose }) {
                         {getItemBadgeRole(item) && (
                           <span className="badge badge-role">{getItemBadgeRole(item)}</span>
                         )}
+                        {/* Tarefas vinculadas — só para perguntas */}
+                        {item.itemType === 'question' && (linkedTasks[item.id] || []).length > 0 && (
+                          <span className="badge" style={{ background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>
+                            {(linkedTasks[item.id] || []).length} tarefa{(linkedTasks[item.id] || []).length > 1 ? 's' : ''} vinculada{(linkedTasks[item.id] || []).length > 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                     </div>
+                    {/* Botão vincular — só para perguntas */}
+                    {item.itemType === 'question' && (
+                      <button onClick={() => setLinkingItemId(item.id)} title="Vincular tarefas"
+                        style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(102,126,234,0.3)', background: linkingItemId === item.id ? 'rgba(102,126,234,0.15)' : 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', flexShrink: 0, fontFamily: 'Outfit, sans-serif' }}>
+                        ⚡
+                      </button>
+                    )}
                     <button
                       className="btn-remove-from-flow"
                       onClick={() => removeFromFlow(item.id, item.itemType)}
@@ -387,11 +406,45 @@ function FlowBuilder({ eventType, onClose }) {
                 ))
               )}
             </div>
-          </div>
 
-        </div>
-
-        <div className="flow-builder-footer">
+            {/* Painel de vincular tarefas */}
+            {linkingItemId && (() => {
+              const question = flowItems.find(i => i.id === linkingItemId);
+              const tasks = availableItems.filter(i => i.itemType === 'task');
+              const selected = linkedTasks[linkingItemId] || [];
+              return (
+                <div style={{ marginTop: 12, padding: 14, background: 'rgba(102,126,234,0.06)', borderRadius: 10, border: '1px solid rgba(102,126,234,0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#667eea' }}>Tarefas vinculadas a: <em style={{ fontWeight: 400 }}>{question?.text || question?.name}</em></span>
+                    <button onClick={() => setLinkingItemId(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                  </div>
+                  {tasks.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>Nenhuma tarefa no banco. Crie tarefas na aba Tarefas do admin.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 200, overflowY: 'auto' }}>
+                      {tasks.map(t => {
+                        const isSel = selected.includes(t.id);
+                        return (
+                          <button key={t.id} onClick={() => {
+                            const updated = isSel ? selected.filter(id => id !== t.id) : [...selected, t.id];
+                            setLinkedTasks(prev => ({ ...prev, [linkingItemId]: updated }));
+                          }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7, border: `1px solid ${isSel ? '#667eea' : 'rgba(102,126,234,0.15)'}`, background: isSel ? 'rgba(102,126,234,0.1)' : 'white', cursor: 'pointer', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
+                            <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${isSel ? '#667eea' : '#cbd5e1'}`, background: isSel ? '#667eea' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {isSel && <span style={{ color: 'white', fontSize: 10, lineHeight: 1 }}>✓</span>}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, color: isSel ? '#667eea' : '#1a2e40', fontWeight: isSel ? 600 : 400 }}>{t.name}</div>
+                              <div style={{ fontSize: 10, color: '#94a3b8' }}>{t.roleName || ''}{t.jobStage ? ` · Etapa: ${t.jobStage.replace(/_/g,' ')}` : ''}</div>
+                            </div>
+                            {t.requisicaoCodigo && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: '#667eea22', color: '#667eea' }}>{t.requisicaoCodigo}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           <div className="footer-left">
             <button className="btn-cancel" onClick={onClose}>Fechar</button>
             {flowExists && (

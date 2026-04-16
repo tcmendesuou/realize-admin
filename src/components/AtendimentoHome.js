@@ -226,7 +226,11 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
           const allQSnap = await getDocs(collection(db, 'questions'));
           const allQ = allQSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           const found = allQ.find(q => q.id === item.itemId);
-          if (found) result.push(found);
+          if (found) {
+            // Inclui linkedTasks do fluxo na pergunta
+            const qLinkedTaskIds = (flow.linkedTasks || {})[item.itemId] || [];
+            result.push({ ...found, linkedTaskIds: qLinkedTaskIds });
+          }
         } else if (item.itemType === 'task') {
           // Tarefa template do fluxo
           const taskSnap = await getDocs(collection(db, 'tasks'));

@@ -320,13 +320,24 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           const flowSnap = await getDocs(query(collection(db, 'eventFlows'), where('eventTypeId', '==', data.eventTypeId)));
           if (!flowSnap.empty) {
             const flow = flowSnap.docs[0].data();
+            const flowLinkedTasks = flow.linkedTasks || {};
             const qIds = (flow.items || []).filter(i => i.itemType === 'question').map(i => i.itemId);
             if (qIds.length > 0) {
-              const allQ = await getDocs(collection(db, 'questions'));
-              const qData = allQ.docs
+              const [allQSnap, allTasksSnap] = await Promise.all([
+                getDocs(collection(db, 'questions')),
+                getDocs(collection(db, 'tasks')),
+              ]);
+              const allTasksData = allTasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+              const qData = allQSnap.docs
                 .map(d => ({ id: d.id, ...d.data() }))
                 .filter(q => qIds.includes(q.id))
-                .sort((a, b) => (a.order || 0) - (b.order || 0));
+                .sort((a, b) => (a.order || 0) - (b.order || 0))
+                .map(q => ({
+                  ...q,
+                  linkedTasks: (flowLinkedTasks[q.id] || [])
+                    .map(tid => allTasksData.find(t => t.id === tid))
+                    .filter(Boolean),
+                }));
               setQuestions(qData);
             }
           }
@@ -1663,6 +1674,95 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 </div>
                               );
                             })}
+
+                            {/* ── TAREFAS VINCULADAS DO FLUXO — visíveis na Sessão de Planejamento ── */}
+                            {modoEdicao && (q.linkedTasks || []).length > 0 && (() => {
+                              const jobTasks = project.tasks || [];
+                              return (
+                                <div style={{ margin: '8px 0', padding: '10px 12px', background: 'rgba(102,126,234,0.04)', borderRadius: 8, border: '1px solid rgba(102,126,234,0.12)' }}>
+                                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 0.8, marginBottom: 8, textTransform: 'uppercase' }}>
+                                    Tarefas programadas para esta pergunta
+                                  </div>
+                                  {(q.linkedTasks || []).map(lt => {
+                                    const existing = jobTasks.find(t => t.templateId === lt.id);
+                                    const [editing, setEditing] = React.useState(false);
+                                    const [editData, setEditData] = React.useState({ name: lt.name, cargoNome: lt.roleName || '', assignedTo: '', assignedToName: '', prioridade: lt.priority || 'normal', prazo: '', observacao: lt.observacao || '' });
+                                    const usersForRole = lt.roleId ? agencyUsers.filter(u => u.roleId === lt.roleId) : agencyUsers;
+
+                                    const saveLinkedTask = async () => {
+                                      if (!editData.assignedToName && !editData.assignedTo) { alert('Selecione a pessoa responsável'); return; }
+                                      const newTask = {
+                                        taskId: existing?.taskId || `linked-${lt.id}-${Date.now()}`,
+                                        templateId: lt.id,
+                                        type: 'linked',
+                                        name: editData.name,
+                                        descricao: lt.description || '',
+                                        roleId: lt.roleId || '', cargoNome: editData.cargoNome,
+                                        assignedTo: editData.assignedTo, assignedToName: editData.assignedToName,
+                                        requisicaoId: lt.requisicaoId || '', requisicaoCodigo: lt.requisicaoCodigo || '', requisicaoNome: lt.requisicaoNome || '',
+                                        jobStage: lt.jobStage || '', isComum: lt.isComum || false,
+                                        prioridade: editData.prioridade, prazo: editData.prazo,
+                                        observacao: editData.observacao,
+                                        questionId: q.id,
+                                        status: 'backlog', createdAt: new Date(), createdBy: userData?.name,
+                                      };
+                                      const updatedTasks = existing
+                                        ? jobTasks.map(t => t.taskId === existing.taskId ? newTask : t)
+                                        : [...jobTasks, newTask];
+                                      await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, updatedAt: new Date() });
+                                      setEditing(false);
+                                    };
+
+                                    return (
+                                      <div key={lt.id} style={{ marginBottom: 8, borderRadius: 7, border: `1px solid ${existing ? '#10b98133' : 'rgba(102,126,234,0.2)'}`, background: existing ? 'rgba(16,185,129,0.04)' : 'white', overflow: 'hidden' }}>
+                                        {/* Header da tarefa vinculada */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px' }}>
+                                          {lt.requisicaoCodigo && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: '#667eea22', color: '#667eea', flexShrink: 0 }}>{lt.requisicaoCodigo}</span>}
+                                          <span style={{ fontSize: 12, fontWeight: 500, color: '#1e293b', flex: 1 }}>{lt.name}</span>
+                                          <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{lt.roleName || ''}</span>
+                                          {existing && <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>✓ Atribuída</span>}
+                                          <button onClick={() => setEditing(e => !e)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, border: '1px solid rgba(102,126,234,0.3)', background: editing ? 'rgba(102,126,234,0.1)' : 'none', color: '#667eea', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
+                                            {editing ? 'Fechar' : existing ? 'Editar' : 'Atribuir'}
+                                          </button>
+                                        </div>
+                                        {/* Form inline */}
+                                        {editing && (
+                                          <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(102,126,234,0.1)', background: '#f8faff', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <input value={editData.name} onChange={e => setEditData(p => ({ ...p, name: e.target.value }))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif' }} placeholder="Nome da tarefa" />
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                              <select value={editData.assignedTo} onChange={e => { const u = agencyUsers.find(x => x.id === e.target.value); setEditData(p => ({ ...p, assignedTo: e.target.value, assignedToName: u?.name || '' })); }} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif' }}>
+                                                <option value="">Selecione a pessoa *</option>
+                                                {usersForRole.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                              </select>
+                                              <select value={editData.prioridade} onChange={e => setEditData(p => ({ ...p, prioridade: e.target.value }))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif' }}>
+                                                <option value="baixa">Baixa</option>
+                                                <option value="normal">Normal</option>
+                                                <option value="alta">Alta</option>
+                                                <option value="urgente">Urgente</option>
+                                              </select>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                              <div>
+                                                <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 3 }}>PRAZO</div>
+                                                <input type="date" lang="pt-BR" value={editData.prazo} onChange={e => setEditData(p => ({ ...p, prazo: e.target.value }))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', width: '100%' }} />
+                                              </div>
+                                              <div>
+                                                <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 3 }}>OBSERVAÇÃO</div>
+                                                <input value={editData.observacao} onChange={e => setEditData(p => ({ ...p, observacao: e.target.value }))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', width: '100%' }} placeholder="Obs..." />
+                                              </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                              <button onClick={() => setEditing(false)} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                                              <button onClick={saveLinkedTask} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Salvar</button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
 
                             {/* Mini-form tarefa resposta única */}
                             {modoEdicao && !isMultiLine && form.open && renderMiniForm(q.id, () => gerarTarefa(q, answerLines?.[0]?.value || ''))}
