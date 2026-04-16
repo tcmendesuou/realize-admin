@@ -445,6 +445,11 @@ function FlowBuilder({ eventType, onClose }) {
                 </div>
               );
             })()}
+          </div> {/* fecha event-flow */}
+
+        </div> {/* fecha flow-builder-body */}
+
+        <div className="flow-builder-footer">
           <div className="footer-left">
             <button className="btn-cancel" onClick={onClose}>Fechar</button>
             {flowExists && (
