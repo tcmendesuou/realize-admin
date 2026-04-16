@@ -76,7 +76,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [reuniaoBriefing, setReuniaosBriefing] = useState({ data: '', hora: '', local: '', participantes: [] });
   const [reuniaoFilterCargo, setReuniaoFilterCargo] = useState('');
 
-  const [briefingForm, setBriefingForm] = useState({
+  const [activeSection, setActiveSection] = React.useState('workspace');
+  const [calendarDate, setCalendarDate] = React.useState(new Date());
+  const [selectedCalendarEvent, setSelectedCalendarEvent] = React.useState(null);
     companyId: '', companyName: '',
     clientName: '', clientEmail: '', clientPhone: '',
     eventTypeId: '', eventTypeName: '',
@@ -1529,11 +1531,15 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             <div className="ws-logo-sub">{userData?.roleName || 'Workspace'}</div>
           </div>
           <nav className="ws-nav">
-            <button className="ws-nav-item active">
+            <button className={`ws-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>
               <span className="ws-nav-dot" /><span>Workspace</span>
             </button>
-            <button className="ws-nav-item" style={{ opacity: 0.35, cursor: 'not-allowed' }}>
-              <span className="ws-nav-dot" /><span>Propostas</span>
+            <button className={`ws-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')} style={{ position: 'relative' }}>
+              <span className="ws-nav-dot" /><span>Agenda</span>
+              {/* Ponto de notificação — aparece quando tem reunião futura */}
+              {myTasks.some(t => t.type === 'reuniao' && t.data && t.data >= new Date().toISOString().split('T')[0]) && activeSection !== 'agenda' && (
+                <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 7, height: 7, borderRadius: '50%', background: '#FFA726', boxShadow: '0 0 6px #FFA726' }} />
+              )}
             </button>
           </nav>
           <div className="ws-sidebar-user">
@@ -1549,20 +1555,134 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         {/* MAIN */}
         <main className="ws-main">
 
+        <main className="ws-main">
+
           {/* HEADER */}
           <div className="ws-header">
             <div className="ws-header-left">
               <h1>Olá, <strong>{userName.split(' ')[0]}</strong>!</h1>
               <p>{userData?.areaName} · {userData?.roleName}</p>
             </div>
-            {canOpenBriefing && (
+            {activeSection === 'workspace' && canOpenBriefing && (
               <button className="ws-btn-briefing" onClick={() => setShowBriefing(true)}>
                 + Abrir novo briefing
               </button>
             )}
           </div>
 
-          {/* ── KANBAN PROJETOS ── */}
+          {/* ── AGENDA ── */}
+          {activeSection === 'agenda' && (() => {
+            const hoje = new Date();
+            const ano = calendarDate.getFullYear();
+            const mes = calendarDate.getMonth();
+            const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+            const primeiroDia = new Date(ano, mes, 1).getDay();
+            const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+            // Montar eventos: reuniões + prazos de tarefas
+            const eventos = {};
+            const addEvento = (dateStr, evento) => {
+              if (!dateStr) return;
+              if (!eventos[dateStr]) eventos[dateStr] = [];
+              eventos[dateStr].push(evento);
+            };
+
+            myTasks.forEach(t => {
+              if (t.type === 'reuniao' && t.data) {
+                addEvento(t.data, { type: 'reuniao', name: t.name, hora: t.hora, sala: t.sala, feiraNome: t.feiraNome, clientName: t.clientName, task: t });
+              }
+              if (t.prazo && t.type !== 'reuniao') {
+                addEvento(t.prazo, { type: 'prazo', name: t.name, feiraNome: t.projectName, clientName: t.clientName, task: t });
+              }
+            });
+
+            const cells = [];
+            // Células vazias antes do dia 1
+            for (let i = 0; i < primeiroDia; i++) cells.push(null);
+            for (let d = 1; d <= diasNoMes; d++) cells.push(d);
+
+            const toDateStr = (d) => `${ano}-${String(mes + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const isHoje = (d) => d === hoje.getDate() && mes === hoje.getMonth() && ano === hoje.getFullYear();
+
+            return (
+              <div style={{ padding: '0 0 32px' }}>
+                {/* Navegação do mês */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+                  <button onClick={() => setCalendarDate(new Date(ano, mes - 1, 1))} style={{ background: 'none', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 8, color: '#7BAFD4', fontSize: 16, cursor: 'pointer', padding: '4px 12px' }}>‹</button>
+                  <span style={{ fontSize: 18, fontWeight: 600, color: '#E8F4FF', minWidth: 180, textAlign: 'center' }}>{meses[mes]} {ano}</span>
+                  <button onClick={() => setCalendarDate(new Date(ano, mes + 1, 1))} style={{ background: 'none', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 8, color: '#7BAFD4', fontSize: 16, cursor: 'pointer', padding: '4px 12px' }}>›</button>
+                  <button onClick={() => setCalendarDate(new Date())} style={{ background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', borderRadius: 8, color: '#00E5C4', fontSize: 12, cursor: 'pointer', padding: '5px 14px', fontFamily: 'Outfit, sans-serif', marginLeft: 8 }}>Hoje</button>
+                </div>
+
+                {/* Grid do calendário */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, background: 'rgba(0,180,255,0.06)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(0,180,255,0.1)' }}>
+                  {/* Cabeçalho dias da semana */}
+                  {diasSemana.map(d => (
+                    <div key={d} style={{ background: 'rgba(10,22,38,0.97)', padding: '10px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'rgba(123,175,212,0.5)', letterSpacing: 1 }}>{d}</div>
+                  ))}
+                  {/* Células dos dias */}
+                  {cells.map((d, i) => {
+                    const dateStr = d ? toDateStr(d) : null;
+                    const evts = dateStr ? (eventos[dateStr] || []) : [];
+                    const reunioes = evts.filter(e => e.type === 'reuniao');
+                    const prazos = evts.filter(e => e.type === 'prazo');
+                    return (
+                      <div key={i} onClick={() => d && evts.length > 0 && setSelectedCalendarEvent({ date: dateStr, eventos: evts })}
+                        style={{ background: 'rgba(10,22,38,0.97)', minHeight: 80, padding: '8px 6px', cursor: d && evts.length > 0 ? 'pointer' : 'default', transition: 'background 0.15s', position: 'relative' }}
+                        onMouseEnter={e => { if (d && evts.length > 0) e.currentTarget.style.background = 'rgba(0,229,196,0.04)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(10,22,38,0.97)'; }}>
+                        {d && (
+                          <>
+                            <div style={{ fontSize: 12, fontWeight: isHoje(d) ? 700 : 400, color: isHoje(d) ? '#0D1B2A' : evts.length > 0 ? '#E8F4FF' : 'rgba(123,175,212,0.4)', width: 24, height: 24, borderRadius: '50%', background: isHoje(d) ? '#00E5C4' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>{d}</div>
+                            {reunioes.slice(0, 2).map((e, j) => (
+                              <div key={j} style={{ fontSize: 10, background: 'rgba(255,167,38,0.15)', border: '1px solid rgba(255,167,38,0.3)', color: '#FFA726', borderRadius: 4, padding: '2px 5px', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
+                                {e.hora && `${e.hora} `}{e.name}
+                              </div>
+                            ))}
+                            {prazos.slice(0, 2).map((e, j) => (
+                              <div key={j} style={{ fontSize: 10, background: 'rgba(0,128,255,0.12)', border: '1px solid rgba(0,128,255,0.25)', color: '#60a5fa', borderRadius: 4, padding: '2px 5px', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {e.name}
+                              </div>
+                            ))}
+                            {evts.length > 4 && <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>+{evts.length - 4} mais</div>}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Modal de evento do dia */}
+                {selectedCalendarEvent && (
+                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                    onClick={() => setSelectedCalendarEvent(null)}>
+                    <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 16, padding: 28, minWidth: 340, maxWidth: 480, width: '90%' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>
+                          {selectedCalendarEvent.date.split('-').reverse().join('/')}
+                        </span>
+                        <button onClick={() => setSelectedCalendarEvent(null)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {selectedCalendarEvent.eventos.map((e, i) => (
+                          <div key={i} style={{ padding: '12px 14px', borderRadius: 10, background: e.type === 'reuniao' ? 'rgba(255,167,38,0.08)' : 'rgba(0,128,255,0.08)', border: `1px solid ${e.type === 'reuniao' ? 'rgba(255,167,38,0.25)' : 'rgba(0,128,255,0.2)'}` }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: e.type === 'reuniao' ? '#FFA726' : '#60a5fa', marginBottom: 6 }}>{e.name}</div>
+                            {e.feiraNome && <div style={{ fontSize: 12, color: '#E8F4FF', marginBottom: 2 }}>{e.feiraNome}{e.clientName ? ` — ${e.clientName}` : ''}</div>}
+                            {e.hora && <div style={{ fontSize: 11, color: '#7BAFD4' }}>{e.hora}{e.sala ? ` · ${e.sala}` : ''}</div>}
+                            {e.type === 'prazo' && <div style={{ fontSize: 11, color: '#7BAFD4' }}>Prazo da tarefa</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ── KANBAN PROJETOS + TAREFAS ── */}
+          {activeSection === 'workspace' && <>
           <div className="ws-section">
             <div className="ws-section-header">
               <span className="ws-section-title">Projetos</span>
@@ -1632,7 +1752,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       ) : tasks.map((task, i) => (
                         task.type === 'reuniao' ? (
                           <div key={i} style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '10px 12px', marginBottom: 8, borderLeft: '3px solid #f59e0b' }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', letterSpacing: 0.5, marginBottom: 4 }}>REUNIÃO</div>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1a2e40', marginBottom: 3 }}>{task.name}</div>
                             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>{task.feiraNome} — {task.clientName}</div>
                             <div style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
@@ -1697,6 +1816,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               </div>
             )}
           </div>
+
+          </>}
 
         </main>
 
