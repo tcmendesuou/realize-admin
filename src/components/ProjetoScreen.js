@@ -2412,6 +2412,20 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   timelineEntry.description = `Etapa concluída por ${userData?.name}`;
                 }
 
+                // Para QUALQUER etapa concluída — ativa tarefas template cuja etapa bate com a etapa concluída
+                const tasksBase = updates.tasks || project.tasks || [];
+                const tasksComTemplatesAtivados = tasksBase.map(t => {
+                  if (t.status === 'template' && t.jobStage === etapaId) {
+                    return { ...t, status: 'backlog', activatedAt: new Date(), activatedBy: userData?.name };
+                  }
+                  return t;
+                });
+                const templateCount = tasksBase.filter(t => t.status === 'template' && t.jobStage === etapaId).length;
+                if (templateCount > 0) {
+                  updates.tasks = tasksComTemplatesAtivados;
+                  timelineEntry.description += ` — ${templateCount} tarefa(s) template ativada(s)`;
+                }
+
                 updates.timeline = [...(project.timeline || []), timelineEntry];
                 await updateDoc(doc(db, 'budgets', projectId), updates);
               } catch (e) { console.error(e); alert('Erro ao concluir etapa.'); }
@@ -2544,12 +2558,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── TAREFAS ── */}
           {activeTab === 'tasks' && (() => {
             const allTasks = project.tasks || [];
-            const filteredTasks = taskFilterUser ? allTasks.filter(t => t.assignedTo === taskFilterUser) : allTasks;
+            // Tarefas ativas (não são reunião)
+            const activeTasks = allTasks.filter(t => t.type !== 'reuniao');
+            const filteredTasks = taskFilterUser ? activeTasks.filter(t => t.assignedTo === taskFilterUser || t.status === 'template') : activeTasks;
 
-            // Agrupar por requisição
+            // Separar templates das ativas
+            const templateTasks = filteredTasks.filter(t => t.status === 'template');
+            const nonTemplateTasks = filteredTasks.filter(t => t.status !== 'template');
+
+            // Agrupar ativas por requisição
             const grupos = {};
             const semReq = [];
-            filteredTasks.forEach(t => {
+            nonTemplateTasks.forEach(t => {
               if (t.requisicaoCodigo) {
                 const key = t.requisicaoCodigo;
                 if (!grupos[key]) grupos[key] = { codigo: t.requisicaoCodigo, nome: t.requisicaoNome, tasks: [] };
@@ -2560,6 +2580,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             });
 
             const STATUS_TASK = {
+              template:    { label: 'Template',     color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
               blocked:     { label: 'Aguardando',   color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
               backlog:     { label: 'Pendente',     color: '#64748b', bg: 'rgba(100,116,139,0.1)' },
               todo:        { label: 'A Fazer',      color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
@@ -2571,16 +2592,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const TaskCard = ({ t }) => {
               const st = STATUS_TASK[t.status] || STATUS_TASK.backlog;
               const reqColor = requisitions.find(r => r.codigo === t.requisicaoCodigo)?.cor || '#667eea';
+              const isTemplate = t.status === 'template';
               return (
-                <div onClick={() => { setSelectedTask(t); setEditTask({ ...t }); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f2f5', background: 'white', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 6 }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = '#c7d2fe'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#f0f2f5'}>
+                <div onClick={() => { setSelectedTask(t); setEditTask({ ...t }); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: `1px solid ${isTemplate ? '#e2e8f0' : '#f0f2f5'}`, background: isTemplate ? '#fafafa' : 'white', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 6, opacity: isTemplate ? 0.55 : 1 }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.opacity = '1'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = isTemplate ? '#e2e8f0' : '#f0f2f5'; e.currentTarget.style.opacity = isTemplate ? '0.55' : '1'; }}>
+                  {isTemplate && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: '#f1f5f9', color: '#94a3b8', flexShrink: 0, letterSpacing: 0.5 }}>TEMPLATE</span>}
                   {t.requisicaoCodigo && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: reqColor + '22', color: reqColor, flexShrink: 0 }}>{t.requisicaoCodigo}</span>}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
                     <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      {t.cargoNome && <span>{t.cargoNome}</span>}
                       {t.assignedToName && <span>{t.assignedToName}</span>}
-                      {t.prazo && <span style={{ marginLeft: 8, color: '#f59e0b' }}>Prazo: {t.prazo}</span>}
+                      {t.jobStage && <span style={{ marginLeft: 8, color: '#667eea' }}>Etapa: {t.jobStage.replace(/_/g, ' ')}</span>}
                       {t.prioridade === 'urgente' && <span style={{ marginLeft: 8, color: '#ef4444', fontWeight: 600 }}>URGENTE</span>}
                       {t.prioridade === 'alta' && <span style={{ marginLeft: 8, color: '#f97316' }}>Alta</span>}
                     </div>
@@ -2607,7 +2631,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   </select>
                 </div>
 
-                {filteredTasks.length === 0 ? (
+                {nonTemplateTasks.length === 0 && templateTasks.length === 0 ? (
                   <div className="ps-empty">Nenhuma tarefa encontrada</div>
                 ) : (
                   <>
@@ -2625,6 +2649,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           Outras tarefas ({semReq.length})
                         </div>
                         {semReq.map((t, i) => <TaskCard key={t.taskId || i} t={t} />)}
+                      </div>
+                    )}
+                    {/* Seção de tarefas template — visíveis mas opacas */}
+                    {templateTasks.length > 0 && (
+                      <div style={{ marginTop: 24 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          Tarefas programadas no fluxo ({templateTasks.length})
+                          <span style={{ fontSize: 10, fontWeight: 400, color: '#cbd5e1' }}>— serão ativadas conforme as etapas avançam</span>
+                        </div>
+                        {templateTasks.map((t, i) => <TaskCard key={t.taskId || i} t={t} />)}
                       </div>
                     )}
                   </>

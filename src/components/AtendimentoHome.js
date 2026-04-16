@@ -54,6 +54,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [companies, setCompanies] = useState([]);
   const [eventTypes, setEventTypes] = useState([]);
   const [flowQuestions, setFlowQuestions] = useState([]);
+  const [flowTemplateTasks, setFlowTemplateTasks] = useState([]);
   const [savingBriefing, setSavingBriefing] = useState(false);
 
   // Estado para feiras (bloco fixo-events)
@@ -188,31 +189,42 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       const items = flow.items || [];
 
       const result = [];
+      const templateTasks = [];
 
       for (const item of items.sort((a, b) => a.order - b.order)) {
         if (item.itemType === 'fixed-block') {
-          // Bloco de reunião pode ter id dinâmico — mapeia para fixed-block-reuniao
           const blockKey = item.itemId.startsWith('fixed-block-reuniao')
             ? 'fixed-block-reuniao'
             : item.itemId;
           const fields = FIXED_BLOCK_FIELDS[blockKey] || [];
           fields.forEach(f => result.push({
             ...f,
-            // Para reunião, usa o itemId dinâmico como id único para salvar separado
             id: item.itemId.startsWith('fixed-block-reuniao') ? item.itemId : f.id,
             label: item.label || f.label,
             isFixedBlockField: true,
           }));
         } else if (item.itemType === 'question') {
-          // Pergunta normal do Firestore
           const allQSnap = await getDocs(collection(db, 'questions'));
           const allQ = allQSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           const found = allQ.find(q => q.id === item.itemId);
           if (found) result.push(found);
+        } else if (item.itemType === 'task') {
+          // Tarefa template do fluxo
+          const taskSnap = await getDocs(collection(db, 'tasks'));
+          const allTasks = taskSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const found = allTasks.find(t => t.id === item.itemId);
+          if (found) templateTasks.push(found);
         }
       }
 
       setFlowQuestions(result);
+      // Salva as tarefas template para usar na criação do budget
+      setFlowTemplateTasks(templateTasks);
+    } catch (err) {
+      console.error('Erro ao carregar perguntas do fluxo:', err);
+      setFlowQuestions([]);
+    }
+  };
     } catch (err) {
       console.error('Erro ao carregar fluxo:', err);
       setFlowQuestions([]);
@@ -343,6 +355,30 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
           createdAt: new Date(),
         }));
 
+        // Tarefas template do fluxo — entram invisíveis, status 'template'
+        const tarefasTemplate = flowTemplateTasks.map(t => ({
+          taskId: `template-${t.id}-${i}`,
+          type: 'template',
+          templateId: t.id,
+          name: t.name,
+          descricao: t.description || '',
+          roleId: t.roleId || '',
+          cargoNome: t.roleName || '',
+          requisicaoId: t.requisicaoId || '',
+          requisicaoCodigo: t.requisicaoCodigo || '',
+          requisicaoNome: t.requisicaoNome || '',
+          jobStage: t.jobStage || '',
+          isComum: t.isComum || false,
+          prioridade: t.priority || 'normal',
+          periodo: t.periodo || '',
+          quantidade: t.quantidade || '',
+          custoUnitario: t.custoUnitario || '',
+          bvPct: t.bvPct || '',
+          campos: t.campos || [],
+          status: 'template',
+          createdAt: new Date(),
+        }));
+
         return addDoc(collection(db, 'budgets'), {
           ...baseData,
           isMae: feira.isMae || false,
@@ -356,7 +392,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             isMae: feira.isMae || false,
           },
           answers: commonAnswers,
-          tasks: cardsReuniao,
+          tasks: [...cardsReuniao, ...tarefasTemplate],
           // Salva dados da reunião no cronograma
           cronograma: reuniaoBriefing.data || reuniaoBriefing.participantes.length > 0 ? {
             reuniao_briefing: {
