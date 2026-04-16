@@ -45,6 +45,7 @@ const FIXED_BLOCK_FIELDS = {
 export default function AtendimentoHome({ user, userData, onLogout }) {
   const navigate = useNavigate();
   const [allBudgets, setAllBudgets] = useState([]);
+  const [myJobs, setMyJobs] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [taskView, setTaskView] = useState('kanban');
@@ -112,8 +113,21 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'budgets'), (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Kanban mostra só mãe
+      // Kanban mostra só filhos
       setAllBudgets(data.filter(b => b.parentBudgetId));
+      // Meus Jobs — todos os filhos onde o usuário aparece em qualquer papel
+      if (userId) {
+        const jobs = data.filter(b => {
+          if (!b.parentBudgetId) return false;
+          if (b.plannerUserId === userId) return true;
+          if (b.atendimentoUserId === userId) return true;
+          // Participante de alguma reunião ou tarefa
+          if ((b.tasks || []).some(t => t.assignedTo === userId)) return true;
+          if ((b.cronograma?.reuniao_briefing?.participantes || []).some(p => p.id === userId)) return true;
+          return false;
+        });
+        setMyJobs(jobs);
+      }
       // Atualiza tarefas do usuário em tempo real
       if (userId) {
         const tasks = [];
@@ -1537,6 +1551,12 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             <button className={`ws-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>
               <span className="ws-nav-dot" /><span>Workspace</span>
             </button>
+            <button className={`ws-nav-item ${activeSection === 'jobs' ? 'active' : ''}`} onClick={() => setActiveSection('jobs')}>
+              <span className="ws-nav-dot" /><span>Meus Jobs</span>
+              {myJobs.length > 0 && activeSection !== 'jobs' && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: '#00E5C4', background: 'rgba(0,229,196,0.1)', padding: '1px 7px', borderRadius: 10 }}>{myJobs.length}</span>
+              )}
+            </button>
             <button className={`ws-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')} style={{ position: 'relative' }}>
               <span className="ws-nav-dot" /><span>Agenda</span>
               {/* Ponto de notificação — aparece quando tem reunião futura */}
@@ -1682,41 +1702,69 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             );
           })()}
 
+          {/* ── MEUS JOBS ── */}
+          {activeSection === 'jobs' && (() => {
+            const ETAPA_LABELS = { briefing:'Briefing', reuniao_briefing:'Reunião de Briefing', kickoff:'Kick-off', paper:'Paper', planilha_inicial:'Planilha Inicial', apresentacao_interna:'Pré-Apresentação', apresentacao_cliente:'Apresentação', ajustes:'Ajustes', aprovacao:'Aprovação', finalizacoes:'Finalizações', caderno_artes:'Caderno de Artes', book_producao:'Book de Produção', passadao_interno:'Passadão Interno', producao:'Produção', entrega_job:'Entrega', fechamento_financeiro:'Fechamento', reuniao_encerramento:'Encerramento', relatorio_cliente:'Relatório' };
+            const STATUS_COLOR = { approved: '#10b981', rejected: '#ef4444', analyzing: '#f59e0b' };
+
+            return (
+              <div style={{ padding: '0 0 32px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: '#E8F4FF' }}>Meus Jobs</span>
+                  <span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{myJobs.length} {myJobs.length === 1 ? 'job' : 'jobs'}</span>
+                </div>
+                {myJobs.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'rgba(123,175,212,0.3)', fontSize: 13, padding: '48px 0' }}>Nenhum job encontrado</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {myJobs.map(b => {
+                      const etapaAtual = ETAPA_LABELS[b.jobStage || 'briefing'] || b.jobStage || 'Briefing';
+                      const proximaReuniao = (b.tasks || []).filter(t => t.type === 'reuniao' && t.data >= new Date().toISOString().split('T')[0]).sort((a, z) => a.data.localeCompare(z.data))[0];
+                      const tarefasPendentes = (b.tasks || []).filter(t => t.assignedTo === userId && ['backlog','todo','in_progress'].includes(t.status)).length;
+                      return (
+                        <div key={b.id} onClick={() => navigate(`/projeto/${b.id}`)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,229,196,0.05)'; e.currentTarget.style.borderColor = 'rgba(0,229,196,0.2)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(0,180,255,0.1)'; }}>
+                          {/* Header do card */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF', marginBottom: 2 }}>{getProjectName(b)}</div>
+                              <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>{b.companyName || b.clientName || '—'} · {b.jobCode || ''}</div>
+                            </div>
+                            {b.status && STATUS_COLOR[b.status] && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: STATUS_COLOR[b.status] + '22', color: STATUS_COLOR[b.status], flexShrink: 0 }}>
+                                {b.status === 'approved' ? 'Aprovado' : b.status === 'rejected' ? 'Reprovado' : 'Em análise'}
+                              </span>
+                            )}
+                          </div>
+                          {/* Info row */}
+                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FFA726', flexShrink: 0 }} />
+                              <span style={{ fontSize: 11, color: '#FFA726', fontWeight: 500 }}>{etapaAtual}</span>
+                            </div>
+                            {tarefasPendentes > 0 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span style={{ fontSize: 11, color: '#60a5fa' }}>{tarefasPendentes} tarefa{tarefasPendentes > 1 ? 's' : ''} pendente{tarefasPendentes > 1 ? 's' : ''}</span>
+                              </div>
+                            )}
+                            {proximaReuniao && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)' }}>Próx. reunião: {proximaReuniao.data.split('-').reverse().join('/')} {proximaReuniao.hora && `às ${proximaReuniao.hora}`}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* ── KANBAN PROJETOS + TAREFAS ── */}
           {activeSection === 'workspace' && <>
-          <div className="ws-section">
-            <div className="ws-section-header">
-              <span className="ws-section-title">Projetos</span>
-              <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)' }}>{allBudgets.length} projetos</span>
-            </div>
-            <div className="ws-projects-kanban">
-              {KANBAN_STAGES.map(stage => {
-                const cards = allBudgets.filter(b => (b.kanbanStage || 'novo_pedido') === stage.id);
-                const hasCards = cards.length > 0;
-                return (
-                  <div key={stage.id} className={`ws-proj-col ${hasCards ? 'active' : ''}`}>
-                    <div className="ws-proj-col-header">
-                      <span className="ws-proj-col-name">{stage.label}</span>
-                      <span className="ws-proj-col-count">{cards.length}</span>
-                    </div>
-                    {cards.length === 0 ? (
-                      <div className="ws-proj-col-empty">—</div>
-                    ) : (
-                      <div className="ws-proj-col-cards">
-                        {cards.map(b => (
-                          <div key={b.id} className="ws-proj-card" onClick={() => navigate(`/projeto/${b.id}`)}>
-                            <div className="ws-proj-card-name">{getProjectName(b)}</div>
-                            <span className="ws-proj-card-sep">·</span>
-                            <div className="ws-proj-card-client">{b.jobCode || b.companyName || b.clientName || '—'}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
 
           <div className="ws-divider" />
 
