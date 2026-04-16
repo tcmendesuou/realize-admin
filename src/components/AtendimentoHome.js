@@ -225,11 +225,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       setFlowQuestions([]);
     }
   };
-    } catch (err) {
-      console.error('Erro ao carregar fluxo:', err);
-      setFlowQuestions([]);
-    }
-  };
 
   const handleEventTypeChange = async (eventTypeId) => {
     const et = eventTypes.find(e => e.id === eventTypeId);
