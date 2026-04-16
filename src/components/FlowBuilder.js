@@ -31,10 +31,10 @@ const FIXED_BLOCKS = [
   {
     id: 'fixed-block-reuniao',
     itemType: 'fixed-block',
-    text: 'Reunião',
-    description: 'Tipo de reunião, data, hora, sala e participantes por cargo',
+    text: 'Reunião de Briefing',
+    description: 'Data, hora, local e participantes da Reunião de Briefing',
     fields: [
-      { label: 'Reunião', type: 'fixed-reuniao' },
+      { label: 'Reunião de Briefing', type: 'fixed-reuniao' },
     ],
   },
 ];
@@ -120,13 +120,6 @@ function FlowBuilder({ eventType, onClose }) {
   };
 
   const addToFlow = (item) => {
-    // Bloco de Reunião pode ser adicionado múltiplas vezes — cria cópia com id único
-    if (item.id === 'fixed-block-reuniao') {
-      const count = flowItems.filter(i => i.id.startsWith('fixed-block-reuniao')).length;
-      const newItem = { ...item, id: `fixed-block-reuniao-${Date.now()}`, text: `Reunião ${count + 1}` };
-      setFlowItems([...flowItems, newItem]);
-      return;
-    }
     const alreadyInFlow = flowItems.find(i => i.id === item.id && i.itemType === item.itemType);
     if (alreadyInFlow) {
       alert('Este item já está no fluxo!');
@@ -179,7 +172,7 @@ function FlowBuilder({ eventType, onClose }) {
         items: flowItems.map((item, index) => ({
           itemId: item.id,
           itemType: item.itemType,
-          label: item.text || item.name || '',
+          label: item.text, // preserva "Reunião 1", "Reunião 2", etc.
           order: index + 1
         })),
         updatedAt: new Date()
