@@ -48,11 +48,18 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isFutura, isReuni
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                        <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                        <input type="date" lang="pt-BR" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>HORA</span>
-                        <input type="time" defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp} />
+                        <select defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp}>
+                          <option value="">--:--</option>
+                          {Array.from({ length: 48 }, (_, i) => {
+                            const h = String(Math.floor(i / 2)).padStart(2, '0');
+                            const m = i % 2 === 0 ? '00' : '30';
+                            return <option key={i} value={`${h}:${m}`}>{`${h}:${m}`}</option>;
+                          })}
+                        </select>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>SALA</span>
@@ -62,12 +69,12 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isFutura, isReuni
                   ) : etapa.tipo === 'aprovacao' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                      <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                      <input type="date" lang="pt-BR" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
                     </div>
                   ) : etapa.tipo !== 'conclusao' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                      <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                      <input type="date" lang="pt-BR" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
                     </div>
                   ) : null}
                 </div>
