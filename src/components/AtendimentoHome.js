@@ -141,7 +141,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
           (budget.tasks || []).forEach(task => {
             if (task.status === 'blocked') return;
             if (task.type === 'reuniao' && task.assignedTo === userId) {
-              tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
+              // Reuniões só vão para a Agenda, não para o To Do
+              tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName, onlyAgenda: true });
             } else if (task.type !== 'planejamento' && task.type !== 'reuniao' && (task.assignedTo === userId || task.roleId === userRoleId)) {
               // Tarefas com gatilho de etapa — só aparecem se o job já chegou naquela etapa
               if (task.jobStage) {
@@ -1262,8 +1263,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
 
   const stagesBloqueadosPlanner = ['briefing', 'reuniao_briefing', '', null, undefined];
   const tasksByStage = (stageId) => myTasks.filter(t => {
+    if (t.onlyAgenda) return false; // reuniões só na Agenda
     if ((t.taskStatus || t.status || 'backlog') !== stageId) return false;
-    // Card de planejamento só aparece no To Do após reuniao_briefing
     if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) return false;
     return true;
   });
@@ -1750,17 +1751,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       {tasks.length === 0 ? (
                         <div className="ws-task-empty">Nenhuma tarefa</div>
                       ) : tasks.map((task, i) => (
-                        task.type === 'reuniao' ? (
-                          <div key={i} style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '10px 12px', marginBottom: 8, borderLeft: '3px solid #f59e0b' }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a2e40', marginBottom: 3 }}>{task.name}</div>
-                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>{task.feiraNome} — {task.clientName}</div>
-                            <div style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
-                              {task.data && <span>{task.data.split('-').reverse().join('/')}</span>}
-                              {task.hora && <span> às {task.hora}</span>}
-                              {task.sala && <span> · {task.sala}</span>}
-                            </div>
-                          </div>
-                        ) : (
                         <div key={i} className={`ws-task-card ${task.isBudgetChild ? 'ws-task-card--planner' : ''}`}
                           onClick={() => navigate(`/projeto/${task.isBudgetChild ? task.budgetId : task.projectId}?tab=tasks&user=${userId}`)}
                           style={{ cursor: 'pointer' }}>
@@ -1782,7 +1772,6 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                             </div>
                           )}
                         </div>
-                        )
                       ))}
                     </div>
                   );
