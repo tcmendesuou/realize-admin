@@ -135,6 +135,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             if (task.type === 'reuniao' && task.assignedTo === userId) {
               tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
             } else if (task.type !== 'planejamento' && task.type !== 'reuniao' && (task.assignedTo === userId || task.roleId === userRoleId)) {
+              // Tarefas com gatilho de etapa — só aparecem se o job já chegou naquela etapa
+              if (task.jobStage) {
+                const ETAPA_ORDER = ['briefing','reuniao_briefing','kickoff','paper','planilha_inicial','apresentacao_interna','apresentacao_cliente','ajustes','aprovacao','finalizacoes','caderno_artes','book_producao','passadao_interno','producao','entrega_job','fechamento_financeiro','reuniao_encerramento','relatorio_cliente'];
+                const budgetStageIdx = ETAPA_ORDER.indexOf(budget.jobStage || 'briefing');
+                const taskStageIdx = ETAPA_ORDER.indexOf(task.jobStage);
+                if (taskStageIdx > budgetStageIdx) return; // etapa ainda não chegou
+              }
               tasks.push({ ...task, projectId: budget.id, projectName: getProjectName(budget), clientName: budget.companyName || budget.clientName });
             }
           });
@@ -809,9 +816,15 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     onChange={e => handleFeiraChange(i, 'dataInicio', e.target.value)} style={base} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 0.5 }}>DATA FINAL</span>
+                  <span style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 0.5 }}>
+                    DATA FINAL{f.dataInicio ? ` (a partir de ${f.dataInicio.split('-').reverse().join('/')})` : ''}
+                  </span>
                   <input type="date" value={f.dataFim || ''}
-                    onChange={e => handleFeiraChange(i, 'dataFim', e.target.value)} style={base} />
+                    min={f.dataInicio || ''}
+                    onChange={e => {
+                      if (f.dataInicio && e.target.value < f.dataInicio) return;
+                      handleFeiraChange(i, 'dataFim', e.target.value);
+                    }} style={base} />
                 </div>
               </div>
             </div>
@@ -843,7 +856,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>HORA</div>
-              <input type="time" value={reuniaoBriefing.hora} onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))} style={base} />
+              <input type="time" value={reuniaoBriefing.hora} step="1800" onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))} style={base} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>LOCAL</div>
