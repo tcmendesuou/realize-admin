@@ -114,21 +114,25 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         const tasks = [];
         data.forEach(budget => {
           if (budget.parentBudgetId && budget.plannerUserId === userId) {
-            tasks.push({
-              taskId: budget.id,
-              type: 'planejamento',
-              name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
-              projectId: budget.parentBudgetId,
-              projectName: budget.eventTypeName || 'Evento',
-              clientName: budget.companyName || budget.clientName,
-              assignedTo: budget.plannerUserId,
-              assignedToName: budget.plannerUserName,
-              roleId: budget.plannerRoleId,
-              status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
-              isBudgetChild: true,
-              isMae: budget.feiraData?.isMae || false,
-              budgetId: budget.id,
-            });
+            // Card de planejamento só aparece após a Reunião de Briefing ser concluída
+            const stagesBloqueados = ['briefing', 'reuniao_briefing', undefined, null, ''];
+            if (!stagesBloqueados.includes(budget.jobStage)) {
+              tasks.push({
+                taskId: budget.id,
+                type: 'planejamento',
+                name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
+                projectId: budget.parentBudgetId,
+                projectName: budget.eventTypeName || 'Evento',
+                clientName: budget.companyName || budget.clientName,
+                assignedTo: budget.plannerUserId,
+                assignedToName: budget.plannerUserName,
+                roleId: budget.plannerRoleId,
+                status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
+                isBudgetChild: true,
+                isMae: budget.feiraData?.isMae || false,
+                budgetId: budget.id,
+              });
+            }
           }
           (budget.tasks || []).forEach(task => {
             if (task.status === 'blocked') return;
