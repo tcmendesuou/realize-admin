@@ -40,8 +40,8 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
             </div>
           )}
 
-          {/* Campos editáveis */}
-          {!isConcluida && (canEdit || canPlan) && (
+          {/* Campos editáveis — não mostra para etapas auto-concluídas */}
+          {!isConcluida && !etapa.autoComplete && (canEdit || canPlan) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {isReuniao ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -2334,7 +2334,24 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
           {/* ── CRONOGRAMA ── */}
           {activeTab === 'cronograma' && (() => {
-            const cronograma = project.cronograma || {};
+            // Garante que o item 1 (Briefing) começa sempre concluído com a data de criação do projeto
+            const dataCreatedAt = project.createdAt?.toDate ? project.createdAt.toDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            const cronograma = {
+              briefing: {
+                concluida: true,
+                concluidaEm: project.createdAt || new Date(),
+                concluidaPor: project.assignedToName || 'Atendimento',
+                data: dataCreatedAt,
+              },
+              ...(project.cronograma || {}),
+              // briefing sempre concluído, não pode ser sobrescrito
+              briefing: {
+                concluida: true,
+                concluidaEm: project.createdAt || new Date(),
+                concluidaPor: project.assignedToName || 'Atendimento',
+                data: dataCreatedAt,
+              },
+            };
             const currentStage = project.jobStage || 'briefing';
 
             const saveCrono = async (etapaId, field, value) => {
@@ -2472,7 +2489,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             };
 
             const ETAPAS = [
-              { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',        tipo: 'etapa',   semParticipantes: true, desc: 'Briefing preenchido no sistema. Job criado e encaminhado para o Planner.' },
+              { id: 'briefing',             num: 1,  label: 'Briefing',               area: 'Atendimento',        tipo: 'etapa',   semParticipantes: true, autoComplete: true, desc: 'Briefing preenchido no sistema. Job criado e encaminhado para o Planner.' },
               { id: 'reuniao_briefing',     num: 2,  label: 'Reunião de Briefing',    area: 'Atendimento',        tipo: 'reuniao', desc: 'Objetivo: decidir se vamos participar do job e criar o cronograma.', trigger: 'Ao concluir: Planner recebe tarefa "Criar Paper" no To Do' },
               { id: 'kickoff',              num: 3,  label: 'Reunião Kick-off',       area: 'Todas as áreas',     tipo: 'reuniao', desc: 'Objetivo: Planner apresenta o planejamento completo. Equipe aprova ou pede ajustes.', trigger: 'Ao concluir: todas as tarefas são liberadas para os responsáveis' },
               { id: 'paper',                num: 4,  label: 'Reunião de Paper',       area: 'Planejamento',       tipo: 'reuniao', desc: 'Objetivo: Planner explica o job para as áreas. Todo mundo já tem seus cards no To Do.', trigger: 'Ao concluir: avança para Planilha Inicial' },
