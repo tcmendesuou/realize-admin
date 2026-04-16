@@ -4,7 +4,7 @@ import { doc, getDoc, collection, getDocs, query, where, updateDoc, onSnapshot, 
 import { db } from '../firebase/config';
 
 // ── Componente de etapa do cronograma (precisa de state local para toggle participantes) ──
-function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa, agendarReuniao, handleReprovado }) {
+function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isFutura, isReuniao, participantes, dotBg, dotBorder, labelCol, isLast, canEdit, canPlan, agencyUsers, inp, saveCrono, toggleParticipante, concluirEtapa, agendarReuniao, handleReprovado }) {
   const [showPart, setShowPart] = React.useState(false);
   const [filtCargo, setFiltCargo] = React.useState('');
   const cargos = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
@@ -13,7 +13,7 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 16, padding: '20px 0', position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 16, padding: '20px 0', position: 'relative', opacity: isFutura ? 0.4 : 1, transition: 'opacity 0.2s' }}>
         {/* Bolinha */}
         <div style={{ flexShrink: 0 }}>
           <div style={{ width: 30, height: 30, borderRadius: '50%', background: dotBg, border: `2px solid ${dotBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: isConcluida || isActive ? 'white' : '#94a3b8', zIndex: 1 }}>
@@ -26,8 +26,6 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: labelCol }}>{etapa.label}</span>
             <span style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>{etapa.area}</span>
-            {isReuniao && <span style={{ fontSize: 10, fontWeight: 700, color: '#667eea', background: 'rgba(102,126,234,0.1)', padding: '2px 8px', borderRadius: 10 }}>REUNIÃO</span>}
-            {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', background: 'rgba(255,167,38,0.1)', padding: '2px 8px', borderRadius: 10 }}>ETAPA ATUAL</span>}
             {isAgendada && <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', background: 'rgba(255,167,38,0.1)', padding: '2px 8px', borderRadius: 10 }}>AGENDADA</span>}
             {isConcluida && <span style={{ fontSize: 10, color: '#10b981' }}>Concluída por {etapaData.concluidaPor}</span>}
           </div>
@@ -40,45 +38,87 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
             </div>
           )}
 
-          {/* Campos editáveis — não mostra para etapas auto-concluídas */}
+          {/* Campos + Botões lado a lado */}
           {!isConcluida && !etapa.autoComplete && (canEdit || canPlan) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {isReuniao ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                    <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>HORA</span>
-                    <input type="time" defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>SALA</span>
-                    <input type="text" defaultValue={etapaData.sala || ''} onBlur={e => saveCrono(etapa.id, 'sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...inp, minWidth: 120 }} />
-                  </div>
+              {/* Campos de data/hora/sala/obs */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+                  {isReuniao ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                        <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>HORA</span>
+                        <input type="time" defaultValue={etapaData.hora || ''} onBlur={e => saveCrono(etapa.id, 'hora', e.target.value)} style={inp} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>SALA</span>
+                        <input type="text" defaultValue={etapaData.sala || ''} onBlur={e => saveCrono(etapa.id, 'sala', e.target.value)} placeholder="Ex: Sala 2, Meet..." style={{ ...inp, minWidth: 100 }} />
+                      </div>
+                    </>
+                  ) : etapa.tipo === 'aprovacao' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                      <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                    </div>
+                  ) : etapa.tipo !== 'conclusao' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
+                      <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
+                    </div>
+                  ) : null}
                 </div>
-              ) : etapa.tipo === 'aprovacao' ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                    <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
-                  </div>
-                </div>
-              ) : etapa.tipo === 'conclusao' ? null : (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>DATA</span>
-                    <input type="date" defaultValue={etapaData.data || ''} onBlur={e => saveCrono(etapa.id, 'data', e.target.value)} style={inp} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>OBS</span>
-                    <input type="text" defaultValue={etapaData.obs || ''} onBlur={e => saveCrono(etapa.id, 'obs', e.target.value)} placeholder="Observação..." style={{ ...inp, minWidth: 160 }} />
-                  </div>
-                </div>
-              )}
 
-              {/* Participantes — reuniões exceto briefing */}
+                {/* Botões à direita */}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
+                  {isReuniao ? (
+                    <>
+                      <button onClick={() => agendarReuniao(etapa.id)} style={{
+                        padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                        border: 'none',
+                        background: isAgendada ? '#FFA726' : 'none',
+                        color: isAgendada ? 'white' : '#FFA726',
+                        outline: isAgendada ? 'none' : '1.5px solid #FFA726',
+                      }}>
+                        {isAgendada ? 'Agendada' : 'Agendar'}
+                      </button>
+                      <button onClick={() => concluirEtapa(etapa.id)} style={{
+                        padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                        border: '1.5px solid #10b981', background: 'white', color: '#10b981',
+                      }}>
+                        Concluída
+                      </button>
+                    </>
+                  ) : etapa.tipo === 'aprovacao' ? (
+                    <>
+                      <button onClick={() => handleReprovado()} style={{
+                        padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                        border: '1.5px solid #ef4444', background: 'white', color: '#ef4444',
+                      }}>
+                        Reprovado
+                      </button>
+                      <button onClick={() => concluirEtapa(etapa.id)} style={{
+                        padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                        border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white',
+                      }}>
+                        Aprovado
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => concluirEtapa(etapa.id)} style={{
+                      padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                      border: '1.5px solid #10b981', background: 'white', color: '#10b981',
+                    }}>
+                      Concluída
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Participantes — reuniões */}
               {isReuniao && !etapa.semParticipantes && (
                 <div>
                   {participantes.length > 0 && (
@@ -122,51 +162,6 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
                   )}
                 </div>
               )}
-
-              {/* Botões */}
-              <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
-                {isReuniao ? (
-                  <>
-                    <button onClick={() => agendarReuniao(etapa.id)} style={{
-                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-                      border: 'none',
-                      background: isAgendada ? '#FFA726' : 'none',
-                      color: isAgendada ? 'white' : '#FFA726',
-                      outline: isAgendada ? 'none' : '1.5px solid #FFA726',
-                    }}>
-                      {isAgendada ? 'Agendada' : 'Agendar'}
-                    </button>
-                    <button onClick={() => concluirEtapa(etapa.id)} style={{
-                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-                      border: '1.5px solid #10b981', background: 'white', color: '#10b981',
-                    }}>
-                      Concluída
-                    </button>
-                  </>
-                ) : etapa.tipo === 'aprovacao' ? (
-                  <>
-                    <button onClick={() => handleReprovado()} style={{
-                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-                      border: '1.5px solid #ef4444', background: 'white', color: '#ef4444',
-                    }}>
-                      Reprovado
-                    </button>
-                    <button onClick={() => concluirEtapa(etapa.id)} style={{
-                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-                      border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white',
-                    }}>
-                      Aprovado
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={() => concluirEtapa(etapa.id)} style={{
-                    padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-                    border: '1.5px solid #10b981', background: 'white', color: '#10b981',
-                  }}>
-                    Marcar como Concluída
-                  </button>
-                )}
-              </div>
             </div>
           )}
 
@@ -188,7 +183,7 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isReuniao, partic
           )}
         </div>
       </div>
-      {/* Linha separadora entre etapas */}
+      {/* Linha separadora */}
       {!isLast && <div style={{ height: 1, background: '#f0f2f5', margin: '0 0 0 46px' }} />}
     </>
   );
@@ -2520,6 +2515,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     const isConcluida = !!etapaData.concluida;
                     const primeiraNConcluida = ETAPAS.findIndex(e => !cronograma[e.id]?.concluida);
                     const isActive = i === primeiraNConcluida;
+                    const isFutura = !isConcluida && !isActive;
                     const isReuniao = etapa.tipo === 'reuniao';
                     const participantes = etapaData.participantes || [];
 
@@ -2530,7 +2526,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     return (
                       <EtapaCrono
                         key={etapa.id}
-                        etapa={etapa} etapaData={etapaData} isConcluida={isConcluida} isActive={isActive}
+                        etapa={etapa} etapaData={etapaData} isConcluida={isConcluida} isActive={isActive} isFutura={isFutura}
                         isReuniao={isReuniao} participantes={participantes}
                         dotBg={dotBg} dotBorder={dotBorder} labelCol={labelCol}
                         isLast={i === ETAPAS.length - 1}
