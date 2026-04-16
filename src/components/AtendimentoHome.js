@@ -137,7 +137,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             tasks.push({
               taskId: budget.id,
               type: 'planejamento',
-              name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
+              name: `Planejar: ${budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`}`,
               projectId: budget.parentBudgetId,
               projectName: budget.eventTypeName || 'Evento',
               clientName: budget.companyName || budget.clientName,
@@ -1810,6 +1810,17 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                           <div className="ws-task-card-name">{task.name}</div>
                           <div className="ws-task-card-project">{task.projectName}</div>
                           <div className="ws-task-card-client">{task.clientName}</div>
+                          {task.isBudgetChild && stage.id !== 'done' && (
+                            <div className="ws-task-card-actions">
+                              <button className="ws-task-btn done" onClick={async e => {
+                                e.stopPropagation();
+                                if (!window.confirm('Marcar sessão de planejamento como concluída?')) return;
+                                try {
+                                  await updateDoc(doc(db, 'budgets', task.budgetId), { kanbanStage: 'fechamento', updatedAt: new Date() });
+                                } catch(err) { console.error(err); }
+                              }}>✓ Concluir</button>
+                            </div>
+                          )}
                           {!task.isBudgetChild && (
                             <div className="ws-task-card-actions">
                               {stage.id !== 'backlog' && (
