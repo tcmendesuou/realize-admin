@@ -766,7 +766,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     }
     if (q.type === 'fixed-date') {
       return (
-        <input type="date"
+        <input type="date" lang="pt-BR"
           value={briefingForm.answers['fixed-date'] || new Date().toISOString().split('T')[0]}
           onChange={e => handleAnswerChange('fixed-date', e.target.value)}
           style={base} />
@@ -812,14 +812,14 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 0.5 }}>DATA INICIAL</span>
-                  <input type="date" value={f.dataInicio || ''}
+                  <input type="date" lang="pt-BR" value={f.dataInicio || ''}
                     onChange={e => handleFeiraChange(i, 'dataInicio', e.target.value)} style={base} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 10, color: '#7BAFD4', letterSpacing: 0.5 }}>
                     DATA FINAL{f.dataInicio ? ` (a partir de ${f.dataInicio.split('-').reverse().join('/')})` : ''}
                   </span>
-                  <input type="date" value={f.dataFim || ''}
+                  <input type="date" lang="pt-BR" value={f.dataFim || ''}
                     min={f.dataInicio || ''}
                     onChange={e => {
                       if (f.dataInicio && e.target.value < f.dataInicio) return;
@@ -852,11 +852,18 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             <div>
               <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>DATA</div>
-              <input type="date" value={reuniaoBriefing.data} onChange={e => setReuniaosBriefing(p => ({ ...p, data: e.target.value }))} style={base} />
+              <input type="date" lang="pt-BR" value={reuniaoBriefing.data} onChange={e => setReuniaosBriefing(p => ({ ...p, data: e.target.value }))} style={base} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>HORA</div>
-              <input type="time" value={reuniaoBriefing.hora} step="1800" onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))} style={base} />
+              <select value={reuniaoBriefing.hora} onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))} style={base}>
+                <option value="">Selecione...</option>
+                {Array.from({ length: 48 }, (_, i) => {
+                  const h = String(Math.floor(i / 2)).padStart(2, '0');
+                  const m = i % 2 === 0 ? '00' : '30';
+                  return <option key={i} value={`${h}:${m}`}>{`${h}:${m}`}</option>;
+                })}
+              </select>
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>LOCAL</div>
