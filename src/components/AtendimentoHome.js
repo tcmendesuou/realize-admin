@@ -114,25 +114,24 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
         const tasks = [];
         data.forEach(budget => {
           if (budget.parentBudgetId && budget.plannerUserId === userId) {
-            // Card de planejamento só aparece após a Reunião de Briefing ser concluída
-            const stagesBloqueados = ['briefing', 'reuniao_briefing', undefined, null, ''];
-            if (!stagesBloqueados.includes(budget.jobStage)) {
-              tasks.push({
-                taskId: budget.id,
-                type: 'planejamento',
-                name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
-                projectId: budget.parentBudgetId,
-                projectName: budget.eventTypeName || 'Evento',
-                clientName: budget.companyName || budget.clientName,
-                assignedTo: budget.plannerUserId,
-                assignedToName: budget.plannerUserName,
-                roleId: budget.plannerRoleId,
-                status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
-                isBudgetChild: true,
-                isMae: budget.feiraData?.isMae || false,
-                budgetId: budget.id,
-              });
-            }
+            // Card de projeto sempre aparece no Kanban
+            tasks.push({
+              taskId: budget.id,
+              type: 'planejamento',
+              name: budget.feiraData?.nome || `Feira ${(budget.feiraIndex || 0) + 1}`,
+              projectId: budget.parentBudgetId,
+              projectName: budget.eventTypeName || 'Evento',
+              clientName: budget.companyName || budget.clientName,
+              assignedTo: budget.plannerUserId,
+              assignedToName: budget.plannerUserName,
+              roleId: budget.plannerRoleId,
+              status: budget.kanbanStage === 'fechamento' ? 'done' : budget.tasks?.[0]?.status || 'backlog',
+              isBudgetChild: true,
+              isMae: budget.feiraData?.isMae || false,
+              budgetId: budget.id,
+              // Flag para controlar exibição no To Do
+              jobStageAtual: budget.jobStage || 'briefing',
+            });
           }
           (budget.tasks || []).forEach(task => {
             if (task.status === 'blocked') return;
@@ -1222,7 +1221,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     );
   }
 
-  const tasksByStage = (stageId) => myTasks.filter(t => (t.taskStatus || t.status || 'backlog') === stageId);
+  const stagesBloqueadosPlanner = ['briefing', 'reuniao_briefing', '', null, undefined];
+  const tasksByStage = (stageId) => myTasks.filter(t => {
+    if ((t.taskStatus || t.status || 'backlog') !== stageId) return false;
+    // Card de planejamento só aparece no To Do após reuniao_briefing
+    if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) return false;
+    return true;
+  });
 
   return (
     <>
