@@ -203,9 +203,9 @@ function TaskList() {
                   <th className="col-order">#</th>
                   <th className="col-text">Tarefa</th>
                   <th className="col-responsible">Área / Cargo</th>
+                  <th>Req.</th>
+                  <th>Etapa</th>
                   <th className="col-priority">Prioridade</th>
-                  <th className="col-deadline">Prazo</th>
-                  <th className="col-docs">Docs</th>
                   <th className="col-status">Status</th>
                   <th className="col-actions">Ações</th>
                 </tr>
@@ -216,33 +216,17 @@ function TaskList() {
                     <td className="order-cell">#{task.order}</td>
                     <td className="task-text-cell">
                       <strong>{task.name}</strong>
-                      {task.description && (
-                        <div className="task-description-preview">
-                          {task.description.substring(0, 60)}{task.description.length > 60 && '...'}
-                        </div>
-                      )}
-                      {task.required && <span className="required-indicator">*</span>}
+                      {task.description && <div className="task-description-preview">{task.description.substring(0, 60)}{task.description.length > 60 && '...'}</div>}
+                      {task.isComum && <span style={{ fontSize: 10, color: '#00875A', marginLeft: 4 }}>comum</span>}
                     </td>
                     <td>
                       <span className="responsible-area">{task.areaName || '—'}</span>
                       {task.roleName && <span className="responsible-role">{task.roleName}</span>}
                     </td>
-                    <td>
-                      <span className={`badge badge-priority ${getPriorityClass(task.priority)}`}>
-                        {translatePriority(task.priority)}
-                      </span>
-                    </td>
-                    <td className="deadline-cell">{task.deadlineDays} {task.deadlineDays === 1 ? 'dia' : 'dias'}</td>
-                    <td className="center-cell">
-                      {task.documentsNeeded && task.documentsNeeded.length > 0
-                        ? <span className="count-badge">{task.documentsNeeded.length}</span>
-                        : <span className="no-count">-</span>}
-                    </td>
-                    <td>
-                      <span className={`badge ${task.active ? 'badge-active' : 'badge-inactive'}`}>
-                        {task.active ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
+                    <td>{task.requisicaoCodigo ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#667eea22', color: '#667eea' }}>{task.requisicaoCodigo}</span> : <span style={{ color: '#ccc' }}>—</span>}</td>
+                    <td style={{ fontSize: 11, color: '#64748b', maxWidth: 120 }}>{task.jobStage ? task.jobStage.replace(/_/g, ' ') : <span style={{ color: '#ccc' }}>—</span>}</td>
+                    <td><span className={`badge badge-priority ${getPriorityClass(task.priority)}`}>{translatePriority(task.priority)}</span></td>
+                    <td><span className={`badge ${task.active ? 'badge-active' : 'badge-inactive'}`}>{task.active ? 'Ativo' : 'Inativo'}</span></td>
                     <td className="actions-cell">
                       <button className="btn-action btn-edit" onClick={() => handleEdit(task)}>Editar</button>
                       <button className="btn-action btn-delete" onClick={() => handleDelete(task.id, task.name)}>Deletar</button>

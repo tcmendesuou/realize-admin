@@ -68,6 +68,10 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [envioFilterCargo, setEnvioFilterCargo] = useState('');
   const [envioUser, setEnvioUser] = useState(null); // { id, name, roleId, roleName }
 
+  // Reunião de Briefing — simples: data, hora, local, participantes
+  const [reuniaoBriefing, setReuniaosBriefing] = useState({ data: '', hora: '', local: '', participantes: [] });
+  const [reuniaoFilterCargo, setReuniaoFilterCargo] = useState('');
+
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
     clientName: '', clientEmail: '', clientPhone: '',
@@ -304,8 +308,25 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       });
 
       // ── 2. Criar N budgets FILHOS (um por feira) ──
-      const feiraPromises = feiras.map((feira, i) =>
-        addDoc(collection(db, 'budgets'), {
+      const feiraPromises = feiras.map((feira, i) => {
+        // Cards de reunião de briefing para cada participante
+        const cardsReuniao = reuniaoBriefing.participantes.map(p => ({
+          taskId: `reuniao-briefing-${p.id}-${Date.now()}-${i}`,
+          type: 'reuniao',
+          etapaId: 'reuniao_briefing',
+          name: 'Reunião de Briefing',
+          feiraNome: feira.nome || `Feira ${i + 1}`,
+          clientName: briefingForm.companyName,
+          data: reuniaoBriefing.data,
+          hora: reuniaoBriefing.hora,
+          sala: reuniaoBriefing.local,
+          assignedTo: p.id,
+          assignedToName: p.name,
+          status: 'backlog',
+          createdAt: new Date(),
+        }));
+
+        return addDoc(collection(db, 'budgets'), {
           ...baseData,
           isMae: feira.isMae || false,
           parentBudgetId: maeRef.id,
@@ -317,22 +338,20 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
             dataFim: feira.dataFim || '',
             isMae: feira.isMae || false,
           },
-          // Filhos herdam as answers comuns mas sem fixed-events (pertencem à mãe)
           answers: commonAnswers,
-          tasks: [{
-            taskId: `planner-${Date.now()}-${i}`,
-            type: 'planejamento',
-            name: `Planejar: ${feira.nome || `Feira ${i + 1}`}`,
-            description: `Sessão de planejamento para ${feira.nome || `Feira ${i + 1}`}`,
-            assignedTo: envioUser.id,
-            assignedToName: envioUser.name,
-            roleId: envioUser.roleId,
-            roleName: envioUser.roleName,
-            status: 'backlog',
-            createdAt: new Date(),
-          }],
-        })
-      );
+          tasks: cardsReuniao,
+          // Salva dados da reunião no cronograma
+          cronograma: reuniaoBriefing.data || reuniaoBriefing.participantes.length > 0 ? {
+            reuniao_briefing: {
+              data: reuniaoBriefing.data,
+              hora: reuniaoBriefing.hora,
+              sala: reuniaoBriefing.local,
+              participantes: reuniaoBriefing.participantes,
+              agendada: reuniaoBriefing.participantes.length > 0,
+            }
+          } : {},
+        });
+      });
 
       await Promise.all(feiraPromises);
 
@@ -794,6 +813,79 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
               </div>
             </div>
           ))}
+        </div>
+      );
+    }
+
+    // ── Bloco de Reunião de Briefing (simplificado) ──
+    if (q.type === 'fixed-reuniao') {
+      const cargosR = [...new Set(agencyUsers.map(u => u.roleName).filter(Boolean))].sort();
+      const usersR = reuniaoFilterCargo ? agencyUsers.filter(u => u.roleName === reuniaoFilterCargo) : agencyUsers;
+      const participantes = reuniaoBriefing.participantes;
+      const toggleP = (u) => {
+        const existe = participantes.find(p => p.id === u.id);
+        setReuniaosBriefing(prev => ({
+          ...prev,
+          participantes: existe ? participantes.filter(p => p.id !== u.id) : [...participantes, { id: u.id, name: u.name, roleName: u.roleName }]
+        }));
+      };
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 11, color: '#00E5C4', fontWeight: 600, letterSpacing: 0.5 }}>REUNIÃO DE BRIEFING</div>
+          {/* Data, Hora, Local */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>DATA</div>
+              <input type="date" value={reuniaoBriefing.data} onChange={e => setReuniaosBriefing(p => ({ ...p, data: e.target.value }))} style={base} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>HORA</div>
+              <input type="time" value={reuniaoBriefing.hora} onChange={e => setReuniaosBriefing(p => ({ ...p, hora: e.target.value }))} style={base} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>LOCAL</div>
+              <input type="text" value={reuniaoBriefing.local} onChange={e => setReuniaosBriefing(p => ({ ...p, local: e.target.value }))} placeholder="Sala, Meet..." style={base} />
+            </div>
+          </div>
+          {/* Chips dos selecionados */}
+          {participantes.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {participantes.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, background: 'rgba(0,229,196,0.15)', border: '1px solid rgba(0,229,196,0.3)' }}>
+                  <span style={{ fontSize: 12, color: '#00E5C4' }}>{p.name}</span>
+                  <button onClick={() => toggleP(p)} style={{ background: 'none', border: 'none', color: '#00E5C4', cursor: 'pointer', fontSize: 12, padding: 0 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Filtro cargo + lista */}
+          <select value={reuniaoFilterCargo} onChange={e => setReuniaoFilterCargo(e.target.value)} style={{ ...base, color: '#E8F4FF' }}>
+            <option value="" style={{ background: '#111f30' }}>Filtrar por cargo...</option>
+            {cargosR.map(c => <option key={c} value={c} style={{ background: '#111f30' }}>{c}</option>)}
+          </select>
+          {reuniaoFilterCargo && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+              {usersR.map(u => {
+                const sel = participantes.some(p => p.id === u.id);
+                return (
+                  <button key={u.id} onClick={() => toggleP(u)} style={{
+                    ...base, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                    background: sel ? 'rgba(0,229,196,0.15)' : 'rgba(255,255,255,0.04)',
+                    borderColor: sel ? '#00E5C4' : 'rgba(0,180,255,0.15)',
+                  }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: sel ? 'rgba(0,229,196,0.3)' : 'rgba(0,180,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, color: sel ? '#00E5C4' : '#7BAFD4' }}>
+                      {(u.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, color: sel ? '#00E5C4' : '#E8F4FF', fontWeight: 500 }}>{u.name}</div>
+                      <div style={{ fontSize: 10, color: '#7BAFD4' }}>{u.roleName}</div>
+                    </div>
+                    {sel && <span style={{ marginLeft: 'auto', color: '#00E5C4' }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }
