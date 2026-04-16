@@ -2685,7 +2685,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const allTasks = project.tasks || [];
             // Tarefas ativas (não são reunião)
             const activeTasks = allTasks.filter(t => t.type !== 'reuniao');
-            const filteredTasks = taskFilterUser ? activeTasks.filter(t => t.assignedTo === taskFilterUser || t.status === 'template') : activeTasks;
+            // Templates sempre aparecem; outras tarefas filtram por usuário se houver filtro
+            const filteredTasks = taskFilterUser
+              ? activeTasks.filter(t => t.status === 'template' || t.assignedTo === taskFilterUser)
+              : activeTasks;
 
             // Separar templates das ativas
             const templateTasks = filteredTasks.filter(t => t.status === 'template');
@@ -2746,7 +2749,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               <div className="ps-card">
                 {/* Header com filtro */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <div className="ps-card-title" style={{ margin: 0 }}>Tarefas do Projeto ({filteredTasks.length})</div>
+                  <div className="ps-card-title" style={{ margin: 0 }}>Tarefas do Projeto ({nonTemplateTasks.length + templateTasks.length})</div>
                   <select value={taskFilterUser} onChange={e => setTaskFilterUser(e.target.value)}
                     style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, color: '#475569', fontFamily: 'Outfit, sans-serif', background: 'white' }}>
                     <option value="">Todos os responsáveis</option>
