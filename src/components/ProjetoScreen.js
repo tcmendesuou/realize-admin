@@ -2977,45 +2977,61 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         </div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{t.name}</div>
                         {t.descricao && <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{t.descricao}</div>}
-
-                        {/* Contexto do briefing — resolve dinamicamente */}
+                        {/* Contexto do briefing com subrespostas recursivas */}
                         {(() => {
-                          // Tenta pegar questionText e briefingAnswer da tarefa ou resolver pelo questionId
-                          const qText = t.questionText || (() => {
-                            if (!t.questionId) return null;
-                            // Remove sufixo __item-N ou __key para encontrar a pergunta base
-                            const baseId = t.questionId.split('__')[0];
-                            const q = questions.find(q => q.id === baseId);
-                            return q?.text || null;
-                          })();
+                          if (!t.questionId && !t.questionText) return null;
+                          const baseId = t.questionId ? t.questionId.split('__')[0] : null;
+                          const q = baseId ? questions.find(q => q.id === baseId) : null;
+                          const answers = project.answers || {};
 
-                          // Tenta pegar a resposta do briefing
-                          const answer = t.briefingAnswer || t.checklistItem || (() => {
-                            if (!t.questionId) return null;
-                            const baseId = t.questionId.split('__')[0];
-                            const raw = project.answers?.[baseId];
-                            if (!raw) return null;
-                            // Checklist
+                          const renderSubs = (subQuestions, parentId, parentOptions = []) => {
+                            if (!subQuestions || subQuestions.length === 0) return null;
+                            const parentVal = answers[parentId];
+                            const activeSubs = subQuestions.filter(sub => {
+                              if (!sub.trigger) return true;
+                              if (sub.trigger === 'yes') return parentVal === 'Sim';
+                              if (sub.trigger === 'no') return parentVal === 'Não';
+                              const triggerOpt = parentOptions?.find(o => o.id === sub.trigger);
+                              const triggerLabel = triggerOpt?.label;
+                              if (triggerLabel) return Array.isArray(parentVal) ? parentVal.includes(triggerLabel) : parentVal === triggerLabel;
+                              return Array.isArray(parentVal) ? parentVal.includes(sub.trigger) : parentVal === sub.trigger;
+                            });
+                            if (activeSubs.length === 0) return null;
+                            return activeSubs.map(sub => {
+                              const val = answers[sub.id];
+                              const display = val == null || val === '' ? null
+                                : Array.isArray(val) ? val.filter(Boolean).join(', ') : String(val);
+                              return (
+                                <div key={sub.id} style={{ marginTop: 5, marginLeft: 10, paddingLeft: 10, borderLeft: '2px solid #e0e8ff' }}>
+                                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub.text}</div>
+                                  {display && <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginTop: 1 }}>{display}</div>}
+                                  {renderSubs(sub.subQuestions, sub.id, sub.options || [])}
+                                </div>
+                              );
+                            });
+                          };
+
+                          const mainDisplay = q ? (() => {
+                            const raw = answers[q.id];
+                            if (raw == null || raw === '') return null;
                             if (Array.isArray(raw)) return raw.filter(Boolean).join(', ');
-                            // Objeto por feira
-                            if (typeof raw === 'object' && !Array.isArray(raw)) {
-                              const vals = Object.values(raw).filter(Boolean);
-                              return vals.join(' | ');
-                            }
-                            return typeof raw === 'string' ? raw : null;
-                          })();
+                            if (typeof raw === 'object') return Object.values(raw).filter(Boolean).join(' | ');
+                            return String(raw);
+                          })() : (t.briefingAnswer || null);
 
-                          if (!qText && !answer) return null;
+                          const qText = q?.text || t.questionText;
+                          if (!qText) return null;
 
                           return (
                             <div style={{ marginTop: 10, padding: '10px 14px', background: '#f8faff', borderRadius: 10, borderLeft: '3px solid #667eea' }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: '#667eea', marginBottom: 6, letterSpacing: 0.5 }}>CONTEXTO DO BRIEFING</div>
-                              {qText && <div style={{ fontSize: 12, color: '#475569', marginBottom: answer ? 4 : 0 }}>{qText}</div>}
-                              {answer && (
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', background: 'white', borderRadius: 6, padding: '6px 10px', border: '1px solid #e0e8ff', marginTop: 4 }}>
-                                  {answer}
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#667eea', marginBottom: 5, letterSpacing: 0.5 }}>CONTEXTO DO BRIEFING</div>
+                              <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>{qText}</div>
+                              {mainDisplay && (
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', background: 'white', borderRadius: 6, padding: '5px 10px', border: '1px solid #e0e8ff', marginBottom: 4 }}>
+                                  {mainDisplay}
                                 </div>
                               )}
+                              {q && renderSubs(q.subQuestions, q.id, q.options || [])}
                             </div>
                           );
                         })()}
