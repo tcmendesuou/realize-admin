@@ -2964,7 +2964,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 const updatedTasks = (project.tasks || []).map(tk =>
                   tk.taskId === t.taskId ? { ...tk, ...editTask, status: 'done', completedAt: new Date() } : tk
                 );
-                await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, updatedAt: serverTimestamp() });
+                // Se é tarefa de planejamento do Planner, marca o budget como fechamento tb
+                const extraUpdates = (t.type === 'planejamento') ? { kanbanStage: 'fechamento' } : {};
+                await updateDoc(doc(db, 'budgets', projectId), { tasks: updatedTasks, ...extraUpdates, updatedAt: serverTimestamp() });
                 setSelectedTask(null); setEditTask(null);
               } catch (e) { console.error(e); alert('Erro ao salvar.'); }
               finally { setSavingTask(false); }
