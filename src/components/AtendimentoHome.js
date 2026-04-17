@@ -1287,16 +1287,21 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     );
   }
 
+  // Etapas onde o Planner ainda está no Backlog (antes da Reunião de Briefing ser concluída)
   const stagesBloqueadosPlanner = ['briefing', 'reuniao_briefing', '', null, undefined];
   const tasksByStage = (stageId) => {
     const personal = personalTasks.filter(t => (t.status || 'todo') === stageId);
     const job = myTasks.filter(t => {
       if (t.onlyAgenda) return false;
       const taskStatus = t.taskStatus || t.status || 'backlog';
-      // Card do Planner (isBudgetChild): antes da reunião de briefing → aparece no backlog, depois → como está
-      if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) {
-        // Forçar aparição no backlog independente do status salvo
-        return stageId === 'backlog';
+      if (t.isBudgetChild) {
+        // Antes de kickoff (jobStage ainda em briefing ou reuniao_briefing) → backlog
+        if (stagesBloqueadosPlanner.includes(t.jobStageAtual)) {
+          return stageId === 'backlog';
+        }
+        // A partir do kickoff → to do (ou done se concluído)
+        if (taskStatus === 'done') return stageId === 'done';
+        return stageId === 'todo';
       }
       return taskStatus === stageId;
     });
