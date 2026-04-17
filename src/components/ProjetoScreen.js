@@ -197,31 +197,50 @@ function EtapaCrono({ etapa, etapaData, isConcluida, isActive, isFutura, isReuni
 }
 
 // ── Componente de tarefa vinculada na Sessão de Planejamento ──
-function LinkedTaskCard({ lt, existing, agencyUsers, projectId, questionId, userData, project }) {
+function LinkedTaskCard({ lt, existing, agencyUsers, agencyRoles, requisitions, projectId, questionId, userData, project }) {
   const [editing, setEditing] = React.useState(false);
-  const [editData, setEditData] = React.useState({
-    name: lt.name,
-    cargoNome: lt.roleName || '',
-    assignedTo: existing?.assignedTo || '',
-    assignedToName: existing?.assignedToName || '',
-    prioridade: existing?.prioridade || lt.priority || 'normal',
-    prazo: existing?.prazo || '',
-    observacao: existing?.observacao || lt.observacao || '',
+  const src = existing || lt; // usa dados existentes se já atribuída
+  const [form, setForm] = React.useState({
+    name: src.name || lt.name,
+    descricao: src.descricao || lt.description || '',
+    cargoId: src.roleId || lt.roleId || '',
+    cargoNome: src.cargoNome || lt.roleName || '',
+    pessoaId: src.assignedTo || '',
+    pessoaNome: src.assignedToName || '',
+    requisicaoId: src.requisicaoId || lt.requisicaoId || '',
+    requisicaoCodigo: src.requisicaoCodigo || lt.requisicaoCodigo || '',
+    requisicaoNome: src.requisicaoNome || lt.requisicaoNome || '',
+    prioridade: src.prioridade || lt.priority || 'normal',
+    prazo: src.prazo || '',
+    observacao: src.observacao || lt.observacao || '',
+    periodo: src.periodo || lt.periodo || '',
+    quantidade: src.quantidade || lt.quantidade || '',
+    custoUnitario: src.custoUnitario || lt.custoUnitario || '',
+    bvPct: src.bvPct || lt.bvPct || '',
+    credito: src.credito || lt.credito || '',
   });
-  const usersForRole = lt.roleId ? agencyUsers.filter(u => u.roleId === lt.roleId) : agencyUsers;
+
+  const setF = (upd) => setForm(p => ({ ...p, ...(typeof upd === 'function' ? upd(p) : upd) }));
+  const reqSel = requisitions.find(r => r.id === form.requisicaoId);
+  const campos = reqSel?.campos || [];
+  const filteredUsers = form.cargoId ? agencyUsers.filter(u => u.roleId === form.cargoId) : agencyUsers;
+  const inp = { padding: '7px 10px', borderRadius: 6, border: '1px solid #dde', fontSize: 12, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box' };
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#5a6a7a', display: 'block', marginBottom: 3 };
 
   const saveLinkedTask = async () => {
-    if (!editData.assignedTo) { alert('Selecione a pessoa responsável'); return; }
+    if (!form.pessoaId) { alert('Selecione a pessoa responsável'); return; }
     const jobTasks = project.tasks || [];
     const newTask = {
       taskId: existing?.taskId || `linked-${lt.id}-${Date.now()}`,
       templateId: lt.id, type: 'linked',
-      name: editData.name, descricao: lt.description || '',
-      roleId: lt.roleId || '', cargoNome: editData.cargoNome,
-      assignedTo: editData.assignedTo, assignedToName: editData.assignedToName,
-      requisicaoId: lt.requisicaoId || '', requisicaoCodigo: lt.requisicaoCodigo || '', requisicaoNome: lt.requisicaoNome || '',
+      name: form.name, descricao: form.descricao,
+      roleId: form.cargoId, cargoNome: form.cargoNome,
+      assignedTo: form.pessoaId, assignedToName: form.pessoaNome,
+      requisicaoId: form.requisicaoId, requisicaoCodigo: form.requisicaoCodigo, requisicaoNome: form.requisicaoNome,
       jobStage: lt.jobStage || '', isComum: lt.isComum || false,
-      prioridade: editData.prioridade, prazo: editData.prazo, observacao: editData.observacao,
+      prioridade: form.prioridade, prazo: form.prazo, observacao: form.observacao,
+      periodo: form.periodo, quantidade: form.quantidade, custoUnitario: form.custoUnitario,
+      bvPct: form.bvPct, credito: form.credito,
       questionId, status: 'backlog', createdAt: new Date(), createdBy: userData?.name,
     };
     const updatedTasks = existing
@@ -235,43 +254,106 @@ function LinkedTaskCard({ lt, existing, agencyUsers, projectId, questionId, user
 
   return (
     <div style={{ marginBottom: 8, borderRadius: 7, border: `1px solid ${existing ? '#10b98133' : 'rgba(102,126,234,0.2)'}`, background: existing ? 'rgba(16,185,129,0.04)' : 'white', overflow: 'hidden' }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px' }}>
-        {lt.requisicaoCodigo && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: '#667eea22', color: '#667eea', flexShrink: 0 }}>{lt.requisicaoCodigo}</span>}
-        <span style={{ fontSize: 12, fontWeight: 500, color: '#1e293b', flex: 1 }}>{lt.name}</span>
-        <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{lt.roleName || ''}</span>
+        {(form.requisicaoCodigo || lt.requisicaoCodigo) && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: '#667eea22', color: '#667eea', flexShrink: 0 }}>{form.requisicaoCodigo || lt.requisicaoCodigo}</span>
+        )}
+        <span style={{ fontSize: 12, fontWeight: 500, color: '#1e293b', flex: 1 }}>{form.name}</span>
+        <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{form.cargoNome}</span>
         {existing && <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>✓ {existing.assignedToName}</span>}
         <button onClick={() => setEditing(e => !e)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, border: '1px solid rgba(102,126,234,0.3)', background: editing ? 'rgba(102,126,234,0.1)' : 'none', color: '#667eea', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
           {editing ? 'Fechar' : existing ? 'Editar' : 'Atribuir'}
         </button>
       </div>
+
+      {/* Form completo */}
       {editing && (
-        <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(102,126,234,0.1)', background: '#f8faff', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input value={editData.name} onChange={e => setEditData(p => ({ ...p, name: e.target.value }))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif' }} placeholder="Nome da tarefa" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <select value={editData.assignedTo} onChange={e => { const u = agencyUsers.find(x => x.id === e.target.value); setEditData(p => ({ ...p, assignedTo: e.target.value, assignedToName: u?.name || '' })); }} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif' }}>
-              <option value="">Selecione a pessoa *</option>
-              {usersForRole.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-            <select value={editData.prioridade} onChange={e => setEditData(p => ({ ...p, prioridade: e.target.value }))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif' }}>
-              <option value="baixa">Baixa</option>
-              <option value="normal">Normal</option>
-              <option value="alta">Alta</option>
-              <option value="urgente">Urgente</option>
-            </select>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 3 }}>PRAZO</div>
-              <input type="date" lang="pt-BR" value={editData.prazo} onChange={e => setEditData(p => ({ ...p, prazo: e.target.value }))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', width: '100%' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 3 }}>OBSERVAÇÃO</div>
-              <input value={editData.observacao} onChange={e => setEditData(p => ({ ...p, observacao: e.target.value }))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', width: '100%' }} placeholder="Obs..." />
+        <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(102,126,234,0.1)', background: '#f8faff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Requisição */}
+          <div>
+            <label style={lbl}>Tipo de Requisição</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+              <button type="button" onClick={() => setF({ requisicaoId: '', requisicaoCodigo: '', requisicaoNome: '' })}
+                style={{ padding: '3px 10px', borderRadius: 20, border: '1.5px solid #e2e8f0', background: !form.requisicaoId ? '#f1f5f9' : 'white', color: !form.requisicaoId ? '#64748b' : '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                Nenhuma
+              </button>
+              {requisitions.map(r => (
+                <button key={r.id} type="button" onClick={() => setF({ requisicaoId: r.id, requisicaoCodigo: r.codigo, requisicaoNome: r.nome, bvPct: r.defaults?.bvPct?.toString() || form.bvPct })}
+                  style={{ padding: '3px 10px', borderRadius: 20, border: `1.5px solid ${r.cor || '#667eea'}`, background: form.requisicaoId === r.id ? (r.cor || '#667eea') : 'white', color: form.requisicaoId === r.id ? 'white' : (r.cor || '#667eea'), fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  {r.codigo}
+                </button>
+              ))}
+              {reqSel && <span style={{ fontSize: 11, color: '#667', alignSelf: 'center' }}>{reqSel.nome}</span>}
             </div>
           </div>
+
+          {/* Nome + Descrição */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div><label style={lbl}>Tarefa *</label><input value={form.name} onChange={e => setF({ name: e.target.value })} style={inp} placeholder="Nome da tarefa" /></div>
+            <div><label style={lbl}>Instrução / Descrição</label><input value={form.descricao} onChange={e => setF({ descricao: e.target.value })} style={inp} placeholder="Detalhes..." /></div>
+          </div>
+
+          {/* Cargo + Pessoa + Prazo + Prioridade */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 130px 120px', gap: 8 }}>
+            <div>
+              <label style={lbl}>Cargo</label>
+              <select value={form.cargoId} onChange={e => { const c = agencyRoles.find(r => r.id === e.target.value); setF({ cargoId: e.target.value, cargoNome: c?.name || '', pessoaId: '', pessoaNome: '' }); }} style={inp}>
+                <option value="">Cargo...</option>
+                {agencyRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Pessoa *</label>
+              <select value={form.pessoaId} onChange={e => { const p = agencyUsers.find(u => u.id === e.target.value); setF({ pessoaId: e.target.value, pessoaNome: p?.name || '' }); }} style={inp}>
+                <option value="">Pessoa...</option>
+                {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+            <div><label style={lbl}>Prazo</label><input type="date" lang="pt-BR" value={form.prazo} onChange={e => setF({ prazo: e.target.value })} style={inp} /></div>
+            <div>
+              <label style={lbl}>Prioridade</label>
+              <select value={form.prioridade} onChange={e => setF({ prioridade: e.target.value })} style={inp}>
+                <option value="baixa">Baixa</option>
+                <option value="normal">Normal</option>
+                <option value="alta">Alta</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Campos dinâmicos da requisição */}
+          {reqSel && campos.length > 0 && (
+            <div style={{ borderTop: `2px solid ${reqSel.cor || '#667eea'}33`, paddingTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: reqSel.cor || '#667eea', marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
+                Requisição {reqSel.codigo} — {reqSel.nome}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+                {campos.includes('periodo')       && <div><label style={lbl}>Período (dias)</label><input type="number" min="0" value={form.periodo} onChange={e => setF({ periodo: e.target.value })} style={inp} /></div>}
+                {campos.includes('quantidade')    && <div><label style={lbl}>Quantidade</label><input type="number" min="0" value={form.quantidade} onChange={e => setF({ quantidade: e.target.value })} style={inp} /></div>}
+                {campos.includes('custoUnitario') && <div><label style={lbl}>Custo Unit. (R$)</label><input type="number" min="0" value={form.custoUnitario} onChange={e => setF({ custoUnitario: e.target.value })} style={inp} /></div>}
+                {campos.includes('bv')            && <div><label style={lbl}>BV %</label><input type="number" min="0" max="100" value={form.bvPct} onChange={e => setF({ bvPct: e.target.value })} style={inp} /></div>}
+                {campos.includes('credito')       && <div><label style={lbl}>Crédito (R$)</label><input type="number" min="0" value={form.credito} onChange={e => setF({ credito: e.target.value })} style={inp} /></div>}
+                {campos.includes('custoUnitario') && campos.includes('periodo') && campos.includes('quantidade') && (() => {
+                  const total = (parseFloat(form.periodo)||0)*(parseFloat(form.quantidade)||0)*(parseFloat(form.custoUnitario)||0);
+                  return total > 0 ? (
+                    <div style={{ background: '#f0fff4', border: '1px solid #86efac', borderRadius: 6, padding: '7px 10px' }}>
+                      <label style={{ ...lbl, color: '#166534' }}>Custo Total</label>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>R$ {total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+              {campos.includes('observacao') && (
+                <div style={{ marginTop: 8 }}><label style={lbl}>Observação</label><input value={form.observacao} onChange={e => setF({ observacao: e.target.value })} style={inp} placeholder="Observação..." /></div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => setEditing(false)} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-            <button onClick={saveLinkedTask} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Salvar</button>
+            <button onClick={() => setEditing(false)} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+            <button onClick={saveLinkedTask} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Salvar</button>
           </div>
         </div>
       )}
@@ -1771,6 +1853,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                         key={lt.id}
                                         lt={lt} existing={existing}
                                         agencyUsers={agencyUsers}
+                                        agencyRoles={agencyRoles}
+                                        requisitions={requisitions}
                                         projectId={projectId} questionId={q.id}
                                         userData={userData} project={project}
                                       />
