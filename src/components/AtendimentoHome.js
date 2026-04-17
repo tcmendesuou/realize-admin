@@ -1851,7 +1851,16 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       ) : tasks.map((task, i) => (
                         task.type === 'personal' ? (
                           <div key={i} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, padding: '10px 12px', marginBottom: 8, borderLeft: '3px solid #10b981' }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 2 }}>{task.name}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 2 }}>{task.name}</div>
+                              <button onClick={() => {
+                                const updated = personalTasks.filter(t => t.taskId !== task.taskId);
+                                setPersonalTasks(updated);
+                                try { localStorage.setItem(`personal_tasks_${userId || 'user'}`, JSON.stringify(updated)); } catch {}
+                              }} style={{ background: 'none', border: 'none', color: 'rgba(123,175,212,0.4)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, flexShrink: 0 }}
+                                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'rgba(123,175,212,0.4)'}>✕</button>
+                            </div>
                             {task.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4 }}>{task.descricao}</div>}
                             {(task.data || task.hora) && (
                               <div style={{ fontSize: 11, color: '#10b981', marginBottom: 6 }}>
