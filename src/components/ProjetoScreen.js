@@ -1841,19 +1841,45 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {/* ── TAREFAS VINCULADAS DO FLUXO — visíveis na Sessão de Planejamento ── */}
                             {modoEdicao && (q.linkedTasks || []).length > 0 && (() => {
                               const jobTasks = project.tasks || [];
+                              const isChecklist = q.type === 'checklist';
+                              // Para checklist: pega os itens respondidos
+                              const checklistItems = isChecklist && Array.isArray(rawForFeira) ? rawForFeira.filter(Boolean) : null;
+
                               return (
                                 <div style={{ margin: '8px 0', padding: '10px 12px', background: 'rgba(102,126,234,0.04)', borderRadius: 8, border: '1px solid rgba(102,126,234,0.12)' }}>
                                   <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 0.8, marginBottom: 8, textTransform: 'uppercase' }}>
                                     Tarefas programadas para esta pergunta
                                   </div>
                                   {(q.linkedTasks || []).map(lt => {
+                                    if (isChecklist && checklistItems && checklistItems.length > 0) {
+                                      // Uma instância da tarefa por item do checklist
+                                      return checklistItems.map((item, idx) => {
+                                        const itemKey = `${lt.id}__item-${idx}`;
+                                        const existing = jobTasks.find(t => t.templateId === itemKey);
+                                        const ltWithItem = { ...lt, id: itemKey, name: `${lt.name} — ${item}`, checklistItem: item };
+                                        return (
+                                          <div key={itemKey}>
+                                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4, marginLeft: 2 }}>
+                                              <span style={{ color: '#667eea', fontWeight: 600 }}>→</span> {item}
+                                            </div>
+                                            <LinkedTaskCard
+                                              lt={ltWithItem} existing={existing}
+                                              agencyUsers={agencyUsers} agencyRoles={agencyRoles}
+                                              requisitions={requisitions}
+                                              projectId={projectId} questionId={q.id}
+                                              userData={userData} project={project}
+                                            />
+                                          </div>
+                                        );
+                                      });
+                                    }
+                                    // Pergunta normal — uma tarefa para a pergunta toda
                                     const existing = jobTasks.find(t => t.templateId === lt.id);
                                     return (
                                       <LinkedTaskCard
                                         key={lt.id}
                                         lt={lt} existing={existing}
-                                        agencyUsers={agencyUsers}
-                                        agencyRoles={agencyRoles}
+                                        agencyUsers={agencyUsers} agencyRoles={agencyRoles}
                                         requisitions={requisitions}
                                         projectId={projectId} questionId={q.id}
                                         userData={userData} project={project}
