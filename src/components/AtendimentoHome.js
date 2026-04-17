@@ -1292,9 +1292,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
     const personal = personalTasks.filter(t => (t.status || 'todo') === stageId);
     const job = myTasks.filter(t => {
       if (t.onlyAgenda) return false;
-      if ((t.taskStatus || t.status || 'backlog') !== stageId) return false;
-      if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) return false;
-      return true;
+      const taskStatus = t.taskStatus || t.status || 'backlog';
+      // Card do Planner (isBudgetChild): antes da reunião de briefing → aparece no backlog, depois → como está
+      if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) {
+        // Forçar aparição no backlog independente do status salvo
+        return stageId === 'backlog';
+      }
+      return taskStatus === stageId;
     });
     return [...personal, ...job];
   };
