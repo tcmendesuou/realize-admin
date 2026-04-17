@@ -1906,18 +1906,18 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                               }}>✓ Concluir</button>
                             </div>
                           )}
-                          {!task.isBudgetChild && (
+                          {!task.isBudgetChild && stage.id === 'todo' && (
                             <div className="ws-task-card-actions">
-                              {stage.id !== 'backlog' && (
-                                <button className="ws-task-btn backlog" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'backlog'); }}>← Backlog</button>
-                              )}
-                              {stage.id !== 'todo' && (
-                                <button className="ws-task-btn todo" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'todo'); }}>To Do</button>
-                              )}
-                              {stage.id !== 'done' && (
-                                <button className="ws-task-btn done" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'done'); }}>✓ Concluir</button>
-                              )}
+                              <button className="ws-task-btn done" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'done'); }}>✓ Concluir</button>
                             </div>
+                          )}
+                          {!task.isBudgetChild && stage.id === 'done' && (
+                            <div className="ws-task-card-actions">
+                              <button className="ws-task-btn todo" onClick={e => { e.stopPropagation(); handleTaskStatusChange(task, 'todo'); }}>↩ Reabrir</button>
+                            </div>
+                          )}
+                          {!task.isBudgetChild && stage.id === 'backlog' && (
+                            <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.35)', fontStyle: 'italic', marginTop: 4 }}>Aguardando liberação</div>
                           )}
                         </div>
                         )

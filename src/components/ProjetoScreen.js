@@ -798,25 +798,27 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     setSavingSession(true);
     try {
       const existingTasks = project.tasks || [];
-      // Tarefas salvas pelo Planner ficam bloqueadas até o avanço de etapa
-      const tasksToSave = newTasks.map(t => ({ ...t, status: 'blocked' }));
+      const crono = project.cronograma || {};
+      // Se Paper já foi concluído → tarefas vão direto para todo; senão → backlog
+      const paperConcluido = !!crono.paper?.concluida;
+      const kickoffConcluido = !!crono.kickoff?.concluida;
+      const statusParaNovas = paperConcluido ? 'todo' : kickoffConcluido ? 'backlog' : 'blocked';
+      const tasksToSave = newTasks.map(t => ({ ...t, status: statusParaNovas }));
       const updatedTasks = [...existingTasks, ...tasksToSave];
       await updateDoc(doc(db, 'budgets', projectId), {
         tasks: updatedTasks,
         updatedAt: new Date(),
         timeline: [...(project.timeline || []), {
           action: 'planning_session',
-          description: `Sessão de planejamento: ${newTasks.length} tarefa(s) criada(s) por ${userData?.name || 'Planner'} (aguardando liberação)`,
-          userId: userData?.id,
-          userName: userData?.name,
-          timestamp: new Date()
+          description: `Sessão de planejamento: ${newTasks.length} tarefa(s) criada(s) por ${userData?.name || 'Planner'} → ${statusParaNovas}`,
+          userId: userData?.id, userName: userData?.name, timestamp: new Date()
         }]
       });
       setProject(prev => ({ ...prev, tasks: updatedTasks }));
       setNewTasks([]);
       setModoEdicao(false);
       setTaskForms({});
-      alert(`✓ Sessão salva! ${newTasks.length} tarefa(s) criada(s) — aguardando liberação na próxima etapa.`);
+      alert(`✓ Sessão salva! ${newTasks.length} tarefa(s) criada(s) — status: ${statusParaNovas}`);
     } catch (err) {
       console.error('Erro ao salvar sessão:', err);
       alert('Erro ao salvar. Tente novamente.');
@@ -2618,30 +2620,49 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 if (etapaId === 'reuniao_briefing') {
                   const plannerUserId = project.plannerUserId;
                   const plannerName = project.plannerUserName;
+                  // Move card de planejamento do Planner de backlog para todo
+                  const tasksAtualizadas = (project.tasks || []).map(t =>
+                    t.assignedTo === plannerUserId && t.type === 'planejamento' && t.status === 'backlog'
+                      ? { ...t, status: 'todo' } : t
+                  );
                   if (plannerUserId) {
                     const tarefaPaper = {
                       taskId: `task-paper-${Date.now()}`,
                       name: 'Criar Paper do Job',
                       descricao: 'Planejar e detalhar o paper completo do job para apresentação no Kick-off.',
                       assignedTo: plannerUserId, assignedToName: plannerName,
-                      status: 'backlog', prioridade: 'alta',
+                      status: 'todo', prioridade: 'alta',
                       createdAt: new Date(), createdBy: userData?.name, type: 'planejamento',
                     };
-                    updates.tasks = [...(project.tasks || []), tarefaPaper];
-                    timelineEntry.description = `Reunião de Briefing concluída — tarefa "Criar Paper" enviada para ${plannerName}`;
+                    updates.tasks = [...tasksAtualizadas, tarefaPaper];
+                    timelineEntry.description = `Reunião de Briefing concluída — Planner liberado para o To Do`;
                   }
                   updates.jobStage = 'kickoff';
                 } else if (etapaId === 'kickoff') {
-                  const unlockedTasks = (project.tasks || []).map(t =>
-                    t.status === 'blocked' ? { ...t, status: 'backlog', unlockedAt: new Date(), unlockedBy: userData?.name } : t
-                  );
+                  // Kick-off: tarefas dos responsáveis vão para backlog (porteira = Paper)
+                  const plannerUserId = project.plannerUserId;
+                  const unlockedTasks = (project.tasks || []).map(t => {
+                    if (t.status === 'blocked') return { ...t, status: 'backlog', unlockedAt: new Date(), unlockedBy: userData?.name };
+                    // Tarefas do Planner criadas antes do Kick-off ficam como estão (já no todo)
+                    return t;
+                  });
                   const blockedCount = (project.tasks || []).filter(t => t.status === 'blocked').length;
                   updates.tasks = unlockedTasks;
                   updates.jobStage = 'paper';
-                  timelineEntry.description = `Kick-off concluído — ${blockedCount} tarefa(s) liberada(s) para os responsáveis`;
+                  timelineEntry.description = `Kick-off concluído — ${blockedCount} tarefa(s) no Backlog dos responsáveis`;
                 } else if (etapaId === 'paper') {
+                  // Paper: tarefas em backlog dos responsáveis vão para todo
+                  const plannerUserId = project.plannerUserId;
+                  const liberadas = (project.tasks || []).map(t => {
+                    if (t.status === 'backlog' && t.assignedTo !== plannerUserId && t.type !== 'planejamento' && t.type !== 'reuniao') {
+                      return { ...t, status: 'todo', liberadaEm: new Date() };
+                    }
+                    return t;
+                  });
+                  const liberadasCount = (project.tasks || []).filter(t => t.status === 'backlog' && t.assignedTo !== plannerUserId && t.type !== 'planejamento' && t.type !== 'reuniao').length;
+                  updates.tasks = liberadas;
                   updates.jobStage = 'planilha_inicial';
-                  timelineEntry.description = 'Reunião de Paper concluída — equipe alinhada';
+                  timelineEntry.description = `Paper concluído — ${liberadasCount} tarefa(s) liberada(s) para o To Do dos responsáveis`;
                 } else if (etapaId === 'aprovacao') {
                   // Aprovação: desbloqueia tarefas blocked restantes + avança
                   const unlockedTasks = (project.tasks || []).map(t =>
