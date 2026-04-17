@@ -1295,12 +1295,11 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
       if (t.onlyAgenda) return false;
       const taskStatus = t.taskStatus || t.status || 'backlog';
       if (t.isBudgetChild) {
-        // Antes de kickoff (jobStage ainda em briefing ou reuniao_briefing) → backlog
-        if (stagesBloqueadosPlanner.includes(t.jobStageAtual)) {
-          return stageId === 'backlog';
-        }
-        // A partir do kickoff → to do (ou done se concluído)
+        // Concluído sempre vai para done independente da etapa
         if (taskStatus === 'done') return stageId === 'done';
+        // Antes de kickoff → backlog
+        if (stagesBloqueadosPlanner.includes(t.jobStageAtual)) return stageId === 'backlog';
+        // A partir do kickoff → todo
         return stageId === 'todo';
       }
       return taskStatus === stageId;
