@@ -2977,12 +2977,48 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         </div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{t.name}</div>
                         {t.descricao && <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{t.descricao}</div>}
-                        {t.questionText && (
-                          <div style={{ marginTop: 8, padding: '8px 12px', background: '#f8faff', borderRadius: 8, borderLeft: '3px solid #667eea' }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#667eea', marginBottom: 2, letterSpacing: 0.5 }}>PERGUNTA DO BRIEFING</div>
-                            <div style={{ fontSize: 13, color: '#334155' }}>{t.questionText}</div>
-                          </div>
-                        )}
+
+                        {/* Contexto do briefing — resolve dinamicamente */}
+                        {(() => {
+                          // Tenta pegar questionText e briefingAnswer da tarefa ou resolver pelo questionId
+                          const qText = t.questionText || (() => {
+                            if (!t.questionId) return null;
+                            // Remove sufixo __item-N ou __key para encontrar a pergunta base
+                            const baseId = t.questionId.split('__')[0];
+                            const q = questions.find(q => q.id === baseId);
+                            return q?.text || null;
+                          })();
+
+                          // Tenta pegar a resposta do briefing
+                          const answer = t.briefingAnswer || t.checklistItem || (() => {
+                            if (!t.questionId) return null;
+                            const baseId = t.questionId.split('__')[0];
+                            const raw = project.answers?.[baseId];
+                            if (!raw) return null;
+                            // Checklist
+                            if (Array.isArray(raw)) return raw.filter(Boolean).join(', ');
+                            // Objeto por feira
+                            if (typeof raw === 'object' && !Array.isArray(raw)) {
+                              const vals = Object.values(raw).filter(Boolean);
+                              return vals.join(' | ');
+                            }
+                            return typeof raw === 'string' ? raw : null;
+                          })();
+
+                          if (!qText && !answer) return null;
+
+                          return (
+                            <div style={{ marginTop: 10, padding: '10px 14px', background: '#f8faff', borderRadius: 10, borderLeft: '3px solid #667eea' }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#667eea', marginBottom: 6, letterSpacing: 0.5 }}>CONTEXTO DO BRIEFING</div>
+                              {qText && <div style={{ fontSize: 12, color: '#475569', marginBottom: answer ? 4 : 0 }}>{qText}</div>}
+                              {answer && (
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', background: 'white', borderRadius: 6, padding: '6px 10px', border: '1px solid #e0e8ff', marginTop: 4 }}>
+                                  {answer}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <button onClick={() => setSelectedTask(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}>✕</button>
                     </div>
