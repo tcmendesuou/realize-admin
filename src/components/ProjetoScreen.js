@@ -1826,6 +1826,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                               {[t.periodo && `${t.periodo}d`, t.quantidade && `${t.quantidade}x`, t.custoUnitario && `R$${parseFloat(t.custoUnitario).toLocaleString('pt-BR',{minimumFractionDigits:2})}`].filter(Boolean).join(' · ')}
                                             </span>
                                           )}
+                                          {canPlan && (
+                                            <button onClick={async e => {
+                                              e.stopPropagation();
+                                              if (!window.confirm(`Excluir tarefa "${t.name}"?`)) return;
+                                              const updated = (project.tasks || []).filter(task => task.taskId !== t.taskId);
+                                              try { await updateDoc(doc(db, 'budgets', projectId), { tasks: updated, updatedAt: new Date() }); }
+                                              catch(err) { console.error(err); }
+                                            }} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 12, padding: '0 2px', marginLeft: 'auto' }}
+                                              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                              onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}>✕</button>
+                                          )}
                                         </div>
                                         {/* Linha Pré-Produção (se tiver fornecedor ou status done) */}
                                         {(temFornecedor || t.status === 'done' || t.status === 'completed') && (
