@@ -85,6 +85,9 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [activeSection, setActiveSection] = React.useState('workspace');
   const [calendarDate, setCalendarDate] = React.useState(new Date());
   const [selectedCalendarEvent, setSelectedCalendarEvent] = React.useState(null);
+  const [lastAgendaVisit, setLastAgendaVisit] = React.useState(() => {
+    try { return localStorage.getItem(`agenda_visited_${userId || 'user'}`) || ''; } catch { return ''; }
+  });
 
   const [briefingForm, setBriefingForm] = useState({
     companyId: '', companyName: '',
@@ -1595,10 +1598,19 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                 <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: '#00E5C4', background: 'rgba(0,229,196,0.1)', padding: '1px 7px', borderRadius: 10 }}>{myJobs.length}</span>
               )}
             </button>
-            <button className={`ws-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')} style={{ position: 'relative' }}>
+            <button className={`ws-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => {
+              setActiveSection('agenda');
+              const now = new Date().toISOString();
+              setLastAgendaVisit(now);
+              try { localStorage.setItem(`agenda_visited_${userId || 'user'}`, now); } catch {}
+            }} style={{ position: 'relative' }}>
               <span className="ws-nav-dot" /><span>Agenda</span>
-              {/* Ponto de notificação — aparece quando tem reunião futura */}
-              {myTasks.some(t => t.type === 'reuniao' && t.data && t.data >= new Date().toISOString().split('T')[0]) && activeSection !== 'agenda' && (
+              {/* Ponto de notificação — aparece só se tiver reunião futura criada após a última visita */}
+              {activeSection !== 'agenda' && myTasks.some(t =>
+                t.type === 'reuniao' &&
+                t.data && t.data >= new Date().toISOString().split('T')[0] &&
+                (!lastAgendaVisit || (t.createdAt && new Date(t.createdAt?.toDate ? t.createdAt.toDate() : t.createdAt) > new Date(lastAgendaVisit)))
+              ) && (
                 <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 7, height: 7, borderRadius: '50%', background: '#FFA726', boxShadow: '0 0 6px #FFA726' }} />
               )}
             </button>
