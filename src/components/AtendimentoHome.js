@@ -1867,6 +1867,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                             )}
                           </div>
                         ) : (
+                          <div key={i} className={`ws-task-card ${task.isBudgetChild ? 'ws-task-card--planner' : ''}`}
                           onClick={() => navigate(`/projeto/${task.isBudgetChild ? task.budgetId : task.projectId}?tab=tasks&user=${userId}`)}
                           style={{ cursor: 'pointer' }}>
                           {task.isMae && <div className="ws-task-card-mae-dot" title="Feira Mãe" />}
