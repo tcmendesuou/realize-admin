@@ -47,6 +47,11 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   const [allBudgets, setAllBudgets] = useState([]);
   const [myJobs, setMyJobs] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
+  const [personalTasks, setPersonalTasks] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`personal_tasks_${userId || 'user'}`) || '[]'); } catch { return []; }
+  });
+  const [showPersonalModal, setShowPersonalModal] = useState(false);
+  const [personalForm, setPersonalForm] = useState({ name: '', descricao: '', data: '', hora: '' });
   const [loading, setLoading] = useState(true);
   const [taskView, setTaskView] = useState('kanban');
 
@@ -1280,12 +1285,41 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
   }
 
   const stagesBloqueadosPlanner = ['briefing', 'reuniao_briefing', '', null, undefined];
-  const tasksByStage = (stageId) => myTasks.filter(t => {
-    if (t.onlyAgenda) return false; // reuniões só na Agenda
-    if ((t.taskStatus || t.status || 'backlog') !== stageId) return false;
-    if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) return false;
-    return true;
-  });
+  const tasksByStage = (stageId) => {
+    const personal = personalTasks.filter(t => (t.status || 'todo') === stageId);
+    const job = myTasks.filter(t => {
+      if (t.onlyAgenda) return false;
+      if ((t.taskStatus || t.status || 'backlog') !== stageId) return false;
+      if (t.isBudgetChild && stagesBloqueadosPlanner.includes(t.jobStageAtual)) return false;
+      return true;
+    });
+    return [...personal, ...job];
+  };
+
+  const handleAddPersonalTask = () => {
+    if (!personalForm.name.trim()) { alert('Digite o nome da tarefa'); return; }
+    const newTask = {
+      taskId: `personal-${Date.now()}`,
+      type: 'personal',
+      name: personalForm.name.trim(),
+      descricao: personalForm.descricao.trim(),
+      data: personalForm.data,
+      hora: personalForm.hora,
+      status: 'todo',
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...personalTasks, newTask];
+    setPersonalTasks(updated);
+    try { localStorage.setItem(`personal_tasks_${userId || 'user'}`, JSON.stringify(updated)); } catch {}
+    setPersonalForm({ name: '', descricao: '', data: '', hora: '' });
+    setShowPersonalModal(false);
+  };
+
+  const handlePersonalTaskStatus = (taskId, newStatus) => {
+    const updated = personalTasks.map(t => t.taskId === taskId ? { ...t, status: newStatus } : t);
+    setPersonalTasks(updated);
+    try { localStorage.setItem(`personal_tasks_${userId || 'user'}`, JSON.stringify(updated)); } catch {}
+  };
 
   return (
     <>
@@ -1621,6 +1655,10 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                 addEvento(t.prazo, { type: 'prazo', name: t.name, feiraNome: t.projectName, clientName: t.clientName, task: t });
               }
             });
+            // Tarefas pessoais com data
+            personalTasks.filter(t => t.data).forEach(t => {
+              addEvento(t.data, { type: 'personal', name: t.name, hora: t.hora, descricao: t.descricao, task: t });
+            });
 
             const cells = [];
             // Células vazias antes do dia 1
@@ -1652,6 +1690,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                     const evts = dateStr ? (eventos[dateStr] || []) : [];
                     const reunioes = evts.filter(e => e.type === 'reuniao');
                     const prazos = evts.filter(e => e.type === 'prazo');
+                    const personais = evts.filter(e => e.type === 'personal');
                     return (
                       <div key={i} onClick={() => d && evts.length > 0 && setSelectedCalendarEvent({ date: dateStr, eventos: evts })}
                         style={{ background: 'rgba(10,22,38,0.97)', minHeight: 80, padding: '8px 6px', cursor: d && evts.length > 0 ? 'pointer' : 'default', transition: 'background 0.15s', position: 'relative' }}
@@ -1660,17 +1699,22 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                         {d && (
                           <>
                             <div style={{ fontSize: 12, fontWeight: isHoje(d) ? 700 : 400, color: isHoje(d) ? '#0D1B2A' : evts.length > 0 ? '#E8F4FF' : 'rgba(123,175,212,0.4)', width: 24, height: 24, borderRadius: '50%', background: isHoje(d) ? '#00E5C4' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>{d}</div>
-                            {reunioes.slice(0, 2).map((e, j) => (
+                            {reunioes.slice(0, 1).map((e, j) => (
                               <div key={j} style={{ fontSize: 10, background: 'rgba(255,167,38,0.15)', border: '1px solid rgba(255,167,38,0.3)', color: '#FFA726', borderRadius: 4, padding: '2px 5px', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
                                 {e.hora && `${e.hora} `}{e.name}
                               </div>
                             ))}
-                            {prazos.slice(0, 2).map((e, j) => (
+                            {prazos.slice(0, 1).map((e, j) => (
                               <div key={j} style={{ fontSize: 10, background: 'rgba(0,128,255,0.12)', border: '1px solid rgba(0,128,255,0.25)', color: '#60a5fa', borderRadius: 4, padding: '2px 5px', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {e.name}
                               </div>
                             ))}
-                            {evts.length > 4 && <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>+{evts.length - 4} mais</div>}
+                            {personais.slice(0, 1).map((e, j) => (
+                              <div key={j} style={{ fontSize: 10, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#10b981', borderRadius: 4, padding: '2px 5px', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {e.hora && `${e.hora} `}{e.name}
+                              </div>
+                            ))}
+                            {evts.length > 3 && <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>+{evts.length - 3} mais</div>}
                           </>
                         )}
                       </div>
@@ -1691,11 +1735,13 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {selectedCalendarEvent.eventos.map((e, i) => (
-                          <div key={i} style={{ padding: '12px 14px', borderRadius: 10, background: e.type === 'reuniao' ? 'rgba(255,167,38,0.08)' : 'rgba(0,128,255,0.08)', border: `1px solid ${e.type === 'reuniao' ? 'rgba(255,167,38,0.25)' : 'rgba(0,128,255,0.2)'}` }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: e.type === 'reuniao' ? '#FFA726' : '#60a5fa', marginBottom: 6 }}>{e.name}</div>
+                          <div key={i} style={{ padding: '12px 14px', borderRadius: 10, background: e.type === 'reuniao' ? 'rgba(255,167,38,0.08)' : e.type === 'personal' ? 'rgba(16,185,129,0.08)' : 'rgba(0,128,255,0.08)', border: `1px solid ${e.type === 'reuniao' ? 'rgba(255,167,38,0.25)' : e.type === 'personal' ? 'rgba(16,185,129,0.25)' : 'rgba(0,128,255,0.2)'}` }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: e.type === 'reuniao' ? '#FFA726' : e.type === 'personal' ? '#10b981' : '#60a5fa', marginBottom: 6 }}>{e.name}</div>
                             {e.feiraNome && <div style={{ fontSize: 12, color: '#E8F4FF', marginBottom: 2 }}>{e.feiraNome}{e.clientName ? ` — ${e.clientName}` : ''}</div>}
                             {e.hora && <div style={{ fontSize: 11, color: '#7BAFD4' }}>{e.hora}{e.sala ? ` · ${e.sala}` : ''}</div>}
+                            {e.descricao && <div style={{ fontSize: 11, color: '#7BAFD4' }}>{e.descricao}</div>}
                             {e.type === 'prazo' && <div style={{ fontSize: 11, color: '#7BAFD4' }}>Prazo da tarefa</div>}
+                            {e.type === 'personal' && <div style={{ fontSize: 10, color: 'rgba(16,185,129,0.6)', marginTop: 4 }}>Tarefa pessoal</div>}
                           </div>
                         ))}
                       </div>
@@ -1803,7 +1849,24 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       {tasks.length === 0 ? (
                         <div className="ws-task-empty">Nenhuma tarefa</div>
                       ) : tasks.map((task, i) => (
-                        <div key={i} className={`ws-task-card ${task.isBudgetChild ? 'ws-task-card--planner' : ''}`}
+                        task.type === 'personal' ? (
+                          <div key={i} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, padding: '10px 12px', marginBottom: 8, borderLeft: '3px solid #10b981' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a2e40', marginBottom: 2 }}>{task.name}</div>
+                            {task.descricao && <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{task.descricao}</div>}
+                            {(task.data || task.hora) && (
+                              <div style={{ fontSize: 11, color: '#10b981', marginBottom: 6 }}>
+                                {task.data && <span>{task.data.split('-').reverse().join('/')}</span>}
+                                {task.hora && <span> às {task.hora}</span>}
+                              </div>
+                            )}
+                            {task.status !== 'done' && (
+                              <button onClick={() => handlePersonalTaskStatus(task.taskId, 'done')}
+                                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid #10b981', background: 'none', color: '#10b981', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>
+                                ✓ Concluir
+                              </button>
+                            )}
+                          </div>
+                        ) : (
                           onClick={() => navigate(`/projeto/${task.isBudgetChild ? task.budgetId : task.projectId}?tab=tasks&user=${userId}`)}
                           style={{ cursor: 'pointer' }}>
                           {task.isMae && <div className="ws-task-card-mae-dot" title="Feira Mãe" />}
@@ -1835,6 +1898,7 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                             </div>
                           )}
                         </div>
+                        )
                       ))}
                     </div>
                   );
@@ -1955,6 +2019,77 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                 <button className="ws-btn-cancel-modal" onClick={() => setShowBriefing(false)}>Cancelar</button>
                 <button className="ws-btn-save" onClick={handleSaveBriefing} disabled={savingBriefing}>
                   {savingBriefing ? 'Salvando...' : 'Criar briefing'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BOTÃO + FLUTUANTE — tarefa pessoal */}
+        <button onClick={() => setShowPersonalModal(true)} style={{
+          position: 'fixed', bottom: 28, right: 28, width: 48, height: 48, borderRadius: '50%',
+          background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none',
+          color: 'white', fontSize: 24, cursor: 'pointer', zIndex: 50,
+          boxShadow: '0 4px 20px rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'transform 0.15s',
+        }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          title="Adicionar tarefa pessoal">
+          +
+        </button>
+
+        {/* MODAL TAREFA PESSOAL */}
+        {showPersonalModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+            onClick={e => e.target === e.currentTarget && setShowPersonalModal(false)}>
+            <div style={{ background: '#0D1B2A', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 16, padding: 28, width: 380, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 16, fontWeight: 600, color: '#E8F4FF' }}>Tarefa pessoal</span>
+                <button onClick={() => setShowPersonalModal(false)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4, letterSpacing: 0.5 }}>TAREFA *</div>
+                  <input autoFocus value={personalForm.name} onChange={e => setPersonalForm(p => ({ ...p, name: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleAddPersonalTask()}
+                    placeholder="O que você precisa fazer?"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(255,255,255,0.04)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4, letterSpacing: 0.5 }}>DESCRIÇÃO</div>
+                  <input value={personalForm.descricao} onChange={e => setPersonalForm(p => ({ ...p, descricao: e.target.value }))}
+                    placeholder="Detalhes opcionais..."
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.15)', background: 'rgba(255,255,255,0.04)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4, letterSpacing: 0.5 }}>DATA</div>
+                    <input type="date" lang="pt-BR" value={personalForm.data} onChange={e => setPersonalForm(p => ({ ...p, data: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.15)', background: 'rgba(255,255,255,0.04)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4, letterSpacing: 0.5 }}>HORA</div>
+                    <select value={personalForm.hora} onChange={e => setPersonalForm(p => ({ ...p, hora: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.15)', background: 'rgba(10,22,38,0.97)', color: personalForm.hora ? '#E8F4FF' : '#7BAFD4', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none' }}>
+                      <option value="">Sem hora</option>
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const h = String(Math.floor(i / 2)).padStart(2, '0');
+                        const m = i % 2 === 0 ? '00' : '30';
+                        return <option key={i} value={`${h}:${m}`} style={{ background: '#0D1B2A' }}>{`${h}:${m}`}</option>;
+                      })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowPersonalModal(false)}
+                  style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  Cancelar
+                </button>
+                <button onClick={handleAddPersonalTask}
+                  style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  Adicionar
                 </button>
               </div>
             </div>
