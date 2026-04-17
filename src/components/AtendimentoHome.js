@@ -1851,8 +1851,8 @@ export default function AtendimentoHome({ user, userData, onLogout }) {
                       ) : tasks.map((task, i) => (
                         task.type === 'personal' ? (
                           <div key={i} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, padding: '10px 12px', marginBottom: 8, borderLeft: '3px solid #10b981' }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a2e40', marginBottom: 2 }}>{task.name}</div>
-                            {task.descricao && <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{task.descricao}</div>}
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 2 }}>{task.name}</div>
+                            {task.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4 }}>{task.descricao}</div>}
                             {(task.data || task.hora) && (
                               <div style={{ fontSize: 11, color: '#10b981', marginBottom: 6 }}>
                                 {task.data && <span>{task.data.split('-').reverse().join('/')}</span>}
