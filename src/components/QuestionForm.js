@@ -57,9 +57,10 @@ const newOption = () => ({
 });
 
 // ─── Componente recursivo de subpergunta ───────────────────────────────────
-function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRemove }) {
+function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRemove, allTasks = [] }) {
   const needsOptions = sub.type === 'multiple' || sub.type === 'multiselect';
-  const canHaveChildren = !isFixedType(sub.type); // ✅ todos os tipos
+  const canHaveChildren = !isFixedType(sub.type);
+  const [showTaskPanel, setShowTaskPanel] = React.useState(false);
 
   const depthColors = [
     { border: '#667eea', bg: '#f0f3ff', badge: '#667eea' },
@@ -80,6 +81,14 @@ function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRe
   };
   const updateChild = (childId, updatedChild) => onChange({ ...sub, subQuestions: sub.subQuestions.map(c => c.id === childId ? updatedChild : c) });
   const removeChild = (childId) => onChange({ ...sub, subQuestions: sub.subQuestions.filter(c => c.id !== childId) });
+
+  const linkedTaskIds = sub.linkedTaskIds || [];
+  const toggleTask = (taskId) => {
+    const updated = linkedTaskIds.includes(taskId)
+      ? linkedTaskIds.filter(id => id !== taskId)
+      : [...linkedTaskIds, taskId];
+    onChange({ ...sub, linkedTaskIds: updated });
+  };
 
   return (
     <div className="sq-node" style={{ borderLeftColor: color.border, background: color.bg }}>
@@ -159,6 +168,34 @@ function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRe
 
         {canHaveChildren && depth < 4 && (
           <div className="sq-children">
+            {/* Vincular tarefas */}
+            <div style={{ marginBottom: 8 }}>
+              <button type="button" onClick={() => setShowTaskPanel(s => !s)}
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1px solid ${color.border}55`, background: 'none', color: color.badge, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                ⚡ {linkedTaskIds.length > 0 ? `${linkedTaskIds.length} tarefa(s) vinculada(s)` : 'Vincular tarefas'}
+              </button>
+              {showTaskPanel && (
+                <div style={{ marginTop: 6, padding: 10, background: 'white', borderRadius: 8, border: `1px solid ${color.border}33`, maxHeight: 180, overflowY: 'auto' }}>
+                  {allTasks.length === 0 ? (
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Nenhuma tarefa cadastrada no admin.</div>
+                  ) : allTasks.map(t => {
+                    const sel = linkedTaskIds.includes(t.id);
+                    return (
+                      <button key={t.id} type="button" onClick={() => toggleTask(t.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '5px 8px', borderRadius: 5, border: `1px solid ${sel ? color.border : '#e2e8f0'}`, background: sel ? color.bg : 'white', cursor: 'pointer', marginBottom: 4, textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
+                        <div style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${sel ? color.border : '#cbd5e1'}`, background: sel ? color.border : 'white', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {sel && <span style={{ color: 'white', fontSize: 9, lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, color: sel ? color.badge : '#1a2e40', fontWeight: sel ? 600 : 400 }}>{t.name}</div>
+                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{t.roleName || ''}{t.requisicaoCodigo ? ` · ${t.requisicaoCodigo}` : ''}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {(sub.subQuestions || []).map(child => (
               <SubQuestionNode
                 key={child.id}
@@ -168,6 +205,7 @@ function SubQuestionNode({ sub, depth, parentOptions, parentType, onChange, onRe
                 parentType={sub.type}
                 onChange={updated => updateChild(child.id, updated)}
                 onRemove={() => removeChild(child.id)}
+                allTasks={allTasks}
               />
             ))}
             <button type="button" className="sq-add-child-btn" onClick={addChild}>
@@ -188,6 +226,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
   const [areas, setAreas] = useState([]);
   const [roles, setRoles] = useState([]);
   const [requisitions, setRequisitions] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -236,11 +275,12 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
 
   const loadAreasRoles = async () => {
     try {
-      const [areasSnap, rolesSnap, utSnap, reqSnap] = await Promise.all([
+      const [areasSnap, rolesSnap, utSnap, reqSnap, tasksSnap] = await Promise.all([
         getDocs(collection(db, 'areas')),
         getDocs(collection(db, 'roles')),
         getDocs(collection(db, 'userTypes')),
         getDocs(collection(db, 'requisitions')),
+        getDocs(collection(db, 'tasks')),
       ]);
       const agenciaTypeIds = utSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -251,6 +291,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
       setAreas(allAreas.filter(a => agenciaTypeIds.includes(a.userTypeId)).sort((a, b) => (a.order || 0) - (b.order || 0)));
       setRoles(allRoles.filter(r => agenciaTypeIds.includes(r.userTypeId)).sort((a, b) => (a.order || 0) - (b.order || 0)));
       setRequisitions(reqSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.ativo !== false).sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '')));
+      setAllTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.active !== false).sort((a, b) => (a.order || 0) - (b.order || 0)));
     } catch (error) {
       console.error('Erro ao carregar áreas/cargos:', error);
     }
@@ -541,6 +582,7 @@ function QuestionForm({ onClose, onSave, editQuestion = null, specialType = null
                   parentType={formData.type}
                   onChange={updated => updateSubQuestion(sub.id, updated)}
                   onRemove={() => removeSubQuestion(sub.id)}
+                  allTasks={allTasks}
                 />
               ))}
             </div>

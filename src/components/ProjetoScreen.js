@@ -365,7 +365,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [project, setProject] = useState(null);
   const [parentProject, setParentProject] = useState(null);
   const [questions, setQuestions] = useState([]);
-  const [flowLinkedTasksMap, setFlowLinkedTasksMap] = useState({}); // { [questionId]: [taskObj] }
+  const [flowLinkedTasksMap, setFlowLinkedTasksMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
   const [searchParams] = useSearchParams();
@@ -505,11 +505,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     .filter(Boolean),
                 }));
               setQuestions(qData);
-              // Salva mapa completo de linkedTasks para subperguntas também
+
+              // Monta mapa completo: perguntas raiz (FlowBuilder) + subperguntas (linkedTaskIds)
               const resolvedMap = {};
               Object.entries(flowLinkedTasks).forEach(([qId, taskIds]) => {
-                resolvedMap[qId] = taskIds.map(tid => allTasksData.find(t => t.id === tid)).filter(Boolean);
+                resolvedMap[qId] = (taskIds || []).map(tid => allTasksData.find(t => t.id === tid)).filter(Boolean);
               });
+              const resolveSubTasks = (subs) => {
+                if (!subs) return;
+                subs.forEach(sub => {
+                  if (sub.linkedTaskIds?.length > 0) {
+                    resolvedMap[sub.id] = sub.linkedTaskIds.map(tid => allTasksData.find(t => t.id === tid)).filter(Boolean);
+                  }
+                  resolveSubTasks(sub.subQuestions);
+                });
+              };
+              qData.forEach(q => resolveSubTasks(q.subQuestions));
               setFlowLinkedTasksMap(resolvedMap);
             }
           }
@@ -1118,11 +1129,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       const subForm = taskFormsObj[subFormKey] || {};
       const subTasksCriadas = newTasksArr.filter(t => t.questionId === subFormKey);
 
-      // LinkedTasks desta subpergunta
-      const subLinkedTasks = linkedTasksMap[sub.id] || [];
-      const isChecklist = sub.type === 'checklist';
-      const checklistItems = isChecklist && Array.isArray(subVal) ? subVal.filter(Boolean) : null;
-
       return (
         <div key={sub.id} style={{ marginTop: 8, marginLeft: 16, paddingLeft: 12, borderLeft: `2px solid ${color}33` }}>
           <div style={{ fontSize: 12, color: '#8a9bb0', marginBottom: 2 }}>{sub.text}</div>
@@ -1166,28 +1172,33 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             </div>
           ))}
           {/* LinkedTasks da subpergunta — expande por item se checklist */}
-          {modoEdicaoAtivo && subLinkedTasks.length > 0 && (
-            <div style={{ margin: '6px 0', padding: '8px 10px', background: 'rgba(102,126,234,0.04)', borderRadius: 7, border: '1px solid rgba(102,126,234,0.1)' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' }}>Tarefas programadas</div>
-              {subLinkedTasks.map(lt => {
-                if (isChecklist && checklistItems && checklistItems.length > 0) {
-                  return checklistItems.map((item, idx) => {
-                    const itemKey = `${lt.id}__item-${idx}`;
-                    const existing = jobTasks.find(t => t.templateId === itemKey);
-                    const ltWithItem = { ...lt, id: itemKey, name: `${lt.name} — ${item}`, checklistItem: item };
-                    return (
-                      <div key={itemKey}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, marginLeft: 2 }}><span style={{ color: '#667eea', fontWeight: 600 }}>→</span> {item}</div>
-                        <LinkedTaskCard lt={ltWithItem} existing={existing} agencyUsers={agencyUsers} agencyRoles={agencyRoles} requisitions={requisitions} projectId={projectId} questionId={sub.id} userData={userData} project={project} />
-                      </div>
-                    );
-                  });
-                }
-                const existing = jobTasks.find(t => t.templateId === lt.id);
-                return <LinkedTaskCard key={lt.id} lt={lt} existing={existing} agencyUsers={agencyUsers} agencyRoles={agencyRoles} requisitions={requisitions} projectId={projectId} questionId={sub.id} userData={userData} project={project} />;
-              })}
-            </div>
-          )}
+          {modoEdicaoAtivo && (linkedTasksMap[sub.id] || []).length > 0 && (() => {
+            const subLTs = linkedTasksMap[sub.id];
+            const isChecklist = sub.type === 'checklist';
+            const checklistItems = isChecklist && Array.isArray(subVal) ? subVal.filter(Boolean) : null;
+            return (
+              <div style={{ margin: '6px 0', padding: '8px 10px', background: 'rgba(102,126,234,0.04)', borderRadius: 7, border: '1px solid rgba(102,126,234,0.1)' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' }}>Tarefas programadas</div>
+                {subLTs.map(lt => {
+                  if (isChecklist && checklistItems?.length > 0) {
+                    return checklistItems.map((item, idx) => {
+                      const itemKey = `${lt.id}__item-${idx}`;
+                      const existing = jobTasks.find(t => t.templateId === itemKey);
+                      const ltWithItem = { ...lt, id: itemKey, name: `${lt.name} — ${item}`, checklistItem: item };
+                      return (
+                        <div key={itemKey}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, marginLeft: 2 }}><span style={{ color: '#667eea', fontWeight: 600 }}>→</span> {item}</div>
+                          <LinkedTaskCard lt={ltWithItem} existing={existing} agencyUsers={agencyUsers} agencyRoles={agencyRoles} requisitions={requisitions} projectId={projectId} questionId={sub.id} userData={userData} project={project} />
+                        </div>
+                      );
+                    });
+                  }
+                  const existing = jobTasks.find(t => t.templateId === lt.id);
+                  return <LinkedTaskCard key={lt.id} lt={lt} existing={existing} agencyUsers={agencyUsers} agencyRoles={agencyRoles} requisitions={requisitions} projectId={projectId} questionId={sub.id} userData={userData} project={project} />;
+                })}
+              </div>
+            );
+          })()}
           {/* Recursivo */}
           {sub.subQuestions && sub.subQuestions.length > 0 && renderSubAnswers(sub.subQuestions, answers, sub.id, sub.options || [], depth + 1, modoEdicaoAtivo, newTasksArr, setNewTasksArr, taskFormsObj, setTaskFormsObj, linkedTasksMap, jobTasks)}
         </div>
