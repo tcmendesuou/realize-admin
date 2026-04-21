@@ -365,6 +365,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [project, setProject] = useState(null);
   const [parentProject, setParentProject] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [flowLinkedTasksMap, setFlowLinkedTasksMap] = useState({}); // { [questionId]: [taskObj] }
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
   const [searchParams] = useSearchParams();
@@ -504,6 +505,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     .filter(Boolean),
                 }));
               setQuestions(qData);
+              // Salva mapa completo de linkedTasks para subperguntas também
+              const resolvedMap = {};
+              Object.entries(flowLinkedTasks).forEach(([qId, taskIds]) => {
+                resolvedMap[qId] = taskIds.map(tid => allTasksData.find(t => t.id === tid)).filter(Boolean);
+              });
+              setFlowLinkedTasksMap(resolvedMap);
             }
           }
         }
@@ -1077,7 +1084,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   };
 
   // Renderiza respostas de subperguntas recursivamente no Paper
-  const renderSubAnswers = (subQuestions, answers, parentId, parentOptions = [], depth = 0, modoEdicaoAtivo = false, newTasksArr = [], setNewTasksArr = null, taskFormsObj = {}, setTaskFormsObj = null) => {
+  const renderSubAnswers = (subQuestions, answers, parentId, parentOptions = [], depth = 0, modoEdicaoAtivo = false, newTasksArr = [], setNewTasksArr = null, taskFormsObj = {}, setTaskFormsObj = null, linkedTasksMap = {}, jobTasks = []) => {
     if (!subQuestions || subQuestions.length === 0) return null;
     const parentVal = answers[parentId];
 
@@ -1110,6 +1117,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       const subFormKey = `sub__${sub.id}`;
       const subForm = taskFormsObj[subFormKey] || {};
       const subTasksCriadas = newTasksArr.filter(t => t.questionId === subFormKey);
+
+      // LinkedTasks desta subpergunta
+      const subLinkedTasks = linkedTasksMap[sub.id] || [];
+      const isChecklist = sub.type === 'checklist';
+      const checklistItems = isChecklist && Array.isArray(subVal) ? subVal.filter(Boolean) : null;
 
       return (
         <div key={sub.id} style={{ marginTop: 8, marginLeft: 16, paddingLeft: 12, borderLeft: `2px solid ${color}33` }}>
@@ -1153,8 +1165,31 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               {modoEdicaoAtivo && setNewTasksArr && <button onClick={() => setNewTasksArr(prev => prev.filter(x => x.taskId !== t.taskId))} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 11 }}>✕</button>}
             </div>
           ))}
+          {/* LinkedTasks da subpergunta — expande por item se checklist */}
+          {modoEdicaoAtivo && subLinkedTasks.length > 0 && (
+            <div style={{ margin: '6px 0', padding: '8px 10px', background: 'rgba(102,126,234,0.04)', borderRadius: 7, border: '1px solid rgba(102,126,234,0.1)' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' }}>Tarefas programadas</div>
+              {subLinkedTasks.map(lt => {
+                if (isChecklist && checklistItems && checklistItems.length > 0) {
+                  return checklistItems.map((item, idx) => {
+                    const itemKey = `${lt.id}__item-${idx}`;
+                    const existing = jobTasks.find(t => t.templateId === itemKey);
+                    const ltWithItem = { ...lt, id: itemKey, name: `${lt.name} — ${item}`, checklistItem: item };
+                    return (
+                      <div key={itemKey}>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, marginLeft: 2 }}><span style={{ color: '#667eea', fontWeight: 600 }}>→</span> {item}</div>
+                        <LinkedTaskCard lt={ltWithItem} existing={existing} agencyUsers={agencyUsers} agencyRoles={agencyRoles} requisitions={requisitions} projectId={projectId} questionId={sub.id} userData={userData} project={project} />
+                      </div>
+                    );
+                  });
+                }
+                const existing = jobTasks.find(t => t.templateId === lt.id);
+                return <LinkedTaskCard key={lt.id} lt={lt} existing={existing} agencyUsers={agencyUsers} agencyRoles={agencyRoles} requisitions={requisitions} projectId={projectId} questionId={sub.id} userData={userData} project={project} />;
+              })}
+            </div>
+          )}
           {/* Recursivo */}
-          {sub.subQuestions && sub.subQuestions.length > 0 && renderSubAnswers(sub.subQuestions, answers, sub.id, sub.options || [], depth + 1, modoEdicaoAtivo, newTasksArr, setNewTasksArr, taskFormsObj, setTaskFormsObj)}
+          {sub.subQuestions && sub.subQuestions.length > 0 && renderSubAnswers(sub.subQuestions, answers, sub.id, sub.options || [], depth + 1, modoEdicaoAtivo, newTasksArr, setNewTasksArr, taskFormsObj, setTaskFormsObj, linkedTasksMap, jobTasks)}
         </div>
       );
     });
@@ -1789,7 +1824,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {/* Subrespostas no Paper Feira */}
                             {!modoEditarBriefing && q.subQuestions && q.subQuestions.length > 0 && renderSubAnswers(
                               q.subQuestions, project.answers || {}, q.id, q.options || [],
-                              0, modoEdicao, newTasks, setNewTasks, taskForms, setTaskForms
+                              0, modoEdicao, newTasks, setNewTasks, taskForms, setTaskForms,
+                              flowLinkedTasksMap, project.tasks || []
                             )}
                             {/* Edição de subrespostas no Paper Feira */}
                             {modoEditarBriefing && q.subQuestions && q.subQuestions.length > 0 && renderSubEditInputs(
@@ -2500,7 +2536,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             if (!qObj?.subQuestions || qObj.subQuestions.length === 0) return null;
                             return renderSubAnswers(
                               qObj.subQuestions, answers, key, qObj.options || [],
-                              0, modoPlanejarGeral, newTasksGeral, setNewTasksGeral, taskFormsGeral, setTaskFormsGeral
+                              0, modoPlanejarGeral, newTasksGeral, setNewTasksGeral, taskFormsGeral, setTaskFormsGeral,
+                              flowLinkedTasksMap, project.tasks || []
                             );
                           })()}
                           {/* Edição de subrespostas no Paper Geral */}
