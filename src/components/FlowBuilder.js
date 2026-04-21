@@ -94,6 +94,10 @@ function FlowBuilder({ eventType, onClose }) {
         const orderedItems = flowData.items
           .sort((a, b) => a.order - b.order)
           .map(flowItem => {
+            // Divisor visual
+            if (flowItem.itemType === 'divider') {
+              return { id: flowItem.itemId, itemType: 'divider', text: flowItem.label || 'APROVAÇÃO DO CLIENTE' };
+            }
             // Verificar primeiro nos blocos fixos
             if (flowItem.itemType === 'fixed-block') {
               // Bloco de reunião pode ter id dinâmico (fixed-block-reuniao-timestamp)
@@ -131,6 +135,15 @@ function FlowBuilder({ eventType, onClose }) {
       return;
     }
     setFlowItems([...flowItems, item]);
+  };
+
+  const addDivider = () => {
+    const divider = {
+      id: `divider-${Date.now()}`,
+      itemType: 'divider',
+      text: 'APROVAÇÃO DO CLIENTE',
+    };
+    setFlowItems([...flowItems, divider]);
   };
 
   const removeFromFlow = (itemId, itemType) => {
@@ -360,6 +373,26 @@ function FlowBuilder({ eventType, onClose }) {
                 </div>
               ) : (
                 flowItems.map((item, index) => (
+                  item.itemType === 'divider' ? (
+                    <div key={`divider-${item.id}`}
+                      className={`flow-item ${draggedOverIndex === index ? 'drag-over' : ''}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      style={{ padding: '0 8px', background: 'none', border: 'none', boxShadow: 'none', cursor: 'grab' }}>
+                      <div className="flow-drag-handle" style={{ color: '#FFA726', opacity: 0.6 }}>⋮⋮</div>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg, #FFA72644, #FFA726, #FFA72644)', borderRadius: 2 }} />
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#FFA726', letterSpacing: 1.5, whiteSpace: 'nowrap', padding: '2px 10px', borderRadius: 20, border: '1.5px solid #FFA72666', background: 'rgba(255,167,38,0.06)' }}>
+                          ✓ {item.text}
+                        </span>
+                        <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg, #FFA726, #FFA72644)', borderRadius: 2 }} />
+                      </div>
+                      <button className="btn-remove-from-flow" onClick={() => removeFromFlow(item.id, 'divider')} title="Remover divisor">✕</button>
+                    </div>
+                  ) : (
                   <div
                     key={`${item.itemType}-${item.id}`}
                     className={`flow-item ${draggedOverIndex === index ? 'drag-over' : ''} ${item.itemType === 'fixed-block' ? 'flow-item--fixed-block' : ''}`}
@@ -403,9 +436,15 @@ function FlowBuilder({ eventType, onClose }) {
                       ✕
                     </button>
                   </div>
+                  )
                 ))
               )}
             </div>
+            {/* Botão adicionar divisor */}
+            <button onClick={addDivider}
+              style={{ marginTop: 10, width: '100%', padding: '7px', borderRadius: 8, border: '1.5px dashed #FFA72666', background: 'none', color: '#FFA726', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              + Adicionar divisor "Aprovação do Cliente"
+            </button>
 
             {/* Painel de vincular tarefas */}
             {linkingItemId && (() => {
