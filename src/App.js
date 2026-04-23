@@ -103,6 +103,20 @@ function App() {
     );
   }
 
+  // MAINTENANCE MODE — ativado via variável de ambiente no Vercel
+  if (process.env.REACT_APP_MAINTENANCE === 'true') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0D1B2A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Outfit, sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 26, fontWeight: 300, color: '#E8F4FF', letterSpacing: 3, marginBottom: 16 }}>
+            realize<span style={{ color: '#00E5C4', fontWeight: 500 }}>hub</span>
+          </div>
+          <p style={{ fontSize: 14, color: '#7BAFD4' }}>Em breve</p>
+        </div>
+      </div>
+    );
+  }
+
   // ── ROTEAMENTO POR PERFIL ──────────────────────────────────────────────────
 
   if (firestoreUser) {
