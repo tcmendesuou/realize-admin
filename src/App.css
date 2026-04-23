@@ -219,8 +219,9 @@ body {
   margin-left: 230px;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   background-color: #f0f2f5;
+  overflow: hidden;
 }
 
 .top-header {
@@ -230,6 +231,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .header-left {
@@ -264,6 +266,10 @@ body {
 .content-area {
   flex: 1;
   padding: 28px 30px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* RESPONSIVE */
