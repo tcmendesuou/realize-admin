@@ -157,7 +157,6 @@ export default function SupplierRegistration() {
                   return (
                     <button key={s.id} type="button" onClick={() => toggleService(s.id)}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${sel ? '#667eea' : '#e2e8f0'}`, background: sel ? '#f0f3ff' : 'white', cursor: 'pointer', textAlign: 'left', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
-                      <span style={{ fontSize: 20 }}>{s.icon || '🎯'}</span>
                       <span style={{ fontSize: 12, fontWeight: sel ? 600 : 400, color: sel ? '#667eea' : '#475569' }}>{s.name}</span>
                     </button>
                   );

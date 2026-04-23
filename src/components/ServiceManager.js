@@ -3,33 +3,33 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, query 
 import { db } from '../firebase/config';
 
 const INITIAL_SERVICES = [
-  { name: 'Espaço / Venue', icon: '🏛️', description: 'Salões, sítios, espaços para eventos' },
-  { name: 'Buffet / Gastronomia', icon: '🍽️', description: 'Serviços de alimentação e refeições' },
-  { name: 'Bebidas / Bar', icon: '🍹', description: 'Open bar, chopeiras, sommelier' },
-  { name: 'Decoração', icon: '✨', description: 'Decoração temática e ambientação' },
-  { name: 'Flores / Arranjos', icon: '💐', description: 'Arranjos florais e paisagismo' },
-  { name: 'Fotografia', icon: '📷', description: 'Cobertura fotográfica do evento' },
-  { name: 'Filmagem / Vídeo', icon: '🎥', description: 'Cobertura audiovisual e edição' },
-  { name: 'DJ', icon: '🎧', description: 'Discotecagem e trilha sonora' },
-  { name: 'Banda / Música ao Vivo', icon: '🎸', description: 'Apresentações musicais ao vivo' },
-  { name: 'Iluminação', icon: '💡', description: 'Iluminação cênica e arquitetural' },
-  { name: 'Sonorização', icon: '🔊', description: 'Equipamentos de som e PA' },
-  { name: 'Mestre de Cerimônias', icon: '🎤', description: 'Condução e apresentação do evento' },
-  { name: 'Segurança', icon: '🛡️', description: 'Equipes de segurança patrimonial' },
-  { name: 'Recepção / Promotoras', icon: '🤝', description: 'Recepcionistas e promotores' },
-  { name: 'Transporte', icon: '🚌', description: 'Transfer, vans e ônibus' },
-  { name: 'Limpeza', icon: '🧹', description: 'Limpeza e conservação do espaço' },
-  { name: 'Tendas / Estrutura', icon: '⛺', description: 'Tendas, palcos e estruturas' },
-  { name: 'Mobiliário', icon: '🪑', description: 'Mesas, cadeiras, lounges' },
-  { name: 'Brindes / Personalizados', icon: '🎁', description: 'Lembranças e itens personalizados' },
-  { name: 'Tecnologia / Telão', icon: '📺', description: 'Projeção, telões e tecnologia' },
+  { name: 'Espaco / Venue', description: 'Saloes, sitios, espacos para eventos' },
+  { name: 'Buffet / Gastronomia', description: 'Servicos de alimentacao e refeicoes' },
+  { name: 'Bebidas / Bar', description: 'Open bar, chopeiras, sommelier' },
+  { name: 'Decoracao', description: 'Decoracao tematica e ambientacao' },
+  { name: 'Flores / Arranjos', description: 'Arranjos florais e paisagismo' },
+  { name: 'Fotografia', description: 'Cobertura fotografica do evento' },
+  { name: 'Filmagem / Video', description: 'Cobertura audiovisual e edicao' },
+  { name: 'DJ', description: 'Discotecagem e trilha sonora' },
+  { name: 'Banda / Musica ao Vivo', description: 'Apresentacoes musicais ao vivo' },
+  { name: 'Iluminacao', description: 'Iluminacao cenica e arquitetural' },
+  { name: 'Sonorizacao', description: 'Equipamentos de som e PA' },
+  { name: 'Mestre de Cerimonias', description: 'Conducao e apresentacao do evento' },
+  { name: 'Seguranca', description: 'Equipes de seguranca patrimonial' },
+  { name: 'Recepcao / Promotoras', description: 'Recepcionistas e promotores' },
+  { name: 'Transporte', description: 'Transfer, vans e onibus' },
+  { name: 'Limpeza', description: 'Limpeza e conservacao do espaco' },
+  { name: 'Tendas / Estrutura', description: 'Tendas, palcos e estruturas' },
+  { name: 'Mobiliario', description: 'Mesas, cadeiras, lounges' },
+  { name: 'Brindes / Personalizados', description: 'Lembrancas e itens personalizados' },
+  { name: 'Tecnologia / Telao', description: 'Projecao, teloes e tecnologia' },
 ];
 
 export default function ServiceManager() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
-  const [form, setForm] = useState({ name: '', icon: '', description: '', active: true });
+  const [form, setForm] = useState({ name: '', description: '', active: true });
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -74,7 +74,7 @@ export default function ServiceManager() {
   };
 
   const handleEdit = (s) => {
-    setForm({ name: s.name, icon: s.icon || '', description: s.description || '', active: s.active !== false });
+    setForm({ name: s.name, description: s.description || '', active: s.active !== false });
     setEditing(s.id);
     setShowForm(true);
   };
@@ -119,8 +119,7 @@ export default function ServiceManager() {
       {showForm && (
         <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: 20, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>{editing ? 'Editar Serviço' : 'Novo Serviço'}</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 2fr', gap: 12, marginBottom: 12 }}>
-            <div><label style={lbl}>Ícone</label><input value={form.icon} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} style={{ ...inp, textAlign: 'center', fontSize: 20 }} placeholder="🎯" /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
             <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inp} placeholder="Ex: Buffet" /></div>
             <div><label style={lbl}>Descrição</label><input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={inp} placeholder="Breve descrição do serviço" /></div>
           </div>
@@ -140,7 +139,6 @@ export default function ServiceManager() {
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>
       ) : services.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎯</div>
           <p style={{ fontSize: 14 }}>Nenhum serviço cadastrado ainda.</p>
           <p style={{ fontSize: 12, marginTop: 4 }}>Clique em "Criar padrões" para começar com serviços comuns de eventos.</p>
         </div>
@@ -148,7 +146,6 @@ export default function ServiceManager() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {services.map(s => (
             <div key={s.id} style={{ background: 'white', borderRadius: 10, border: `1px solid ${s.active !== false ? '#e2e8f0' : '#f1f5f9'}`, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, opacity: s.active !== false ? 1 : 0.5, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <span style={{ fontSize: 28, flexShrink: 0 }}>{s.icon || '🎯'}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.name}</div>
                 {s.description && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.description}</div>}

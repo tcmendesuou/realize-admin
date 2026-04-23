@@ -20,6 +20,7 @@ import ProjetoScreen from './components/ProjetoScreen';
 import ServiceManager from './components/ServiceManager';
 import SupplierManager from './components/SupplierManager';
 import SupplierRegistration from './components/SupplierRegistration';
+import ClientRegistration from './components/ClientRegistration';
 import './App.css';
 
 // Wrapper para ProjetoScreen via URL
@@ -107,8 +108,8 @@ function App() {
   if (firestoreUser) {
     const systemRole = firestoreUser.systemRole || 'none';
 
-    // Equipe interna → Workspace (atendimento, planner, produtor, etc.)
-    if (systemRole === 'workspace') {
+    // Equipe interna → Workspace
+    if (systemRole === 'workspace' || systemRole === 'equipe') {
       return (
         <Router>
           <Routes>
@@ -177,13 +178,14 @@ function App() {
     }
   }
 
-  // Sem usuário logado → login
+  // Sem usuário logado → login + rotas públicas
   if (!firebaseUser && !firestoreUser) {
     return (
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/fornecedor/cadastro" element={<SupplierRegistration />} />
+          <Route path="/cliente/cadastro" element={<ClientRegistration />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
@@ -218,9 +220,6 @@ function App() {
             </button>
             <button className={activeView === 'tasks' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tasks')}>
               <span className="nav-text">Tarefas</span>
-            </button>
-            <button className={activeView === 'requisitions' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('requisitions')}>
-              <span className="nav-text">Requisições</span>
             </button>
             <div className="nav-separator" />
             <button className={activeView === 'services' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('services')}>
@@ -262,8 +261,7 @@ function App() {
                 {activeView === 'flows'      && 'Fluxos de Eventos'}
                 {activeView === 'questions'  && 'Banco de Perguntas'}
                 {activeView === 'tasks'      && 'Banco de Tarefas'}
-                {activeView === 'requisitions' && 'Requisições'}
-                {activeView === 'services'     && 'Serviços'}
+                {activeView === 'services'     && 'Servicos'}
                 {activeView === 'suppliers'    && 'Fornecedores'}
                 {activeView === 'eventTypes' && 'Tipos de Eventos'}
                 {activeView === 'roles'      && 'Gestão de Acessos'}
@@ -285,7 +283,6 @@ function App() {
             {activeView === 'flows'      && <FlowBuilderWrapper />}
             {activeView === 'questions'  && <QuestionList />}
             {activeView === 'tasks'      && <TaskList />}
-            {activeView === 'requisitions' && <RequisitionManager />}
             {activeView === 'services'     && <ServiceManager />}
             {activeView === 'suppliers'    && <SupplierManager />}
             {activeView === 'eventTypes' && <EventTypesList />}
