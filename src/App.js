@@ -17,6 +17,9 @@ import UserManagement from './components/UserManagement';
 import RequisitionManager from './components/RequisitionManager';
 import AtendimentoHome from './components/AtendimentoHome';
 import ProjetoScreen from './components/ProjetoScreen';
+import ServiceManager from './components/ServiceManager';
+import SupplierManager from './components/SupplierManager';
+import SupplierRegistration from './components/SupplierRegistration';
 import './App.css';
 
 // Wrapper para ProjetoScreen via URL
@@ -180,6 +183,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/fornecedor/cadastro" element={<SupplierRegistration />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
@@ -219,6 +223,13 @@ function App() {
               <span className="nav-text">Requisições</span>
             </button>
             <div className="nav-separator" />
+            <button className={activeView === 'services' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('services')}>
+              <span className="nav-text">Serviços</span>
+            </button>
+            <button className={activeView === 'suppliers' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('suppliers')}>
+              <span className="nav-text">Fornecedores</span>
+            </button>
+            <div className="nav-separator" />
             <button className={activeView === 'roles' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('roles')}>
               <span className="nav-text">Gestão de Acessos</span>
             </button>
@@ -252,6 +263,8 @@ function App() {
                 {activeView === 'questions'  && 'Banco de Perguntas'}
                 {activeView === 'tasks'      && 'Banco de Tarefas'}
                 {activeView === 'requisitions' && 'Requisições'}
+                {activeView === 'services'     && 'Serviços'}
+                {activeView === 'suppliers'    && 'Fornecedores'}
                 {activeView === 'eventTypes' && 'Tipos de Eventos'}
                 {activeView === 'roles'      && 'Gestão de Acessos'}
                 {activeView === 'companies'  && 'Empresas'}
@@ -273,6 +286,8 @@ function App() {
             {activeView === 'questions'  && <QuestionList />}
             {activeView === 'tasks'      && <TaskList />}
             {activeView === 'requisitions' && <RequisitionManager />}
+            {activeView === 'services'     && <ServiceManager />}
+            {activeView === 'suppliers'    && <SupplierManager />}
             {activeView === 'eventTypes' && <EventTypesList />}
             {activeView === 'roles'      && <RoleManagement />}
             {activeView === 'companies'  && <CompaniesManager />}
