@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -139,6 +139,31 @@ export default function ClienteChat({ userData, onClose }) {
     if (!briefingJson) return;
     setSubmitting(true);
     try {
+      // Busca coordenadores e atribui o com menos jobs ativos
+      let assignedTo = null;
+      let assignedToName = null;
+      try {
+        const coordSnap = await getDocs(query(collection(db, 'users'), where('roleName', '==', 'Coordenador'), where('active', '==', true)));
+        const coordenadores = coordSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (coordenadores.length > 0) {
+          // Conta budgets ativos por coordenador
+          const budgetsSnap = await getDocs(query(collection(db, 'budgets'), where('status', '==', 'analyzing')));
+          const contagemJobs = {};
+          budgetsSnap.docs.forEach(d => {
+            const at = d.data().assignedTo;
+            if (at) contagemJobs[at] = (contagemJobs[at] || 0) + 1;
+          });
+          // Escolhe o coordenador com menos jobs
+          const escolhido = coordenadores.reduce((menor, coord) => {
+            const jobsCoord = contagemJobs[coord.id] || 0;
+            const jobsMenor = contagemJobs[menor.id] || 0;
+            return jobsCoord < jobsMenor ? coord : menor;
+          });
+          assignedTo = escolhido.id;
+          assignedToName = escolhido.name;
+        }
+      } catch (e) { console.error('Erro ao buscar coordenador:', e); }
+
       await addDoc(collection(db, 'budgets'), {
         clientUserId: userId,
         clientName: userName,
@@ -152,6 +177,9 @@ export default function ClienteChat({ userData, onClose }) {
         workspaceStage: 'Propostas',
         isMae: true,
         briefingData: briefingJson,
+        assignedTo,
+        assignedToName,
+        assignedAt: assignedTo ? serverTimestamp() : null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
