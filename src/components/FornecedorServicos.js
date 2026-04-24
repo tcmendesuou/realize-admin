@@ -156,7 +156,7 @@ function ServicoForm({ categoriaId, categoriaNome, areaLabel, supplierId, onSave
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
-export default function FornecedorServicos({ userData }) {
+export default function FornecedorServicos({ userData, onServicosAdicionados }) {
   const supplierId = userData?.supplierId || userData?.id;
   const [servicos, setServicos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -171,7 +171,9 @@ export default function FornecedorServicos({ userData }) {
     if (!supplierId) return;
     try {
       const snap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', supplierId)));
-      setServicos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setServicos(lista);
+      if (lista.length > 0 && onServicosAdicionados) onServicosAdicionados();
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
