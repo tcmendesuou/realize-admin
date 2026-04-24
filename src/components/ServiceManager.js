@@ -1,38 +1,364 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-const INITIAL_SERVICES = [
-  { name: 'Espaco / Venue', description: 'Saloes, sitios, espacos para eventos' },
-  { name: 'Buffet / Gastronomia', description: 'Servicos de alimentacao e refeicoes' },
-  { name: 'Bebidas / Bar', description: 'Open bar, chopeiras, sommelier' },
-  { name: 'Decoracao', description: 'Decoracao tematica e ambientacao' },
-  { name: 'Flores / Arranjos', description: 'Arranjos florais e paisagismo' },
-  { name: 'Fotografia', description: 'Cobertura fotografica do evento' },
-  { name: 'Filmagem / Video', description: 'Cobertura audiovisual e edicao' },
-  { name: 'DJ', description: 'Discotecagem e trilha sonora' },
-  { name: 'Banda / Musica ao Vivo', description: 'Apresentacoes musicais ao vivo' },
-  { name: 'Iluminacao', description: 'Iluminacao cenica e arquitetural' },
-  { name: 'Sonorizacao', description: 'Equipamentos de som e PA' },
-  { name: 'Mestre de Cerimonias', description: 'Conducao e apresentacao do evento' },
-  { name: 'Seguranca', description: 'Equipes de seguranca patrimonial' },
-  { name: 'Recepcao / Promotoras', description: 'Recepcionistas e promotores' },
-  { name: 'Transporte', description: 'Transfer, vans e onibus' },
-  { name: 'Limpeza', description: 'Limpeza e conservacao do espaco' },
-  { name: 'Tendas / Estrutura', description: 'Tendas, palcos e estruturas' },
-  { name: 'Mobiliario', description: 'Mesas, cadeiras, lounges' },
-  { name: 'Brindes / Personalizados', description: 'Lembrancas e itens personalizados' },
-  { name: 'Tecnologia / Telao', description: 'Projecao, teloes e tecnologia' },
+const TIPOS = [
+  { id: 'estrutura',      label: 'Estrutura',      color: '#0080FF', desc: 'Equipamentos, montagem, locacao — custo por diaria' },
+  { id: 'operacao',       label: 'Operacao',        color: '#00E5C4', desc: 'Pessoas, servicos — custo por hora trabalhada' },
+  { id: 'entretenimento', label: 'Entretenimento',  color: '#FFA726', desc: 'Artistas, midia, fotografia e atracoes' },
+  { id: 'gastronomia',    label: 'Gastronomia',     color: '#66BB6A', desc: 'Alimentacao, buffet e servicos gastronômicos' },
 ];
 
+// ── Seed Entretenimento e Gastronomia (nao apaga existentes) ──────────────────
+const SEED_ENT_GASTRO = {
+  entretenimento: [
+    { name: 'Fotografia', description: 'Cobertura fotografica do evento', subs: [
+      { name: 'Fotografo de Evento', description: 'Cobertura fotografica completa' },
+      { name: 'Fotografo de Produto', description: 'Fotografia de produtos e estande' },
+      { name: 'Ensaio / Retrato', description: 'Ensaios e retratos corporativos' },
+    ]},
+    { name: 'Filmagem / Video', description: 'Cobertura audiovisual e edicao', subs: [
+      { name: 'Cinegrafista', description: 'Filmagem profissional do evento' },
+      { name: 'Drone', description: 'Filmagem aerea com drone' },
+      { name: 'Editor de Video', description: 'Edicao e pos-producao de video' },
+      { name: 'Transmissao ao Vivo', description: 'Live streaming e transmissao online' },
+    ]},
+    { name: 'DJ / Musica', description: 'Discotecagem e selecao musical', subs: [
+      { name: 'DJ', description: 'Discotecagem e selecao musical' },
+      { name: 'Banda', description: 'Banda ao vivo para eventos' },
+      { name: 'Musico Solo', description: 'Musico solo — piano, violao, saxofone etc' },
+      { name: 'DJ + MC', description: 'Dupla DJ e mestre de cerimonias' },
+    ]},
+    { name: 'MC / Apresentador', description: 'Mestre de cerimonias e apresentacao', subs: [
+      { name: 'MC de Evento', description: 'Mestre de cerimonias corporativo' },
+      { name: 'Apresentador', description: 'Apresentador de palco e palestra' },
+      { name: 'Interprete / Tradutor', description: 'Traducao simultanea e interpretacao' },
+    ]},
+    { name: 'Show / Atracao', description: 'Artistas e atracoes especiais', subs: [
+      { name: 'Artista / Performer', description: 'Atracoes artisticas e performances' },
+      { name: 'Magico / Ilusionista', description: 'Magica e ilusionismo para eventos' },
+      { name: 'Humorista / Comediante', description: 'Stand-up e humor para eventos corporativos' },
+      { name: 'Palestrante', description: 'Palestrante motivacional ou tecnico' },
+    ]},
+    { name: 'Photobooth / Interativo', description: 'Cabines de foto e experiencias interativas', subs: [
+      { name: 'Photobooth', description: 'Cabine de fotos com impressao instantanea' },
+      { name: 'Totem Digital', description: 'Totem interativo touch screen' },
+      { name: 'Espelho Magico', description: 'Espelho interativo para fotos' },
+      { name: 'Realidade Aumentada', description: 'Experiencias em realidade aumentada ou virtual' },
+    ]},
+  ],
+  gastronomia: [
+    { name: 'Buffet / Catering', description: 'Servico completo de alimentacao para eventos', subs: [
+      { name: 'Buffet Completo', description: 'Servico de buffet com cardapio completo' },
+      { name: 'Coffee Break', description: 'Coffee break para reunioes e eventos' },
+      { name: 'Almoco / Jantar', description: 'Servico de almoco ou jantar formal' },
+      { name: 'Finger Food', description: 'Aperitivos e finger food para coquetel' },
+    ]},
+    { name: 'Bar / Bebidas', description: 'Servico de bar e bebidas', subs: [
+      { name: 'Open Bar', description: 'Servico de open bar completo' },
+      { name: 'Chopeira / Cerveja', description: 'Locacao de chopeira e servico de cerveja' },
+      { name: 'Sommelier', description: 'Sommelier e harmonizacao de vinhos' },
+      { name: 'Bartender / Drinks', description: 'Bartender e drinks personalizados' },
+      { name: 'Sucos / Mocktails', description: 'Sucos naturais e drinks sem alcool' },
+    ]},
+    { name: 'Confeitaria / Doceria', description: 'Bolos, doces e sobremesas', subs: [
+      { name: 'Bolo Personalizado', description: 'Bolo decorado para o evento' },
+      { name: 'Mesa de Doces', description: 'Mesa de doces e sobremesas' },
+      { name: 'Bem-casado / Lembrancas', description: 'Bem-casados e lembrancinhas comestiveis' },
+      { name: 'Chocolate / Fondue', description: 'Fondue de chocolate e sobremesas quentes' },
+    ]},
+    { name: 'Food Truck / Estacoes', description: 'Food trucks e estacoes gastronomicas', subs: [
+      { name: 'Food Truck', description: 'Food truck para eventos externos' },
+      { name: 'Estacao de Massas', description: 'Estacao ao vivo de massas e risotos' },
+      { name: 'Estacao de Grelhados', description: 'Churrasco e grelhados ao vivo' },
+      { name: 'Estacao de Crepe', description: 'Creperie ao vivo' },
+    ]},
+    { name: 'Degustacao / Premium', description: 'Experiencias gastronomicas premium', subs: [
+      { name: 'Degustacao de Vinhos', description: 'Degustacao guiada de vinhos' },
+      { name: 'Queijos e Frios', description: 'Mesa de queijos, frios e embutidos' },
+      { name: 'Sushi / Japones', description: 'Estacao de sushi e culinaria japonesa' },
+      { name: 'Chef a Domicilio', description: 'Chef exclusivo para o evento' },
+    ]},
+  ],
+};
+
+const SEED_PRICING_ENT_GASTRO = {
+  // Entretenimento — custo/hora
+  'Fotografo de Evento':    { custoHora: 150 },
+  'Fotografo de Produto':   { custoHora: 180 },
+  'Ensaio / Retrato':       { custoHora: 200 },
+  'Cinegrafista':           { custoHora: 180 },
+  'Drone':                  { custoHora: 250 },
+  'Editor de Video':        { custoHora: 120 },
+  'Transmissao ao Vivo':    { custoHora: 300 },
+  'DJ':                     { custoHora: 200 },
+  'Banda':                  { custoHora: 400 },
+  'Musico Solo':            { custoHora: 200 },
+  'DJ + MC':                { custoHora: 350 },
+  'MC de Evento':           { custoHora: 300 },
+  'Apresentador':           { custoHora: 350 },
+  'Interprete / Tradutor':  { custoHora: 120 },
+  'Artista / Performer':    { custoHora: 400 },
+  'Magico / Ilusionista':   { custoHora: 350 },
+  'Humorista / Comediante': { custoHora: 500 },
+  'Palestrante':            { custoHora: 800 },
+  'Photobooth':             { custoHora: 200 },
+  'Totem Digital':          { custoHora: 150 },
+  'Espelho Magico':         { custoHora: 250 },
+  'Realidade Aumentada':    { custoHora: 400 },
+  // Gastronomia — custo por pessoa (guardamos em custoHora por praticidade)
+  'Buffet Completo':        { custoHora: 85  },
+  'Coffee Break':           { custoHora: 35  },
+  'Almoco / Jantar':        { custoHora: 120 },
+  'Finger Food':            { custoHora: 45  },
+  'Open Bar':               { custoHora: 65  },
+  'Chopeira / Cerveja':     { custoHora: 40  },
+  'Sommelier':              { custoHora: 250 },
+  'Bartender / Drinks':     { custoHora: 55  },
+  'Sucos / Mocktails':      { custoHora: 30  },
+  'Bolo Personalizado':     { custoHora: 15  },
+  'Mesa de Doces':          { custoHora: 25  },
+  'Bem-casado / Lembrancas':{ custoHora: 8   },
+  'Chocolate / Fondue':     { custoHora: 40  },
+  'Food Truck':             { custoHora: 1200},
+  'Estacao de Massas':      { custoHora: 350 },
+  'Estacao de Grelhados':   { custoHora: 400 },
+  'Estacao de Crepe':       { custoHora: 300 },
+  'Degustacao de Vinhos':   { custoHora: 180 },
+  'Queijos e Frios':        { custoHora: 60  },
+  'Sushi / Japones':        { custoHora: 90  },
+  'Chef a Domicilio':       { custoHora: 500 },
+};
+
+// ── Dados de seed ─────────────────────────────────────────────────────────────
+const SEED_DATA = {
+  estrutura: [
+    { name: 'Montagem / Estande', description: 'Montagem e desmontagem de estandes e estruturas', subs: [
+      { name: 'Estande Octanorm', description: 'Estrutura modular em octanorm' },
+      { name: 'Estande Madeirado', description: 'Estrutura personalizada em MDF/madeira' },
+      { name: 'Estande Misto', description: 'Combinacao de octanorm com madeirado' },
+      { name: 'Backdrop / Painel', description: 'Painel de fundo para fotografias e apresentacoes' },
+    ]},
+    { name: 'Mobiliario / Locacao', description: 'Mesas, cadeiras, lounges e mobiliario em geral', subs: [
+      { name: 'Cadeiras e Mesas', description: 'Cadeiras simples, mesas plásticas ou metálicas' },
+      { name: 'Lounge / Sofa', description: 'Poltronas, sofas e mesas de centro' },
+      { name: 'Balcao de Recepcao', description: 'Balcao para recepcao e atendimento' },
+      { name: 'Mostruario / Display', description: 'Racks, gôndolas e displays para produtos' },
+    ]},
+    { name: 'Iluminacao', description: 'Iluminacao cenica, decorativa e arquitetural', subs: [
+      { name: 'Iluminacao Cênica', description: 'Moving heads, refletores e iluminacao de palco' },
+      { name: 'LED / Neon', description: 'Fitas de LED, letras luminosas e elementos decorativos' },
+      { name: 'Iluminacao Arquitetural', description: 'Projetores e iluminacao de ambientacao' },
+    ]},
+    { name: 'Sonorizacao', description: 'Equipamentos de som, PA e microfones', subs: [
+      { name: 'Sistema PA', description: 'Caixas de som, amplificadores e subwoofers' },
+      { name: 'Microfones', description: 'Microfones com fio, sem fio e lapela' },
+      { name: 'Mesa de Som', description: 'Mesa de mixagem e equipamentos de audio' },
+    ]},
+    { name: 'Tecnologia / AV', description: 'Teloes, projetores, paineis de LED e streaming', subs: [
+      { name: 'Painel de LED', description: 'Painel LED indoor/outdoor para exibicao de conteudo' },
+      { name: 'Projetor + Tela', description: 'Projetor e tela de projecao' },
+      { name: 'TV / Monitor', description: 'Televisores e monitores para exposicao' },
+      { name: 'Totem Digital', description: 'Totem interativo touch screen' },
+    ]},
+    { name: 'Tendas / Coberturas', description: 'Tendas, coberturas e estruturas metalicas', subs: [
+      { name: 'Tenda Piramidal', description: 'Tenda piramidal para areas externas' },
+      { name: 'Tenda Chapeu de Bruxa', description: 'Tenda chapeu de bruxa com calhas' },
+      { name: 'Galpao / Estrutura Metalica', description: 'Estrutura metalica para grandes areas' },
+    ]},
+    { name: 'Climatizacao', description: 'Ar condicionado, ventiladores e climatizadores', subs: [
+      { name: 'Ar Condicionado Split', description: 'Ar condicionado split para ambientes fechados' },
+      { name: 'Climatizador Industrial', description: 'Climatizador evaporativo para areas grandes' },
+      { name: 'Ventilador Industrial', description: 'Ventiladores de coluna ou pedestal' },
+    ]},
+    { name: 'Comunicacao Visual', description: 'Flyers, lonas, banners e sinalizacao', subs: [
+      { name: 'Lona / Banner', description: 'Impressao em lona e banners' },
+      { name: 'Adesivagem', description: 'Adesivos para vidros, paredes e pisos' },
+      { name: 'Sinalizacao', description: 'Totens de sinalizacao e indicativos' },
+      { name: 'Cenografia / Decoracao', description: 'Elementos decorativos e cenograficos' },
+    ]},
+    { name: 'Energia / Geradores', description: 'Geradores, nobreaks e infraestrutura eletrica', subs: [
+      { name: 'Gerador', description: 'Gerador para eventos sem energia eletrica' },
+      { name: 'Nobreak / UPS', description: 'Nobreak para equipamentos criticos' },
+      { name: 'Quadro Eletrico', description: 'Infraestrutura eletrica temporaria' },
+    ]},
+  ],
+  operacao: [
+    { name: 'Recepcao / Hostess', description: 'Recepcionistas, hostess e promotoras', subs: [
+      { name: 'Recepcionista', description: 'Recepcao e atendimento ao visitante' },
+      { name: 'Hostess', description: 'Hostess para feiras e eventos corporativos' },
+      { name: 'Promotora', description: 'Promotora de vendas e demonstracao de produtos' },
+      { name: 'Interprete / Tradutor', description: 'Interprete e traducao simultanea' },
+    ]},
+    { name: 'Seguranca', description: 'Agentes de seguranca e controle de acesso', subs: [
+      { name: 'Seguranca Patrimonial', description: 'Vigilante para seguranca do espaco' },
+      { name: 'Controle de Acesso', description: 'Operador de credenciamento e acesso' },
+      { name: 'Coordenador de Seguranca', description: 'Coordenacao da equipe de seguranca' },
+    ]},
+    { name: 'Limpeza / Conservacao', description: 'Limpeza e manutencao durante e apos o evento', subs: [
+      { name: 'Auxiliar de Limpeza', description: 'Limpeza geral do espaco' },
+      { name: 'Limpeza Pos-Evento', description: 'Limpeza completa ao final do evento' },
+      { name: 'Jardineiro', description: 'Manutencao de areas verdes e decoracao' },
+    ]},
+    { name: 'Logistica / Carga', description: 'Carregadores, transporte e logistica', subs: [
+      { name: 'Carregador', description: 'Carga e descarga de materiais' },
+      { name: 'Motorista', description: 'Motorista para transporte de materiais e equipe' },
+      { name: 'Operador de Empilhadeira', description: 'Operacao de empilhadeira para carga pesada' },
+    ]},
+    { name: 'Producao / Coordenacao', description: 'Producao executiva e coordenacao de evento', subs: [
+      { name: 'Produtor Executivo', description: 'Coordenacao geral do evento' },
+      { name: 'Assistente de Producao', description: 'Apoio operacional na producao' },
+      { name: 'Runner', description: 'Apoio rapido e resolucao de demandas no evento' },
+    ]},
+    { name: 'Alimentacao / A&B', description: 'Servico de alimentacao e bebidas', subs: [
+      { name: 'Garcom', description: 'Servico de mesa e atendimento' },
+      { name: 'Bartender', description: 'Preparo e servico de drinks' },
+      { name: 'Cozinheiro / Chef', description: 'Preparo de alimentos no local' },
+      { name: 'Copeira', description: 'Servico de cafe, agua e apoio gastronomico' },
+    ]},
+    { name: 'Fotografia / Filmagem', description: 'Cobertura fotografica e audiovisual', subs: [
+      { name: 'Fotografo', description: 'Cobertura fotografica do evento' },
+      { name: 'Cinegrafista', description: 'Filmagem e cobertura audiovisual' },
+      { name: 'Editor de Imagem', description: 'Edicao de fotos e videos pos-evento' },
+      { name: 'Drone', description: 'Filmagem aerea com drone' },
+    ]},
+    { name: 'Saude / Primeiros Socorros', description: 'Equipe de saude e seguranca', subs: [
+      { name: 'Enfermeiro', description: 'Atendimento de primeiros socorros' },
+      { name: 'Socorrista / Paramédico', description: 'Atendimento pre-hospitalar' },
+    ]},
+    { name: 'Entretenimento / Show', description: 'Artistas, apresentadores e atracoes', subs: [
+      { name: 'DJ', description: 'Discotecagem e selecao musical' },
+      { name: 'MC / Apresentador', description: 'Mestre de cerimonias e conducao do evento' },
+      { name: 'Musico / Banda', description: 'Musica ao vivo' },
+    ]},
+  ],
+};
+
+// Valores de mercado SP (referência base 2025)
+const SEED_PRICING = {
+  // Estrutura — custo/diaria
+  'Estande Octanorm':       { custoDiaria: 180,  custoInstalacao: 400  },
+  'Estande Madeirado':      { custoDiaria: 350,  custoInstalacao: 800  },
+  'Estande Misto':          { custoDiaria: 280,  custoInstalacao: 600  },
+  'Backdrop / Painel':      { custoDiaria: 120,  custoInstalacao: 200  },
+  'Cadeiras e Mesas':       { custoDiaria: 8,    custoInstalacao: 0    },
+  'Lounge / Sofa':          { custoDiaria: 180,  custoInstalacao: 0    },
+  'Balcao de Recepcao':     { custoDiaria: 150,  custoInstalacao: 0    },
+  'Mostruario / Display':   { custoDiaria: 60,   custoInstalacao: 0    },
+  'Iluminacao Cenica':      { custoDiaria: 800,  custoInstalacao: 400  },
+  'LED / Neon':             { custoDiaria: 250,  custoInstalacao: 150  },
+  'Iluminacao Arquitetural':{ custoDiaria: 400,  custoInstalacao: 200  },
+  'Sistema PA':             { custoDiaria: 600,  custoInstalacao: 300  },
+  'Microfones':             { custoDiaria: 120,  custoInstalacao: 50   },
+  'Mesa de Som':            { custoDiaria: 300,  custoInstalacao: 100  },
+  'Painel de LED':          { custoDiaria: 1200, custoInstalacao: 600  },
+  'Projetor + Tela':        { custoDiaria: 500,  custoInstalacao: 150  },
+  'TV / Monitor':           { custoDiaria: 200,  custoInstalacao: 80   },
+  'Totem Digital':          { custoDiaria: 350,  custoInstalacao: 100  },
+  'Tenda Piramidal':        { custoDiaria: 400,  custoInstalacao: 300  },
+  'Tenda Chapeu de Bruxa':  { custoDiaria: 600,  custoInstalacao: 400  },
+  'Galpao / Estrutura Metalica': { custoDiaria: 1500, custoInstalacao: 1000 },
+  'Ar Condicionado Split':  { custoDiaria: 350,  custoInstalacao: 200  },
+  'Climatizador Industrial':{ custoDiaria: 250,  custoInstalacao: 0    },
+  'Ventilador Industrial':  { custoDiaria: 80,   custoInstalacao: 0    },
+  'Lona / Banner':          { custoDiaria: 0,    custoInstalacao: 0    },
+  'Adesivagem':             { custoDiaria: 0,    custoInstalacao: 0    },
+  'Sinalizacao':            { custoDiaria: 60,   custoInstalacao: 0    },
+  'Cenografia / Decoracao': { custoDiaria: 500,  custoInstalacao: 300  },
+  'Gerador':                { custoDiaria: 800,  custoInstalacao: 200  },
+  'Nobreak / UPS':          { custoDiaria: 150,  custoInstalacao: 50   },
+  'Quadro Eletrico':        { custoDiaria: 300,  custoInstalacao: 200  },
+  // Operação — custo/hora
+  'Recepcionista':          { custoHora: 28 },
+  'Hostess':                { custoHora: 32 },
+  'Promotora':              { custoHora: 30 },
+  'Interprete / Tradutor':  { custoHora: 85 },
+  'Seguranca Patrimonial':  { custoHora: 22 },
+  'Controle de Acesso':     { custoHora: 20 },
+  'Coordenador de Seguranca': { custoHora: 35 },
+  'Auxiliar de Limpeza':    { custoHora: 18 },
+  'Limpeza Pos-Evento':     { custoHora: 22 },
+  'Jardineiro':             { custoHora: 25 },
+  'Carregador':             { custoHora: 22 },
+  'Motorista':              { custoHora: 30 },
+  'Operador de Empilhadeira': { custoHora: 40 },
+  'Produtor Executivo':     { custoHora: 120 },
+  'Assistente de Producao': { custoHora: 45 },
+  'Runner':                 { custoHora: 28 },
+  'Garcom':                 { custoHora: 25 },
+  'Bartender':              { custoHora: 35 },
+  'Cozinheiro / Chef':      { custoHora: 55 },
+  'Copeira':                { custoHora: 20 },
+  'Fotografo':              { custoHora: 150 },
+  'Cinegrafista':           { custoHora: 180 },
+  'Editor de Imagem':       { custoHora: 120 },
+  'Drone':                  { custoHora: 200 },
+  'Enfermeiro':             { custoHora: 55 },
+  'Socorrista / Paramédico':{ custoHora: 65 },
+  'DJ':                     { custoHora: 200 },
+  'MC / Apresentador':      { custoHora: 300 },
+  'Musico / Banda':         { custoHora: 180 },
+};
+
+// ── Sub-serviço form ──────────────────────────────────────────────────────────
+function SubServiceForm({ parentId, editData, onSave, onCancel }) {
+  const [form, setForm] = useState(editData || { name: '', description: '', active: true });
+  const [saving, setSaving] = useState(false);
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { alert('Nome obrigatorio'); return; }
+    setSaving(true);
+    try {
+      const data = { ...form, parentId, updatedAt: new Date() };
+      if (editData?.id) {
+        await updateDoc(doc(db, 'services', editData.id), data);
+      } else {
+        await addDoc(collection(db, 'services'), { ...data, createdAt: new Date() });
+      }
+      onSave();
+    } catch (e) { console.error(e); alert('Erro ao salvar.'); }
+    finally { setSaving(false); }
+  };
+
+  const inp = { padding: '8px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box', outline: 'none' };
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
+
+  return (
+    <div style={{ background: '#f8faff', borderRadius: 8, border: '1px solid #e0e8ff', padding: 14, marginBottom: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#667eea', marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        {editData ? 'Editar sub-servico' : 'Novo sub-servico'}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 10 }}>
+        <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e => setF('name', e.target.value)} style={inp} placeholder="Ex: Recepcionista" /></div>
+        <div><label style={lbl}>Descricao</label><input value={form.description} onChange={e => setF('description', e.target.value)} style={inp} placeholder="Breve descricao" /></div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <input type="checkbox" id={`sub-act-${editData?.id || 'new'}`} checked={form.active !== false} onChange={e => setF('active', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#667eea' }} />
+        <label htmlFor={`sub-act-${editData?.id || 'new'}`} style={{ fontSize: 12, color: '#64748b', cursor: 'pointer' }}>Ativo</label>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button onClick={onCancel} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+        <button onClick={handleSave} disabled={saving} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+          {saving ? 'Salvando...' : 'Salvar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export default function ServiceManager() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
+  const [tipoAtivo, setTipoAtivo] = useState('estrutura');
   const [form, setForm] = useState({ name: '', description: '', active: true });
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+  const [showSubForm, setShowSubForm] = useState(null);
+  const [editingSub, setEditingSub] = useState(null);
 
   useEffect(() => { loadServices(); }, []);
 
@@ -44,43 +370,27 @@ export default function ServiceManager() {
     finally { setLoading(false); }
   };
 
-  const seedServices = async () => {
-    if (!window.confirm(`Criar ${INITIAL_SERVICES.length} serviços padrão?`)) return;
-    setSeeding(true);
-    try {
-      for (const s of INITIAL_SERVICES) {
-        await addDoc(collection(db, 'services'), { ...s, active: true, createdAt: new Date() });
-      }
-      await loadServices();
-    } catch (e) { console.error(e); alert('Erro ao criar serviços.'); }
-    finally { setSeeding(false); }
-  };
-
   const handleSave = async () => {
-    if (!form.name.trim()) { alert('Nome obrigatório'); return; }
+    if (!form.name.trim()) { alert('Nome obrigatorio'); return; }
     setSaving(true);
     try {
       if (editing) {
         await updateDoc(doc(db, 'services', editing), { ...form, updatedAt: new Date() });
       } else {
-        await addDoc(collection(db, 'services'), { ...form, createdAt: new Date() });
+        await addDoc(collection(db, 'services'), { ...form, tipo: tipoAtivo, parentId: null, createdAt: new Date() });
       }
       await loadServices();
-      setForm({ name: '', icon: '', description: '', active: true });
+      setForm({ name: '', description: '', active: true });
       setEditing(null);
       setShowForm(false);
     } catch (e) { console.error(e); alert('Erro ao salvar.'); }
     finally { setSaving(false); }
   };
 
-  const handleEdit = (s) => {
-    setForm({ name: s.name, description: s.description || '', active: s.active !== false });
-    setEditing(s.id);
-    setShowForm(true);
-  };
-
   const handleDelete = async (id) => {
-    if (!window.confirm('Excluir este serviço?')) return;
+    if (!window.confirm('Excluir este servico e todos os sub-servicos?')) return;
+    const subs = services.filter(s => s.parentId === id);
+    for (const sub of subs) await deleteDoc(doc(db, 'services', sub.id));
     await deleteDoc(doc(db, 'services', id));
     await loadServices();
   };
@@ -90,42 +400,157 @@ export default function ServiceManager() {
     await loadServices();
   };
 
+  const [seeding, setSeeding] = useState(false);
+  const [seedingEG, setSeedingEG] = useState(false);
+
+  const handleSeedEntGastro = async () => {
+    if (!window.confirm('Adicionar servicos de Entretenimento e Gastronomia? Os servicos existentes nao serao alterados.')) return;
+    setSeedingEG(true);
+    try {
+      // Busca nomes existentes para nao duplicar
+      const snap = await getDocs(collection(db, 'services'));
+      const existingNames = new Set(snap.docs.map(d => d.data().name));
+
+      for (const [tipo, grupos] of Object.entries(SEED_ENT_GASTRO)) {
+        for (const grupo of grupos) {
+          let parentId;
+          if (existingNames.has(grupo.name)) {
+            // Ja existe — pega o id
+            parentId = snap.docs.find(d => d.data().name === grupo.name)?.id;
+          } else {
+            const ref = await addDoc(collection(db, 'services'), {
+              name: grupo.name, description: grupo.description,
+              tipo, parentId: null, active: true, createdAt: new Date(),
+            });
+            parentId = ref.id;
+          }
+          for (const sub of grupo.subs) {
+            if (existingNames.has(sub.name)) continue; // nao duplica
+            const subRef = await addDoc(collection(db, 'services'), {
+              name: sub.name, description: sub.description,
+              tipo, parentId, active: true, createdAt: new Date(),
+            });
+            const preco = SEED_PRICING_ENT_GASTRO[sub.name];
+            if (preco) {
+              await addDoc(collection(db, 'servicePricing'), {
+                tipo, subServiceId: subRef.id, serviceId: parentId,
+                subServiceName: sub.name,
+                estado: 'Sao Paulo - Capital',
+                custoHora: preco.custoHora.toString(),
+                observacoes: 'Valor de referencia — mercado SP 2025',
+                ativo: true, createdAt: new Date(),
+              });
+            }
+          }
+        }
+      }
+      await loadServices();
+      alert('Entretenimento e Gastronomia adicionados com sucesso!');
+    } catch (e) { console.error(e); alert('Erro ao adicionar servicos.'); }
+    finally { setSeedingEG(false); }
+  };
+
+  const handleSeed = async () => {
+    if (!window.confirm('Isso vai APAGAR todos os servicos existentes e criar a estrutura completa com valores de mercado (SP). Continuar?')) return;
+    setSeeding(true);
+    try {
+      // Apaga tudo
+      const snap = await getDocs(collection(db, 'services'));
+      for (const d of snap.docs) await deleteDoc(doc(db, 'services', d.id));
+      const pSnap = await getDocs(collection(db, 'servicePricing'));
+      for (const d of pSnap.docs) await deleteDoc(doc(db, 'servicePricing', d.id));
+
+      // Cria serviços, sub-serviços e preços
+      for (const [tipo, grupos] of Object.entries(SEED_DATA)) {
+        for (const grupo of grupos) {
+          const parentRef = await addDoc(collection(db, 'services'), {
+            name: grupo.name, description: grupo.description,
+            tipo, parentId: null, active: true, createdAt: new Date(),
+          });
+          for (const sub of grupo.subs) {
+            const subRef = await addDoc(collection(db, 'services'), {
+              name: sub.name, description: sub.description,
+              tipo, parentId: parentRef.id, active: true, createdAt: new Date(),
+            });
+            // Adiciona preço de referência SP
+            const preco = SEED_PRICING[sub.name];
+            if (preco) {
+              await addDoc(collection(db, 'servicePricing'), {
+                tipo, subServiceId: subRef.id, serviceId: parentRef.id,
+                subServiceName: sub.name,
+                estado: 'Sao Paulo - Capital',
+                ...(tipo === 'operacao'
+                  ? { custoHora: preco.custoHora.toString() }
+                  : { custoDiaria: preco.custoDiaria.toString(), custoInstalacao: preco.custoInstalacao.toString() }
+                ),
+                observacoes: 'Valor de referencia — mercado SP 2025',
+                ativo: true, createdAt: new Date(),
+              });
+            }
+          }
+        }
+      }
+      await loadServices();
+      alert('Estrutura completa criada com sucesso! Valores de referencia SP 2025 incluidos.');
+    } catch (e) { console.error(e); alert('Erro ao popular dados.'); }
+    finally { setSeeding(false); }
+  };
+  const tipoConfig = TIPOS.find(t => t.id === tipoAtivo);
+  const rootServices = services.filter(s => !s.parentId && s.tipo === tipoAtivo);
+  const getSubServices = (parentId) => services.filter(s => s.parentId === parentId);
+
   const inp = { padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box', outline: 'none' };
   const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
   return (
     <div style={{ fontFamily: 'Outfit, sans-serif' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Serviços</h2>
-          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Tipos de serviços disponíveis para fornecedores</p>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Servicos</h2>
+          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Catalogo de servicos para eventos</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          {services.length === 0 && (
-            <button onClick={seedServices} disabled={seeding}
-              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-              {seeding ? 'Criando...' : '+ Criar padrões'}
+          {services.filter(s => !s.tipo).length > 0 || services.length === 0 ? (
+            <button onClick={handleSeed} disabled={seeding}
+              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.3)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              {seeding ? 'Criando...' : 'Popular com dados de mercado'}
             </button>
-          )}
-          <button onClick={() => { setForm({ name: '', icon: '', description: '', active: true }); setEditing(null); setShowForm(true); }}
+          ) : null}
+          <button onClick={handleSeedEntGastro} disabled={seedingEG}
+            style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(255,167,38,0.3)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            {seedingEG ? 'Adicionando...' : '+ Entretenimento e Gastronomia'}
+          </button>
+          <button onClick={() => { setForm({ name: '', description: '', active: true }); setEditing(null); setShowForm(true); }}
             style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-            + Novo Serviço
+            + Novo Servico
           </button>
         </div>
       </div>
 
-      {/* Form */}
+      {/* Tabs Estrutura / Operação */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {TIPOS.map(t => (
+          <button key={t.id} onClick={() => { setTipoAtivo(t.id); setExpanded(null); setShowForm(false); }}
+            style={{ padding: '10px 24px', borderRadius: 10, border: `1.5px solid ${tipoAtivo === t.id ? t.color : '#e2e8f0'}`, background: tipoAtivo === t.id ? `${t.color}15` : 'white', color: tipoAtivo === t.id ? t.color : '#64748b', fontSize: 14, fontWeight: tipoAtivo === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
+            {t.label}
+            <div style={{ fontSize: 11, fontWeight: 400, color: tipoAtivo === t.id ? t.color : '#94a3b8', marginTop: 2 }}>{t.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Form de serviço raiz */}
       {showForm && (
         <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: 20, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>{editing ? 'Editar Serviço' : 'Novo Serviço'}</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{editing ? 'Editar' : 'Novo'} Servico de {tipoConfig?.label}</h3>
+          <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>{tipoConfig?.desc}</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
-            <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inp} placeholder="Ex: Buffet" /></div>
-            <div><label style={lbl}>Descrição</label><input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={inp} placeholder="Breve descrição do serviço" /></div>
+            <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inp} placeholder={tipoAtivo === 'estrutura' ? 'Ex: Telao de LED' : 'Ex: Recepcao'} /></div>
+            <div><label style={lbl}>Descricao</label><input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={inp} placeholder="Breve descricao" /></div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <input type="checkbox" id="svc-active" checked={form.active} onChange={e => setForm(p => ({ ...p, active: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#667eea' }} />
-            <label htmlFor="svc-active" style={{ fontSize: 13, color: '#64748b', cursor: 'pointer' }}>Serviço ativo</label>
+            <input type="checkbox" id="svc-active" checked={form.active !== false} onChange={e => setForm(p => ({ ...p, active: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#667eea' }} />
+            <label htmlFor="svc-active" style={{ fontSize: 13, color: '#64748b', cursor: 'pointer' }}>Servico ativo</label>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button onClick={() => { setShowForm(false); setEditing(null); }} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
@@ -137,33 +562,97 @@ export default function ServiceManager() {
       {/* Lista */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>
-      ) : services.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
-          <p style={{ fontSize: 14 }}>Nenhum serviço cadastrado ainda.</p>
-          <p style={{ fontSize: 12, marginTop: 4 }}>Clique em "Criar padrões" para começar com serviços comuns de eventos.</p>
+      ) : rootServices.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', color: '#94a3b8' }}>
+          <p style={{ fontSize: 14 }}>Nenhum servico de {tipoConfig?.label} cadastrado.</p>
+          <p style={{ fontSize: 12, marginTop: 4 }}>Clique em "+ Novo Servico" para comecar.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-          {services.map(s => (
-            <div key={s.id} style={{ background: 'white', borderRadius: 10, border: `1px solid ${s.active !== false ? '#e2e8f0' : '#f1f5f9'}`, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, opacity: s.active !== false ? 1 : 0.5, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.name}</div>
-                {s.description && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.description}</div>}
-                <div style={{ marginTop: 5 }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: s.active !== false ? '#dcfce7' : '#f1f5f9', color: s.active !== false ? '#16a34a' : '#94a3b8' }}>
-                    {s.active !== false ? 'Ativo' : 'Inativo'}
-                  </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rootServices.map(s => {
+            const subs = getSubServices(s.id);
+            const isExpanded = expanded === s.id;
+            const color = tipoConfig?.color || '#667eea';
+            return (
+              <div key={s.id} style={{ background: 'white', borderRadius: 12, border: `1px solid ${isExpanded ? color + '44' : '#e2e8f0'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', cursor: 'pointer', opacity: s.active !== false ? 1 : 0.5 }}
+                  onClick={() => setExpanded(isExpanded ? null : s.id)}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.name}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: s.active !== false ? '#dcfce7' : '#f1f5f9', color: s.active !== false ? '#16a34a' : '#94a3b8' }}>
+                        {s.active !== false ? 'Ativo' : 'Inativo'}
+                      </span>
+                      {subs.length > 0 && (
+                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${color}15`, color, fontWeight: 600 }}>
+                          {subs.length} sub
+                        </span>
+                      )}
+                    </div>
+                    {s.description && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{s.description}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setForm({ name: s.name, description: s.description || '', active: s.active !== false }); setEditing(s.id); setShowForm(true); }}
+                      style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                    <button onClick={() => toggleActive(s)}
+                      style={{ padding: '3px 9px', borderRadius: 5, border: `1px solid ${s.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: s.active !== false ? '#d97706' : '#16a34a', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                      {s.active !== false ? 'Desativar' : 'Ativar'}
+                    </button>
+                    <button onClick={() => handleDelete(s.id)}
+                      style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid #fecaca', background: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
+                  </div>
+                  <span style={{ color: '#cbd5e1', fontSize: 14, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>
+
+                {/* Sub-serviços */}
+                {isExpanded && (
+                  <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px 16px', background: '#fafbff' }}>
+                    {showSubForm === s.id && !editingSub && (
+                      <SubServiceForm parentId={s.id}
+                        onSave={() => { setShowSubForm(null); loadServices(); }}
+                        onCancel={() => setShowSubForm(null)} />
+                    )}
+                    {subs.length === 0 && showSubForm !== s.id && (
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Nenhum sub-servico ainda.</div>
+                    )}
+                    {subs.map(sub => (
+                      <div key={sub.id}>
+                        {editingSub?.id === sub.id ? (
+                          <SubServiceForm parentId={s.id} editData={editingSub}
+                            onSave={() => { setEditingSub(null); loadServices(); }}
+                            onCancel={() => setEditingSub(null)} />
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', marginBottom: 5, background: 'white', borderRadius: 7, border: '1px solid #e2e8f0', opacity: sub.active !== false ? 1 : 0.5 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{sub.name}</div>
+                              {sub.description && <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub.description}</div>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              <button onClick={() => setEditingSub(sub)}
+                                style={{ padding: '2px 8px', borderRadius: 5, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                              <button onClick={() => toggleActive(sub)}
+                                style={{ padding: '2px 8px', borderRadius: 5, border: `1px solid ${sub.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: sub.active !== false ? '#d97706' : '#16a34a', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                {sub.active !== false ? 'Pausar' : 'Ativar'}
+                              </button>
+                              <button onClick={async () => { if (window.confirm(`Excluir "${sub.name}"?`)) { await deleteDoc(doc(db, 'services', sub.id)); loadServices(); } }}
+                                style={{ padding: '2px 8px', borderRadius: 5, border: '1px solid #fecaca', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {showSubForm !== s.id && (
+                      <button onClick={() => { setShowSubForm(s.id); setEditingSub(null); }}
+                        style={{ width: '100%', padding: '7px', borderRadius: 7, border: `1.5px dashed ${color}44`, background: 'none', color, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginTop: 4 }}>
+                        + Adicionar sub-servico
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-                <button onClick={() => handleEdit(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
-                <button onClick={() => toggleActive(s)} style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${s.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: s.active !== false ? '#d97706' : '#16a34a', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  {s.active !== false ? 'Desativar' : 'Ativar'}
-                </button>
-                <button onClick={() => handleDelete(s.id)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #fecaca', background: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
