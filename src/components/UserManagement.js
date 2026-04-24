@@ -1,199 +1,141 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import '../styles/UserManagement.css';
 
-function UserManagement() {
-  const [users, setUsers] = useState([]);
-  const [userTypes, setUserTypes] = useState([]);
-  const [areas, setAreas] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [companies, setCompanies] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [questions, setQuestions] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+export default function UserManagement() {
+  const [users, setUsers]           = useState([]);
+  const [userTypes, setUserTypes]   = useState([]);
+  const [roles, setRoles]           = useState([]);
+  const [suppliers, setSuppliers]   = useState([]);
+  const [projects, setProjects]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
 
-  const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', cpf: '', password: '',
-    userTypeId: '', userTypeName: '', systemRole: 'none',
-    companyId: '', companyName: '',
-    areaId: '', areaName: '',
-    roleId: '', roleName: '',
-    active: true, selectedProjects: []
-  });
+  const emptyForm = {
+    name: '', email: '', phone: '', cpf: '', city: '', state: '', companyName: '',
+    password: '', userTypeId: '', userTypeName: '', systemRole: 'none',
+    roleId: '', roleName: '', active: true, selectedProjects: [],
+  };
+  const [form, setForm] = useState(emptyForm);
 
-  const [customPermissions, setCustomPermissions] = useState({});
+  const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersSnap, typesSnap, areasSnap, rolesSnap, companiesSnap, budgetsSnap, questionsSnap, tasksSnap] = await Promise.all([
+      const [usersSnap, typesSnap, rolesSnap, suppliersSnap, budgetsSnap] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'userTypes')),
-        getDocs(collection(db, 'areas')),
         getDocs(collection(db, 'roles')),
-        getDocs(collection(db, 'companies')),
+        getDocs(collection(db, 'suppliers')),
         getDocs(collection(db, 'budgets')),
-        getDocs(collection(db, 'questions')),
-        getDocs(collection(db, 'tasks')),
       ]);
       setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setUserTypes(typesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
-      setAreas(areasSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
-      setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)));
-      setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setUserTypes(typesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order||0)-(b.order||0)));
+      setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order||0)-(b.order||0)));
+      setSuppliers(suppliersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setProjects(budgetsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => b.status === 'approved'));
-      setQuestions(questionsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      alert('Erro ao carregar dados');
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectUser = (user) => {
+  const handleSelect = (user) => {
     setSelectedUser(user);
-    setFormData({
-      name: user.name || '', email: user.email || '', phone: user.phone || '',
-      cpf: user.cpf || '', password: '',
-      userTypeId: user.userTypeId || '', userTypeName: user.userTypeName || '',
+    setForm({
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      cpf: user.cpf || '',
+      city: user.city || '',
+      state: user.state || '',
+      companyName: user.companyName || '',
+      password: '',
+      userTypeId: user.userTypeId || '',
+      userTypeName: user.userTypeName || '',
       systemRole: user.systemRole || 'none',
-      companyId: user.companyId || '', companyName: user.companyName || '',
-      areaId: user.areaId || '', areaName: user.areaName || '',
-      roleId: user.roleId || '', roleName: user.roleName || '',
+      roleId: user.roleId || '',
+      roleName: user.roleName || '',
       active: user.active !== undefined ? user.active : true,
-      selectedProjects: user.projects?.map(p => p.projectId) || []
+      selectedProjects: user.projects?.map(p => p.projectId) || [],
     });
-    setCustomPermissions(user.permissions || {});
   };
 
-  const handleNewUser = () => {
-    setSelectedUser(null);
-    setFormData({
-      name: '', email: '', phone: '', cpf: '', password: '',
-      userTypeId: '', userTypeName: '', systemRole: 'none',
-      companyId: '', companyName: '',
-      areaId: '', areaName: '',
-      roleId: '', roleName: '',
-      active: true, selectedProjects: []
-    });
-    setCustomPermissions({});
+  const handleNew = () => { setSelectedUser(null); setForm(emptyForm); };
+
+  const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
+
+  const handleTypeChange = (typeId) => {
+    const t = userTypes.find(t => t.id === typeId);
+    setForm(p => ({ ...p, userTypeId: typeId, userTypeName: t?.name || '', systemRole: t?.systemRole || 'none', roleId: '', roleName: '' }));
   };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    if (name === 'userTypeId') {
-      const selected = userTypes.find(t => t.id === value);
-      setFormData({
-        ...formData,
-        userTypeId: value,
-        userTypeName: selected?.name || '',
-        systemRole: selected?.systemRole || 'none', // ← copia systemRole do tipo
-        companyId: '', companyName: '',
-        areaId: '', areaName: '',
-        roleId: '', roleName: ''
-      });
-      setCustomPermissions({});
-    } else if (name === 'areaId') {
-      const selected = areas.find(a => a.id === value);
-      setFormData({ ...formData, areaId: value, areaName: selected?.name || '', roleId: '', roleName: '' });
-      setCustomPermissions({});
-    } else if (name === 'companyId') {
-      const selected = companies.find(c => c.id === value);
-      setFormData({ ...formData, companyId: value, companyName: selected?.name || '' });
-    } else if (name === 'roleId') {
-      const selected = roles.find(r => r.id === value);
-      setFormData({ ...formData, roleId: value, roleName: selected?.name || '' });
-      if (selected) setCustomPermissions(selected.permissions || {});
-    } else {
-      setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
-    }
+  const handleRoleChange = (roleId) => {
+    const r = roles.find(r => r.id === roleId);
+    setForm(p => ({ ...p, roleId, roleName: r?.name || '' }));
   };
 
-  const handleProjectToggle = (projectId) => {
-    const selectedProjects = formData.selectedProjects.includes(projectId)
-      ? formData.selectedProjects.filter(id => id !== projectId)
-      : [...formData.selectedProjects, projectId];
-    setFormData({ ...formData, selectedProjects });
-  };
-
-  const handlePermissionChange = (field, value) => {
-    const newPerms = { ...customPermissions };
-    const parts = field.split('.');
-    let obj = newPerms;
-    for (let i = 0; i < parts.length - 1; i++) {
-      if (!obj[parts[i]]) obj[parts[i]] = {};
-      obj = obj[parts[i]];
-    }
-    obj[parts[parts.length - 1]] = value;
-    setCustomPermissions(newPerms);
-  };
-
-  const getPermissionValue = (field) => {
-    const parts = field.split('.');
-    let val = customPermissions;
-    for (const p of parts) { val = val?.[p]; }
-    return val ?? (field.includes('budgets') || field.includes('documents') ? false : 'none');
-  };
-
-  const handleDefaultPermissions = () => {
-    const role = roles.find(r => r.id === formData.roleId);
-    if (role) setCustomPermissions(role.permissions || {});
+  const toggleProject = (projectId) => {
+    setForm(p => ({
+      ...p,
+      selectedProjects: p.selectedProjects.includes(projectId)
+        ? p.selectedProjects.filter(id => id !== projectId)
+        : [...p.selectedProjects, projectId],
+    }));
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) { alert('Nome é obrigatório'); return; }
-    if (!formData.email.trim()) { alert('Email é obrigatório'); return; }
-    if (!formData.userTypeId) { alert('Selecione um tipo de usuário'); return; }
-    if (!formData.roleId) { alert('Selecione um cargo'); return; }
-    if (!selectedUser && !formData.password) { alert('Senha é obrigatória para novo usuário'); return; }
+    if (!form.name.trim())     { alert('Nome é obrigatório'); return; }
+    if (!form.email.trim())    { alert('Email é obrigatório'); return; }
+    if (!form.userTypeId)      { alert('Selecione um tipo de usuário'); return; }
+    if (!form.roleId)          { alert('Selecione um cargo'); return; }
+    if (!selectedUser && !form.password) { alert('Senha é obrigatória para novo usuário'); return; }
 
     setSaving(true);
     try {
-      const userData = {
-        name: formData.name, email: formData.email,
-        phone: formData.phone, cpf: formData.cpf,
-        userType: formData.userTypeName.toLowerCase(), // compatibilidade legada
-        userTypeId: formData.userTypeId,
-        userTypeName: formData.userTypeName,
-        systemRole: formData.systemRole, // ← salva systemRole no usuário
-        companyId: formData.companyId, companyName: formData.companyName,
-        areaId: formData.areaId, areaName: formData.areaName,
-        roleId: formData.roleId, roleName: formData.roleName,
-        active: formData.active,
-        projects: formData.selectedProjects.map(projId => {
-          const project = projects.find(p => p.id === projId);
-          return { projectId: projId, projectName: project?.eventTypeName || 'Projeto', status: project?.status || 'active', joinedAt: new Date() };
+      const data = {
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        cpf: form.cpf.trim(),
+        city: form.city.trim(),
+        state: form.state,
+        companyName: form.companyName.trim(),
+        userTypeId: form.userTypeId,
+        userTypeName: form.userTypeName,
+        systemRole: form.systemRole,
+        roleId: form.roleId,
+        roleName: form.roleName,
+        active: form.active,
+        projects: form.selectedProjects.map(pid => {
+          const p = projects.find(p => p.id === pid);
+          return { projectId: pid, projectName: p?.eventTypeName || 'Projeto', status: p?.status || 'active', joinedAt: new Date() };
         }),
-        permissions: customPermissions,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       if (selectedUser) {
-        if (formData.password.trim()) userData.password = formData.password;
-        await updateDoc(doc(db, 'users', selectedUser.id), userData);
-        alert('Usuário atualizado com sucesso!');
+        if (form.password.trim()) data.password = form.password;
+        await updateDoc(doc(db, 'users', selectedUser.id), data);
+        alert('Usuário atualizado!');
       } else {
-        userData.createdAt = new Date();
-        userData.password = formData.password;
-        await addDoc(collection(db, 'users'), userData);
-        alert('Usuário criado com sucesso!');
+        data.password = form.password;
+        data.createdAt = new Date();
+        await addDoc(collection(db, 'users'), data);
+        alert('Usuário criado!');
       }
-
       await loadData();
-      handleNewUser();
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar usuário');
+      handleNew();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao salvar.');
     } finally {
       setSaving(false);
     }
@@ -201,310 +143,289 @@ function UserManagement() {
 
   const handleDelete = async () => {
     if (!selectedUser) return;
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedUser.name}?`)) return;
+    if (!window.confirm(`Excluir ${selectedUser.name}?`)) return;
     try {
       await deleteDoc(doc(db, 'users', selectedUser.id));
-      alert('Usuário excluído com sucesso!');
       await loadData();
-      handleNewUser();
-    } catch (error) {
-      console.error('Erro ao excluir:', error);
-      alert('Erro ao excluir usuário');
-    }
+      handleNew();
+    } catch (e) { alert('Erro ao excluir.'); }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = !filterType || user.userTypeId === filterType;
-    return matchesSearch && matchesType;
+  const filteredUsers = users.filter(u => {
+    const matchSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchType   = !filterType || u.userTypeId === filterType;
+    return matchSearch && matchType;
   });
 
-  const filteredAreas = areas.filter(a => a.userTypeId === formData.userTypeId);
-  const filteredRoles = roles.filter(r => r.areaId === formData.areaId);
-  const filteredCompanies = companies.filter(c => c.active);
+  const filteredRoles = roles.filter(r => r.userTypeId === form.userTypeId);
+  const supplier = form.systemRole === 'fornecedor'
+    ? suppliers.find(s => s.userId === selectedUser?.id || s.email === form.email)
+    : null;
+
+  // ── styles ────────────────────────────────────────────────────────────────
+  const inp = {
+    padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0',
+    fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%',
+    boxSizing: 'border-box', outline: 'none', background: 'white', color: '#1e293b',
+  };
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
+  const sectionTitle = {
+    fontSize: 11, fontWeight: 700, color: '#00E5C4', letterSpacing: 1.5,
+    textTransform: 'uppercase', marginBottom: 14, paddingBottom: 10,
+    borderBottom: '1px solid #f0f2f5',
+  };
+
+  const ROLE_COLORS = {
+    equipe:    { bg: 'rgba(102,126,234,0.1)',  color: '#667eea' },
+    cliente:   { bg: 'rgba(0,229,196,0.1)',    color: '#00E5C4' },
+    fornecedor:{ bg: 'rgba(255,167,38,0.1)',   color: '#FFA726' },
+    admin:     { bg: 'rgba(239,68,68,0.1)',    color: '#ef4444' },
+  };
 
   if (loading) return (
-    <div className="user-management-container">
-      <div className="loading">Carregando...</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, fontFamily: 'Outfit, sans-serif', color: '#7BAFD4' }}>
+      Carregando...
     </div>
   );
 
   return (
-    <div className="user-management-container">
-      <div className="user-management-header">
-        <h1>Gestão de Cadastros</h1>
-        <p className="subtitle">Gerencie usuários e permissões</p>
+    <div style={{ fontFamily: 'Outfit, sans-serif', height: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: '#1e293b', margin: 0 }}>Cadastros</h2>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Gerencie usuários da plataforma</p>
       </div>
 
-      <div className="three-panel-layout">
-        {/* PAINEL 1: LISTA */}
-        <div className="panel panel-list">
-          <div className="panel-header">
-            <h2>Usuários</h2>
-            <button className="btn-new" onClick={handleNewUser}>+ Novo</button>
+      {/* Layout 2 painéis */}
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, flex: 1, minHeight: 0 }}>
+
+        {/* ── PAINEL 1: LISTA ── */}
+        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #e8eaed', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 18px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>Usuários ({filteredUsers.length})</span>
+            <button onClick={handleNew} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              + Novo
+            </button>
           </div>
-          <div className="search-filters">
-            <input type="text" placeholder="Buscar..." value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="filter-select">
+
+          {/* Filtros */}
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid #f0f2f5', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input
+              placeholder="Buscar por nome ou email..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ ...inp, fontSize: 12, padding: '8px 12px' }}
+            />
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={{ ...inp, fontSize: 12, padding: '8px 12px' }}>
               <option value="">Todos os tipos</option>
               {userTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
-          <div className="users-list">
+
+          {/* Lista */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
             {filteredUsers.length === 0 ? (
-              <div className="empty-state"><p>Nenhum usuário encontrado</p></div>
-            ) : filteredUsers.map(user => (
-              <div key={user.id}
-                className={`user-card ${selectedUser?.id === user.id ? 'selected' : ''}`}
-                onClick={() => handleSelectUser(user)}>
-                <div className="user-card-header">
-                  <h3>{user.name}</h3>
-                  <span className={`status-badge ${user.active ? 'active' : 'inactive'}`}>
-                    {user.active ? 'Ativo' : 'Inativo'}
-                  </span>
+              <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Nenhum usuário encontrado</div>
+            ) : filteredUsers.map(user => {
+              const rc = ROLE_COLORS[user.systemRole] || { bg: '#f1f5f9', color: '#64748b' };
+              const isSelected = selectedUser?.id === user.id;
+              return (
+                <div key={user.id} onClick={() => handleSelect(user)}
+                  style={{
+                    padding: '11px 14px', borderRadius: 10, marginBottom: 4, cursor: 'pointer',
+                    border: `1px solid ${isSelected ? '#00E5C4' : '#f0f2f5'}`,
+                    background: isSelected ? 'rgba(0,229,196,0.04)' : 'white',
+                    transition: 'all 0.15s',
+                  }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{user.name}</div>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 8, background: rc.bg, color: rc.color, flexShrink: 0, marginLeft: 6 }}>
+                      {user.systemRole || 'none'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{user.email}</div>
+                  {user.roleName && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{user.roleName}</div>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: user.active ? '#10b981' : '#ef4444' }} />
+                    <span style={{ fontSize: 10, color: user.active ? '#10b981' : '#ef4444' }}>{user.active ? 'Ativo' : 'Inativo'}</span>
+                  </div>
                 </div>
-                <p className="user-role">{user.roleName}</p>
-                {user.areaName && <p className="user-area">{user.areaName}</p>}
-                <p className="user-type">{user.userTypeName || user.userType}</p>
-                {user.companyName && <p className="user-company">{user.companyName}</p>}
-                <p className="user-email">{user.email}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* PAINEL 2: CADASTRO */}
-        <div className="panel panel-form">
-          <div className="panel-header">
-            <h2>{selectedUser ? 'Editar Usuário' : 'Novo Usuário'}</h2>
-          </div>
-          <div className="form-content">
-
-            <div className="form-section">
-              <h3>Vínculo</h3>
-
-              <div className="form-group">
-                <label>Tipo de Usuário *</label>
-                <select name="userTypeId" value={formData.userTypeId} onChange={handleChange}>
-                  <option value="">Selecione um tipo...</option>
-                  {userTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-
-              {formData.userTypeId && (
-                <div className="form-group">
-                  <label>Empresa</label>
-                  <select name="companyId" value={formData.companyId} onChange={handleChange}>
-                    <option value="">Selecione uma empresa...</option>
-                    {filteredCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {formData.userTypeId && filteredAreas.length > 0 && (
-                <div className="form-group">
-                  <label>Área *</label>
-                  <select name="areaId" value={formData.areaId} onChange={handleChange}>
-                    <option value="">Selecione uma área...</option>
-                    {filteredAreas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {formData.userTypeId && filteredAreas.length === 0 && (
-                <p className="helper-text">Nenhuma área cadastrada para este tipo. Cadastre em Gestão de Acessos.</p>
-              )}
-
-              <div className="form-group">
-                <label>Cargo *</label>
-                <select name="roleId" value={formData.roleId} onChange={handleChange}
-                  disabled={filteredAreas.length > 0 && !formData.areaId}>
-                  <option value="">
-                    {filteredAreas.length > 0 && !formData.areaId ? 'Selecione uma área primeiro...' : 'Selecione um cargo...'}
-                  </option>
-                  {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-                {formData.areaId && filteredRoles.length === 0 && (
-                  <p className="helper-text">Nenhum cargo nesta área. Cadastre em Gestão de Acessos.</p>
-                )}
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h3>Dados Pessoais</h3>
-
-              <div className="form-group">
-                <label>Nome Completo *</label>
-                <input type="text" name="name" value={formData.name} onChange={handleChange} />
-              </div>
-              <div className="form-group">
-                <label>Email *</label>
-                <input type="email" name="email" value={formData.email} onChange={handleChange} />
-              </div>
-              <div className="form-group">
-                <label>Telefone</label>
-                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} />
-              </div>
-              <div className="form-group">
-                <label>CPF</label>
-                <input type="text" name="cpf" value={formData.cpf} onChange={handleChange} />
-              </div>
-              <div className="form-group">
-                <label>Senha {!selectedUser && '*'}</label>
-                <input type="password" name="password" value={formData.password} onChange={handleChange}
-                  placeholder={selectedUser ? 'Deixe vazio para não alterar' : 'Senha inicial'} />
-              </div>
-              <div className="form-group">
-                <label className="checkbox-label">
-                  <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
-                  Usuário ativo
-                </label>
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h3>Projetos Vinculados</h3>
-              <div className="projects-list">
-                {projects.length === 0 ? (
-                  <p className="empty-text">Nenhum projeto aprovado</p>
-                ) : projects.map(project => (
-                  <label key={project.id} className="project-checkbox">
-                    <input type="checkbox"
-                      checked={formData.selectedProjects.includes(project.id)}
-                      onChange={() => handleProjectToggle(project.id)} />
-                    <div className="project-info">
-                      <span className="project-name">{project.eventTypeName || 'Projeto'}</span>
-                      <span className="project-number">#{project.budgetNumber}</span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-actions">
-              {selectedUser && (
-                <button className="btn-delete" onClick={handleDelete} disabled={saving}>Excluir</button>
-              )}
-              <button className="btn-cancel" onClick={handleNewUser} disabled={saving}>Cancelar</button>
-              <button className="btn-save" onClick={handleSave} disabled={saving}>
-                {saving ? 'Salvando...' : 'Salvar'}
+        {/* ── PAINEL 2: FORMULÁRIO ── */}
+        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #e8eaed', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+              {selectedUser ? `Editando: ${selectedUser.name}` : 'Novo Usuário'}
+            </span>
+            {selectedUser && (
+              <button onClick={handleDelete} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                Excluir
               </button>
-            </div>
-          </div>
-        </div>
-
-        {/* PAINEL 3: PERMISSÕES */}
-        <div className="panel panel-permissions">
-          <div className="panel-header">
-            <h2>Permissões</h2>
-            <div className="permissions-header-right">
-              {formData.roleName && <span className="role-badge">{formData.roleName}</span>}
-              {formData.roleId && (
-                <button className="btn-default" onClick={handleDefaultPermissions}>Default</button>
-              )}
-            </div>
+            )}
           </div>
 
-          <div className="permissions-content">
-            {!formData.roleId ? (
-              <div className="empty-state"><p>Selecione um cargo para configurar permissões</p></div>
-            ) : (
-              <>
-                <div className="permission-section">
-                  <h3>Dashboard</h3>
-                  <div className="perm-item">
-                    <span className="perm-label">Acesso ao dashboard</span>
-                    <div className="perm-options">
-                      {['none', 'view'].map(v => (
-                        <label key={v}>
-                          <input type="radio" name="dashboard"
-                            checked={getPermissionValue('dashboard') === v}
-                            onChange={() => handlePermissionChange('dashboard', v)} />
-                          {v === 'none' ? 'Sem acesso' : 'Visualizar'}
-                        </label>
-                      ))}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+
+              {/* Coluna esquerda */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                {/* Vínculo */}
+                <div>
+                  <div style={sectionTitle}>Vínculo</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={lbl}>Tipo de Usuário *</label>
+                      <select value={form.userTypeId} onChange={e => handleTypeChange(e.target.value)} style={inp}>
+                        <option value="">Selecione um tipo...</option>
+                        {userTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lbl}>Cargo *</label>
+                      <select value={form.roleId} onChange={e => handleRoleChange(e.target.value)} style={inp} disabled={!form.userTypeId}>
+                        <option value="">Selecione um cargo...</option>
+                        {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                      {form.userTypeId && filteredRoles.length === 0 && (
+                        <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhum cargo para este tipo. Cadastre em Gestão de Acessos.</p>
+                      )}
+                    </div>
+                    <div>
+                      <label style={lbl}>Status</label>
+                      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                        {[true, false].map(v => (
+                          <button key={String(v)} onClick={() => setF('active', v)}
+                            style={{ flex: 1, padding: '8px', borderRadius: 8, border: `1px solid ${form.active === v ? (v ? '#10b981' : '#ef4444') : '#e2e8f0'}`, background: form.active === v ? (v ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)') : 'white', color: form.active === v ? (v ? '#10b981' : '#ef4444') : '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            {v ? 'Ativo' : 'Inativo'}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {questions.length > 0 && (
-                  <div className="permission-section">
-                    <h3>Perguntas</h3>
-                    {questions.map(q => (
-                      <div key={q.id} className="perm-item">
-                        <span className="perm-label">{q.text}</span>
-                        <div className="perm-options">
-                          {['none', 'view', 'answer', 'confirm'].map(v => (
-                            <label key={v}>
-                              <input type="radio" name={`q-${q.id}`}
-                                checked={getPermissionValue(`questions.${q.id}`) === v}
-                                onChange={() => handlePermissionChange(`questions.${q.id}`, v)} />
-                              {v === 'none' ? 'Não vê' : v === 'view' ? 'Ver' : v === 'answer' ? 'Responder' : 'Confirmar'}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                {/* Dados Pessoais */}
+                <div>
+                  <div style={sectionTitle}>Dados Pessoais</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={lbl}>Nome Completo *</label>
+                      <input value={form.name} onChange={e => setF('name', e.target.value)} style={inp} placeholder="Nome completo" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Email *</label>
+                      <input type="email" value={form.email} onChange={e => setF('email', e.target.value)} style={inp} placeholder="email@exemplo.com" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Telefone</label>
+                      <input value={form.phone} onChange={e => setF('phone', e.target.value)} style={inp} placeholder="(11) 99999-9999" />
+                    </div>
+                    <div>
+                      <label style={lbl}>CPF</label>
+                      <input value={form.cpf} onChange={e => setF('cpf', e.target.value)} style={inp} placeholder="000.000.000-00" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Senha {!selectedUser && '*'}</label>
+                      <input type="password" value={form.password} onChange={e => setF('password', e.target.value)} style={inp}
+                        placeholder={selectedUser ? 'Deixe vazio para não alterar' : 'Mínimo 6 caracteres'} />
+                    </div>
                   </div>
-                )}
+                </div>
+              </div>
 
-                {tasks.length > 0 && (
-                  <div className="permission-section">
-                    <h3>Tarefas</h3>
-                    {tasks.map(t => (
-                      <div key={t.id} className="perm-item">
-                        <span className="perm-label">{t.name}</span>
-                        <div className="perm-options">
-                          {['none', 'view', 'execute', 'confirm'].map(v => (
-                            <label key={v}>
-                              <input type="radio" name={`t-${t.id}`}
-                                checked={getPermissionValue(`tasks.${t.id}`) === v}
-                                onChange={() => handlePermissionChange(`tasks.${t.id}`, v)} />
-                              {v === 'none' ? 'Não vê' : v === 'view' ? 'Ver' : v === 'execute' ? 'Executar' : 'Confirmar'}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              {/* Coluna direita */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                <div className="permission-section">
-                  <h3>Orçamentos</h3>
-                  <div className="perm-checkbox-group">
-                    {[['budgets.view', 'Visualizar'], ['budgets.edit', 'Editar'], ['budgets.approve', 'Aprovar/Rejeitar']].map(([field, label]) => (
-                      <label key={field}>
-                        <input type="checkbox" checked={!!getPermissionValue(field)}
-                          onChange={e => handlePermissionChange(field, e.target.checked)} />
-                        {label}
-                      </label>
-                    ))}
+                {/* Localização / Empresa */}
+                <div>
+                  <div style={sectionTitle}>Empresa / Localização</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={lbl}>Empresa / Organização</label>
+                      <input value={form.companyName} onChange={e => setF('companyName', e.target.value)} style={inp} placeholder="Nome da empresa" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Cidade</label>
+                      <input value={form.city} onChange={e => setF('city', e.target.value)} style={inp} placeholder="Cidade" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Estado</label>
+                      <select value={form.state} onChange={e => setF('state', e.target.value)} style={inp}>
+                        <option value="">Selecione...</option>
+                        {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
-                <div className="permission-section">
-                  <h3>Documentos</h3>
-                  <div className="perm-checkbox-group">
-                    {[['documents.view', 'Visualizar'], ['documents.download', 'Download'], ['documents.upload', 'Upload']].map(([field, label]) => (
-                      <label key={field}>
-                        <input type="checkbox" checked={!!getPermissionValue(field)}
-                          onChange={e => handlePermissionChange(field, e.target.checked)} />
-                        {label}
-                      </label>
-                    ))}
+                {/* Serviços do fornecedor */}
+                {supplier && (
+                  <div>
+                    <div style={sectionTitle}>Serviços do Fornecedor</div>
+                    {supplier.serviceNames?.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {supplier.serviceNames.map((sn, i) => (
+                          <span key={i} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,167,38,0.1)', color: '#FFA726', border: '1px solid rgba(255,167,38,0.2)', fontWeight: 500 }}>{sn}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: '#94a3b8' }}>Nenhum serviço informado</p>
+                    )}
+                    {supplier.description && (
+                      <p style={{ fontSize: 12, color: '#64748b', marginTop: 10, lineHeight: 1.5, background: '#f8faff', borderRadius: 6, padding: '8px 10px' }}>{supplier.description}</p>
+                    )}
+                    <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8' }}>
+                      Status: <strong style={{ color: supplier.status === 'homologado' ? '#10b981' : '#f59e0b' }}>{supplier.status}</strong>
+                      {supplier.city && <span style={{ marginLeft: 10 }}>{supplier.city}{supplier.state ? `/${supplier.state}` : ''}</span>}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <p className="perms-hint">Permissões salvas junto com o usuário</p>
-              </>
-            )}
+                {/* Projetos vinculados */}
+                <div>
+                  <div style={sectionTitle}>Projetos Vinculados</div>
+                  {projects.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#94a3b8' }}>Nenhum projeto aprovado</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                      {projects.map(p => {
+                        const sel = form.selectedProjects.includes(p.id);
+                        return (
+                          <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, border: `1px solid ${sel ? 'rgba(0,229,196,0.3)' : '#f0f2f5'}`, background: sel ? 'rgba(0,229,196,0.04)' : 'white', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={sel} onChange={() => toggleProject(p.id)} style={{ accentColor: '#00E5C4' }} />
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{p.eventTypeName || 'Projeto'}</div>
+                              {p.jobCode && <div style={{ fontSize: 10, color: '#94a3b8' }}>{p.jobCode}</div>}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer com botões */}
+          <div style={{ padding: '16px 24px', borderTop: '1px solid #f0f2f5', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={handleNew} disabled={saving}
+              style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              Cancelar
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: saving ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              {saving ? 'Salvando...' : selectedUser ? 'Salvar Alterações' : 'Criar Usuário'}
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-export default UserManagement;
