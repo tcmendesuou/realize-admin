@@ -11,8 +11,8 @@ const ESTADOS = [
   'Sao Paulo - Capital', 'Sao Paulo - Interior', 'Sergipe', 'Tocantins',
 ];
 
-// ── Form Operação (hora/homem) ─────────────────────────────────────────────
-function OperacaoForm({ subService, editData, onSave, onCancel }) {
+// ── Form Operação / Entretenimento / Gastronomia (hora/homem) ─────────────
+function OperacaoForm({ subService, editData, onSave, onCancel, color = '#059669' }) {
   const [form, setForm] = useState(editData || { estado: 'Sao Paulo - Capital', custoHora: '', observacoes: '', ativo: true });
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -21,7 +21,7 @@ function OperacaoForm({ subService, editData, onSave, onCancel }) {
     if (!form.custoHora) { alert('Informe o custo por hora'); return; }
     setSaving(true);
     try {
-      const data = { ...form, tipo: 'operacao', subServiceId: subService.id, serviceId: subService.parentId, subServiceName: subService.name, updatedAt: new Date() };
+      const data = { ...form, tipo: subService.tipo || 'operacao', subServiceId: subService.id, serviceId: subService.parentId, subServiceName: subService.name, updatedAt: new Date() };
       if (editData?.id) await updateDoc(doc(db, 'servicePricing', editData.id), data);
       else await addDoc(collection(db, 'servicePricing'), { ...data, createdAt: new Date() });
       onSave();
@@ -33,8 +33,8 @@ function OperacaoForm({ subService, editData, onSave, onCancel }) {
   const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
   return (
-    <div style={{ background: '#f0fff9', borderRadius: 10, border: '1px solid #a7f3d0', padding: 18, marginBottom: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', marginBottom: 14, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+    <div style={{ background: '#f0fff9', borderRadius: 10, border: `1px solid ${color}44`, padding: 18, marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 14, letterSpacing: 0.5, textTransform: 'uppercase' }}>
         {editData ? 'Editar' : 'Nova'} tabela — {subService.name}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -50,11 +50,11 @@ function OperacaoForm({ subService, editData, onSave, onCancel }) {
         </div>
       </div>
       {form.custoHora > 0 && (
-        <div style={{ background: 'rgba(5,150,105,0.08)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, border: '1px solid rgba(5,150,105,0.2)' }}>
-          <div style={{ fontSize: 11, color: '#059669', marginBottom: 3 }}>Exemplo de calculo automatico pela IA:</div>
+        <div style={{ background: `${color}12`, borderRadius: 8, padding: '10px 14px', marginBottom: 12, border: `1px solid ${color}33` }}>
+          <div style={{ fontSize: 11, color, marginBottom: 3 }}>Exemplo de calculo automatico pela IA:</div>
           <div style={{ fontSize: 13, color: '#1e293b' }}>
             R$ {parseFloat(form.custoHora).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/h × 8h/dia × 3 dias × 2 pessoas = {' '}
-            <strong style={{ color: '#059669' }}>R$ {(parseFloat(form.custoHora) * 8 * 3 * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong style={{ color }}>R$ {(parseFloat(form.custoHora) * 8 * 3 * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
           </div>
         </div>
       )}
@@ -63,12 +63,12 @@ function OperacaoForm({ subService, editData, onSave, onCancel }) {
         <input value={form.observacoes} onChange={e => setF('observacoes', e.target.value)} style={inp} placeholder="Ex: Inclui transporte, uniforme opcional..." />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <input type="checkbox" id="op-active" checked={form.ativo !== false} onChange={e => setF('ativo', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#059669' }} />
+        <input type="checkbox" id="op-active" checked={form.ativo !== false} onChange={e => setF('ativo', e.target.checked)} style={{ width: 14, height: 14, accentColor: color }} />
         <label htmlFor="op-active" style={{ fontSize: 12, color: '#64748b', cursor: 'pointer' }}>Tabela ativa</label>
       </div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-        <button onClick={handleSave} disabled={saving} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#059669,#10b981)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+        <button onClick={handleSave} disabled={saving} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: `linear-gradient(135deg,${color},${color}cc)`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
           {saving ? 'Salvando...' : 'Salvar tabela'}
         </button>
       </div>
@@ -148,14 +148,14 @@ function EstruturaForm({ subService, editData, onSave, onCancel }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function PricingManager() {
-  const [services, setServices] = useState([]);
-  const [pricing, setPricing] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tipoAtivo, setTipoAtivo] = useState('operacao');
+  const [services, setServices]           = useState([]);
+  const [pricing, setPricing]             = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [tipoAtivo, setTipoAtivo]         = useState('operacao');
   const [selectedService, setSelectedService] = useState(null);
-  const [selectedSub, setSelectedSub] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingPrice, setEditingPrice] = useState(null);
+  const [selectedSub, setSelectedSub]     = useState(null);
+  const [showForm, setShowForm]           = useState(false);
+  const [editingPrice, setEditingPrice]   = useState(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -171,9 +171,19 @@ export default function PricingManager() {
     finally { setLoading(false); }
   };
 
-  const rootServices = services.filter(s => !s.parentId && s.tipo === tipoAtivo && s.active !== false);
+  const TIPOS = [
+    { id: 'operacao',       label: 'Operacao',      color: '#059669', desc: 'Custo por hora trabalhada' },
+    { id: 'estrutura',      label: 'Estrutura',      color: '#0080FF', desc: 'Custo por diaria de equipamento' },
+    { id: 'entretenimento', label: 'Entretenimento', color: '#FFA726', desc: 'Custo por hora trabalhada' },
+    { id: 'gastronomia',    label: 'Gastronomia',    color: '#66BB6A', desc: 'Custo por hora / pessoa' },
+  ];
+
+  const tipoConfig = TIPOS.find(t => t.id === tipoAtivo);
+  const tipoColor  = tipoConfig?.color || '#059669';
+
+  const rootServices  = services.filter(s => !s.parentId && s.tipo === tipoAtivo && s.active !== false);
   const getSubServices = (parentId) => services.filter(s => s.parentId === parentId && s.active !== false);
-  const getPricing = (subId) => pricing.filter(p => p.subServiceId === subId);
+  const getPricing     = (subId)    => pricing.filter(p => p.subServiceId === subId);
 
   const handleDeletePrice = async (id) => {
     if (!window.confirm('Excluir esta tabela?')) return;
@@ -181,30 +191,27 @@ export default function PricingManager() {
     loadAll();
   };
 
-  const tipoColor = tipoAtivo === 'estrutura' ? '#0080FF' : '#059669';
-  const panelStyle = { background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
+  const panelStyle  = { background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
   const panelHeader = { padding: '12px 16px', borderBottom: '1px solid #f1f5f9', background: '#fafbfc', flexShrink: 0 };
-  const panelTitle = { fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1.2, textTransform: 'uppercase' };
-  const itemBase = { padding: '10px 12px', borderRadius: 7, cursor: 'pointer', marginBottom: 4, fontSize: 13, transition: 'all 0.12s', border: '1px solid transparent' };
+  const panelTitle  = { fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1.2, textTransform: 'uppercase' };
+  const itemBase    = { padding: '10px 12px', borderRadius: 7, cursor: 'pointer', marginBottom: 4, fontSize: 13, transition: 'all 0.12s', border: '1px solid transparent' };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', fontFamily: 'Outfit, sans-serif' }}>Carregando...</div>;
 
   return (
     <div style={{ fontFamily: 'Outfit, sans-serif', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
       {/* Header */}
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Tabela de Precos</h2>
         <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Custos de referencia por servico e estado — usados pela IA para gerar pre-orcamentos</p>
       </div>
 
-      {/* Tabs Operação / Estrutura */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        {[
-          { id: 'operacao',  label: 'Operacao',  color: '#059669', desc: 'Custo por hora trabalhada' },
-          { id: 'estrutura', label: 'Estrutura',  color: '#0080FF', desc: 'Custo por diaria de equipamento' },
-        ].map(t => (
+      {/* Tabs — 4 tipos */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {TIPOS.map(t => (
           <button key={t.id} onClick={() => { setTipoAtivo(t.id); setSelectedService(null); setSelectedSub(null); setShowForm(false); }}
-            style={{ padding: '10px 24px', borderRadius: 10, border: `1.5px solid ${tipoAtivo === t.id ? t.color : '#e2e8f0'}`, background: tipoAtivo === t.id ? `${t.color}12` : 'white', color: tipoAtivo === t.id ? t.color : '#64748b', fontSize: 14, fontWeight: tipoAtivo === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
+            style={{ padding: '10px 20px', borderRadius: 10, border: `1.5px solid ${tipoAtivo === t.id ? t.color : '#e2e8f0'}`, background: tipoAtivo === t.id ? `${t.color}12` : 'white', color: tipoAtivo === t.id ? t.color : '#64748b', fontSize: 13, fontWeight: tipoAtivo === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
             {t.label}
             <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{t.desc}</div>
           </button>
@@ -214,7 +221,7 @@ export default function PricingManager() {
       {/* 3 painéis */}
       <div style={{ display: 'grid', gridTemplateColumns: '200px 220px 1fr', gap: 14, minHeight: 500 }}>
 
-        {/* Serviços */}
+        {/* Painel 1 — Serviços */}
         <div style={panelStyle}>
           <div style={panelHeader}><div style={panelTitle}>Servico</div></div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
@@ -229,7 +236,6 @@ export default function PricingManager() {
                   setShowForm(false);
                   setEditingPrice(null);
                   if (!hasSubs) {
-                    // Sem sub-serviços → usa o próprio serviço como "sub"
                     setSelectedSub({ ...s, parentId: s.id });
                   } else {
                     setSelectedSub(null);
@@ -249,7 +255,7 @@ export default function PricingManager() {
           </div>
         </div>
 
-        {/* Sub-serviços — só mostra se o serviço selecionado tiver subs */}
+        {/* Painel 2 — Sub-serviços */}
         <div style={{ ...panelStyle, opacity: selectedService && getSubServices(selectedService.id).length > 0 ? 1 : 0.3, pointerEvents: selectedService && getSubServices(selectedService.id).length > 0 ? 'auto' : 'none' }}>
           <div style={panelHeader}><div style={panelTitle}>Sub-servico</div></div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
@@ -276,10 +282,12 @@ export default function PricingManager() {
           </div>
         </div>
 
-        {/* Tabelas */}
+        {/* Painel 3 — Tabelas de preço */}
         <div style={{ ...panelStyle, overflow: 'auto' }}>
           <div style={{ ...panelHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={panelTitle}>Tabela de Preco — {tipoAtivo === 'operacao' ? 'Hora/Homem' : 'Diaria'}</div>
+            <div style={panelTitle}>
+              Tabela de Preco — {tipoAtivo === 'estrutura' ? 'Diaria' : 'Hora/Homem'}
+            </div>
             {selectedSub && !showForm && (
               <button onClick={() => { setShowForm(true); setEditingPrice(null); }}
                 style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: tipoColor, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -293,12 +301,12 @@ export default function PricingManager() {
             ) : (
               <>
                 {showForm && (
-                  tipoAtivo === 'operacao' ? (
-                    <OperacaoForm subService={selectedSub} editData={editingPrice}
+                  tipoAtivo === 'estrutura' ? (
+                    <EstruturaForm subService={selectedSub} editData={editingPrice}
                       onSave={() => { setShowForm(false); setEditingPrice(null); loadAll(); }}
                       onCancel={() => { setShowForm(false); setEditingPrice(null); }} />
                   ) : (
-                    <EstruturaForm subService={selectedSub} editData={editingPrice}
+                    <OperacaoForm subService={selectedSub} editData={editingPrice} color={tipoColor}
                       onSave={() => { setShowForm(false); setEditingPrice(null); loadAll(); }}
                       onCancel={() => { setShowForm(false); setEditingPrice(null); }} />
                   )
@@ -310,10 +318,10 @@ export default function PricingManager() {
                   </div>
                 ) : getPricing(selectedSub.id).map(p => {
                   if (editingPrice?.id === p.id && showForm) return null;
-                  const isOp = p.tipo === 'operacao';
-                  const color = isOp ? '#059669' : '#0080FF';
-                  const valor = isOp ? parseFloat(p.custoHora) : parseFloat(p.custoDiaria);
-                  const label = isOp ? '/hora' : '/dia';
+                  const isEstrutura = p.tipo === 'estrutura';
+                  const cor = TIPOS.find(t => t.id === p.tipo)?.color || tipoColor;
+                  const valor = isEstrutura ? parseFloat(p.custoDiaria) : parseFloat(p.custoHora);
+                  const label = isEstrutura ? '/dia' : '/hora';
 
                   return (
                     <div key={p.id} style={{ background: p.ativo !== false ? 'white' : '#f8f8f8', borderRadius: 10, border: `1px solid ${p.ativo !== false ? '#e2e8f0' : '#f1f5f9'}`, padding: '14px 16px', marginBottom: 10, opacity: p.ativo !== false ? 1 : 0.6 }}>
@@ -324,12 +332,12 @@ export default function PricingManager() {
                         </div>
                         {valor > 0 && (
                           <div style={{ textAlign: 'right' }}>
-                            <span style={{ fontSize: 16, fontWeight: 700, color }}> R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: cor }}>R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             <span style={{ fontSize: 11, color: '#94a3b8' }}>{label}</span>
                           </div>
                         )}
                       </div>
-                      {!isOp && p.custoInstalacao && parseFloat(p.custoInstalacao) > 0 && (
+                      {isEstrutura && p.custoInstalacao && parseFloat(p.custoInstalacao) > 0 && (
                         <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
                           Instalacao: <strong>R$ {parseFloat(p.custoInstalacao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
                         </div>
