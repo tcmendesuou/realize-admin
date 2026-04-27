@@ -2,34 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, collection, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
 function extractJson(text) {
   const match = text.match(/```json\s*([\s\S]*?)```/);
   if (match) {
     try { return JSON.parse(match[1]); } catch { return null; }
   }
-  // tenta bloco sem backticks
   const m2 = text.match(/\{[\s\S]*"evento"[\s\S]*\}/);
   if (m2) { try { return JSON.parse(m2[0]); } catch { return null; } }
   return null;
 }
 
-function formatCurrency(value) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-}
-
-// ─── componente ─────────────────────────────────────────────────────────────
-
 export default function ClienteChat({ userData, onClose }) {
-  const [messages, setMessages]       = useState([]);
-  const [input, setInput]             = useState('');
-  const [loading, setLoading]         = useState(false);
+  const [messages, setMessages]         = useState([]);
+  const [input, setInput]               = useState('');
+  const [loading, setLoading]           = useState(false);
   const [systemScript, setSystemScript] = useState('');
-  const [pricingData, setPricingData] = useState([]);
+  const [pricingData, setPricingData]   = useState([]);
   const [briefingJson, setBriefingJson] = useState(null);
-  const [step, setStep]               = useState('chat');   // 'chat' | 'review' | 'sent'
-  const [submitting, setSubmitting]   = useState(false);
+  const [step, setStep]                 = useState('chat');
+  const [submitting, setSubmitting]     = useState(false);
+  const [assistantName, setAssistantName] = useState('Realize');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -41,7 +33,13 @@ export default function ClienteChat({ userData, onClose }) {
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'config', 'aiScript'));
-        if (snap.exists()) setSystemScript(snap.data().content || '');
+        if (snap.exists()) {
+          const content = snap.data().content || '';
+          setSystemScript(content);
+          // Extrai o nome da IA do script
+          const nameMatch = content.match(/[Ss]eu nome [eé] [""]?([A-Za-zÀ-ú]+)[""]?/);
+          if (nameMatch) setAssistantName(nameMatch[1]);
+        }
       } catch (e) { console.error('Erro ao carregar script:', e); }
 
       try {
@@ -51,16 +49,16 @@ export default function ClienteChat({ userData, onClose }) {
     })();
   }, []);
 
-  // ── mensagem inicial da Bia ───────────────────────────────────────────────
+  // ── mensagem inicial ──────────────────────────────────────────────────────
   useEffect(() => {
+    if (!assistantName) return;
     setMessages([{
       role: 'assistant',
-      content: `Olá! Sou a **Bia**, assistente de eventos da Realize Hub. 😊\n\nVou te ajudar a planejar seu evento e montar um pré-orçamento. Para começar: **que tipo de evento você está pensando?**\n\n_(Pode ser uma feira, congresso, lançamento de produto, evento corporativo...)_`,
+      content: `Olá! Sou a **${assistantName}**, assistente de eventos da Realize Hub. 😊\n\nVou te ajudar a planejar seu evento e montar um pré-orçamento. Para começar: **que tipo de evento você está pensando?**\n\n_(Pode ser uma feira, congresso, lançamento de produto, evento corporativo...)_`,
       id: 'init',
     }]);
-  }, []);
+  }, [assistantName]);
 
-  // ── auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
@@ -77,10 +75,8 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     try {
-      // monta histórico para a API (sem o id)
       const history = updated.map(m => ({ role: m.role, content: m.content }));
 
-      // system prompt = script + pricing resumido
       const pricingSummary = pricingData.length > 0
         ? `\n\nTABELA DE PREÇOS (resumo):\n${pricingData.slice(0, 40).map(p =>
             `- ${p.tipo || ''} | ${p.subServiceId || p.serviceId || ''} | ${p.estado || 'SP'} | ${p.custoHora ? `R$${p.custoHora}/h` : ''} ${p.custoDiaria ? `R$${p.custoDiaria}/dia` : ''}`
@@ -103,7 +99,6 @@ export default function ClienteChat({ userData, onClose }) {
 
       const data = await response.json();
 
-      // extrai texto da resposta (pode ter múltiplos blocos)
       const assistantText = data.content
         .filter(b => b.type === 'text')
         .map(b => b.text)
@@ -112,7 +107,6 @@ export default function ClienteChat({ userData, onClose }) {
       const assistantMsg = { role: 'assistant', content: assistantText, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
-      // detecta JSON final do briefing
       const json = extractJson(assistantText);
       if (json && json.evento) {
         setBriefingJson(json);
@@ -139,25 +133,21 @@ export default function ClienteChat({ userData, onClose }) {
     if (!briefingJson) return;
     setSubmitting(true);
     try {
-      // Busca coordenadores e atribui o com menos jobs ativos
+      // Busca coordenadores
       let assignedTo = null;
       let assignedToName = null;
       try {
         const coordSnap = await getDocs(query(collection(db, 'users'), where('roleName', '==', 'Coordenador'), where('active', '==', true)));
         const coordenadores = coordSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (coordenadores.length > 0) {
-          // Conta budgets ativos por coordenador
           const budgetsSnap = await getDocs(query(collection(db, 'budgets'), where('status', '==', 'analyzing')));
           const contagemJobs = {};
           budgetsSnap.docs.forEach(d => {
             const at = d.data().assignedTo;
             if (at) contagemJobs[at] = (contagemJobs[at] || 0) + 1;
           });
-          // Escolhe o coordenador com menos jobs
           const escolhido = coordenadores.reduce((menor, coord) => {
-            const jobsCoord = contagemJobs[coord.id] || 0;
-            const jobsMenor = contagemJobs[menor.id] || 0;
-            return jobsCoord < jobsMenor ? coord : menor;
+            return (contagemJobs[coord.id] || 0) < (contagemJobs[menor.id] || 0) ? coord : menor;
           });
           assignedTo = escolhido.id;
           assignedToName = escolhido.name;
@@ -184,46 +174,51 @@ export default function ClienteChat({ userData, onClose }) {
         updatedAt: serverTimestamp(),
       });
 
-      // cria supplierJobs para fornecedores com servicos do briefing
+      // ── cria supplierJobs ──
       try {
         const servicosNecessarios = briefingJson.servicosNecessarios || [];
-        if (servicosNecessarios.length > 0) {
-          const suppServSnap = await getDocs(collection(db, 'supplierServices'));
-          // Extrai palavras-chave dos servicosNecessarios (ignora palavras curtas)
-          const keywords = servicosNecessarios.flatMap(sn =>
-            sn.toLowerCase().split(/[\s\/,]+/).filter(w => w.length > 2)
-          );
+        console.log('servicosNecessarios:', servicosNecessarios);
 
-          const suppServs = suppServSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(s => {
-              if (s.ativo === false) return false;
-              const nameLC = (s.serviceName || '').toLowerCase();
-              const parentLC = (s.serviceParentName || '').toLowerCase();
-              // Match exato
-              if (servicosNecessarios.includes(s.serviceName)) return true;
-              if (servicosNecessarios.includes(s.serviceParentName)) return true;
-              // Match por palavras-chave
-              return keywords.some(kw => nameLC.includes(kw) || parentLC.includes(kw));
-            });
-          const supplierMap = {};
-          suppServs.forEach(s => {
-            if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
-            supplierMap[s.supplierId].push(s.serviceName);
+        const suppServSnap = await getDocs(collection(db, 'supplierServices'));
+        const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log('supplierServices encontrados:', todosServicos.length, todosServicos.map(s => s.serviceName));
+
+        // Extrai palavras-chave
+        const keywords = servicosNecessarios.flatMap(sn =>
+          sn.toLowerCase().split(/[\s/,]+/).filter(w => w.length > 2)
+        );
+        console.log('keywords:', keywords);
+
+        const suppServs = todosServicos.filter(s => {
+          if (s.ativo === false) return false;
+          const nameLC = (s.serviceName || '').toLowerCase();
+          const parentLC = (s.serviceParentName || '').toLowerCase();
+          if (servicosNecessarios.includes(s.serviceName)) return true;
+          if (servicosNecessarios.includes(s.serviceParentName)) return true;
+          return keywords.some(kw => nameLC.includes(kw) || parentLC.includes(kw));
+        });
+        console.log('suppServs matched:', suppServs.length, suppServs.map(s => s.serviceName));
+
+        const supplierMap = {};
+        suppServs.forEach(s => {
+          if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
+          supplierMap[s.supplierId].push(s.serviceName);
+        });
+        console.log('supplierMap:', supplierMap);
+
+        for (const [supplierId, servicos] of Object.entries(supplierMap)) {
+          await addDoc(collection(db, 'supplierJobs'), {
+            supplierId,
+            budgetId: budgetRef.id,
+            eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
+            clientName: userName,
+            eventDate: briefingJson.evento?.dataInicio || '',
+            serviceNames: servicos,
+            stage: 'proposta',
+            status: 'pending',
+            createdAt: serverTimestamp(),
           });
-          for (const [supplierId, servicos] of Object.entries(supplierMap)) {
-            await addDoc(collection(db, 'supplierJobs'), {
-              supplierId,
-              budgetId: budgetRef.id,
-              eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
-              clientName: userName,
-              eventDate: briefingJson.evento?.dataInicio || '',
-              serviceNames: servicos,
-              stage: 'proposta',
-              status: 'pending',
-              createdAt: serverTimestamp(),
-            });
-          }
+          console.log('supplierJob criado para:', supplierId);
         }
       } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
 
@@ -236,7 +231,6 @@ export default function ClienteChat({ userData, onClose }) {
     }
   };
 
-  // ── render de mensagem com markdown simples ───────────────────────────────
   const renderText = (text) => {
     return text
       .replace(/```json[\s\S]*?```/g, '<div class="bia-json-block">📋 Resumo do briefing gerado</div>')
@@ -263,16 +257,14 @@ export default function ClienteChat({ userData, onClose }) {
 
   // ─── tela de revisão ──────────────────────────────────────────────────────
   if (step === 'review' && briefingJson) {
-    const ev = briefingJson.evento || {};
+    const ev  = briefingJson.evento    || {};
     const est = briefingJson.estrutura || {};
-    const eq = briefingJson.equipe || {};
+    const eq  = briefingJson.equipe    || {};
 
     return (
       <Overlay onClose={onClose}>
-        <ModalHeader title="Revisar pré-orçamento" subtitle="Confirme os dados antes de enviar" onClose={onClose} />
+        <ModalHeader title="Revisar pré-orçamento" subtitle="Confirme os dados antes de enviar" onClose={onClose} assistantName={assistantName} />
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 28px' }}>
-
-          {/* Evento */}
           <Section title="Dados do Evento">
             <Grid2>
               <Field label="Tipo" value={ev.tipo} />
@@ -285,8 +277,6 @@ export default function ClienteChat({ userData, onClose }) {
               <Field label="Visitantes/dia" value={ev.visitantesPorDia} />
             </Grid2>
           </Section>
-
-          {/* Estrutura */}
           <Section title="Estrutura">
             <Grid2>
               <Field label="Área" value={est.areaM2 ? `${est.areaM2} m²` : null} />
@@ -297,8 +287,6 @@ export default function ClienteChat({ userData, onClose }) {
               <Field label="Mobiliário" value={est.mobiliario ? 'Sim' : 'Não'} />
             </Grid2>
           </Section>
-
-          {/* Equipe */}
           <Section title="Equipe Operacional">
             <Grid2>
               {eq.recepcionistas?.quantidade > 0 && <Field label="Recepcionistas" value={`${eq.recepcionistas.quantidade} × ${eq.recepcionistas.horasPorDia}h/dia`} />}
@@ -306,14 +294,12 @@ export default function ClienteChat({ userData, onClose }) {
               {eq.limpeza?.quantidade > 0 && <Field label="Limpeza" value={`${eq.limpeza.quantidade} × ${eq.limpeza.horasPorDia}h/dia`} />}
             </Grid2>
           </Section>
-
           <div style={{ background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.2)', borderRadius: 10, padding: '12px 16px', marginTop: 8 }}>
             <p style={{ fontSize: 12, color: 'rgba(0,229,196,0.8)', lineHeight: 1.6, margin: 0 }}>
               ℹ️ Este é um <strong>pré-orçamento estimado</strong>. Os valores finais serão confirmados pelos fornecedores.
             </p>
           </div>
         </div>
-
         <div style={{ padding: '16px 28px 24px', borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', gap: 10 }}>
           <button onClick={() => setStep('chat')} style={styles.btnSecondary}>← Voltar ao chat</button>
           <button onClick={handleConfirm} disabled={submitting} style={{ ...styles.btnPrimary, flex: 1, opacity: submitting ? 0.6 : 1 }}>
@@ -325,6 +311,8 @@ export default function ClienteChat({ userData, onClose }) {
   }
 
   // ─── tela de chat ─────────────────────────────────────────────────────────
+  const initLetter = assistantName ? assistantName[0].toUpperCase() : 'R';
+
   return (
     <Overlay onClose={onClose}>
       <style>{`
@@ -336,9 +324,10 @@ export default function ClienteChat({ userData, onClose }) {
       `}</style>
 
       <ModalHeader
-        title="Chat com a Bia"
+        title={`Chat com a ${assistantName}`}
         subtitle="Assistente de eventos Realize Hub"
         onClose={onClose}
+        assistantName={assistantName}
         extra={briefingJson && (
           <button onClick={() => setStep('review')} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
             Ver resumo →
@@ -346,26 +335,14 @@ export default function ClienteChat({ userData, onClose }) {
         )}
       />
 
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.map(msg => (
           <div key={msg.id} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
             {msg.role === 'assistant' && (
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, marginBottom: 2 }}>B</div>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, marginBottom: 2 }}>{initLetter}</div>
             )}
-            <div
-              className="bia-msg-bubble"
-              style={{
-                maxWidth: '72%',
-                padding: '10px 14px',
-                borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                background: msg.role === 'user' ? 'rgba(0,128,255,0.18)' : 'rgba(255,255,255,0.04)',
-                border: msg.role === 'user' ? '1px solid rgba(0,128,255,0.3)' : '1px solid rgba(0,180,255,0.1)',
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: '#E8F4FF',
-                fontFamily: 'Outfit, sans-serif',
-              }}
+            <div className="bia-msg-bubble"
+              style={{ maxWidth: '72%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: msg.role === 'user' ? 'rgba(0,128,255,0.18)' : 'rgba(255,255,255,0.04)', border: msg.role === 'user' ? '1px solid rgba(0,128,255,0.3)' : '1px solid rgba(0,180,255,0.1)', fontSize: 13, lineHeight: 1.6, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}
               dangerouslySetInnerHTML={{ __html: renderText(msg.content) }}
             />
             {msg.role === 'user' && (
@@ -378,7 +355,7 @@ export default function ClienteChat({ userData, onClose }) {
 
         {loading && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>B</div>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>{initLetter}</div>
             <div style={{ padding: '12px 16px', borderRadius: '14px 14px 14px 4px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,180,255,0.1)', display: 'flex', gap: 4, alignItems: 'center' }}>
               {[0, 1, 2].map(i => (
                 <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#00E5C4', animation: `biaTyping 1.2s ease-in-out ${i * 0.2}s infinite` }} />
@@ -389,54 +366,29 @@ export default function ClienteChat({ userData, onClose }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div style={{ padding: '12px 16px 16px', borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-        <textarea
-          ref={inputRef}
-          className="bia-input"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="Digite sua mensagem... (Enter para enviar)"
-          rows={1}
-          style={{
-            flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.15)',
-            background: 'rgba(255,255,255,0.04)', color: '#E8F4FF', fontSize: 13,
-            fontFamily: 'Outfit, sans-serif', resize: 'none', lineHeight: 1.5,
-            maxHeight: 100, overflowY: 'auto',
-          }}
-          onInput={e => {
-            e.target.style.height = 'auto';
-            e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
-          }}
+        <textarea ref={inputRef} className="bia-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+          placeholder="Digite sua mensagem... (Enter para enviar)" rows={1}
+          style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.15)', background: 'rgba(255,255,255,0.04)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', resize: 'none', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto' }}
+          onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'; }}
         />
-        <button
-          className="bia-send-btn"
-          onClick={sendMessage}
-          disabled={loading || !input.trim()}
+        <button className="bia-send-btn" onClick={sendMessage} disabled={loading || !input.trim()}
           style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.08)', color: '#00E5C4', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.15s' }}>
           ↑
         </button>
       </div>
 
       <style>{`
-        @keyframes biaTyping {
-          0%, 100% { opacity: 0.3; transform: translateY(0); }
-          50% { opacity: 1; transform: translateY(-3px); }
-        }
+        @keyframes biaTyping { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
     </Overlay>
   );
 }
 
-// ─── sub-componentes ─────────────────────────────────────────────────────────
-
 function Overlay({ children, onClose }) {
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 20, width: '100%', maxWidth: 620, height: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
         {children}
       </div>
@@ -444,11 +396,12 @@ function Overlay({ children, onClose }) {
   );
 }
 
-function ModalHeader({ title, subtitle, onClose, extra }) {
+function ModalHeader({ title, subtitle, onClose, extra, assistantName }) {
+  const initLetter = assistantName ? assistantName[0].toUpperCase() : 'R';
   return (
     <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid rgba(0,180,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'white' }}>B</div>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'white' }}>{initLetter}</div>
         <div>
           <div style={{ fontSize: 15, fontWeight: 500, color: '#E8F4FF' }}>{title}</div>
           <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 1 }}>{subtitle}</div>
@@ -486,13 +439,6 @@ function Field({ label, value }) {
 }
 
 const styles = {
-  btnPrimary: {
-    padding: '11px 24px', borderRadius: 10, border: 'none',
-    background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white',
-    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-  },
-  btnSecondary: {
-    padding: '11px 18px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)',
-    background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
-  },
+  btnPrimary: { padding: '11px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' },
+  btnSecondary: { padding: '11px 18px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' },
 };
