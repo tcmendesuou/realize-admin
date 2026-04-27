@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const STAGES = [
-  { id: 'proposta',   label: 'Propostas',   color: '#7BAFD4' },
-  { id: 'aguardando', label: 'Aguardando',  color: '#FFA726' },
-  { id: 'acontecendo',label: 'Acontecendo', color: '#00E5C4' },
-  { id: 'concluido',  label: 'Concluido',   color: '#66BB6A' },
+  { id: 'proposta',    label: 'Propostas',   color: '#7BAFD4' },
+  { id: 'aguardando',  label: 'Aguardando',  color: '#FFA726' },
+  { id: 'acontecendo', label: 'Acontecendo', color: '#00E5C4' },
+  { id: 'concluido',   label: 'Concluido',   color: '#66BB6A' },
 ];
 
 export default function EquipeHome({ userData, onLogout }) {
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs]               = useState([]);
   const [activeSection, setActiveSection] = useState('workspace');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
 
-  const userId = userData?.id;
-  const userName = userData?.name || userData?.email?.split('@')[0] || 'Equipe';
+  const userId       = userData?.id;
+  const userName     = userData?.name || userData?.email?.split('@')[0] || 'Equipe';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   useEffect(() => {
@@ -24,7 +24,6 @@ export default function EquipeHome({ userData, onLogout }) {
       query(collection(db, 'budgets'), where('assignedTo', '==', userId)),
       snap => {
         const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        console.log('JOBS ENCONTRADOS:', all.length, all);
         setJobs(all);
         setLoading(false);
       }
@@ -32,7 +31,13 @@ export default function EquipeHome({ userData, onLogout }) {
     return () => unsub();
   }, [userId]);
 
-  const jobsByStage = (stageId) => jobs.filter(j => (j.workspaceStage || 'Proposta') === stageId);
+  // Normaliza workspaceStage para comparar com os ids do STAGES
+  const normalizeStage = (stage) => (stage || 'Propostas').toLowerCase().replace(/s$/, '');
+  const jobsByStage = (stageId) => jobs.filter(j => normalizeStage(j.workspaceStage) === stageId);
+
+  const handleCardClick = (jobId) => {
+    window.location.href = `/projeto/${jobId}`;
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D1B2A', display: 'flex', fontFamily: 'Outfit, sans-serif' }}>
@@ -55,8 +60,8 @@ export default function EquipeHome({ userData, onLogout }) {
         .eq-col-title { font-size: 12px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; }
         .eq-col-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
         .eq-col-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 200px; }
-        .eq-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,180,255,0.1); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.15s; pointer-events: auto; position: relative; z-index: 1; }
-        .eq-card:hover { background: rgba(0,229,196,0.05); border-color: rgba(0,229,196,0.2); }
+        .eq-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,180,255,0.1); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.15s; }
+        .eq-card:hover { background: rgba(0,229,196,0.05); border-color: rgba(0,229,196,0.2); transform: translateY(-1px); }
         .eq-card-name { font-size: 13px; font-weight: 500; color: #E8F4FF; margin-bottom: 4px; }
         .eq-card-client { font-size: 11px; color: #7BAFD4; margin-bottom: 8px; }
         .eq-card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -109,7 +114,7 @@ export default function EquipeHome({ userData, onLogout }) {
                         {cards.length === 0 ? (
                           <div className="eq-empty">Nenhum job</div>
                         ) : cards.map(job => (
-                          <div key={job.id} className="eq-card" onClick={() => window.location.href = `/projeto/${job.id}`}>
+                          <div key={job.id} className="eq-card" onClick={() => handleCardClick(job.id)}>
                             <div className="eq-card-name">{job.eventName || job.eventTypeName || 'Sem nome'}</div>
                             <div className="eq-card-client">{job.companyName || job.clientName || ''}</div>
                             <div className="eq-card-meta">
