@@ -185,18 +185,36 @@ export default function ClienteChat({ userData, onClose }) {
 
         // Extrai palavras-chave
         const keywords = servicosNecessarios.flatMap(sn =>
-          sn.toLowerCase().split(/[\s/,]+/).filter(w => w.length > 2)
-        );
-        console.log('keywords:', keywords);
+            sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 2)
+          );
+          const sinonimos = {
+            led: ['led', 'neon', 'painel', 'telao', 'tela'],
+            banner: ['banner', 'backdrop', 'fundo', 'impresso'],
+            nobreak: ['nobreak', 'ups', 'energia', 'estabilizador'],
+            som: ['som', 'audio', 'pa', 'caixa', 'microfone'],
+            recepcao: ['recepcao', 'recepcionista', 'hostess'],
+            seguranca: ['seguranca', 'vigilancia'],
+            limpeza: ['limpeza', 'higiene', 'auxiliar'],
+          };
+          const kwExpandidas = [...keywords];
+          keywords.forEach(kw => {
+            Object.values(sinonimos).forEach(terms => {
+              if (terms.some(t => kw.includes(t) || t.includes(kw))) kwExpandidas.push(...terms);
+            });
+          });
+          const kwSet = [...new Set(kwExpandidas)];
+          console.log('keywords expandidas:', kwSet);
 
-        const suppServs = todosServicos.filter(s => {
-          if (s.ativo === false) return false;
-          const nameLC = (s.serviceName || '').toLowerCase();
-          const parentLC = (s.serviceParentName || '').toLowerCase();
-          if (servicosNecessarios.includes(s.serviceName)) return true;
-          if (servicosNecessarios.includes(s.serviceParentName)) return true;
-          return keywords.some(kw => nameLC.includes(kw) || parentLC.includes(kw));
-        });
+          const suppServs = todosServicos.filter(s => {
+            if (s.ativo === false) return false;
+            const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const nameLC   = normalize(s.serviceName);
+            const parentLC = normalize(s.serviceParentName);
+            const fullLC   = nameLC + ' ' + parentLC;
+            if (servicosNecessarios.includes(s.serviceName)) return true;
+            if (servicosNecessarios.includes(s.serviceParentName)) return true;
+            return kwSet.some(kw => fullLC.includes(kw));
+          });
         console.log('suppServs matched:', suppServs.length, suppServs.map(s => s.serviceName));
 
         const supplierMap = {};
