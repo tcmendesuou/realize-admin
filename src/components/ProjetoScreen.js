@@ -17,8 +17,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [activeTab, setActiveTab] = useState('info');
 
   // Fornecedor
-  const [supplierJob, setSupplierJob] = useState(null);
-  const [confirming, setConfirming]   = useState(false);
+  const [supplierJob, setSupplierJob]   = useState(null);
+  const [confirming, setConfirming]     = useState(false);
+  const [supplierJobs, setSupplierJobs] = useState([]);
+  const [gerandoOrcamento, setGerandoOrcamento] = useState(false);
 
   // Tarefas
   const [tasks, setTasks]         = useState([]);
@@ -41,17 +43,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         } catch (e) { console.error(e); }
       }
 
-      // Se for fornecedor, busca o supplierJob vinculado
-      if (userData?.systemRole === 'fornecedor') {
-        try {
-          const sjSnap = await getDocs(query(
-            collection(db, 'supplierJobs'),
-            where('budgetId', '==', snap.id),
-            where('supplierId', '==', userData.id)
-          ));
-          if (!sjSnap.empty) setSupplierJob({ id: sjSnap.docs[0].id, ...sjSnap.docs[0].data() });
-        } catch (e) { console.error(e); }
-      }
+      // Busca supplierJobs do projeto
+      try {
+        const sjAllSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', snap.id)));
+        const allJobs = sjAllSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setSupplierJobs(allJobs);
+        // Se for fornecedor, filtra o dele
+        if (userData?.systemRole === 'fornecedor') {
+          const mine = allJobs.find(j => j.supplierId === userData.id);
+          if (mine) setSupplierJob(mine);
+        }
+      } catch (e) { console.error(e); }
 
       // Carrega tarefas do budget
       setTasks(data.tasks || []);
@@ -132,6 +134,54 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setSupplierJob(prev => ({ ...prev, status: 'confirmed' }));
     } catch (e) { console.error(e); alert('Erro ao confirmar.'); }
     finally { setConfirming(false); }
+  };
+
+  const handleGerarOrcamento = async () => {
+    setGerandoOrcamento(true);
+    try {
+      // Busca preços dos supplierServices confirmados
+      const confirmed = supplierJobs.filter(j => j.status === 'confirmed');
+      let totalOrcamento = 0;
+      const itensOrcamento = [];
+      const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
+
+      for (const sj of confirmed) {
+        for (const serviceName of (sj.serviceNames || [])) {
+          const svSnap = await getDocs(query(
+            collection(db, 'supplierServices'),
+            where('supplierId', '==', sj.supplierId),
+            where('serviceName', '==', serviceName)
+          ));
+          if (!svSnap.empty) {
+            const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
+            const preco = parseFloat(sv.preco || 0);
+            const subtotal = preco * diasEvento;
+            totalOrcamento += subtotal;
+            itensOrcamento.push({
+              supplierName: sj.confirmedBy || sj.supplierId,
+              serviceName,
+              preco,
+              diasEvento,
+              subtotal,
+              unidade: sv.unidade || 'por dia',
+            });
+          }
+        }
+      }
+
+      await updateDoc(doc(db, 'budgets', projectId), {
+        status: 'pendingApproval',
+        workspaceStage: 'Aguardando',
+        orcamentoFinal: { total: totalOrcamento, itens: itensOrcamento, geradoEm: new Date() },
+        timeline: [...(project.timeline || []), {
+          action: 'orcamento_gerado',
+          description: `Orçamento final gerado — R$ ${totalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — enviado para aprovação do cliente`,
+          userId: userData?.id, userName: userData?.name, timestamp: new Date(),
+        }],
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) { console.error(e); alert('Erro ao gerar orçamento.'); }
+    finally { setGerandoOrcamento(false); }
   };
 
   const formatDate = (ts) => {
@@ -436,15 +486,61 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           )}
 
           {/* ── TAREFAS ── */}
-          {activeTab === 'tasks' && !isFornecedor && (
+          {activeTab === 'tasks' && !isFornecedor && (() => {
+            const todosConfirmados = supplierJobs.length > 0 && supplierJobs.every(j => j.status === 'confirmed');
+            return (
             <div className="ps-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div className="ps-card-title" style={{ margin: 0 }}>Tarefas ({tasks.length})</div>
+                <div className="ps-card-title" style={{ margin: 0 }}>Fornecedores e Tarefas</div>
                 <button onClick={() => setShowTaskForm(s => !s)}
                   style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                   + Nova Tarefa
                 </button>
               </div>
+
+              {/* Fornecedores */}
+              {supplierJobs.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Fornecedores ({supplierJobs.filter(j => j.status === 'confirmed').length}/{supplierJobs.length} confirmados)
+                  </div>
+                  {supplierJobs.map(sj => (
+                    <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 8, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.03)' : 'white' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: sj.status === 'confirmed' ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{sj.confirmedBy || 'Fornecedor'}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{(sj.serviceNames || []).join(', ')}</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: sj.status === 'confirmed' ? '#10b981' : '#f59e0b' }}>
+                        {sj.status === 'confirmed' ? '✓ Confirmado' : 'Aguardando'}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Botão gerar orçamento */}
+                  {todosConfirmados && project.status !== 'pendingApproval' && project.status !== 'approved' && (
+                    <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>Todos os fornecedores confirmaram! Gere o orçamento final para enviar ao cliente.</div>
+                      <button onClick={handleGerarOrcamento} disabled={gerandoOrcamento}
+                        style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: gerandoOrcamento ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: gerandoOrcamento ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {gerandoOrcamento ? 'Gerando...' : '📋 Gerar Orçamento Final'}
+                      </button>
+                    </div>
+                  )}
+                  {project.status === 'pendingApproval' && (
+                    <div style={{ marginTop: 16, padding: 14, background: 'rgba(255,167,38,0.06)', borderRadius: 10, border: '1px solid rgba(255,167,38,0.2)', textAlign: 'center', fontSize: 13, color: '#FFA726', fontWeight: 500 }}>
+                      ⏳ Orçamento enviado — aguardando aprovação do cliente
+                    </div>
+                  )}
+                  {project.status === 'approved' && (
+                    <div style={{ marginTop: 16, padding: 14, background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center', fontSize: 13, color: '#10b981', fontWeight: 500 }}>
+                      ✓ Orçamento aprovado pelo cliente!
+                    </div>
+                  )}
+
+                  <div style={{ height: 1, background: '#f0f2f5', margin: '20px 0' }} />
+                </div>
+              )}
 
               {showTaskForm && (
                 <div style={{ background: '#f8faff', borderRadius: 10, border: '1px solid #e0e8ff', padding: 16, marginBottom: 16 }}>
@@ -507,7 +603,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           {/* ── HISTÓRICO ── */}
           {activeTab === 'timeline' && (
