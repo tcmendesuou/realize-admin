@@ -207,7 +207,7 @@ export default function FornecedorHome({ userData, onLogout }) {
                         {cards.length === 0 ? (
                           <div className="fn-empty">Nenhum job</div>
                         ) : cards.map(job => (
-                          <div key={job.id} className="fn-card">
+                          <div key={job.id} className="fn-card" onClick={() => window.location.href = `/projeto/${job.budgetId}`}>
                             <div className="fn-card-name">{job.eventName || 'Evento'}</div>
                             {job.serviceName && <div className="fn-card-service">{job.serviceName}</div>}
                             <div className="fn-card-client">{job.clientName || ''}</div>

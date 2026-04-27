@@ -126,7 +126,16 @@ function App() {
       );
     }
 
-    if (systemRole === 'fornecedor') return <FornecedorHome userData={firestoreUser} onLogout={handleLogout} />;
+    if (systemRole === 'fornecedor') {
+      return (
+        <Router>
+          <Routes>
+            <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={firestoreUser} onLogout={handleLogout} />} />
+            <Route path="*" element={<FornecedorHome userData={firestoreUser} onLogout={handleLogout} />} />
+          </Routes>
+        </Router>
+      );
+    }
 
     if (systemRole === 'admin') {
       // continua para o painel admin

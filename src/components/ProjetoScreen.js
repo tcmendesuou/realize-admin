@@ -16,6 +16,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [loading, setLoading]     = useState(true);
   const [activeTab, setActiveTab] = useState('info');
 
+  // Fornecedor
+  const [supplierJob, setSupplierJob] = useState(null);
+  const [confirming, setConfirming]   = useState(false);
+
   // Tarefas
   const [tasks, setTasks]         = useState([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -34,6 +38,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         try {
           const cSnap = await getDoc(doc(db, 'users', data.clientUserId));
           if (cSnap.exists()) setClient({ id: cSnap.id, ...cSnap.data() });
+        } catch (e) { console.error(e); }
+      }
+
+      // Se for fornecedor, busca o supplierJob vinculado
+      if (userData?.systemRole === 'fornecedor') {
+        try {
+          const sjSnap = await getDocs(query(
+            collection(db, 'supplierJobs'),
+            where('budgetId', '==', snap.id),
+            where('supplierId', '==', userData.id)
+          ));
+          if (!sjSnap.empty) setSupplierJob({ id: sjSnap.docs[0].id, ...sjSnap.docs[0].data() });
         } catch (e) { console.error(e); }
       }
 
@@ -93,6 +109,31 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     });
   };
 
+  const handleConfirmarFornecedor = async () => {
+    if (!supplierJob) return;
+    setConfirming(true);
+    try {
+      await updateDoc(doc(db, 'supplierJobs', supplierJob.id), {
+        status: 'confirmed',
+        confirmedAt: serverTimestamp(),
+        confirmedBy: userData?.name,
+      });
+      await updateDoc(doc(db, 'budgets', projectId), {
+        supplierConfirmations: [
+          ...(project.supplierConfirmations || []),
+          { supplierId: userData?.id, supplierName: userData?.name, serviceNames: supplierJob.serviceNames || [], confirmedAt: new Date() }
+        ],
+        timeline: [
+          ...(project.timeline || []),
+          { action: 'supplier_confirmed', description: `Fornecedor "${userData?.name}" confirmou disponibilidade para: ${(supplierJob.serviceNames || []).join(', ')}`, userId: userData?.id, userName: userData?.name, timestamp: new Date() }
+        ],
+        updatedAt: serverTimestamp(),
+      });
+      setSupplierJob(prev => ({ ...prev, status: 'confirmed' }));
+    } catch (e) { console.error(e); alert('Erro ao confirmar.'); }
+    finally { setConfirming(false); }
+  };
+
   const formatDate = (ts) => {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -129,7 +170,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const servicos = project.briefingData?.servicosNecessarios || [];
   const statusInfo = STATUS_MAP[project.status] || STATUS_MAP.analyzing;
 
-  const tabs = [
+  const isFornecedor = userData?.systemRole === 'fornecedor';
+  const tabs = isFornecedor ? [
+    { id: 'info',     label: 'Visão Geral' },
+    { id: 'tasks',    label: 'Minha Tarefa' },
+  ] : [
     { id: 'info',     label: 'Visão Geral' },
     { id: 'briefing', label: 'Briefing' },
     { id: 'tasks',    label: `Tarefas${tasks.length ? ` (${tasks.length})` : ''}` },
@@ -350,8 +395,48 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             </>
           )}
 
+          {/* ── MINHA TAREFA (fornecedor) ── */}
+          {activeTab === 'tasks' && isFornecedor && (
+            <div className="ps-card">
+              <div className="ps-card-title">Minha Tarefa</div>
+              {supplierJob ? (
+                <>
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 11, color: '#8a9bb0', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Serviços solicitados</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {(supplierJob.serviceNames || []).map((s, i) => (
+                        <span key={i} style={{ padding: '5px 14px', borderRadius: 20, background: 'rgba(0,229,196,0.1)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 13, fontWeight: 500 }}>{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ background: supplierJob.status === 'confirmed' ? 'rgba(16,185,129,0.06)' : 'rgba(0,229,196,0.04)', borderRadius: 10, border: `1px solid ${supplierJob.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(0,229,196,0.15)'}`, padding: 20, textAlign: 'center' }}>
+                    {supplierJob.status === 'confirmed' ? (
+                      <>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+                        <div style={{ fontSize: 15, fontWeight: 500, color: '#10b981', marginBottom: 4 }}>Disponibilidade confirmada!</div>
+                        <div style={{ fontSize: 13, color: '#64748b' }}>O coordenador foi notificado. Aguarde a aprovação do cliente.</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
+                          Confirme sua disponibilidade para este evento. O coordenador será notificado.
+                        </div>
+                        <button onClick={handleConfirmarFornecedor} disabled={confirming}
+                          style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: confirming ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: confirming ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                          {confirming ? 'Confirmando...' : '✓ Confirmar Disponibilidade'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Nenhuma tarefa encontrada</div>
+              )}
+            </div>
+          )}
+
           {/* ── TAREFAS ── */}
-          {activeTab === 'tasks' && (
+          {activeTab === 'tasks' && !isFornecedor && (
             <div className="ps-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div className="ps-card-title" style={{ margin: 0 }}>Tarefas ({tasks.length})</div>
