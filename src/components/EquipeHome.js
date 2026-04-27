@@ -22,11 +22,11 @@ export default function EquipeHome({ userData, onLogout }) {
     if (!userId) return;
     const unsub = onSnapshot(
       query(collection(db, 'budgets'), where('assignedTo', '==', userId)),
-  snap => {
-    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    console.log('JOBS ENCONTRADOS:', all.length, all);
-    setJobs(all);
-    setLoading(false);
+      snap => {
+        const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log('JOBS ENCONTRADOS:', all.length, all);
+        setJobs(all);
+        setLoading(false);
       }
     );
     return () => unsub();
