@@ -217,7 +217,7 @@ function Projects() {
   }
 
   return (
-    <div className="projects-container">
+    <div className="projects-container" style={{ overflowY: "auto", height: "100%" }}>
       {/* HEADER */}
       <div className="projects-header">
         <div>
