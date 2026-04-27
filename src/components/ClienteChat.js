@@ -164,7 +164,7 @@ export default function ClienteChat({ userData, onClose }) {
         }
       } catch (e) { console.error('Erro ao buscar coordenador:', e); }
 
-      await addDoc(collection(db, 'budgets'), {
+      const budgetRef = await addDoc(collection(db, 'budgets'), {
         clientUserId: userId,
         clientName: userName,
         eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
@@ -183,6 +183,36 @@ export default function ClienteChat({ userData, onClose }) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      // cria supplierJobs para fornecedores com servicos do briefing
+      try {
+        const servicosNecessarios = briefingJson.servicosNecessarios || [];
+        if (servicosNecessarios.length > 0) {
+          const suppServSnap = await getDocs(collection(db, 'supplierServices'));
+          const suppServs = suppServSnap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(s => s.ativo !== false && servicosNecessarios.includes(s.serviceName));
+          const supplierMap = {};
+          suppServs.forEach(s => {
+            if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
+            supplierMap[s.supplierId].push(s.serviceName);
+          });
+          for (const [supplierId, servicos] of Object.entries(supplierMap)) {
+            await addDoc(collection(db, 'supplierJobs'), {
+              supplierId,
+              budgetId: budgetRef.id,
+              eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
+              clientName: userName,
+              eventDate: briefingJson.evento?.dataInicio || '',
+              serviceNames: servicos,
+              stage: 'proposta',
+              status: 'pending',
+              createdAt: serverTimestamp(),
+            });
+          }
+        }
+      } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
+
       setStep('sent');
     } catch (err) {
       console.error('Erro ao salvar:', err);
