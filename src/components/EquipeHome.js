@@ -21,7 +21,7 @@ export default function EquipeHome({ userData, onLogout }) {
   useEffect(() => {
     if (!userId) return;
     const unsub = onSnapshot(
-      query(collection(db, 'budgets'), where('isMae', '==', false)),
+      query(collection(db, 'budgets'), where('assignedTo', '==', userId)),
       snap => {
         const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setJobs(all);
