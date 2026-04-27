@@ -189,16 +189,23 @@ export default function ClienteChat({ userData, onClose }) {
         const servicosNecessarios = briefingJson.servicosNecessarios || [];
         if (servicosNecessarios.length > 0) {
           const suppServSnap = await getDocs(collection(db, 'supplierServices'));
+          // Extrai palavras-chave dos servicosNecessarios (ignora palavras curtas)
+          const keywords = servicosNecessarios.flatMap(sn =>
+            sn.toLowerCase().split(/[\s\/,]+/).filter(w => w.length > 2)
+          );
+
           const suppServs = suppServSnap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(s => s.ativo !== false && (
-              servicosNecessarios.includes(s.serviceName) ||
-              servicosNecessarios.includes(s.serviceParentName) ||
-              servicosNecessarios.some(sn =>
-                s.serviceName?.toLowerCase().includes(sn.toLowerCase()) ||
-                sn.toLowerCase().includes(s.serviceName?.toLowerCase())
-              )
-            ));
+            .filter(s => {
+              if (s.ativo === false) return false;
+              const nameLC = (s.serviceName || '').toLowerCase();
+              const parentLC = (s.serviceParentName || '').toLowerCase();
+              // Match exato
+              if (servicosNecessarios.includes(s.serviceName)) return true;
+              if (servicosNecessarios.includes(s.serviceParentName)) return true;
+              // Match por palavras-chave
+              return keywords.some(kw => nameLC.includes(kw) || parentLC.includes(kw));
+            });
           const supplierMap = {};
           suppServs.forEach(s => {
             if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
