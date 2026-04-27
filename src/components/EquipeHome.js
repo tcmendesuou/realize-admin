@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
 
 const STAGES = [
@@ -16,7 +15,6 @@ export default function EquipeHome({ userData, onLogout }) {
   const [loading, setLoading] = useState(true);
 
   const userId = userData?.id;
-  const navigate = useNavigate();
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Equipe';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -111,7 +109,7 @@ export default function EquipeHome({ userData, onLogout }) {
                         {cards.length === 0 ? (
                           <div className="eq-empty">Nenhum job</div>
                         ) : cards.map(job => (
-                          <div key={job.id} className="eq-card" onClick={() => navigate(`/projeto/${job.id}`)}>
+                          <div key={job.id} className="eq-card" onClick={() => window.location.href = `/projeto/${job.id}`}>
                             <div className="eq-card-name">{job.eventName || job.eventTypeName || 'Sem nome'}</div>
                             <div className="eq-card-client">{job.companyName || job.clientName || ''}</div>
                             <div className="eq-card-meta">
