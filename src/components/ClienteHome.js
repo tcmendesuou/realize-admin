@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ClienteChat from './ClienteChat';
 
 const STATUS_CONFIG = {
-  analyzing:  { label: 'Em analise',  color: '#FFA726', bg: 'rgba(255,167,38,0.1)' },
-  approved:   { label: 'Aprovado',    color: '#00E5C4', bg: 'rgba(0,229,196,0.1)' },
-  inProgress: { label: 'Em andamento',color: '#0080FF', bg: 'rgba(0,128,255,0.1)' },
-  completed:  { label: 'Concluido',   color: '#66BB6A', bg: 'rgba(102,187,106,0.1)' },
-  rejected:   { label: 'Cancelado',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  analyzing:       { label: 'Em analise',           color: '#FFA726', bg: 'rgba(255,167,38,0.1)' },
+  pendingApproval: { label: 'Orcamento disponivel', color: '#0080FF', bg: 'rgba(0,128,255,0.1)' },
+  approved:        { label: 'Aprovado',             color: '#00E5C4', bg: 'rgba(0,229,196,0.1)' },
+  inProgress:      { label: 'Em andamento',         color: '#0080FF', bg: 'rgba(0,128,255,0.1)' },
+  completed:       { label: 'Concluido',            color: '#66BB6A', bg: 'rgba(102,187,106,0.1)' },
+  rejected:        { label: 'Cancelado',            color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
 };
 
 export default function ClienteHome({ userData, onLogout }) {
@@ -17,6 +18,7 @@ export default function ClienteHome({ userData, onLogout }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
+  const [aprovando, setAprovando] = useState(false);
 
   const userId = userData?.id;
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Cliente';
@@ -162,7 +164,9 @@ export default function ClienteHome({ userData, onLogout }) {
       {selectedEvent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setSelectedEvent(null)}>
-          <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto', padding: 32 }}>
+          <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 20, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', padding: 32 }}>
+
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 500, color: '#E8F4FF', marginBottom: 4 }}>
@@ -173,10 +177,10 @@ export default function ClienteHome({ userData, onLogout }) {
               <button onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 20, cursor: 'pointer' }}>✕</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {/* Dados básicos */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
               {[
                 ['Status', (STATUS_CONFIG[selectedEvent.status] || STATUS_CONFIG.analyzing).label],
-                ['Codigo', selectedEvent.jobCode],
                 ['Data inicio', selectedEvent.startDate],
                 ['Data fim', selectedEvent.endDate],
                 ['Local', selectedEvent.location],
@@ -189,9 +193,89 @@ export default function ClienteHome({ userData, onLogout }) {
               ))}
             </div>
 
-            <div style={{ marginTop: 20, textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)' }}>Mais detalhes do evento em breve</p>
-            </div>
+            {/* ORÇAMENTO FINAL */}
+            {selectedEvent.status === 'pendingApproval' && selectedEvent.orcamentoFinal && (
+              <div style={{ background: 'rgba(0,128,255,0.06)', border: '1px solid rgba(0,128,255,0.2)', borderRadius: 14, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#0080FF', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 }}>
+                  Orcamento Final
+                </div>
+
+                {(selectedEvent.orcamentoFinal.itens || []).map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(0,180,255,0.08)' }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: '#E8F4FF', fontWeight: 500 }}>{item.serviceName}</div>
+                      <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>
+                        {item.supplierName} · R$ {parseFloat(item.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {item.diasEvento} dia(s)
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>
+                      R$ {parseFloat(item.subtotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                ))}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(0,128,255,0.2)' }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>Total</span>
+                  <span style={{ fontSize: 22, fontWeight: 700, color: '#0080FF' }}>
+                    R$ {parseFloat(selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)', marginTop: 10, lineHeight: 1.5 }}>
+                  * Valores de referencia. Taxa de servico e impostos serao adicionados na proposta final.
+                </p>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm('Recusar este orcamento?')) return;
+                      setAprovando(true);
+                      try {
+                        await updateDoc(doc(db, 'budgets', selectedEvent.id), {
+                          status: 'rejected',
+                          workspaceStage: 'Propostas',
+                          updatedAt: serverTimestamp(),
+                          timeline: [...(selectedEvent.timeline || []), { action: 'rejected', description: 'Orcamento recusado pelo cliente', timestamp: new Date() }],
+                        });
+                        setSelectedEvent(null);
+                      } catch (e) { alert('Erro ao recusar.'); }
+                      finally { setAprovando(false); }
+                    }}
+                    disabled={aprovando}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Recusar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm('Aprovar este orcamento? O evento sera confirmado.')) return;
+                      setAprovando(true);
+                      try {
+                        await updateDoc(doc(db, 'budgets', selectedEvent.id), {
+                          status: 'approved',
+                          workspaceStage: 'Aguardando',
+                          approvedAt: serverTimestamp(),
+                          updatedAt: serverTimestamp(),
+                          timeline: [...(selectedEvent.timeline || []), { action: 'approved', description: 'Orcamento aprovado pelo cliente', timestamp: new Date() }],
+                        });
+                        setSelectedEvent(null);
+                      } catch (e) { alert('Erro ao aprovar.'); }
+                      finally { setAprovando(false); }
+                    }}
+                    disabled={aprovando}
+                    style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', background: aprovando ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: aprovando ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    {aprovando ? 'Processando...' : '✓ Aprovar Orcamento'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selectedEvent.status !== 'pendingApproval' && (
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)' }}>
+                  {selectedEvent.status === 'approved' ? '✓ Orcamento aprovado! Em producao.' : 'Aguardando processamento...'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
