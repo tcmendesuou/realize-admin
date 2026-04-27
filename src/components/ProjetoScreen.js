@@ -62,17 +62,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     return () => unsub();
   }, [projectId]);
 
-  // Disparo automático quando todos os supplierJobs confirmarem
-  useEffect(() => {
-    if (!project || !supplierJobs.length) return;
-    if (project.status !== 'analyzing') return; // já foi processado
-    if (userData?.systemRole === 'fornecedor') return; // não dispara no contexto do fornecedor
-    const todosConfirmados = supplierJobs.every(j => j.status === 'confirmed');
-    if (todosConfirmados) {
-      handleGerarOrcamento();
-    }
-  }, [supplierJobs, project?.status]);
-
   const handleAddTask = async () => {
     if (!newTask.name.trim()) { alert('Nome da tarefa obrigatório'); return; }
     setSavingTask(true);
@@ -232,14 +221,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const statusInfo = STATUS_MAP[project.status] || STATUS_MAP.analyzing;
 
   const isFornecedor = userData?.systemRole === 'fornecedor';
+  const cronograma   = project.cronograma?.etapas || [];
   const tabs = isFornecedor ? [
-    { id: 'info',     label: 'Visão Geral' },
-    { id: 'tasks',    label: 'Minha Tarefa' },
+    { id: 'info',       label: 'Visão Geral' },
+    { id: 'cronograma', label: 'Cronograma' },
+    { id: 'tasks',      label: 'Minha Tarefa' },
   ] : [
-    { id: 'info',     label: 'Visão Geral' },
-    { id: 'briefing', label: 'Briefing' },
-    { id: 'tasks',    label: `Tarefas${tasks.length ? ` (${tasks.length})` : ''}` },
-    { id: 'timeline', label: 'Histórico' },
+    { id: 'info',       label: 'Visão Geral' },
+    { id: 'briefing',   label: 'Briefing' },
+    { id: 'cronograma', label: `Cronograma${cronograma.length ? ` (${cronograma.length})` : ''}` },
+    { id: 'tasks',      label: `Tarefas${tasks.length ? ` (${tasks.length})` : ''}` },
+    { id: 'timeline',   label: 'Histórico' },
   ];
 
   const inp = { padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box', outline: 'none' };
@@ -388,6 +380,65 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             </>
           )}
 
+          {/* ── CRONOGRAMA ── */}
+          {activeTab === 'cronograma' && (
+            <div className="ps-card">
+              <div className="ps-card-title">Cronograma de Produção</div>
+              {cronograma.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>
+                  Cronograma ainda não gerado
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  {cronograma.sort((a, b) => (a.diasAntes || 0) > (b.diasAntes || 0) ? -1 : 1).map((etapa, i) => {
+                    const TIPO_COR = { administrativo: '#7BAFD4', estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A' };
+                    const STATUS_COR = { pendente: '#f59e0b', em_andamento: '#3b82f6', concluido: '#10b981', atrasado: '#ef4444' };
+                    const cor  = TIPO_COR[etapa.tipo] || '#7BAFD4';
+                    const scor = STATUS_COR[etapa.status] || '#f59e0b';
+                    const isMine = isFornecedor && (etapa.responsavel === 'fornecedor' || (supplierJob?.serviceNames || []).some(sn => etapa.responsavel?.toLowerCase().includes(sn.toLowerCase())));
+                    return (
+                      <div key={etapa.id || i} style={{ display: 'flex', gap: 16, marginBottom: 16, opacity: etapa.status === 'concluido' ? 0.7 : 1 }}>
+                        {/* Linha vertical + dot */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: cor, border: `2px solid ${cor}44`, flexShrink: 0, marginTop: 4 }} />
+                          {i < cronograma.length - 1 && <div style={{ width: 2, flex: 1, background: '#f0f2f5', marginTop: 4 }} />}
+                        </div>
+                        {/* Conteúdo */}
+                        <div style={{ flex: 1, background: isMine ? `${cor}08` : 'white', borderRadius: 10, border: `1px solid ${isMine ? cor + '33' : '#f0f2f5'}`, padding: '12px 16px', marginBottom: 4 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{etapa.nome}</span>
+                              {isMine && <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${cor}22`, color: cor, fontWeight: 700 }}>Sua tarefa</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${scor}15`, color: scor, fontWeight: 600 }}>
+                                {etapa.status === 'pendente' ? 'Pendente' : etapa.status === 'em_andamento' ? 'Em andamento' : etapa.status === 'concluido' ? '✓ Concluído' : 'Atrasado'}
+                              </span>
+                            </div>
+                          </div>
+                          {etapa.descricao && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.descricao}</div>}
+                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                            {etapa.dataEntrega && (
+                              <span style={{ fontSize: 11, color: '#475569' }}>
+                                📅 Entrega: <strong>{etapa.dataEntrega.split('-').reverse().join('/')}</strong>
+                              </span>
+                            )}
+                            {etapa.diasAntes > 0 && (
+                              <span style={{ fontSize: 11, color: '#94a3b8' }}>{etapa.diasAntes} dias antes do evento</span>
+                            )}
+                            {etapa.responsavel && (
+                              <span style={{ fontSize: 11, color: cor, fontWeight: 500 }}>👤 {etapa.responsavel}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── BRIEFING ── */}
           {activeTab === 'briefing' && (
             <>
@@ -528,10 +579,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     </div>
                   ))}
 
-                  {/* Disparo automático — sem botão manual */}
+                  {/* Botão gerar orçamento */}
                   {todosConfirmados && project.status !== 'pendingApproval' && project.status !== 'approved' && (
-                    <div style={{ marginTop: 16, padding: 14, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center', fontSize: 13, color: '#00E5C4' }}>
-                      {gerandoOrcamento ? '⏳ Gerando orçamento automaticamente...' : '✓ Todos confirmaram — orçamento sendo enviado ao cliente'}
+                    <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>Todos os fornecedores confirmaram! Gere o orçamento final para enviar ao cliente.</div>
+                      <button onClick={handleGerarOrcamento} disabled={gerandoOrcamento}
+                        style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: gerandoOrcamento ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: gerandoOrcamento ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {gerandoOrcamento ? 'Gerando...' : '📋 Gerar Orçamento Final'}
+                      </button>
                     </div>
                   )}
                   {project.status === 'pendingApproval' && (

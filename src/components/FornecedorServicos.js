@@ -23,7 +23,7 @@ function ServicoForm({ supplierId, editData, onSave, onCancel, catalogoServ, pri
     tipoServico: '', serviceParentId: '', serviceParentName: '',
     serviceId: '', serviceName: '',
     preco: '', unidade: 'por hora',
-    tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital',
+    diasPreparo: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital',
     observacoes: '', ativo: true,
   });
   const [saving, setSaving]         = useState(false);
@@ -65,6 +65,7 @@ function ServicoForm({ supplierId, editData, onSave, onCancel, catalogoServ, pri
       const data = {
         supplierId,
         tipoServico:       form.tipoServico,
+        diasPreparo:       form.diasPreparo ? parseInt(form.diasPreparo) : 0,
         serviceParentId:   form.serviceParentId,
         serviceParentName: form.serviceParentName,
         serviceId:         form.serviceId,
@@ -193,7 +194,13 @@ function ServicoForm({ supplierId, editData, onSave, onCancel, catalogoServ, pri
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>Dias de preparo *</label>
+                <input type="number" min="0" step="1"
+                  value={form.diasPreparo} onChange={e => setF('diasPreparo', e.target.value)} style={inp} placeholder="Ex: 3" />
+                <p style={{ fontSize: 10, color: 'rgba(123,175,212,0.45)', marginTop: 4 }}>Dias antes do evento para montar/preparar</p>
+              </div>
               <div>
                 <label style={lbl}>Tempo de execução</label>
                 <input value={form.tempoExecucao} onChange={e => setF('tempoExecucao', e.target.value)} style={inp} placeholder="Ex: 2 dias de montagem" />

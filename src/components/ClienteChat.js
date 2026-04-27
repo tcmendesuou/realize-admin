@@ -240,6 +240,76 @@ export default function ClienteChat({ userData, onClose }) {
         }
       } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
 
+      // ── gera cronograma via IA ──
+      try {
+        // Busca tempos de preparo dos supplierServices disponíveis
+        const svSnap = await getDocs(collection(db, 'supplierServices'));
+        const svAll  = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+
+        // Monta resumo de tempos por serviço para a IA
+        const servicosComTempo = svAll
+          .filter(s => s.diasPreparo > 0)
+          .map(s => `${s.serviceName}: ${s.diasPreparo} dias de preparo`)
+          .join('\n');
+
+        const cronogramaPrompt = `Você é um especialista em planejamento de eventos corporativos.
+Com base nos dados do briefing abaixo, monte um cronograma de produção detalhado contando regressivamente a partir da data do evento.
+
+BRIEFING:
+${JSON.stringify(briefingJson, null, 2)}
+
+TEMPOS DE PREPARO DOS SERVIÇOS DISPONÍVEIS:
+${servicosComTempo || 'Usar estimativas padrão do mercado'}
+
+REGRAS:
+1. Considere as dependências lógicas entre serviços (ex: projeto arquitetônico → aprovação → montagem → iluminação → som → decoração → equipe operacional)
+2. Cada etapa deve ter: nome, descrição, data de início, data de entrega, responsável (fornecedor/cliente/coordenador) e dependências
+3. Trabalhe de trás para frente a partir da data do evento
+4. Inclua etapas administrativas: briefing aprovado, contratos, pagamentos, aprovações
+5. O cronograma deve ser realista e considerar fins de semana
+
+Responda APENAS com JSON válido neste formato:
+{
+  "etapas": [
+    {
+      "id": "etapa-1",
+      "nome": "Nome da etapa",
+      "descricao": "O que acontece nesta etapa",
+      "responsavel": "cliente|coordenador|fornecedor|nome_servico",
+      "dataInicio": "YYYY-MM-DD",
+      "dataEntrega": "YYYY-MM-DD",
+      "diasAntes": 30,
+      "dependencias": ["etapa-id"],
+      "status": "pendente",
+      "tipo": "administrativo|estrutura|operacao|entretenimento|gastronomia"
+    }
+  ]
+}`;
+
+        const cronRes = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            system: 'Você é um especialista em planejamento de eventos. Responda APENAS com JSON válido, sem texto adicional, sem markdown, sem backticks.',
+            messages: [{ role: 'user', content: cronogramaPrompt }],
+          }),
+        });
+        const cronData = await cronRes.json();
+        const cronText = cronData.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '';
+        let cronJson = null;
+        try {
+          const clean = cronText.replace(/```json|```/g, '').trim();
+          cronJson = JSON.parse(clean);
+        } catch (e) { console.error('Erro ao parsear cronograma:', e); }
+
+        if (cronJson?.etapas) {
+          await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: cronJson });
+          console.log('Cronograma gerado:', cronJson.etapas.length, 'etapas');
+        }
+      } catch (e) { console.error('Erro ao gerar cronograma:', e); }
+
       setStep('sent');
     } catch (err) {
       console.error('Erro ao salvar:', err);
