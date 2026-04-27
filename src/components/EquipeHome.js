@@ -55,7 +55,7 @@ export default function EquipeHome({ userData, onLogout }) {
         .eq-col-title { font-size: 12px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; }
         .eq-col-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
         .eq-col-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 200px; }
-        .eq-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,180,255,0.1); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.15s; }
+        .eq-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,180,255,0.1); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.15s; pointer-events: auto; position: relative; z-index: 1; }
         .eq-card:hover { background: rgba(0,229,196,0.05); border-color: rgba(0,229,196,0.2); }
         .eq-card-name { font-size: 13px; font-weight: 500; color: #E8F4FF; margin-bottom: 4px; }
         .eq-card-client { font-size: 11px; color: #7BAFD4; margin-bottom: 8px; }
