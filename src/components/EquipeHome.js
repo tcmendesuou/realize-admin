@@ -32,7 +32,7 @@ export default function EquipeHome({ userData, onLogout }) {
     return () => unsub();
   }, [userId]);
 
-  const jobsByStage = (stageId) => jobs.filter(j => (j.workspaceStage || 'proposta') === stageId);
+  const jobsByStage = (stageId) => jobs.filter(j => (j.workspaceStage || 'Proposta') === stageId);
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D1B2A', display: 'flex', fontFamily: 'Outfit, sans-serif' }}>
