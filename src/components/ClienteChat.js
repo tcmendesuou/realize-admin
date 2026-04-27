@@ -191,7 +191,14 @@ export default function ClienteChat({ userData, onClose }) {
           const suppServSnap = await getDocs(collection(db, 'supplierServices'));
           const suppServs = suppServSnap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(s => s.ativo !== false && servicosNecessarios.includes(s.serviceName));
+            .filter(s => s.ativo !== false && (
+              servicosNecessarios.includes(s.serviceName) ||
+              servicosNecessarios.includes(s.serviceParentName) ||
+              servicosNecessarios.some(sn =>
+                s.serviceName?.toLowerCase().includes(sn.toLowerCase()) ||
+                sn.toLowerCase().includes(s.serviceName?.toLowerCase())
+              )
+            ));
           const supplierMap = {};
           suppServs.forEach(s => {
             if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
