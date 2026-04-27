@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, updateDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, addDoc, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const STATUS_CONFIG = {
@@ -27,13 +27,75 @@ export default function SupplierManager() {
     finally { setLoading(false); }
   };
 
+  const handleHomologar = async () => {
+    if (!window.confirm(`Homologar ${selected.tradeName || selected.companyName}? Isso criará um acesso de login para o fornecedor.`)) return;
+    setSaving(true);
+    try {
+      // Verifica se já existe usuário com esse email
+      const existing = await getDocs(query(collection(db, 'users'), where('email', '==', selected.email)));
+      let userId = null;
+      if (existing.empty) {
+        // Cria usuário em users
+        const userRef = await addDoc(collection(db, 'users'), {
+          name: selected.contactName || selected.tradeName || selected.companyName,
+          email: selected.email,
+          phone: selected.phone || '',
+          systemRole: 'fornecedor',
+          active: true,
+          supplierId: selected.id,
+          companyName: selected.tradeName || selected.companyName,
+          createdAt: new Date(),
+        });
+        userId = userRef.id;
+      } else {
+        userId = existing.docs[0].id;
+        // Atualiza o systemRole caso esteja diferente
+        await updateDoc(doc(db, 'users', userId), { systemRole: 'fornecedor', active: true, supplierId: selected.id });
+      }
+      // Atualiza o supplier
+      await updateDoc(doc(db, 'suppliers', selected.id), { status: 'homologado', userId, obs, updatedAt: new Date() });
+      await loadSuppliers();
+      setSelected(prev => prev ? { ...prev, status: 'homologado', userId } : null);
+      alert('Fornecedor homologado! Acesso de login criado.');
+    } catch (e) { console.error(e); alert('Erro ao homologar.'); }
+    finally { setSaving(false); }
+  };
+
   const handleStatus = async (id, newStatus) => {
     setSaving(true);
     try {
       await updateDoc(doc(db, 'suppliers', id), { status: newStatus, obs, updatedAt: new Date() });
+      // Se inativar, desativa o usuário também
+      if (newStatus === 'inativo' && selected?.userId) {
+        await updateDoc(doc(db, 'users', selected.userId), { active: false });
+      }
+      // Se reativar de recusado para homologado, reativa o usuário
+      if (newStatus === 'homologado' && selected?.userId) {
+        await updateDoc(doc(db, 'users', selected.userId), { active: true });
+      }
       await loadSuppliers();
       setSelected(prev => prev ? { ...prev, status: newStatus, obs } : null);
     } catch (e) { console.error(e); alert('Erro ao atualizar.'); }
+    finally { setSaving(false); }
+  };
+
+  const handleExcluir = async () => {
+    const nome = selected.tradeName || selected.companyName;
+    if (!window.confirm(`Excluir o fornecedor "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    setSaving(true);
+    try {
+      // Remove o usuário vinculado se existir
+      if (selected.userId) {
+        await deleteDoc(doc(db, 'users', selected.userId));
+      }
+      // Remove supplierServices vinculados
+      const svSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', selected.id)));
+      await Promise.all(svSnap.docs.map(d => deleteDoc(doc(db, 'supplierServices', d.id))));
+      // Remove o supplier
+      await deleteDoc(doc(db, 'suppliers', selected.id));
+      setSelected(null);
+      await loadSuppliers();
+    } catch (e) { console.error(e); alert('Erro ao excluir.'); }
     finally { setSaving(false); }
   };
 
@@ -163,9 +225,9 @@ export default function SupplierManager() {
             {/* Ações */}
             <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 8 }}>
               {selected.status !== 'homologado' && (
-                <button onClick={() => handleStatus(selected.id, 'homologado')} disabled={saving}
+                <button onClick={handleHomologar} disabled={saving}
                   style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  ✓ Homologar
+                  Homologar
                 </button>
               )}
               {selected.status !== 'recusado' && (
@@ -186,6 +248,10 @@ export default function SupplierManager() {
                   Salvar obs.
                 </button>
               )}
+              <button onClick={handleExcluir} disabled={saving}
+                style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                Excluir
+              </button>
             </div>
           </>
         )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ProjectDetailModal from './ProjectDetailModal';
 import '../styles/Projects.css';
@@ -175,11 +175,16 @@ function Projects() {
 
   const handleDelete = async (project) => {
     const jobLabel = project.jobCode || getProjectName(project);
-    if (!window.confirm(`Excluir o job "${jobLabel}"?\n\nEsta ação não pode ser desfeita. Todos os budgets filhos (feiras) também serão excluídos.`)) return;
+    if (!window.confirm(`Excluir o job "${jobLabel}"?\n\nEsta ação não pode ser desfeita.`)) return;
     try {
+      // Exclui supplierJobs vinculados
+      const sjSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', project.id)));
+      await Promise.all(sjSnap.docs.map(d => deleteDoc(doc(db, 'supplierJobs', d.id))));
+      // Exclui budgets filhos
       const allSnap = await getDocs(collection(db, 'budgets'));
       const filhos = allSnap.docs.filter(d => d.data().parentBudgetId === project.id);
       await Promise.all(filhos.map(d => deleteDoc(doc(db, 'budgets', d.id))));
+      // Exclui o budget principal
       await deleteDoc(doc(db, 'budgets', project.id));
       await loadProjects();
     } catch (err) {

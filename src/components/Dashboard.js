@@ -102,7 +102,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container" style={{ overflowY: "auto", height: "100%" }}>
       {/* HEADER */}
       <div className="dashboard-header">
         <div>
