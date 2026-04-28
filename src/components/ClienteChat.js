@@ -91,7 +91,7 @@ export default function ClienteChat({ userData, onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-5',
           max_tokens: 1000,
           system: systemPrompt,
           tools: [{ type: 'web_search_20250305', name: 'web_search' }],
@@ -303,7 +303,7 @@ Responda APENAS com JSON válido neste formato:
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5',
             max_tokens: 4000,
             system: 'Você é um especialista em planejamento de eventos. Responda APENAS com JSON válido, sem texto adicional, sem markdown, sem backticks.',
             messages: [{ role: 'user', content: cronogramaPrompt }],
