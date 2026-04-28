@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, getDocs, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, addDoc, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ClienteChat from './ClienteChat';
 
@@ -257,11 +257,50 @@ export default function ClienteHome({ userData, onLogout }) {
                           updatedAt: serverTimestamp(),
                           timeline: [...(selectedEvent.timeline || []), { action: 'approved', description: 'Orcamento aprovado pelo cliente', timestamp: new Date() }],
                         });
-                        // Atualiza stage dos supplierJobs confirmados para aguardando
+                        // Atualiza stage dos supplierJobs confirmados para aguardando + cria tasks
                         try {
                           const sjSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', selectedEvent.id), where('status', '==', 'confirmed')));
-                          await Promise.all(sjSnap.docs.map(d => updateDoc(doc(db, 'supplierJobs', d.id), { stage: 'aguardando', updatedAt: serverTimestamp() })));
-                        } catch (e) { console.error(e); }
+                          const sjs = sjSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                          const cronograma = selectedEvent.cronograma?.etapas || [];
+                          const diasEvento = selectedEvent.briefingData?.evento?.diasDuracao || 1;
+
+                          await Promise.all(sjs.map(async sj => {
+                            // Atualiza stage
+                            await updateDoc(doc(db, 'supplierJobs', sj.id), { stage: 'aguardando', updatedAt: serverTimestamp() });
+
+                            // Busca etapa do cronograma que bate com o serviço
+                            const etapa = cronograma.find(e =>
+                              (e.nome||'').toLowerCase().includes((sj.serviceName||'').toLowerCase()) ||
+                              (sj.serviceName||'').toLowerCase().includes((e.nome||'').toLowerCase()) ||
+                              (e.responsavel||'').toLowerCase().includes((sj.serviceName||'').toLowerCase())
+                            );
+
+                            // Cria task
+                            await addDoc(collection(db, 'tasks'), {
+                              budgetId:     selectedEvent.id,
+                              supplierJobId: sj.id,
+                              supplierId:   sj.supplierId,
+                              supplierName: sj.supplierName || sj.confirmedBy || '',
+                              serviceName:  sj.serviceName || '',
+                              serviceParentName: sj.serviceParentName || '',
+                              tipoServico:  sj.tipoServico || '',
+                              nome:         sj.serviceName || '',
+                              descricao:    etapa?.descricao || '',
+                              dataInicio:   etapa?.dataInicio || etapa?.di || '',
+                              dataEntrega:  etapa?.dataEntrega || etapa?.de || '',
+                              diasAntes:    etapa?.diasAntes || 0,
+                              diasPreparo:  sj.diasPreparo || 0,
+                              diasMontagem: sj.diasMontagem || 0,
+                              diasEvento,
+                              valor:        sj.preco ? parseFloat(sj.preco) * diasEvento : 0,
+                              preco:        parseFloat(sj.preco || 0),
+                              unidade:      sj.unidade || '',
+                              status:       'pendente',
+                              observacao:   sj.observacaoFornecedor || '',
+                              createdAt:    serverTimestamp(),
+                            });
+                          }));
+                        } catch (e) { console.error('Erro ao criar tasks:', e); }
                         setSelectedEvent(null);
                       } catch (e) { alert('Erro ao aprovar.'); }
                       finally { setAprovando(false); }
