@@ -548,32 +548,87 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                     {supplierJobsMine.map(sj => {
-                      const nome = sj.serviceName || (sj.serviceNames || [])[0];
+                      const nome        = sj.serviceName || (sj.serviceNames || [])[0];
                       const isPending   = sj.status === 'pending' || !sj.status;
                       const isConfirmed = sj.status === 'confirmed';
                       const isRejected  = sj.status === 'rejected';
+                      const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
+                      const qtdPessoas  = project.briefingData?.evento?.visitantesPorDia || project.guestCount || null;
+                      const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
                       return (
-                        <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : 'rgba(0,180,255,0.1)'}`, background: isConfirmed ? 'rgba(16,185,129,0.03)' : isRejected ? 'rgba(239,68,68,0.03)' : 'white' }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
-                            {sj.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{sj.serviceParentName}</div>}
-                            {sj.diasPreparo > 0 && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>⏱ {sj.diasPreparo} dias de preparo</div>}
+                        <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden' }}>
+                          {/* Header do item */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid #f8faff' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
+                              {sj.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{sj.serviceParentName}</div>}
+                            </div>
+                            {isConfirmed && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>✓ Confirmado</span>}
+                            {isRejected && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✗ Recusado</span>}
                           </div>
+                          {/* Infos do item */}
+                          <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+                            {valorTotal && (
+                              <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Seu valor</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>R$ {parseFloat(sj.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {diasEvento} dia(s)</div>
+                              </div>
+                            )}
+                            {sj.diasPreparo > 0 && (
+                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Preparo</div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>antes do evento</div>
+                              </div>
+                            )}
+                            {sj.diasMontagem > 0 && (
+                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Montagem</div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>no local</div>
+                              </div>
+                            )}
+                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
+                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Duração</div>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dia(s)</div>
+                              <div style={{ fontSize: 10, color: '#94a3b8' }}>do evento</div>
+                            </div>
+                            {qtdPessoas && (
+                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Pessoas/dia</div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{qtdPessoas}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>visitantes</div>
+                              </div>
+                            )}
+                          </div>
+                          {/* Observação */}
+                          <div style={{ padding: '0 16px 14px' }}>
+                            <textarea
+                              defaultValue={sj.observacaoFornecedor || ''}
+                              onBlur={async e => {
+                                if (e.target.value !== (sj.observacaoFornecedor || '')) {
+                                  await updateDoc(doc(db, 'supplierJobs', sj.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() });
+                                }
+                              }}
+                              placeholder="Observações (especificações técnicas, detalhes do serviço...)"
+                              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 60, boxSizing: 'border-box', outline: 'none', color: '#475569' }}
+                            />
+                          </div>
+                          {/* Botões */}
                           {isPending && (
-                            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', justifyContent: 'flex-end' }}>
                               <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming}
-                                style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                                 Recusar
                               </button>
                               <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming}
-                                style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                                 Confirmar
                               </button>
                             </div>
                           )}
-                          {isConfirmed && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', color: '#10b981', flexShrink: 0 }}>✓ Confirmado</span>}
-                          {isRejected && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(239,68,68,0.1)', color: '#ef4444', flexShrink: 0 }}>✗ Recusado</span>}
                         </div>
                       );
                     })}
