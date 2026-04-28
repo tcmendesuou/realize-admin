@@ -188,6 +188,22 @@ export default function ServicoEspecialManager() {
     finally { setLoading(false); }
   };
 
+  const handleDeleteTipo = async (tipo) => {
+    if (!window.confirm(`Excluir o tipo "${tipo.nome}"?\n\nTodos os modelos vinculados também serão excluídos.`)) return;
+    try {
+      // Exclui modelos e fotos vinculados
+      const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('tipoEspecialId', '==', tipo.id)));
+      for (const d of modelosSnap.docs) {
+        const m = d.data();
+        if (m.fotoPath) { try { await deleteObject(ref(storage, m.fotoPath)); } catch {} }
+        await deleteDoc(doc(db, 'modelosEspeciais', d.id));
+      }
+      await deleteDoc(doc(db, 'tiposEspeciais', tipo.id));
+      if (tipoAtivo === tipo.id) setTipoAtivo(null);
+      await loadAll();
+    } catch (e) { console.error(e); alert('Erro ao excluir.'); }
+  };
+
   const handleSaveTipo = async () => {
     if (!novoTipo.nome.trim()) { alert('Nome obrigatório'); return; }
     setSavingTipo(true);
@@ -286,11 +302,21 @@ export default function ServicoEspecialManager() {
           <div style={{ width: 220, flexShrink: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Tipos</div>
             {tipos.map(t => (
-              <div key={t.id} onClick={() => { setTipoAtivo(t.id); setGerenciandoAcesso(false); setShowModeloForm(false); setEditandoModelo(null); }}
-                style={{ padding: '12px 14px', borderRadius: 10, border: `1px solid ${tipoAtivo === t.id ? '#667eea' : '#e2e8f0'}`, background: tipoAtivo === t.id ? '#f0f3ff' : 'white', cursor: 'pointer', marginBottom: 8, transition: 'all 0.15s' }}>
-                <div style={{ fontSize: 13, fontWeight: tipoAtivo === t.id ? 600 : 400, color: tipoAtivo === t.id ? '#667eea' : '#1e293b' }}>{t.nome}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                  {modelos.filter(m => m.tipoEspecialId === t.id).length} modelo(s) · {(t.fornecedoresAutorizados || []).length} fornecedor(es)
+              <div key={t.id}
+                style={{ padding: '12px 14px', borderRadius: 10, border: `1px solid ${tipoAtivo === t.id ? '#667eea' : '#e2e8f0'}`, background: tipoAtivo === t.id ? '#f0f3ff' : 'white', marginBottom: 8, transition: 'all 0.15s' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => { setTipoAtivo(t.id); setGerenciandoAcesso(false); setShowModeloForm(false); setEditandoModelo(null); }}>
+                    <div style={{ fontSize: 13, fontWeight: tipoAtivo === t.id ? 600 : 400, color: tipoAtivo === t.id ? '#667eea' : '#1e293b' }}>{t.nome}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      {modelos.filter(m => m.tipoEspecialId === t.id).length} modelo(s) · {(t.fornecedoresAutorizados || []).length} fornecedor(es)
+                    </div>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); handleDeleteTipo(t); }}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 14, cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, opacity: 0.5, transition: 'opacity 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                    onMouseLeave={e => e.currentTarget.style.opacity = 0.5}>
+                    ✕
+                  </button>
                 </div>
               </div>
             ))}
