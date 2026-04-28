@@ -155,6 +155,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     finally { setConfirming(false); }
   };
 
+  // Disparo automático quando todos os supplierJobs forem respondidos
+  useEffect(() => {
+    if (!project || !supplierJobs.length) return;
+    if (project.status !== 'analyzing') return;
+    const todosRespondidos = supplierJobs.every(j => j.status === 'confirmed' || j.status === 'rejected');
+    const algumConfirmado  = supplierJobs.some(j => j.status === 'confirmed');
+    if (todosRespondidos && algumConfirmado) {
+      handleGerarOrcamento();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierJobs]);
+
   const handleGerarOrcamento = async () => {
     setGerandoOrcamento(true);
     try {
@@ -610,12 +622,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
                   {/* Botão gerar orçamento */}
                   {todosConfirmados && project.status !== 'pendingApproval' && project.status !== 'approved' && (
-                    <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center' }}>
-                      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>Todos os fornecedores confirmaram! Gere o orçamento final para enviar ao cliente.</div>
-                      <button onClick={handleGerarOrcamento} disabled={gerandoOrcamento}
-                        style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: gerandoOrcamento ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: gerandoOrcamento ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                        {gerandoOrcamento ? 'Gerando...' : '📋 Gerar Orçamento Final'}
-                      </button>
+                    <div style={{ marginTop: 16, padding: 14, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center', fontSize: 13, color: '#00E5C4' }}>
+                      {gerandoOrcamento ? '⏳ Gerando orçamento automaticamente...' : '✓ Processando — orçamento sendo enviado ao cliente'}
                     </div>
                   )}
                   {project.status === 'pendingApproval' && (
