@@ -113,34 +113,45 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     });
   };
 
-  const handleConfirmarFornecedor = async () => {
-    if (supplierJobsMine.length === 0) return;
+  const handleConfirmarItem = async (sjId, serviceName) => {
     setConfirming(true);
     try {
-      // Confirma todos os jobs pendentes do fornecedor
-      const pendentes = supplierJobsMine.filter(sj => sj.status !== 'confirmed');
-      for (const sj of pendentes) {
-        await updateDoc(doc(db, 'supplierJobs', sj.id), {
-          status: 'confirmed',
-          confirmedAt: serverTimestamp(),
-          confirmedBy: userData?.name,
-        });
-      }
-      // Atualiza timeline do budget
-      const servicosConfirmados = supplierJobsMine.map(sj => sj.serviceName || sj.serviceNames?.[0]).filter(Boolean);
+      await updateDoc(doc(db, 'supplierJobs', sjId), {
+        status: 'confirmed',
+        confirmedAt: serverTimestamp(),
+        confirmedBy: userData?.name,
+      });
+      // Atualiza timeline
       await updateDoc(doc(db, 'budgets', projectId), {
-        supplierConfirmations: [
-          ...(project.supplierConfirmations || []),
-          { supplierId: userData?.id, supplierName: userData?.name, serviceNames: servicosConfirmados, confirmedAt: new Date() }
-        ],
         timeline: [
           ...(project.timeline || []),
-          { action: 'supplier_confirmed', description: `Fornecedor "${userData?.name}" confirmou disponibilidade para: ${servicosConfirmados.join(', ')}`, userId: userData?.id, userName: userData?.name, timestamp: new Date() }
+          { action: 'supplier_confirmed', description: `Fornecedor "${userData?.name}" confirmou: ${serviceName}`, userId: userData?.id, userName: userData?.name, timestamp: new Date() }
         ],
         updatedAt: serverTimestamp(),
       });
-      setSupplierJobsMine(prev => prev.map(sj => ({ ...sj, status: 'confirmed' })));
+      setSupplierJobsMine(prev => prev.map(sj => sj.id === sjId ? { ...sj, status: 'confirmed' } : sj));
     } catch (e) { console.error(e); alert('Erro ao confirmar.'); }
+    finally { setConfirming(false); }
+  };
+
+  const handleRecusarItem = async (sjId, serviceName) => {
+    if (!window.confirm(`Recusar "${serviceName}"?`)) return;
+    setConfirming(true);
+    try {
+      await updateDoc(doc(db, 'supplierJobs', sjId), {
+        status: 'rejected',
+        rejectedAt: serverTimestamp(),
+        rejectedBy: userData?.name,
+      });
+      await updateDoc(doc(db, 'budgets', projectId), {
+        timeline: [
+          ...(project.timeline || []),
+          { action: 'supplier_rejected', description: `Fornecedor "${userData?.name}" recusou: ${serviceName}`, userId: userData?.id, userName: userData?.name, timestamp: new Date() }
+        ],
+        updatedAt: serverTimestamp(),
+      });
+      setSupplierJobsMine(prev => prev.map(sj => sj.id === sjId ? { ...sj, status: 'rejected' } : sj));
+    } catch (e) { console.error(e); alert('Erro ao recusar.'); }
     finally { setConfirming(false); }
   };
 
@@ -524,37 +535,40 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               ) : (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-                    {supplierJobsMine.map(sj => (
-                      <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1px solid ${sj.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(0,180,255,0.1)'}`, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.03)' : 'white' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: sj.status === 'confirmed' ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.serviceName || (sj.serviceNames || [])[0]}</div>
-                          {sj.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{sj.serviceParentName}</div>}
-                          {sj.diasPreparo > 0 && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>⏱ {sj.diasPreparo} dias de preparo</div>}
+                    {supplierJobsMine.map(sj => {
+                      const nome = sj.serviceName || (sj.serviceNames || [])[0];
+                      const isPending   = sj.status === 'pending' || !sj.status;
+                      const isConfirmed = sj.status === 'confirmed';
+                      const isRejected  = sj.status === 'rejected';
+                      return (
+                        <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : 'rgba(0,180,255,0.1)'}`, background: isConfirmed ? 'rgba(16,185,129,0.03)' : isRejected ? 'rgba(239,68,68,0.03)' : 'white' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
+                            {sj.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{sj.serviceParentName}</div>}
+                            {sj.diasPreparo > 0 && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>⏱ {sj.diasPreparo} dias de preparo</div>}
+                          </div>
+                          {isPending && (
+                            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming}
+                                style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                Recusar
+                              </button>
+                              <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming}
+                                style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                Confirmar
+                              </button>
+                            </div>
+                          )}
+                          {isConfirmed && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', color: '#10b981', flexShrink: 0 }}>✓ Confirmado</span>}
+                          {isRejected && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(239,68,68,0.1)', color: '#ef4444', flexShrink: 0 }}>✗ Recusado</span>}
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: sj.status === 'confirmed' ? '#10b981' : '#f59e0b' }}>
-                          {sj.status === 'confirmed' ? '✓ Confirmado' : 'Aguardando'}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                  {/* Botão confirmar todos pendentes */}
-                  {supplierJobsMine.some(sj => sj.status !== 'confirmed') && (
-                    <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.15)', padding: 20, textAlign: 'center' }}>
-                      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
-                        Confirme sua disponibilidade para este evento. O coordenador será notificado.
-                      </div>
-                      <button onClick={handleConfirmarFornecedor} disabled={confirming}
-                        style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: confirming ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: confirming ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                        {confirming ? 'Confirmando...' : '✓ Confirmar Disponibilidade'}
-                      </button>
-                    </div>
-                  )}
-                  {supplierJobsMine.every(sj => sj.status === 'confirmed') && (
-                    <div style={{ background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', padding: 20, textAlign: 'center' }}>
-                      <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
-                      <div style={{ fontSize: 15, fontWeight: 500, color: '#10b981', marginBottom: 4 }}>Disponibilidade confirmada!</div>
-                      <div style={{ fontSize: 13, color: '#64748b' }}>O coordenador foi notificado. Aguarde a aprovação do cliente.</div>
+                  {supplierJobsMine.every(sj => sj.status === 'confirmed' || sj.status === 'rejected') && (
+                    <div style={{ background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', padding: 16, textAlign: 'center', marginTop: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: '#10b981' }}>✓ Todas as tarefas respondidas! O coordenador foi notificado.</div>
                     </div>
                   )}
                 </>
