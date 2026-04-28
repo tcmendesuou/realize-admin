@@ -29,7 +29,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [salvandoJob, setSalvandoJob]           = useState(false);
 
   // Tarefas
-  const [tasks, setTasks]         = useState([]);
+  const [tasks, setTasks]               = useState([]);
+  const [projectTasks, setProjectTasks] = useState([]);
+  const [showConcluidas, setShowConcluidas] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [newTask, setNewTask]     = useState({ name: '', descricao: '', prazo: '', prioridade: 'normal' });
   const [savingTask, setSavingTask] = useState(false);
@@ -87,6 +89,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     });
     return () => unsub();
   }, [projectId, userData?.id]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'tasks'), where('budgetId', '==', projectId)),
+      snap => setProjectTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [projectId]);
 
   const handleAddTask = async () => {
     if (!newTask.name.trim()) { alert('Nome da tarefa obrigatório'); return; }
@@ -1117,6 +1128,86 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   <div style={{ height: 1, background: '#f0f2f5', margin: '20px 0' }} />
                 </div>
               )}
+
+              {/* Tasks formais da collection (pós-aprovação) */}
+              {projectTasks.length > 0 && (() => {
+                const TIPO_COR = { estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A', administrativo: '#7BAFD4' };
+                const hoje2 = new Date(); hoje2.setHours(0,0,0,0);
+                const tasksPendentes  = projectTasks.filter(t => t.status !== 'concluido');
+                const tasksConcluidas = projectTasks.filter(t => t.status === 'concluido');
+
+                const renderTaskCoord = (task) => {
+                  const cor = TIPO_COR[task.tipoServico] || '#7BAFD4';
+                  const deDate = task.dataEntrega ? new Date(task.dataEntrega) : null;
+                  const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
+                  const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
+                  const valorTotal = task.valor || (task.preco ? parseFloat(task.preco) * diasEvento : 0);
+                  return (
+                    <div key={task.id} style={{ borderRadius: 10, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 10, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #f8faff' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: atrasada ? '#ef4444' : cor, flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</div>
+                          {task.supplierName && <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>{task.supplierName}</div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {atrasada && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>⚠ Atrasada</span>}
+                          <select value={task.status || 'pendente'} onChange={async e => {
+                            await updateDoc(doc(db, 'tasks', task.id), { status: e.target.value, updatedAt: serverTimestamp() });
+                          }} style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', background: 'white' }}>
+                            <option value="pendente">Pendente</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluido">Concluído</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+                        {valorTotal > 0 && (
+                          <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
+                            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Valor</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                          </div>
+                        )}
+                        {task.dataInicio && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Início</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.dataInicio.split('-').reverse().join('/')}</div></div>}
+                        {task.dataEntrega && <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Entrega</div><div style={{ fontSize: 12, fontWeight: 600, color: atrasada ? '#ef4444' : '#1e293b' }}>{task.dataEntrega.split('-').reverse().join('/')}</div></div>}
+                        {task.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasPreparo}d</div></div>}
+                        {task.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem}d</div></div>}
+                        {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs.</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacao}</div></div>}
+                        {task.observacaoFornecedor && <div style={{ background: '#f0f9ff', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacaoFornecedor}</div></div>}
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
+                      Tarefas do Projeto ({tasksConcluidas.length}/{projectTasks.length} concluídas)
+                    </div>
+                    {tasksPendentes.map(renderTaskCoord)}
+                    {tasksConcluidas.length > 0 && (
+                      <>
+                        <button onClick={() => setShowConcluidas(s => !s)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1 }}>
+                          <span style={{ transform: showConcluidas ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
+                          Concluídas ({tasksConcluidas.length})
+                        </button>
+                        {showConcluidas && tasksConcluidas.map(task => (
+                          <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, opacity: 0.6 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontSize: 12, fontWeight: 500, color: '#64748b' }}>{task.nome || task.serviceName}</span>
+                              {task.supplierName && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{task.supplierName}</span>}
+                            </div>
+                            <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ Concluída</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    <div style={{ height: 1, background: '#f0f2f5', margin: '16px 0' }} />
+                  </div>
+                );
+              })()}
 
               {showTaskForm && (
                 <div style={{ background: '#f8faff', borderRadius: 10, border: '1px solid #e0e8ff', padding: 16, marginBottom: 16 }}>
