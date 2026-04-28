@@ -517,64 +517,177 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             </>
           )}
 
-          {/* ── CRONOGRAMA ── */}
-          {activeTab === 'cronograma' && (
-            <div className="ps-card">
-              <div className="ps-card-title">Cronograma de Produção</div>
-              {cronograma.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>
-                  Cronograma ainda não gerado
+          {/* ── CRONOGRAMA GANTT ── */}
+          {activeTab === 'cronograma' && (() => {
+            if (cronograma.length === 0) return (
+              <div className="ps-card" style={{ textAlign: 'center', padding: 60, color: '#94a3b8', fontSize: 13 }}>
+                Cronograma ainda não gerado
+              </div>
+            );
+
+            const TIPO_COR = { administrativo: '#7BAFD4', estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A' };
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            const toDate = s => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(y, m-1, d); };
+            const fmtShort = s => { if (!s) return ''; const [y,m,d] = s.split('-'); return `${d}/${m}`; };
+
+            // Ordena por dataInicio
+            const etapasOrdenadas = [...cronograma].sort((a,b) => {
+              const da = toDate(a.dataInicio || a.di);
+              const db2 = toDate(b.dataInicio || b.di);
+              return (da||0) - (db2||0);
+            });
+
+            // Range de datas para o Gantt
+            const datas = etapasOrdenadas.flatMap(e => [
+              toDate(e.dataInicio || e.di),
+              toDate(e.dataEntrega || e.de),
+            ]).filter(Boolean);
+            const minDate = datas.length ? new Date(Math.min(...datas)) : hoje;
+            const maxDate = datas.length ? new Date(Math.max(...datas)) : hoje;
+            minDate.setDate(minDate.getDate() - 3);
+            maxDate.setDate(maxDate.getDate() + 5);
+            const totalDias = Math.max(1, Math.round((maxDate - minDate) / 86400000));
+
+            const posLeft = d => d ? Math.max(0, Math.round((d - minDate) / 86400000) / totalDias * 100) : 0;
+            const posWidth = (di, de) => {
+              if (!di || !de) return 2;
+              const w = Math.max(0.5, Math.round((de - di) / 86400000) / totalDias * 100);
+              return Math.min(w, 100 - posLeft(di));
+            };
+            const hojePos = posLeft(hoje);
+
+            // Fornecedores por responsável
+            const fornecedorNome = {};
+            supplierJobs.forEach(sj => {
+              if (sj.supplierName) fornecedorNome[sj.serviceName] = sj.supplierName;
+            });
+
+            // Gera marcadores de datas (a cada 7 dias)
+            const marcadores = [];
+            const cur = new Date(minDate);
+            while (cur <= maxDate) {
+              marcadores.push(new Date(cur));
+              cur.setDate(cur.getDate() + 7);
+            }
+
+            const ROW_H = 44;
+            const LABEL_W = 180;
+
+            return (
+              <div className="ps-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="ps-card-title" style={{ margin: 0 }}>Cronograma de Produção</div>
+                  {/* Legenda */}
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {Object.entries(TIPO_COR).map(([tipo, cor]) => (
+                      <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: 2, background: cor }} />
+                        <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'capitalize' }}>{tipo}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: 2, height: 10, background: '#ef4444' }} />
+                      <span style={{ fontSize: 10, color: '#94a3b8' }}>Hoje</span>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  {cronograma.sort((a, b) => (a.diasAntes || 0) > (b.diasAntes || 0) ? -1 : 1).map((etapa, i) => {
-                    const TIPO_COR = { administrativo: '#7BAFD4', estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A' };
-                    const STATUS_COR = { pendente: '#f59e0b', em_andamento: '#3b82f6', concluido: '#10b981', atrasado: '#ef4444' };
-                    const cor  = TIPO_COR[etapa.tipo] || '#7BAFD4';
-                    const scor = STATUS_COR[etapa.status] || '#f59e0b';
-                    const isMine = isFornecedor && (etapa.responsavel === 'fornecedor' || (supplierJob?.serviceNames || []).some(sn => etapa.responsavel?.toLowerCase().includes(sn.toLowerCase())));
-                    return (
-                      <div key={etapa.id || i} style={{ display: 'flex', gap: 16, marginBottom: 16, opacity: etapa.status === 'concluido' ? 0.7 : 1 }}>
-                        {/* Linha vertical + dot */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: cor, border: `2px solid ${cor}44`, flexShrink: 0, marginTop: 4 }} />
-                          {i < cronograma.length - 1 && <div style={{ width: 2, flex: 1, background: '#f0f2f5', marginTop: 4 }} />}
+
+                <div style={{ overflowX: 'auto', padding: '0 0 16px' }}>
+                  <div style={{ minWidth: 700 }}>
+                    {/* Header de datas */}
+                    <div style={{ display: 'flex', marginLeft: LABEL_W, borderBottom: '1px solid #f0f2f5', position: 'relative', height: 28 }}>
+                      {marcadores.map((d, i) => (
+                        <div key={i} style={{ position: 'absolute', left: `${posLeft(d)}%`, fontSize: 9, color: '#94a3b8', paddingTop: 6, borderLeft: '1px solid #f0f2f5', paddingLeft: 3, whiteSpace: 'nowrap' }}>
+                          {d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                         </div>
-                        {/* Conteúdo */}
-                        <div style={{ flex: 1, background: isMine ? `${cor}08` : 'white', borderRadius: 10, border: `1px solid ${isMine ? cor + '33' : '#f0f2f5'}`, padding: '12px 16px', marginBottom: 4 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                            <div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{etapa.nome}</span>
-                              {isMine && <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${cor}22`, color: cor, fontWeight: 700 }}>Sua tarefa</span>}
+                      ))}
+                    </div>
+
+                    {/* Linhas do Gantt */}
+                    {etapasOrdenadas.map((etapa, i) => {
+                      const cor     = TIPO_COR[etapa.tipo] || '#7BAFD4';
+                      const di      = toDate(etapa.dataInicio || etapa.di);
+                      const de      = toDate(etapa.dataEntrega || etapa.de);
+                      const atrasado = de && de < hoje && etapa.status !== 'concluido';
+                      const barCor  = atrasado ? '#ef4444' : etapa.status === 'concluido' ? '#94a3b8' : cor;
+                      const left    = posLeft(di);
+                      const width   = posWidth(di, de);
+                      const isMine  = isFornecedor && supplierJobsMine.some(sj =>
+                        etapa.responsavel?.toLowerCase().includes((sj.serviceName||'').toLowerCase())
+                      );
+                      const fornNome = fornecedorNome[etapa.responsavel] || etapa.responsavel;
+
+                      return (
+                        <div key={etapa.id || i} style={{ display: 'flex', alignItems: 'center', height: ROW_H, borderBottom: '1px solid #f8faff', background: i % 2 === 0 ? 'white' : '#fafbff' }}>
+                          {/* Label */}
+                          <div style={{ width: LABEL_W, flexShrink: 0, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: isMine ? 700 : 500, color: isMine ? cor : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {isMine && '★ '}{etapa.nome}
                             </div>
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${scor}15`, color: scor, fontWeight: 600 }}>
-                                {etapa.status === 'pendente' ? 'Pendente' : etapa.status === 'em_andamento' ? 'Em andamento' : etapa.status === 'concluido' ? '✓ Concluído' : 'Atrasado'}
-                              </span>
+                            <div style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {fornNome !== etapa.responsavel ? fornNome : etapa.responsavel}
                             </div>
                           </div>
-                          {etapa.descricao && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>{etapa.descricao}</div>}
-                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                            {etapa.dataEntrega && (
-                              <span style={{ fontSize: 11, color: '#475569' }}>
-                                📅 Entrega: <strong>{etapa.dataEntrega.split('-').reverse().join('/')}</strong>
-                              </span>
+
+                          {/* Área do Gantt */}
+                          <div style={{ flex: 1, position: 'relative', height: '100%' }}>
+                            {/* Linha de hoje */}
+                            {hojePos >= 0 && hojePos <= 100 && (
+                              <div style={{ position: 'absolute', left: `${hojePos}%`, top: 0, bottom: 0, width: 2, background: '#ef444455', zIndex: 2 }} />
                             )}
-                            {etapa.diasAntes > 0 && (
-                              <span style={{ fontSize: 11, color: '#94a3b8' }}>{etapa.diasAntes} dias antes do evento</span>
+                            {/* Barra */}
+                            {di && de && (
+                              <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: `${barCor}cc`, border: `1px solid ${barCor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
+                                title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)}`}>
+                                {width > 8 && <span style={{ fontSize: 9, color: 'white', fontWeight: 600, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtShort(etapa.dataEntrega||etapa.de)}</span>}
+                              </div>
                             )}
-                            {etapa.responsavel && (
-                              <span style={{ fontSize: 11, color: cor, fontWeight: 500 }}>👤 {etapa.responsavel}</span>
+                            {/* Badge status */}
+                            {atrasado && (
+                              <div style={{ position: 'absolute', left: `${left + width + 0.5}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>⚠ atrasado</div>
                             )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Lista detalhada abaixo do Gantt */}
+                <div style={{ padding: '0 24px 20px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', margin: '16px 0 10px' }}>Detalhes</div>
+                  {etapasOrdenadas.map((etapa, i) => {
+                    const cor = TIPO_COR[etapa.tipo] || '#7BAFD4';
+                    const di  = toDate(etapa.dataInicio || etapa.di);
+                    const de  = toDate(etapa.dataEntrega || etapa.de);
+                    const atrasado = de && de < hoje && etapa.status !== 'concluido';
+                    const sj  = supplierJobs.find(j => etapa.responsavel?.toLowerCase().includes((j.serviceName||'').toLowerCase()));
+                    return (
+                      <div key={etapa.id || i} style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid #f8faff', alignItems: 'flex-start' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: atrasado ? '#ef4444' : cor, flexShrink: 0, marginTop: 5 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{etapa.nome}</span>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                              {atrasado && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>⚠ Atrasado</span>}
+                              {etapa.dataInicio && <span style={{ fontSize: 11, color: '#64748b' }}>{fmtShort(etapa.dataInicio||etapa.di)} → {fmtShort(etapa.dataEntrega||etapa.de)}</span>}
+                              {etapa.diasAntes > 0 && <span style={{ fontSize: 10, color: '#94a3b8' }}>{etapa.diasAntes}d antes</span>}
+                            </div>
+                          </div>
+                          {etapa.descricao && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{etapa.descricao}</div>}
+                          <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 10, color: cor, fontWeight: 600, textTransform: 'capitalize' }}>{etapa.tipo}</span>
+                            {sj?.supplierName && <span style={{ fontSize: 10, color: '#667eea' }}>{sj.supplierName}</span>}
+                            {etapa.responsavel && !sj?.supplierName && <span style={{ fontSize: 10, color: '#94a3b8' }}>{etapa.responsavel}</span>}
                           </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           {/* ── BRIEFING ── */}
           {activeTab === 'briefing' && (
