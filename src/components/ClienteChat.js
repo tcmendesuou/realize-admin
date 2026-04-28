@@ -94,7 +94,6 @@ export default function ClienteChat({ userData, onClose }) {
           model: 'claude-sonnet-4-6',
           max_tokens: 1000,
           system: systemPrompt,
-          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
           messages: history,
         }),
       });
