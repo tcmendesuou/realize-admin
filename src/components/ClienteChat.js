@@ -85,7 +85,8 @@ export default function ClienteChat({ userData, onClose }) {
           ).join('\n')}`
         : '';
 
-      const systemPrompt = systemScript + pricingSummary;
+      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const systemPrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -236,19 +237,26 @@ export default function ClienteChat({ userData, onClose }) {
         });
         console.log('supplierMap:', supplierMap);
 
-        for (const [supplierId, servicos] of Object.entries(supplierMap)) {
+        // Cria um supplierJob por serviço (não agrupado)
+        for (const sv of suppServs) {
           await addDoc(collection(db, 'supplierJobs'), {
-            supplierId,
+            supplierId: sv.supplierId,
             budgetId: budgetRef.id,
             eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
             clientName: userName,
             eventDate: briefingJson.evento?.dataInicio || '',
-            serviceNames: servicos,
+            serviceNames: [sv.serviceName],
+            serviceName: sv.serviceName,
+            serviceParentName: sv.serviceParentName || '',
+            tipoServico: sv.tipoServico || '',
+            preco: sv.preco || 0,
+            unidade: sv.unidade || '',
+            diasPreparo: sv.diasPreparo || 0,
             stage: 'proposta',
             status: 'pending',
             createdAt: serverTimestamp(),
           });
-          console.log('supplierJob criado para:', supplierId);
+          console.log('supplierJob criado:', sv.serviceName, '→', sv.supplierId);
         }
       } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
 
@@ -333,7 +341,7 @@ Responda APENAS com JSON válido neste formato:
 
   const renderText = (text) => {
     return text
-      .replace(/```json[\s\S]*?```/g, '<div class="bia-json-block">📋 Resumo do briefing gerado</div>')
+      .replace(/```json[\s\S]*?```/g, '<div class="bia-json-block" style="cursor:pointer" onclick="document.getElementById(\'btn-ver-resumo\').click()">📋 Resumo do briefing gerado — clique para revisar</div>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/_(.*?)_/g, '<em>$1</em>')
       .replace(/\n/g, '<br/>');
@@ -478,8 +486,26 @@ Responda APENAS com JSON válido neste formato:
               {eq.recepcionistas?.quantidade > 0 && <Field label="Recepcionistas" value={`${eq.recepcionistas.quantidade} × ${eq.recepcionistas.horasPorDia}h/dia`} />}
               {eq.seguranca?.quantidade > 0 && <Field label="Segurança" value={`${eq.seguranca.quantidade} × ${eq.seguranca.horasPorDia}h/dia`} />}
               {eq.limpeza?.quantidade > 0 && <Field label="Limpeza" value={`${eq.limpeza.quantidade} × ${eq.limpeza.horasPorDia}h/dia`} />}
+              {eq.garcons?.quantidade > 0 && <Field label="Garçons" value={`${eq.garcons.quantidade} × ${eq.garcons.horasPorDia}h/dia`} />}
+              {eq.dj?.quantidade > 0 && <Field label="DJ" value={`${eq.dj.quantidade} × ${eq.dj.horasPorDia}h/dia`} />}
+              {eq.fotografo?.quantidade > 0 && <Field label="Fotógrafo" value={`${eq.fotografo.quantidade} × ${eq.fotografo.horasPorDia}h/dia`} />}
+              {eq.operadorTecnico?.quantidade > 0 && <Field label="Op. Técnico" value={`${eq.operadorTecnico.quantidade} × ${eq.operadorTecnico.horasPorDia}h/dia`} />}
+              {/* Renderiza qualquer outro item da equipe dinamicamente */}
+              {Object.entries(eq).filter(([k]) => !['recepcionistas','seguranca','limpeza','garcons','dj','fotografo','operadorTecnico'].includes(k)).map(([k, v]) =>
+                v?.quantidade > 0 ? <Field key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} value={`${v.quantidade} × ${v.horasPorDia}h/dia`} /> : null
+              )}
             </Grid2>
           </Section>
+          {/* Serviços identificados */}
+          {briefingJson.servicosNecessarios?.length > 0 && (
+            <Section title="Serviços identificados">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {briefingJson.servicosNecessarios.map((s, i) => (
+                  <span key={i} style={{ padding: '5px 12px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 12, fontWeight: 500 }}>{s}</span>
+                ))}
+              </div>
+            </Section>
+          )}
           <div style={{ background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.2)', borderRadius: 10, padding: '12px 16px', marginTop: 8 }}>
             <p style={{ fontSize: 12, color: 'rgba(0,229,196,0.8)', lineHeight: 1.6, margin: 0 }}>
               ℹ️ Este é um <strong>pré-orçamento estimado</strong>. Os valores finais serão confirmados pelos fornecedores.
@@ -515,7 +541,7 @@ Responda APENAS com JSON válido neste formato:
         onClose={onClose}
         assistantName={assistantName}
         extra={briefingJson && (
-          <button onClick={() => {
+          <button id="btn-ver-resumo" onClick={() => {
             if (briefingJson.tipoEstande === 'modular' && modelosEspeciais.length > 0) {
               setStep('modelos');
             } else {
