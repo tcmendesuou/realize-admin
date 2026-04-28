@@ -49,10 +49,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         const sjAllSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', snap.id)));
         const allJobs = sjAllSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setSupplierJobs(allJobs);
-        // Se for fornecedor, filtra o dele
+        // Se for fornecedor, filtra todos os jobs dele
         if (userData?.systemRole === 'fornecedor') {
-          const mine = allJobs.find(j => j.supplierId === userData.id);
-          if (mine) setSupplierJob(mine);
+          const mine = allJobs.filter(j => j.supplierId === userData.id);
+          setSupplierJobsMine(mine);
+          if (mine.length > 0) setSupplierJob(mine[0]);
         }
       } catch (e) { console.error(e); }
 
