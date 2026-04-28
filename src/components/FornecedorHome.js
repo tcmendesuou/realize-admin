@@ -48,7 +48,29 @@ export default function FornecedorHome({ userData, onLogout }) {
     return () => unsub();
   }, [userId]);
 
-  const jobsByStage = (stageId) => jobs.filter(j => (j.stage || 'proposta') === stageId);
+  // Agrupa jobs por budgetId — 1 card por evento
+  const jobsAgrupados = jobs.reduce((acc, job) => {
+    const bid = job.budgetId;
+    if (!acc[bid]) {
+      acc[bid] = {
+        budgetId: bid,
+        eventName: job.eventName,
+        clientName: job.clientName,
+        eventDate: job.eventDate,
+        stage: job.stage || 'proposta',
+        status: job.status,
+        serviceNames: [],
+        jobs: [],
+      };
+    }
+    acc[bid].jobs.push(job);
+    if (job.serviceName) acc[bid].serviceNames.push(job.serviceName);
+    // Se qualquer job estiver confirmado, considera o status do grupo
+    if (job.status === 'confirmed') acc[bid].status = 'confirmed';
+    return acc;
+  }, {});
+  const jobsAgrupadosList = Object.values(jobsAgrupados);
+  const jobsByStage = (stageId) => jobsAgrupadosList.filter(j => (j.stage || 'proposta') === stageId);
 
   // ── loading inicial ───────────────────────────────────────────────────────
   if (checkingServicos) return (
@@ -206,12 +228,18 @@ export default function FornecedorHome({ userData, onLogout }) {
                       <div className="fn-col-body">
                         {cards.length === 0 ? (
                           <div className="fn-empty">Nenhum job</div>
-                        ) : cards.map(job => (
-                          <div key={job.id} className="fn-card" onClick={() => window.location.href = `/projeto/${job.budgetId}`}>
-                            <div className="fn-card-name">{job.eventName || 'Evento'}</div>
-                            {job.serviceName && <div className="fn-card-service">{job.serviceName}</div>}
-                            <div className="fn-card-client">{job.clientName || ''}</div>
-                            {job.eventDate && <div className="fn-card-date">{job.eventDate}</div>}
+                        ) : cards.map(grupo => (
+                          <div key={grupo.budgetId} className="fn-card" onClick={() => window.location.href = `/projeto/${grupo.budgetId}`}>
+                            <div className="fn-card-name">{grupo.eventName || 'Evento'}</div>
+                            <div className="fn-card-client">{grupo.clientName || ''}</div>
+                            {grupo.serviceNames.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '6px 0' }}>
+                                {grupo.serviceNames.map((s, i) => (
+                                  <span key={i} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 8, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{s}</span>
+                                ))}
+                              </div>
+                            )}
+                            {grupo.eventDate && <div className="fn-card-date">{grupo.eventDate}</div>}
                           </div>
                         ))}
                       </div>
