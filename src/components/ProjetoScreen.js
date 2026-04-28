@@ -60,7 +60,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         await Promise.all(supplierIds.map(async sid => {
           try {
             const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', sid)));
-            if (!uSnap.empty) supplierNames[sid] = uSnap.docs[0].data().name;
+            if (!uSnap.empty) {
+              const d = uSnap.docs[0].data();
+              supplierNames[sid] = d.companyName || d.name;
+            }
           } catch {}
         }));
 
@@ -781,7 +784,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
                             <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>
-                              👤 {sj.supplierName || sj.confirmedBy || 'Aguardando resposta'}
+                              {sj.supplierName || sj.confirmedBy || 'Aguardando resposta'}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
