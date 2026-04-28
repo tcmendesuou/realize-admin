@@ -177,7 +177,7 @@ export default function ServicoEspecialManager() {
       const [tiposSnap, modelosSnap, suppSnap] = await Promise.all([
         getDocs(query(collection(db, 'tiposEspeciais'), orderBy('createdAt', 'desc'))),
         getDocs(collection(db, 'modelosEspeciais')),
-        getDocs(query(collection(db, 'suppliers'), where('status', '==', 'homologado'))),
+        getDocs(query(collection(db, 'users'), where('systemRole', '==', 'fornecedor'), where('active', '==', true))),
       ]);
       const tiposList = tiposSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setTipos(tiposList);
@@ -356,10 +356,10 @@ export default function ServicoEspecialManager() {
                     return (
                       <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{s.tradeName || s.companyName}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{s.name || s.tradeName || s.companyName}</div>
                           <div style={{ fontSize: 11, color: '#94a3b8' }}>{s.email}</div>
                         </div>
-                        <button onClick={() => handleToggleFornecedor(tipoAtivo, s.id, s.tradeName || s.companyName, autorizado)}
+                        <button onClick={() => handleToggleFornecedor(tipoAtivo, s.id, s.name || s.tradeName || s.companyName, autorizado)}
                           style={{ padding: '5px 14px', borderRadius: 8, border: `1px solid ${autorizado ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`, background: autorizado ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)', color: autorizado ? '#ef4444' : '#10b981', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           {autorizado ? 'Remover acesso' : 'Autorizar'}
                         </button>
