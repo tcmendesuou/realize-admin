@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import ServicoEspecialManager from './ServicoEspecialManager';
 import { db } from '../firebase/config';
 
 const TIPOS = [
@@ -349,6 +350,7 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function ServiceManager() {
+  const [viewMode, setViewMode] = useState('catalogo'); // 'catalogo' | 'especiais'
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tipoAtivo, setTipoAtivo] = useState('estrutura');
@@ -495,6 +497,10 @@ export default function ServiceManager() {
     } catch (e) { console.error(e); alert('Erro ao popular dados.'); }
     finally { setSeeding(false); }
   };
+  if (viewMode === 'especiais') {
+    return <ServicoEspecialManager />;
+  }
+
   const tipoConfig = TIPOS.find(t => t.id === tipoAtivo);
   const rootServices = services.filter(s => !s.parentId && s.tipo === tipoAtivo);
   const getSubServices = (parentId) => services.filter(s => s.parentId === parentId);
@@ -510,8 +516,17 @@ export default function ServiceManager() {
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Servicos</h2>
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Catalogo de servicos para eventos</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {services.filter(s => !s.tipo).length > 0 || services.length === 0 ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 4, marginRight: 12 }}>
+            {[['catalogo', 'Catálogo'], ['especiais', 'Serviços Especiais']].map(([id, label]) => (
+              <button key={id} onClick={() => setViewMode(id)}
+                style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${viewMode === id ? '#667eea' : '#e2e8f0'}`, background: viewMode === id ? '#f0f3ff' : 'white', color: viewMode === id ? '#667eea' : '#64748b', fontSize: 13, fontWeight: viewMode === id ? 600 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {viewMode === 'catalogo' && services.filter(s => !s.tipo).length > 0 || services.length === 0 ? (
             <button onClick={handleSeed} disabled={seeding}
               style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.3)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
               {seeding ? 'Criando...' : 'Popular com dados de mercado'}
