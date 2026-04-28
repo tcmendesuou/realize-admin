@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, collection, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 function extractJson(text) {
@@ -101,7 +101,7 @@ export default function ClienteChat({ userData, onClose }) {
 
       const data = await response.json();
 
-      const assistantText = data.content
+      const assistantText = (data.content || [])
         .filter(b => b.type === 'text')
         .map(b => b.text)
         .join('\n');
@@ -310,7 +310,7 @@ Responda APENAS com JSON válido neste formato:
           }),
         });
         const cronData = await cronRes.json();
-        const cronText = cronData.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '';
+        const cronText = (cronData.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
         let cronJson = null;
         try {
           const clean = cronText.replace(/```json|```/g, '').trim();
