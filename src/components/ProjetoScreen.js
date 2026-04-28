@@ -22,6 +22,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [confirming, setConfirming]       = useState(false);
   const [supplierJobs, setSupplierJobs]   = useState([]);
   const [gerandoOrcamento, setGerandoOrcamento] = useState(false);
+  const [editandoJob, setEditandoJob]           = useState(null);  // id do job sendo editado
+  const [editJobForm, setEditJobForm]           = useState({});
+  const [trocandoJob, setTrocandoJob]           = useState(null);  // id do job para trocar fornecedor
+  const [fornecedoresAlt, setFornecedoresAlt]   = useState([]);    // fornecedores alternativos
+  const [salvandoJob, setSalvandoJob]           = useState(false);
 
   // Tarefas
   const [tasks, setTasks]         = useState([]);
@@ -213,6 +218,88 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       });
     } catch (e) { console.error(e); alert('Erro ao gerar orçamento.'); }
     finally { setGerandoOrcamento(false); }
+  };
+
+  const handleEditarJob = (sj) => {
+    setEditandoJob(sj.id);
+    setEditJobForm({
+      preco:        sj.preco || '',
+      diasPreparo:  sj.diasPreparo || '',
+      diasMontagem: sj.diasMontagem || '',
+      observacao:   sj.observacaoFornecedor || '',
+    });
+    setTrocandoJob(null);
+  };
+
+  const handleSalvarJob = async (sjId) => {
+    setSalvandoJob(true);
+    try {
+      await updateDoc(doc(db, 'supplierJobs', sjId), {
+        preco:                parseFloat(editJobForm.preco) || 0,
+        diasPreparo:          parseInt(editJobForm.diasPreparo) || 0,
+        diasMontagem:         parseInt(editJobForm.diasMontagem) || 0,
+        observacaoFornecedor: editJobForm.observacao,
+        updatedAt:            serverTimestamp(),
+      });
+      setEditandoJob(null);
+    } catch (e) { console.error(e); alert('Erro ao salvar.'); }
+    finally { setSalvandoJob(false); }
+  };
+
+  const handleTrocarFornecedor = async (sj) => {
+    setTrocandoJob(sj.id);
+    setEditandoJob(null);
+    try {
+      // Busca fornecedores que têm esse serviço
+      const nome = sj.serviceName || (sj.serviceNames || [])[0] || '';
+      const svSnap = await getDocs(query(
+        collection(db, 'supplierServices'),
+        where('serviceName', '==', nome),
+        where('ativo', '!=', false)
+      ));
+      const alts = svSnap.docs
+        .map(d => ({ ...d.data(), svId: d.id }))
+        .filter(s => s.supplierId !== sj.supplierId);
+      // Busca nomes dos fornecedores
+      const comNomes = await Promise.all(alts.map(async s => {
+        try {
+          const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', s.supplierId)));
+          const nome = uSnap.docs[0]?.data()?.name || s.supplierId;
+          return { ...s, supplierName: nome };
+        } catch { return { ...s, supplierName: s.supplierId }; }
+      }));
+      setFornecedoresAlt(comNomes);
+    } catch (e) { console.error(e); setFornecedoresAlt([]); }
+  };
+
+  const handleConfirmarTroca = async (sj, novoFornecedor) => {
+    setSalvandoJob(true);
+    try {
+      // Cancela o job atual
+      await updateDoc(doc(db, 'supplierJobs', sj.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+      // Cria novo job para o novo fornecedor
+      await addDoc(collection(db, 'supplierJobs'), {
+        supplierId:        novoFornecedor.supplierId,
+        budgetId:          sj.budgetId,
+        eventName:         sj.eventName,
+        clientName:        sj.clientName,
+        eventDate:         sj.eventDate,
+        serviceNames:      sj.serviceNames,
+        serviceName:       sj.serviceName,
+        serviceParentName: sj.serviceParentName,
+        tipoServico:       sj.tipoServico,
+        preco:             novoFornecedor.preco || sj.preco,
+        unidade:           novoFornecedor.unidade || sj.unidade,
+        diasPreparo:       novoFornecedor.diasPreparo || sj.diasPreparo,
+        diasMontagem:      novoFornecedor.diasMontagem || sj.diasMontagem,
+        stage:             'proposta',
+        status:            'pending',
+        createdAt:         serverTimestamp(),
+      });
+      setTrocandoJob(null);
+      setFornecedoresAlt([]);
+    } catch (e) { console.error(e); alert('Erro ao trocar fornecedor.'); }
+    finally { setSalvandoJob(false); }
   };
 
   const formatDate = (ts) => {
@@ -662,18 +749,111 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
                     Fornecedores ({supplierJobs.filter(j => j.status === 'confirmed').length}/{supplierJobs.length} confirmados)
                   </div>
-                  {supplierJobs.map(sj => (
-                    <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 8, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.03)' : 'white' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: sj.status === 'confirmed' ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{sj.confirmedBy || 'Fornecedor'}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{(sj.serviceNames || []).join(', ')}</div>
+                  {supplierJobs.filter(sj => sj.status !== 'cancelled').map(sj => {
+                    const nome        = sj.serviceName || (sj.serviceNames || [])[0];
+                    const isConfirmed = sj.status === 'confirmed';
+                    const isRejected  = sj.status === 'rejected';
+                    const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
+                    const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
+                    const isEditing   = editandoJob === sj.id;
+                    const isTrocando  = trocandoJob === sj.id;
+                    return (
+                      <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #f8faff' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
+                            <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>
+                              👤 {sj.confirmedBy || sj.supplierName || 'Aguardando resposta'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: isConfirmed ? 'rgba(16,185,129,0.1)' : isRejected ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)', color: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b' }}>
+                              {isConfirmed ? '✓ Confirmado' : isRejected ? '✗ Recusado' : 'Aguardando'}
+                            </span>
+                            {!isEditing && !isTrocando && (
+                              <>
+                                <button onClick={() => handleEditarJob(sj)}
+                                  style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                <button onClick={() => handleTrocarFornecedor(sj)}
+                                  style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Trocar</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Infos */}
+                        {!isEditing && !isTrocando && (
+                          <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                            {valorTotal && (
+                              <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
+                                <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Valor total</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                <div style={{ fontSize: 9, color: '#94a3b8' }}>R$ {parseFloat(sj.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {diasEvento}d</div>
+                              </div>
+                            )}
+                            {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
+                            {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
+                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dias</div></div>
+                            {sj.observacaoFornecedor && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. do fornecedor</div><div style={{ fontSize: 12, color: '#475569' }}>{sj.observacaoFornecedor}</div></div>}
+                          </div>
+                        )}
+
+                        {/* Form de edição */}
+                        {isEditing && (
+                          <div style={{ padding: '12px 16px', background: '#f8faff', borderTop: '1px solid #e0e8ff' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                              {[['Preço (R$)', 'preco', 'number'], ['Dias de preparo', 'diasPreparo', 'number'], ['Dias de montagem', 'diasMontagem', 'number']].map(([label, field, type]) => (
+                                <div key={field}>
+                                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, fontWeight: 600 }}>{label}</div>
+                                  <input type={type} value={editJobForm[field]} onChange={e => setEditJobForm(p => ({ ...p, [field]: e.target.value }))}
+                                    style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ marginBottom: 10 }}>
+                              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, fontWeight: 600 }}>Observação</div>
+                              <textarea value={editJobForm.observacao} onChange={e => setEditJobForm(p => ({ ...p, observacao: e.target.value }))}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={() => handleSalvarJob(sj.id)} disabled={salvandoJob}
+                                style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                {salvandoJob ? 'Salvando...' : 'Salvar'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Troca de fornecedor */}
+                        {isTrocando && (
+                          <div style={{ padding: '12px 16px', background: '#f8faff', borderTop: '1px solid #e0e8ff' }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#667eea', marginBottom: 10 }}>Selecione o novo fornecedor para "{nome}":</div>
+                            {fornecedoresAlt.length === 0 ? (
+                              <div style={{ fontSize: 12, color: '#94a3b8', padding: '8px 0' }}>Nenhum outro fornecedor com este serviço cadastrado.</div>
+                            ) : fornecedoresAlt.map(f => (
+                              <div key={f.svId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 6, background: 'white' }}>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{f.supplierName}</div>
+                                  <div style={{ fontSize: 11, color: '#94a3b8' }}>R$ {parseFloat(f.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · {f.diasPreparo || 0}d preparo</div>
+                                </div>
+                                <button onClick={() => handleConfirmarTroca(sj, f)} disabled={salvandoJob}
+                                  style={{ padding: '5px 14px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                  Selecionar
+                                </button>
+                              </div>
+                            ))}
+                            <button onClick={() => { setTrocandoJob(null); setFornecedoresAlt([]); }}
+                              style={{ marginTop: 6, padding: '5px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: sj.status === 'confirmed' ? '#10b981' : '#f59e0b' }}>
-                        {sj.status === 'confirmed' ? '✓ Confirmado' : 'Aguardando'}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Botão gerar orçamento */}
                   {todosConfirmados && project.status !== 'pendingApproval' && project.status !== 'approved' && (
