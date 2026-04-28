@@ -278,20 +278,16 @@ export default function ClienteChat({ userData, onClose }) {
           .map(s => `${s.serviceName}:preparo=${s.diasPreparo||0}d,montagem=${s.diasMontagem||0}d`)
           .join(';');
 
-        const cronogramaPrompt = `Você é um especialista em eventos corporativos. Monte um cronograma de produção RESUMIDO contando regressivamente a partir da data do evento.
+        const cronogramaPrompt = `Monte cronograma de produção para evento corporativo. Responda APENAS JSON compacto sem espaços desnecessários.
 
-EVENTO: ${briefingJson.evento?.nome || briefingJson.evento?.tipo}, data: ${dataEvento}, duração: ${briefingJson.evento?.diasDuracao||1} dia(s), local: ${briefingJson.evento?.cidade||''}
-SERVIÇOS: ${(briefingJson.servicosNecessarios||[]).join(', ')}
-TEMPOS: ${servicosResumidos || 'padrão de mercado'}
+Evento:${briefingJson.evento?.nome||briefingJson.evento?.tipo},data:${dataEvento},dias:${briefingJson.evento?.diasDuracao||1},cidade:${briefingJson.evento?.cidade||''}
+Serviços:${(briefingJson.servicosNecessarios||[]).join(',')}
+Tempos:${servicosResumidos||'padrão'}
 
-REGRAS:
-- Máximo 12 etapas
-- Ordem lógica: aprovação → contratos → produção → montagem → evento → desmontagem
-- Use os tempos de preparo e montagem informados
-- Se o evento já passou ou está muito próximo, inclua etapa de alerta
+Regras:máximo 10 etapas,ordem lógica,campos curtos,sem texto longo em descricao(max 60 chars)
 
-Responda APENAS com JSON, sem markdown:
-{"etapas":[{"id":"e1","nome":"","descricao":"","responsavel":"coordenador","dataInicio":"YYYY-MM-DD","dataEntrega":"YYYY-MM-DD","diasAntes":0,"dependencias":[],"status":"pendente","tipo":"administrativo"}]}`;
+JSON:{"etapas":[{"id":"e1","n":"nome curto","d":"desc curta","r":"coordenador","di":"YYYY-MM-DD","de":"YYYY-MM-DD","da":30,"s":"pendente","t":"administrativo"}]}
+Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(diasAntes),s(status),t(tipo)`;
 
         const cronRes = await fetch('/api/chat', {
           method: 'POST',
@@ -316,8 +312,21 @@ Responda APENAS com JSON, sem markdown:
         }
 
         if (cronJson?.etapas?.length > 0) {
-          await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: cronJson });
-          console.log('Cronograma gerado:', cronJson.etapas.length, 'etapas');
+          // Normaliza campos curtos para campos completos
+          const etapasNormalizadas = cronJson.etapas.map(e => ({
+            id:           e.id || e.n,
+            nome:         e.n  || e.nome,
+            descricao:    e.d  || e.descricao || '',
+            responsavel:  e.r  || e.responsavel || 'coordenador',
+            dataInicio:   e.di || e.dataInicio || '',
+            dataEntrega:  e.de || e.dataEntrega || '',
+            diasAntes:    e.da ?? e.diasAntes ?? 0,
+            dependencias: e.dep || e.dependencias || [],
+            status:       e.s  || e.status || 'pendente',
+            tipo:         e.t  || e.tipo || 'administrativo',
+          }));
+          await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: { etapas: etapasNormalizadas } });
+          console.log('Cronograma gerado:', etapasNormalizadas.length, 'etapas');
         }
       } catch (e) { console.error('Erro ao gerar cronograma:', e); }
 
