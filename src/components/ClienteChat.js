@@ -272,59 +272,50 @@ export default function ClienteChat({ userData, onClose }) {
           .map(s => `${s.serviceName}: ${s.diasPreparo} dias de preparo`)
           .join('\n');
 
-        const cronogramaPrompt = `Você é um especialista em planejamento de eventos corporativos.
-Com base nos dados do briefing abaixo, monte um cronograma de produção detalhado contando regressivamente a partir da data do evento.
+        const dataEvento = briefingJson.evento?.dataInicio || '';
+        const servicosResumidos = svAll
+          .filter(s => s.diasPreparo > 0 || s.diasMontagem > 0)
+          .map(s => `${s.serviceName}:preparo=${s.diasPreparo||0}d,montagem=${s.diasMontagem||0}d`)
+          .join(';');
 
-BRIEFING:
-${JSON.stringify(briefingJson, null, 2)}
+        const cronogramaPrompt = `Você é um especialista em eventos corporativos. Monte um cronograma de produção RESUMIDO contando regressivamente a partir da data do evento.
 
-TEMPOS DE PREPARO DOS SERVIÇOS DISPONÍVEIS:
-${servicosComTempo || 'Usar estimativas padrão do mercado'}
+EVENTO: ${briefingJson.evento?.nome || briefingJson.evento?.tipo}, data: ${dataEvento}, duração: ${briefingJson.evento?.diasDuracao||1} dia(s), local: ${briefingJson.evento?.cidade||''}
+SERVIÇOS: ${(briefingJson.servicosNecessarios||[]).join(', ')}
+TEMPOS: ${servicosResumidos || 'padrão de mercado'}
 
 REGRAS:
-1. Considere as dependências lógicas entre serviços (ex: projeto arquitetônico → aprovação → montagem → iluminação → som → decoração → equipe operacional)
-2. Cada etapa deve ter: nome, descrição, data de início, data de entrega, responsável (fornecedor/cliente/coordenador) e dependências
-3. Trabalhe de trás para frente a partir da data do evento
-4. Inclua etapas administrativas: briefing aprovado, contratos, pagamentos, aprovações
-5. O cronograma deve ser realista e considerar fins de semana
+- Máximo 12 etapas
+- Ordem lógica: aprovação → contratos → produção → montagem → evento → desmontagem
+- Use os tempos de preparo e montagem informados
+- Se o evento já passou ou está muito próximo, inclua etapa de alerta
 
-Responda APENAS com JSON válido neste formato:
-{
-  "etapas": [
-    {
-      "id": "etapa-1",
-      "nome": "Nome da etapa",
-      "descricao": "O que acontece nesta etapa",
-      "responsavel": "cliente|coordenador|fornecedor|nome_servico",
-      "dataInicio": "YYYY-MM-DD",
-      "dataEntrega": "YYYY-MM-DD",
-      "diasAntes": 30,
-      "dependencias": ["etapa-id"],
-      "status": "pendente",
-      "tipo": "administrativo|estrutura|operacao|entretenimento|gastronomia"
-    }
-  ]
-}`;
+Responda APENAS com JSON, sem markdown:
+{"etapas":[{"id":"e1","nome":"","descricao":"","responsavel":"coordenador","dataInicio":"YYYY-MM-DD","dataEntrega":"YYYY-MM-DD","diasAntes":0,"dependencias":[],"status":"pendente","tipo":"administrativo"}]}`;
 
         const cronRes = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 4000,
-            system: 'Você é um especialista em planejamento de eventos. Responda APENAS com JSON válido, sem texto adicional, sem markdown, sem backticks.',
+            max_tokens: 8000,
+            system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks. O JSON deve ser parseável por JSON.parse().',
             messages: [{ role: 'user', content: cronogramaPrompt }],
           }),
         });
         const cronData = await cronRes.json();
         const cronText = (cronData.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+        console.log('Cronograma raw length:', cronText.length);
         let cronJson = null;
         try {
           const clean = cronText.replace(/```json|```/g, '').trim();
           cronJson = JSON.parse(clean);
-        } catch (e) { console.error('Erro ao parsear cronograma:', e); }
+        } catch (e) {
+          console.error('Erro ao parsear cronograma:', e);
+          console.log('Cronograma raw (primeiros 500):', cronText.slice(0, 500));
+        }
 
-        if (cronJson?.etapas) {
+        if (cronJson?.etapas?.length > 0) {
           await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: cronJson });
           console.log('Cronograma gerado:', cronJson.etapas.length, 'etapas');
         }
