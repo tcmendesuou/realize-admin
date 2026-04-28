@@ -22,6 +22,8 @@ export default function ClienteChat({ userData, onClose }) {
   const [step, setStep]                 = useState('chat');
   const [submitting, setSubmitting]     = useState(false);
   const [assistantName, setAssistantName] = useState('Realize');
+  const [modelosEspeciais, setModelosEspeciais] = useState([]);
+  const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -110,6 +112,17 @@ export default function ClienteChat({ userData, onClose }) {
       const json = extractJson(assistantText);
       if (json && json.evento) {
         setBriefingJson(json);
+        // Se pediu estande modular, busca modelos disponíveis
+        if (json.tipoEstande === 'modular') {
+          try {
+            const tiposSnap = await getDocs(query(collection(db, 'tiposEspeciais'), where('ativo', '==', true)));
+            const tipoEstande = tiposSnap.docs.find(d => d.data().nome?.toLowerCase().includes('modular') || d.data().nome?.toLowerCase().includes('estande'));
+            if (tipoEstande) {
+              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('tipoEspecialId', '==', tipoEstande.id), where('ativo', '==', true)));
+              setModelosEspeciais(modelosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            }
+          } catch (e) { console.error('Erro ao buscar modelos:', e); }
+        }
       }
     } catch (err) {
       console.error('Erro na API:', err);
@@ -327,6 +340,90 @@ Responda APENAS com JSON válido neste formato:
       .replace(/\n/g, '<br/>');
   };
 
+  // ─── tela de seleção de modelo modular ──────────────────────────────────────
+  if (step === 'modelos' && briefingJson?.tipoEstande === 'modular') {
+    return (
+      <Overlay onClose={onClose}>
+        <ModalHeader title="Escolha o modelo de estande" subtitle="Selecione o modelo que melhor atende seu evento" onClose={onClose} assistantName={assistantName} />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+          {modelosEspeciais.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#7BAFD4', fontSize: 13 }}>
+              Nenhum modelo disponível no momento. Prossiga com o orçamento padrão.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {modelosEspeciais.map(m => (
+                <div key={m.id}
+                  onClick={() => setModeloSelecionado(m)}
+                  style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
+                  {/* Foto */}
+                  <div style={{ height: 130, background: m.fotoUrl ? 'transparent' : 'rgba(0,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {m.fotoUrl ? (
+                      <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: 32 }}>🏗️</span>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 4 }}>{m.nome}</div>
+                    {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 8 }}>{m.descricao}</div>}
+                    <div style={{ display: 'flex', gap: 10, fontSize: 11, color: '#7BAFD4', marginBottom: 8 }}>
+                      {m.areaM2 && <span>📐 {m.areaM2}m²</span>}
+                      {m.altura && <span>↕ {m.altura}m</span>}
+                      <span>⏱ {m.diasProducao} dias</span>
+                    </div>
+                    {m.caracteristicas?.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                        {m.caracteristicas.map((c, i) => (
+                          <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>
+                      R$ {m.precoBase?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  {modeloSelecionado?.id === m.id && (
+                    <div style={{ background: '#00E5C4', textAlign: 'center', padding: '6px', fontSize: 12, fontWeight: 700, color: '#0D1B2A' }}>✓ Selecionado</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', gap: 10 }}>
+          <button onClick={() => setStep('review')} style={styles.btnSecondary}>← Voltar</button>
+          <button
+            onClick={() => {
+              if (modeloSelecionado) {
+                // Injeta modelo no briefingJson
+                setBriefingJson(prev => ({
+                  ...prev,
+                  modeloEstande: {
+                    id: modeloSelecionado.id,
+                    nome: modeloSelecionado.nome,
+                    areaM2: modeloSelecionado.areaM2,
+                    precoBase: modeloSelecionado.precoBase,
+                    diasProducao: modeloSelecionado.diasProducao,
+                  },
+                  servicosNecessarios: [
+                    ...(prev.servicosNecessarios || []).filter(s => !s.toLowerCase().includes('estande')),
+                    modeloSelecionado.nome,
+                  ],
+                }));
+              }
+              setStep('review');
+            }}
+            style={{ ...styles.btnPrimary, flex: 1, opacity: (!modeloSelecionado && modelosEspeciais.length > 0) ? 0.5 : 1 }}
+            disabled={!modeloSelecionado && modelosEspeciais.length > 0}>
+            {modeloSelecionado ? `Confirmar: ${modeloSelecionado.nome} →` : modelosEspeciais.length === 0 ? 'Continuar →' : 'Selecione um modelo'}
+          </button>
+        </div>
+      </Overlay>
+    );
+  }
+
   // ─── tela de sucesso ──────────────────────────────────────────────────────
   if (step === 'sent') {
     return (
@@ -368,6 +465,8 @@ Responda APENAS com JSON válido neste formato:
           <Section title="Estrutura">
             <Grid2>
               <Field label="Área" value={est.areaM2 ? `${est.areaM2} m²` : null} />
+              <Field label="Tipo de estande" value={briefingJson.tipoEstande === 'modular' ? 'Modular' : briefingJson.tipoEstande === 'personalizado' ? 'Personalizado' : null} />
+              {briefingJson.modeloEstande && <Field label="Modelo selecionado" value={briefingJson.modeloEstande.nome} />}
               <Field label="Montagem" value={est.montagem ? 'Sim' : 'Não'} />
               <Field label="Iluminação" value={est.iluminacao ? 'Sim' : 'Não'} />
               <Field label="Som" value={est.som ? 'Sim' : 'Não'} />
@@ -417,7 +516,13 @@ Responda APENAS com JSON válido neste formato:
         onClose={onClose}
         assistantName={assistantName}
         extra={briefingJson && (
-          <button onClick={() => setStep('review')} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+          <button onClick={() => {
+            if (briefingJson.tipoEstande === 'modular' && modelosEspeciais.length > 0) {
+              setStep('modelos');
+            } else {
+              setStep('review');
+            }
+          }} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
             Ver resumo →
           </button>
         )}
