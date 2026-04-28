@@ -61,7 +61,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setLoading(false);
     });
     return () => unsub();
-  }, [projectId]);
+  }, [projectId, userData?.id]);
 
   const handleAddTask = async () => {
     if (!newTask.name.trim()) { alert('Nome da tarefa obrigatório'); return; }
