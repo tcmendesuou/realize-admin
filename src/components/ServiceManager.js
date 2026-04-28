@@ -509,7 +509,7 @@ export default function ServiceManager() {
   const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
   return (
-    <div style={{ fontFamily: 'Outfit, sans-serif' }}>
+    <div style={{ fontFamily: 'Outfit, sans-serif', overflowY: 'auto', height: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
