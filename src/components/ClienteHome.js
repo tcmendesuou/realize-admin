@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ClienteChat from './ClienteChat';
 
@@ -257,6 +257,11 @@ export default function ClienteHome({ userData, onLogout }) {
                           updatedAt: serverTimestamp(),
                           timeline: [...(selectedEvent.timeline || []), { action: 'approved', description: 'Orcamento aprovado pelo cliente', timestamp: new Date() }],
                         });
+                        // Atualiza stage dos supplierJobs confirmados para aguardando
+                        try {
+                          const sjSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', selectedEvent.id), where('status', '==', 'confirmed')));
+                          await Promise.all(sjSnap.docs.map(d => updateDoc(doc(db, 'supplierJobs', d.id), { stage: 'aguardando', updatedAt: serverTimestamp() })));
+                        } catch (e) { console.error(e); }
                         setSelectedEvent(null);
                       } catch (e) { alert('Erro ao aprovar.'); }
                       finally { setAprovando(false); }
