@@ -17,9 +17,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [activeTab, setActiveTab] = useState('info');
 
   // Fornecedor
-  const [supplierJob, setSupplierJob]   = useState(null);
-  const [confirming, setConfirming]     = useState(false);
-  const [supplierJobs, setSupplierJobs] = useState([]);
+  const [supplierJob, setSupplierJob]     = useState(null);   // primeiro job (compat)
+  const [supplierJobsMine, setSupplierJobsMine] = useState([]); // todos os jobs do fornecedor
+  const [confirming, setConfirming]       = useState(false);
+  const [supplierJobs, setSupplierJobs]   = useState([]);
   const [gerandoOrcamento, setGerandoOrcamento] = useState(false);
 
   // Tarefas
@@ -112,26 +113,32 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   };
 
   const handleConfirmarFornecedor = async () => {
-    if (!supplierJob) return;
+    if (supplierJobsMine.length === 0) return;
     setConfirming(true);
     try {
-      await updateDoc(doc(db, 'supplierJobs', supplierJob.id), {
-        status: 'confirmed',
-        confirmedAt: serverTimestamp(),
-        confirmedBy: userData?.name,
-      });
+      // Confirma todos os jobs pendentes do fornecedor
+      const pendentes = supplierJobsMine.filter(sj => sj.status !== 'confirmed');
+      for (const sj of pendentes) {
+        await updateDoc(doc(db, 'supplierJobs', sj.id), {
+          status: 'confirmed',
+          confirmedAt: serverTimestamp(),
+          confirmedBy: userData?.name,
+        });
+      }
+      // Atualiza timeline do budget
+      const servicosConfirmados = supplierJobsMine.map(sj => sj.serviceName || sj.serviceNames?.[0]).filter(Boolean);
       await updateDoc(doc(db, 'budgets', projectId), {
         supplierConfirmations: [
           ...(project.supplierConfirmations || []),
-          { supplierId: userData?.id, supplierName: userData?.name, serviceNames: supplierJob.serviceNames || [], confirmedAt: new Date() }
+          { supplierId: userData?.id, supplierName: userData?.name, serviceNames: servicosConfirmados, confirmedAt: new Date() }
         ],
         timeline: [
           ...(project.timeline || []),
-          { action: 'supplier_confirmed', description: `Fornecedor "${userData?.name}" confirmou disponibilidade para: ${(supplierJob.serviceNames || []).join(', ')}`, userId: userData?.id, userName: userData?.name, timestamp: new Date() }
+          { action: 'supplier_confirmed', description: `Fornecedor "${userData?.name}" confirmou disponibilidade para: ${servicosConfirmados.join(', ')}`, userId: userData?.id, userName: userData?.name, timestamp: new Date() }
         ],
         updatedAt: serverTimestamp(),
       });
-      setSupplierJob(prev => ({ ...prev, status: 'confirmed' }));
+      setSupplierJobsMine(prev => prev.map(sj => ({ ...sj, status: 'confirmed' })));
     } catch (e) { console.error(e); alert('Erro ao confirmar.'); }
     finally { setConfirming(false); }
   };
@@ -511,38 +518,45 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {activeTab === 'tasks' && isFornecedor && (
             <div className="ps-card">
               <div className="ps-card-title">Minha Tarefa</div>
-              {supplierJob ? (
-                <>
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 11, color: '#8a9bb0', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Serviços solicitados</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {(supplierJob.serviceNames || []).map((s, i) => (
-                        <span key={i} style={{ padding: '5px 14px', borderRadius: 20, background: 'rgba(0,229,196,0.1)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 13, fontWeight: 500 }}>{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ background: supplierJob.status === 'confirmed' ? 'rgba(16,185,129,0.06)' : 'rgba(0,229,196,0.04)', borderRadius: 10, border: `1px solid ${supplierJob.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(0,229,196,0.15)'}`, padding: 20, textAlign: 'center' }}>
-                    {supplierJob.status === 'confirmed' ? (
-                      <>
-                        <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
-                        <div style={{ fontSize: 15, fontWeight: 500, color: '#10b981', marginBottom: 4 }}>Disponibilidade confirmada!</div>
-                        <div style={{ fontSize: 13, color: '#64748b' }}>O coordenador foi notificado. Aguarde a aprovação do cliente.</div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
-                          Confirme sua disponibilidade para este evento. O coordenador será notificado.
-                        </div>
-                        <button onClick={handleConfirmarFornecedor} disabled={confirming}
-                          style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: confirming ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: confirming ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                          {confirming ? 'Confirmando...' : '✓ Confirmar Disponibilidade'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </>
-              ) : (
+              {supplierJobsMine.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Nenhuma tarefa encontrada</div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                    {supplierJobsMine.map(sj => (
+                      <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1px solid ${sj.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(0,180,255,0.1)'}`, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.03)' : 'white' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: sj.status === 'confirmed' ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.serviceName || (sj.serviceNames || [])[0]}</div>
+                          {sj.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{sj.serviceParentName}</div>}
+                          {sj.diasPreparo > 0 && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>⏱ {sj.diasPreparo} dias de preparo</div>}
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: sj.status === 'confirmed' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: sj.status === 'confirmed' ? '#10b981' : '#f59e0b' }}>
+                          {sj.status === 'confirmed' ? '✓ Confirmado' : 'Aguardando'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Botão confirmar todos pendentes */}
+                  {supplierJobsMine.some(sj => sj.status !== 'confirmed') && (
+                    <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.15)', padding: 20, textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
+                        Confirme sua disponibilidade para este evento. O coordenador será notificado.
+                      </div>
+                      <button onClick={handleConfirmarFornecedor} disabled={confirming}
+                        style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: confirming ? '#e2e8f0' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: confirming ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {confirming ? 'Confirmando...' : '✓ Confirmar Disponibilidade'}
+                      </button>
+                    </div>
+                  )}
+                  {supplierJobsMine.every(sj => sj.status === 'confirmed') && (
+                    <div style={{ background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', padding: 20, textAlign: 'center' }}>
+                      <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: '#10b981', marginBottom: 4 }}>Disponibilidade confirmada!</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>O coordenador foi notificado. Aguarde a aprovação do cliente.</div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
