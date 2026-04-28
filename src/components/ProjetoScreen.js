@@ -22,6 +22,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [confirming, setConfirming]       = useState(false);
   const [supplierJobs, setSupplierJobs]   = useState([]);
   const [gerandoOrcamento, setGerandoOrcamento] = useState(false);
+  const [projectTasks, setProjectTasks]         = useState([]);
   const [editandoJob, setEditandoJob]           = useState(null);  // id do job sendo editado
   const [editJobForm, setEditJobForm]           = useState({});
   const [trocandoJob, setTrocandoJob]           = useState(null);  // id do job para trocar fornecedor
@@ -81,12 +82,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         }
       } catch (e) { console.error(e); }
 
-      // Carrega tarefas do budget
+      // Carrega tarefas manuais do budget (array)
       setTasks(data.tasks || []);
       setLoading(false);
     });
     return () => unsub();
   }, [projectId, userData?.id]);
+
+  // Busca tasks formais da collection tasks
+  useEffect(() => {
+    if (!projectId) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'tasks'), where('budgetId', '==', projectId)),
+      snap => setProjectTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [projectId]);
 
   const handleAddTask = async () => {
     if (!newTask.name.trim()) { alert('Nome da tarefa obrigatório'); return; }
@@ -874,6 +885,49 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   + Nova Tarefa
                 </button>
               </div>
+
+              {/* Tasks formais (pós-aprovação) */}
+              {projectTasks.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Tarefas do Projeto ({projectTasks.filter(t => t.status === 'concluido').length}/{projectTasks.length} concluídas)
+                  </div>
+                  {projectTasks.map(task => {
+                    const TIPO_COR = { estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A', administrativo: '#7BAFD4' };
+                    const cor = TIPO_COR[task.tipoServico] || '#7BAFD4';
+                    const hoje2 = new Date(); hoje2.setHours(0,0,0,0);
+                    const deDate = task.dataEntrega ? new Date(task.dataEntrega) : null;
+                    const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
+                    const STATUS_TASK = { pendente: { label: 'Pendente', color: '#f59e0b' }, em_andamento: { label: 'Em andamento', color: '#3b82f6' }, concluido: { label: '✓ Concluído', color: '#10b981' }, atrasado: { label: '⚠ Atrasado', color: '#ef4444' } };
+                    const stInfo = STATUS_TASK[atrasada ? 'atrasado' : task.status] || STATUS_TASK.pendente;
+                    return (
+                      <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#f0f2f5'}`, marginBottom: 6, background: atrasada ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: cor, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.nome || task.serviceName}</div>
+                          <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>
+                            {task.supplierName && <span style={{ color: '#667eea', marginRight: 8 }}>{task.supplierName}</span>}
+                            {task.dataEntrega && <span>Entrega: {task.dataEntrega.split('-').reverse().join('/')}</span>}
+                            {task.diasPreparo > 0 && <span style={{ marginLeft: 8 }}>{task.diasPreparo}d preparo</span>}
+                            {task.diasMontagem > 0 && <span style={{ marginLeft: 8 }}>{task.diasMontagem}d montagem</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                          {task.valor > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: '#00E5C4' }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                          <select value={task.status || 'pendente'} onChange={async e => {
+                            await updateDoc(doc(db, 'tasks', task.id), { status: e.target.value, updatedAt: serverTimestamp() });
+                          }} style={{ padding: '2px 8px', borderRadius: 6, border: `1px solid ${stInfo.color}44`, fontSize: 10, color: stInfo.color, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', background: `${stInfo.color}11` }}>
+                            <option value="pendente">Pendente</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluido">Concluído</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{ height: 1, background: '#f0f2f5', margin: '16px 0' }} />
+                </div>
+              )}
 
               {/* Fornecedores */}
               {supplierJobs.length > 0 && (
