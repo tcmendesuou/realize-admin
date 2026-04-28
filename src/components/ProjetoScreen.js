@@ -53,10 +53,26 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       try {
         const sjAllSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', snap.id)));
         const allJobs = sjAllSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setSupplierJobs(allJobs);
+
+        // Busca nomes dos fornecedores
+        const supplierIds = [...new Set(allJobs.map(j => j.supplierId).filter(Boolean))];
+        const supplierNames = {};
+        await Promise.all(supplierIds.map(async sid => {
+          try {
+            const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', sid)));
+            if (!uSnap.empty) supplierNames[sid] = uSnap.docs[0].data().name;
+          } catch {}
+        }));
+
+        const allJobsComNome = allJobs.map(j => ({
+          ...j,
+          supplierName: supplierNames[j.supplierId] || j.confirmedBy || 'Fornecedor',
+        }));
+
+        setSupplierJobs(allJobsComNome);
         // Se for fornecedor, filtra todos os jobs dele
         if (userData?.systemRole === 'fornecedor') {
-          const mine = allJobs.filter(j => j.supplierId === userData.id);
+          const mine = allJobsComNome.filter(j => j.supplierId === userData.id);
           setSupplierJobsMine(mine);
           if (mine.length > 0) setSupplierJob(mine[0]);
         }
@@ -765,7 +781,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
                             <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>
-                              👤 {sj.confirmedBy || sj.supplierName || 'Aguardando resposta'}
+                              👤 {sj.supplierName || sj.confirmedBy || 'Aguardando resposta'}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
