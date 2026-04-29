@@ -772,133 +772,112 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
           {/* ── MINHA TAREFA (fornecedor) ── */}
           {activeTab === 'tasks' && isFornecedor && (() => {
-            const myTasks = projectTasks.filter(t => t.supplierId === userData?.id);
-            const myTasksPendentes  = myTasks.filter(t => t.status !== 'concluido');
-            const myTasksConcluidas = myTasks.filter(t => t.status === 'concluido');
-            return (
-            <div className="ps-card">
-              <div className="ps-card-title">Minha Tarefa</div>
+            const myTasks          = projectTasks.filter(t => t.supplierId === userData?.id);
+            const myPendentes      = myTasks.filter(t => t.status !== 'concluido');
+            const myConcluidas     = myTasks.filter(t => t.status === 'concluido');
+            const TIPO_COR         = { estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A', administrativo: '#7BAFD4' };
+            const hoje2            = new Date(); hoje2.setHours(0,0,0,0);
+            const isExp = id => tasksExpandidas[id] !== undefined ? tasksExpandidas[id] : todasExpandidas;
+            const toggle = id => setTasksExpandidas(p => ({ ...p, [id]: !isExp(id) }));
 
-              {/* Tasks formais do fornecedor */}
-              {myTasks.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
-                    Tarefas confirmadas ({myTasksConcluidas.length}/{myTasks.length} concluídas)
+            const renderTaskForn = (task) => {
+              const cor      = TIPO_COR[task.tipoServico] || '#7BAFD4';
+              const deDate   = task.dataEntrega ? new Date(task.dataEntrega) : null;
+              const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
+              const expanded = isExp(task.id);
+              return (
+                <div key={task.id} style={{ borderRadius: 12, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: atrasada ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden', marginBottom: 10 }}>
+                  {/* Header clicável */}
+                  <div onClick={() => toggle(task.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: expanded ? '1px solid #f8faff' : 'none' }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: atrasada ? '#ef4444' : cor, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</span>
+                      {task.serviceParentName && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{task.serviceParentName}</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                      {atrasada && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>⚠ Atrasada</span>}
+                      {task.dataEntrega && !expanded && <span style={{ fontSize: 11, color: '#94a3b8' }}>{task.dataEntrega.split('-').reverse().join('/')}</span>}
+                      {task.valor > 0 && !expanded && <span style={{ fontSize: 12, fontWeight: 700, color: '#00E5C4' }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                    </div>
                   </div>
-                  {myTasksPendentes.map(task => {
-                    const hoje2 = new Date(); hoje2.setHours(0,0,0,0);
-                    const deDate = task.dataEntrega ? new Date(task.dataEntrega) : null;
-                    const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
-                    return (
-                      <div key={task.id} style={{ borderRadius: 12, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: atrasada ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden', marginBottom: 14 }}>
-                        {/* Header */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid #f8faff' }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: atrasada ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</div>
-                            {task.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{task.serviceParentName}</div>}
-                          </div>
-                          {atrasada && <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444' }}>⚠ Atrasada</span>}
-                        </div>
-                        {/* Infos detalhadas */}
-                        <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
-                          {task.valor > 0 && (
-                            <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Seu valor</div>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>R$ {task.preco?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {task.diasEvento}d</div>
-                            </div>
-                          )}
-                          {task.dataInicio && (
-                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Início</div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.dataInicio.split('-').reverse().join('/')}</div>
-                            </div>
-                          )}
-                          {task.dataEntrega && (
-                            <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Entrega</div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: atrasada ? '#ef4444' : '#1e293b' }}>{task.dataEntrega.split('-').reverse().join('/')}</div>
-                            </div>
-                          )}
-                          {task.diasPreparo > 0 && (
-                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Preparo</div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasPreparo} dias</div>
-                            </div>
-                          )}
-                          {task.diasMontagem > 0 && (
-                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Montagem</div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem} dias</div>
-                            </div>
-                          )}
-                          {task.diasEvento > 0 && (
-                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Duração</div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasEvento} dia(s)</div>
-                            </div>
-                          )}
-                        </div>
-                        {/* Observação */}
-                        {task.observacao && (
-                          <div style={{ padding: '0 16px 12px' }}>
-                            <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observação</div>
-                              <div style={{ fontSize: 12, color: '#475569' }}>{task.observacao}</div>
-                            </div>
-                          </div>
-                        )}
-                        {/* Campo obs do fornecedor */}
-                        <div style={{ padding: '0 16px 14px' }}>
-                          <textarea defaultValue={task.observacaoFornecedor || ''}
-                            onBlur={async e => {
-                              if (e.target.value !== (task.observacaoFornecedor || '')) {
-                                await updateDoc(doc(db, 'tasks', task.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() });
-                              }
-                            }}
-                            placeholder="Suas observações sobre esta tarefa..."
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none', color: '#475569' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {myTasksConcluidas.length > 0 && (
+                  {/* Detalhes */}
+                  {expanded && (
                     <>
-                      <button onClick={() => setShowConcluidas(s => !s)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1 }}>
-                        <span style={{ transform: showConcluidas ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
-                        Concluídas ({myTasksConcluidas.length})
-                      </button>
-                      {showConcluidas && myTasksConcluidas.map(task => (
-                        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, opacity: 0.6 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-                          <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#64748b' }}>{task.nome || task.serviceName}</div>
-                          <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ Concluída</span>
-                        </div>
-                      ))}
+                      <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+                        {task.valor > 0 && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div><div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>R$ {task.preco?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {task.diasEvento}d</div></div>}
+                        {task.dataInicio && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Início</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.dataInicio.split('-').reverse().join('/')}</div></div>}
+                        {task.dataEntrega && <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Entrega</div><div style={{ fontSize: 13, fontWeight: 600, color: atrasada ? '#ef4444' : '#1e293b' }}>{task.dataEntrega.split('-').reverse().join('/')}</div></div>}
+                        {task.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasPreparo} dias</div></div>}
+                        {task.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem} dias</div></div>}
+                        {task.diasEvento > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Duração</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasEvento} dia(s)</div></div>}
+                        {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observação</div><div style={{ fontSize: 12, color: '#475569' }}>{task.observacao}</div></div>}
+                      </div>
+                      <div style={{ padding: '0 16px 14px' }}>
+                        <textarea defaultValue={task.observacaoFornecedor || ''}
+                          onBlur={async e => { if (e.target.value !== (task.observacaoFornecedor || '')) await updateDoc(doc(db, 'tasks', task.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() }); }}
+                          placeholder="Suas observações sobre esta tarefa..."
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none', color: '#475569' }} />
+                      </div>
                     </>
                   )}
-                  <div style={{ height: 1, background: '#f0f2f5', margin: '16px 0' }} />
                 </div>
-              )}
+              );
+            };
 
-              {supplierJobsMine.length === 0 && myTasks.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Nenhuma tarefa encontrada</div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            return (
+              <div className="ps-card">
+                <div className="ps-card-title">Minha Tarefa</div>
+
+                {myTasks.length > 0 ? (
+                  <>
+                    {/* Header com controle global */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>
+                        Tarefas ({myConcluidas.length}/{myTasks.length} concluídas)
+                      </div>
+                      <button onClick={() => { setTodasExpandidas(s => !s); setTasksExpandidas({}); }}
+                        style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {todasExpandidas ? '⊟ Recolher todas' : '⊞ Expandir todas'}
+                      </button>
+                    </div>
+                    {/* Pendentes */}
+                    {myPendentes.map(renderTaskForn)}
+                    {/* Concluídas */}
+                    {myConcluidas.length > 0 && (
+                      <>
+                        <button onClick={() => setShowConcluidas(s => !s)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1, marginTop: 8 }}>
+                          <span style={{ transform: showConcluidas ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
+                          Concluídas ({myConcluidas.length})
+                        </button>
+                        {showConcluidas && myConcluidas.map(renderTaskForn)}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  /* Sem tasks formais — mostra jobs pendentes de confirmação */
+                  supplierJobsMine.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Nenhuma tarefa encontrada</div>
+                  ) : null
+                )}
+
+                {/* Jobs pendentes de confirmação (pré-aprovação) */}
+                {supplierJobsMine.length > 0 && (
+                  <div style={{ marginTop: myTasks.length > 0 ? 20 : 0 }}>
+                    {myTasks.length > 0 && <div style={{ height: 1, background: '#f0f2f5', marginBottom: 16 }} />}
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
+                      Aguardando confirmação
+                    </div>
                     {supplierJobsMine.map(sj => {
-                      const nome        = sj.serviceName || (sj.serviceNames || [])[0];
+                      const nome = sj.serviceName || (sj.serviceNames || [])[0];
                       const isPending   = sj.status === 'pending' || !sj.status;
                       const isConfirmed = sj.status === 'confirmed';
                       const isRejected  = sj.status === 'rejected';
                       const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
-                      const qtdPessoas  = project.briefingData?.evento?.visitantesPorDia || project.guestCount || null;
                       const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
                       return (
-                        <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden' }}>
-                          {/* Header do item */}
+                        <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden', marginBottom: 10 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid #f8faff' }}>
                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
                             <div style={{ flex: 1 }}>
@@ -908,84 +887,39 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {isConfirmed && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>✓ Confirmado</span>}
                             {isRejected && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✗ Recusado</span>}
                           </div>
-                          {/* Infos do item */}
                           <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
-                            {valorTotal && (
-                              <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}>
-                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Seu valor</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>R$ {parseFloat(sj.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {diasEvento} dia(s)</div>
-                              </div>
-                            )}
-                            {sj.diasPreparo > 0 && (
-                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Preparo</div>
-                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>antes do evento</div>
-                              </div>
-                            )}
-                            {sj.diasMontagem > 0 && (
-                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Montagem</div>
-                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>no local</div>
-                              </div>
-                            )}
-                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Duração</div>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dia(s)</div>
-                              <div style={{ fontSize: 10, color: '#94a3b8' }}>do evento</div>
-                            </div>
-                            {qtdPessoas && (
-                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}>
-                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Pessoas/dia</div>
-                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{qtdPessoas}</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>visitantes</div>
-                              </div>
-                            )}
+                            {valorTotal && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div><div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
+                            {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
+                            {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
+                            <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Duração</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dia(s)</div></div>
                           </div>
-                          {/* Observação */}
                           <div style={{ padding: '0 16px 14px' }}>
-                            <textarea
-                              defaultValue={sj.observacaoFornecedor || ''}
-                              onBlur={async e => {
-                                if (e.target.value !== (sj.observacaoFornecedor || '')) {
-                                  await updateDoc(doc(db, 'supplierJobs', sj.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() });
-                                }
-                              }}
-                              placeholder="Observações (especificações técnicas, detalhes do serviço...)"
-                              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 60, boxSizing: 'border-box', outline: 'none', color: '#475569' }}
-                            />
+                            <textarea defaultValue={sj.observacaoFornecedor || ''}
+                              onBlur={async e => { if (e.target.value !== (sj.observacaoFornecedor || '')) await updateDoc(doc(db, 'supplierJobs', sj.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() }); }}
+                              placeholder="Observações (especificações técnicas...)"
+                              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none', color: '#475569' }} />
                           </div>
-                          {/* Botões */}
                           {isPending && (
                             <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', justifyContent: 'flex-end' }}>
-                              <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming}
-                                style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                Recusar
-                              </button>
-                              <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming}
-                                style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                Confirmar
-                              </button>
+                              <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Recusar</button>
+                              <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Confirmar</button>
                             </div>
                           )}
                         </div>
                       );
                     })}
+                    {supplierJobsMine.every(sj => sj.status === 'confirmed' || sj.status === 'rejected') && (
+                      <div style={{ background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', padding: 16, textAlign: 'center', marginTop: 8 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: '#10b981' }}>✓ Todas as tarefas respondidas!</div>
+                      </div>
+                    )}
                   </div>
-                  {supplierJobsMine.every(sj => sj.status === 'confirmed' || sj.status === 'rejected') && (
-                    <div style={{ background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', padding: 16, textAlign: 'center', marginTop: 8 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: '#10b981' }}>✓ Todas as tarefas respondidas! O coordenador foi notificado.</div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                )}
+              </div>
             );
           })()}
 
-          {/* ── TAREFAS ── */}
+          {/* ── TAREFAS ── */}          {/* ── TAREFAS ── */}
           {activeTab === 'tasks' && !isFornecedor && (() => {
             const todosConfirmados = supplierJobs.length > 0 && supplierJobs.every(j => j.status === 'confirmed');
             return (
@@ -1008,7 +942,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 const isExpanded = (id) => tasksExpandidas[id] !== undefined ? tasksExpandidas[id] : todasExpandidas;
                 const toggleTask = (id) => setTasksExpandidas(prev => ({ ...prev, [id]: !isExpanded(id) }));
 
-                const renderTaskCoord = (task) => {
+                const renderTaskCoord = (task, isConcluida = false) => {
                   const cor = TIPO_COR[task.tipoServico] || '#7BAFD4';
                   const deDate = task.dataEntrega ? new Date(task.dataEntrega) : null;
                   const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
@@ -1069,7 +1003,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         {todasExpandidas ? '⊟ Recolher todas' : '⊞ Expandir todas'}
                       </button>
                     </div>
-                    {tasksPendentes.map(renderTaskCoord)}
+                    {tasksPendentes.map(t => renderTaskCoord(t, false))}
                     {tasksConcluidas.length > 0 && (
                       <>
                         <button onClick={() => setShowConcluidas(s => !s)}
