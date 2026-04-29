@@ -1029,12 +1029,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               })()}
 
               {/* Fornecedores */}
-              {supplierJobs.length > 0 && (
+              {supplierJobs.length > 0 && (() => {
+                const sjAtivos      = supplierJobs.filter(sj => sj.status !== 'cancelled');
+                const sjConfirmados = sjAtivos.filter(sj => sj.status === 'confirmed' || sj.status === 'rejected');
+                const sjPendentes   = sjAtivos.filter(sj => sj.status !== 'confirmed' && sj.status !== 'rejected');
+                const [showFornConcluidos, setShowFornConcluidos] = React.useState(false);
+                return (
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Fornecedores ({supplierJobs.filter(j => j.status === 'confirmed').length}/{supplierJobs.length} confirmados)
+                    Fornecedores ({supplierJobs.filter(j => j.status === 'confirmed').length}/{sjAtivos.length} confirmados)
                   </div>
-                  {supplierJobs.filter(sj => sj.status !== 'cancelled').map(sj => {
+                  {sjPendentes.map(sj => {
                     const nome        = sj.serviceName || (sj.serviceNames || [])[0];
                     const isConfirmed = sj.status === 'confirmed';
                     const isRejected  = sj.status === 'rejected';
@@ -1140,7 +1145,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     );
                   })}
 
-                  {/* Botão gerar orçamento */}
+                  {/* Fornecedores confirmados/recusados em acordeão */}
+                  {sjConfirmados.length > 0 && (
+                    <>
+                      <button onClick={() => setShowFornConcluidos(s => !s)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        <span style={{ transform: showFornConcluidos ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
+                        Respondidos ({sjConfirmados.length})
+                      </button>
+                      {showFornConcluidos && sjConfirmados.map(sj => {
                   {todosConfirmados && project.status !== 'pendingApproval' && project.status !== 'approved' && (
                     <div style={{ marginTop: 16, padding: 14, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center', fontSize: 13, color: '#00E5C4' }}>
                       {gerandoOrcamento ? '⏳ Gerando orçamento automaticamente...' : '✓ Processando — orçamento sendo enviado ao cliente'}
