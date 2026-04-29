@@ -1153,16 +1153,38 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         <span style={{ transform: showFornConcluidos ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
                         Respondidos ({sjConfirmados.length})
                       </button>
-                      {showFornConcluidos && sjConfirmados.map(sj => (
-                        <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 8, border: `1px solid ${sj.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`, marginBottom: 6, opacity: 0.7 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: sj.status === 'confirmed' ? '#10b981' : '#ef4444', flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{sj.serviceName || (sj.serviceNames||[])[0]}</span>
-                            {sj.supplierName && <span style={{ fontSize: 11, color: '#667eea', marginLeft: 8 }}>{sj.supplierName}</span>}
+                      {showFornConcluidos && sjConfirmados.map(sj => {
+                        const nome2 = sj.serviceName || (sj.serviceNames || [])[0];
+                        const isConfirmed2 = sj.status === 'confirmed';
+                        const isRejected2  = sj.status === 'rejected';
+                        const diasEvento2  = project.briefingData?.evento?.diasDuracao || 1;
+                        const valorTotal2  = sj.preco ? parseFloat(sj.preco) * diasEvento2 : null;
+                        return (
+                          <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed2 ? 'rgba(16,185,129,0.2)' : isRejected2 ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed2 ? 'rgba(16,185,129,0.02)' : isRejected2 ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #f8faff' }}>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed2 ? '#10b981' : isRejected2 ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome2}</div>
+                                <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>{sj.supplierName || sj.confirmedBy || 'Fornecedor'}</div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: isConfirmed2 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: isConfirmed2 ? '#10b981' : '#ef4444' }}>
+                                  {isConfirmed2 ? '✓ Confirmado' : '✗ Recusado'}
+                                </span>
+                                <button onClick={() => handleEditarJob(sj)} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                <button onClick={() => handleTrocarFornecedor(sj)} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Trocar</button>
+                              </div>
+                            </div>
+                            <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+                              {valorTotal2 && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Valor total</div><div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal2.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
+                              {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
+                              {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
+                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento2} dias</div></div>
+                              {sj.observacaoFornecedor && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#475569' }}>{sj.observacaoFornecedor}</div></div>}
+                            </div>
                           </div>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: sj.status === 'confirmed' ? '#10b981' : '#ef4444' }}>{sj.status === 'confirmed' ? '✓ Confirmado' : '✗ Recusado'}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </>
                   )}
 
