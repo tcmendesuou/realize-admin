@@ -1153,7 +1153,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         <span style={{ transform: showFornConcluidos ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
                         Respondidos ({sjConfirmados.length})
                       </button>
-                      {showFornConcluidos && sjConfirmados.map(sj => {
+                      {showFornConcluidos && sjConfirmados.map(sj => (
+                        <div key={sj.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 8, border: `1px solid ${sj.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`, marginBottom: 6, opacity: 0.7 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: sj.status === 'confirmed' ? '#10b981' : '#ef4444', flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{sj.serviceName || (sj.serviceNames||[])[0]}</span>
+                            {sj.supplierName && <span style={{ fontSize: 11, color: '#667eea', marginLeft: 8 }}>{sj.supplierName}</span>}
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: sj.status === 'confirmed' ? '#10b981' : '#ef4444' }}>{sj.status === 'confirmed' ? '✓ Confirmado' : '✗ Recusado'}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
                   {todosConfirmados && project.status !== 'pendingApproval' && project.status !== 'approved' && (
                     <div style={{ marginTop: 16, padding: 14, background: 'rgba(0,229,196,0.06)', borderRadius: 10, border: '1px solid rgba(0,229,196,0.2)', textAlign: 'center', fontSize: 13, color: '#00E5C4' }}>
                       {gerandoOrcamento ? '⏳ Gerando orçamento automaticamente...' : '✓ Processando — orçamento sendo enviado ao cliente'}
@@ -1168,7 +1180,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     <div style={{ marginTop: 16, padding: 14, background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center', fontSize: 13, color: '#10b981', fontWeight: 500 }}>
                       ✓ Orçamento aprovado pelo cliente!
                     </div>
-                      <div style={{ height: 1, background: '#f0f2f5', margin: '20px 0' }} />
+                  )}
+                  <div style={{ height: 1, background: '#f0f2f5', margin: '20px 0' }} />
                 </div>
                 );
               })()}
