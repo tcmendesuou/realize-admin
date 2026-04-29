@@ -32,6 +32,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [tasks, setTasks]               = useState([]);
   const [projectTasks, setProjectTasks] = useState([]);
   const [showConcluidas, setShowConcluidas] = useState(false);
+  const [todasExpandidas, setTodasExpandidas] = useState(true);
+  const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [newTask, setNewTask]     = useState({ name: '', descricao: '', prazo: '', prioridade: 'normal' });
   const [savingTask, setSavingTask] = useState(false);
