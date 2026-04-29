@@ -31,7 +31,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   // Tarefas
   const [tasks, setTasks]               = useState([]);
   const [projectTasks, setProjectTasks] = useState([]);
-  const [showConcluidas, setShowConcluidas] = useState(false);
+  const [showConcluidas, setShowConcluidas]       = useState(false);
+  const [showFornConcluidos, setShowFornConcluidos] = useState(false);
   const [todasExpandidas, setTodasExpandidas] = useState(true);
   const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -1033,7 +1034,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 const sjAtivos      = supplierJobs.filter(sj => sj.status !== 'cancelled');
                 const sjConfirmados = sjAtivos.filter(sj => sj.status === 'confirmed' || sj.status === 'rejected');
                 const sjPendentes   = sjAtivos.filter(sj => sj.status !== 'confirmed' && sj.status !== 'rejected');
-                const [showFornConcluidos, setShowFornConcluidos] = React.useState(false);
                 return (
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
