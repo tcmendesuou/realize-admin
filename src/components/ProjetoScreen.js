@@ -1168,11 +1168,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     <div style={{ marginTop: 16, padding: 14, background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center', fontSize: 13, color: '#10b981', fontWeight: 500 }}>
                       ✓ Orçamento aprovado pelo cliente!
                     </div>
-                  )}
-
-                  <div style={{ height: 1, background: '#f0f2f5', margin: '20px 0' }} />
+                      <div style={{ height: 1, background: '#f0f2f5', margin: '20px 0' }} />
                 </div>
-              )}
+                );
+              })()}
 
               {showTaskForm && (
                 <div style={{ background: '#f8faff', borderRadius: 10, border: '1px solid #e0e8ff', padding: 16, marginBottom: 16 }}>
