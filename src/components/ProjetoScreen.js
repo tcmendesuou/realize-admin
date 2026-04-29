@@ -867,28 +867,42 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 {supplierJobsMine.length > 0 && (
                   <div style={{ marginTop: myTasks.length > 0 ? 20 : 0 }}>
                     {myTasks.length > 0 && <div style={{ height: 1, background: '#f0f2f5', marginBottom: 16 }} />}
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
-                      Aguardando confirmação
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>
+                        Aguardando confirmação ({supplierJobsMine.length})
+                      </div>
+                      <button onClick={() => { setTodasExpandidas(s => !s); setTasksExpandidas({}); }}
+                        style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {todasExpandidas ? '⊟ Recolher todas' : '⊞ Expandir todas'}
+                      </button>
                     </div>
                     {supplierJobsMine.map(sj => {
-                      const nome = sj.serviceName || (sj.serviceNames || [])[0];
+                      const nome        = sj.serviceName || (sj.serviceNames || [])[0];
                       const isPending   = sj.status === 'pending' || !sj.status;
                       const isConfirmed = sj.status === 'confirmed';
                       const isRejected  = sj.status === 'rejected';
                       const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
                       const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
+                      const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : todasExpandidas;
                       return (
                         <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden', marginBottom: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid #f8faff' }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                          {/* Header clicável */}
+                          <div onClick={() => setTasksExpandidas(p => ({ ...p, [sj.id]: !sjExp }))}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: sjExp ? '1px solid #f8faff' : 'none' }}>
+                            <span style={{ fontSize: 11, color: '#94a3b8', transform: sjExp ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
-                              {sj.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{sj.serviceParentName}</div>}
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</span>
+                              {sj.serviceParentName && !sjExp && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{sj.serviceParentName}</span>}
                             </div>
-                            {isConfirmed && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>✓ Confirmado</span>}
-                            {isRejected && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✗ Recusado</span>}
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                              {valorTotal && !sjExp && <span style={{ fontSize: 12, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                              {isConfirmed && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>✓ Confirmado</span>}
+                              {isRejected && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✗ Recusado</span>}
+                            </div>
                           </div>
-                          {sjExpanded && (
+                          {/* Detalhes expansíveis */}
+                          {sjExp && (
                             <>
                               <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
                                 {valorTotal && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div><div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
@@ -902,13 +916,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                   placeholder="Observações (especificações técnicas...)"
                                   style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none', color: '#475569' }} />
                               </div>
+                              {isPending && (
+                                <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Recusar</button>
+                                  <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Confirmar</button>
+                                </div>
+                              )}
                             </>
-                          )}
-                          {isPending && (
-                            <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', justifyContent: 'flex-end' }}>
-                              <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Recusar</button>
-                              <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Confirmar</button>
-                            </div>
                           )}
                         </div>
                       );
