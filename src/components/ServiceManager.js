@@ -302,8 +302,17 @@ const SEED_PRICING = {
 };
 
 // ── Sub-serviço form ──────────────────────────────────────────────────────────
+const APROVACOES_CONFIG = [
+  { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Aprovação antes de iniciar a execução (ex: modelo, projeto, amostra)', cor: '#7BAFD4' },
+  { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação do trabalho concluído antes do evento (ex: 3D, estande montado)', cor: '#667eea' },
+  { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Avaliação do cliente durante/após o evento (ex: qualidade da entrega)', cor: '#10b981' },
+];
+
 function SubServiceForm({ parentId, editData, onSave, onCancel }) {
-  const [form, setForm] = useState(editData || { name: '', description: '', active: true });
+  const [form, setForm] = useState(editData || {
+    name: '', description: '', active: true,
+    preAprovacao: false, aprovacaoExecucao: false, aprovacaoEntrega: false,
+  });
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -311,7 +320,13 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
     if (!form.name.trim()) { alert('Nome obrigatorio'); return; }
     setSaving(true);
     try {
-      const data = { ...form, parentId, updatedAt: new Date() };
+      const data = {
+        name: form.name, description: form.description, active: form.active,
+        preAprovacao:      !!form.preAprovacao,
+        aprovacaoExecucao: !!form.aprovacaoExecucao,
+        aprovacaoEntrega:  !!form.aprovacaoEntrega,
+        parentId, updatedAt: new Date(),
+      };
       if (editData?.id) {
         await updateDoc(doc(db, 'services', editData.id), data);
       } else {
@@ -334,10 +349,31 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
         <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e => setF('name', e.target.value)} style={inp} placeholder="Ex: Recepcionista" /></div>
         <div><label style={lbl}>Descricao</label><input value={form.description} onChange={e => setF('description', e.target.value)} style={inp} placeholder="Breve descricao" /></div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         <input type="checkbox" id={`sub-act-${editData?.id || 'new'}`} checked={form.active !== false} onChange={e => setF('active', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#667eea' }} />
         <label htmlFor={`sub-act-${editData?.id || 'new'}`} style={{ fontSize: 12, color: '#64748b', cursor: 'pointer' }}>Ativo</label>
       </div>
+
+      {/* Aprovações */}
+      <div style={{ background: 'white', borderRadius: 8, border: '1px solid #e2e8f0', padding: 12, marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 10 }}>
+          Aprovações necessárias
+        </div>
+        {APROVACOES_CONFIG.map(ap => (
+          <div key={ap.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: form[ap.key] ? ap.cor : '#64748b' }}>{ap.label}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{ap.desc}</div>
+            </div>
+            {/* Toggle */}
+            <div onClick={() => setF(ap.key, !form[ap.key])}
+              style={{ width: 40, height: 22, borderRadius: 11, background: form[ap.key] ? ap.cor : '#e2e8f0', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, marginLeft: 12 }}>
+              <div style={{ position: 'absolute', top: 3, left: form[ap.key] ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
         <button onClick={handleSave} disabled={saving} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -642,6 +678,13 @@ export default function ServiceManager() {
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{sub.name}</div>
                               {sub.description && <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub.description}</div>}
+                              {(sub.preAprovacao || sub.aprovacaoExecucao || sub.aprovacaoEntrega) && (
+                                <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                                  {sub.preAprovacao      && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(123,175,212,0.15)', color: '#7BAFD4' }}>Pré-aprovação</span>}
+                                  {sub.aprovacaoExecucao && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>Exec. aprovação</span>}
+                                  {sub.aprovacaoEntrega  && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Entrega aprovação</span>}
+                                </div>
+                              )}
                             </div>
                             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                               <button onClick={() => setEditingSub(sub)}
