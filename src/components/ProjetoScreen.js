@@ -539,9 +539,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               </div>
             );
 
+            // Cores por fase da barra
+            const COR_PREPARO   = '#7BAFD4';  // azul claro
+            const COR_MONTAGEM  = '#FFA726';  // laranja
+            const COR_EXECUCAO  = '#00E5C4';  // teal
+            const COR_ATRASADO  = '#ef4444';  // vermelho
+            const COR_CONCLUIDO = '#94a3b8';  // cinza
             const TIPO_COR = { administrativo: '#7BAFD4', estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A' };
             const hoje = new Date(); hoje.setHours(0,0,0,0);
             const toDate = s => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(y, m-1, d); };
+            const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
             const fmtShort = s => { if (!s) return ''; const [y,m,d] = s.split('-'); return `${d}/${m}`; };
 
             // Ordena por dataInicio
@@ -591,12 +598,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               <div className="ps-card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div className="ps-card-title" style={{ margin: 0 }}>Cronograma de Produção</div>
-                  {/* Legenda */}
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    {Object.entries(TIPO_COR).map(([tipo, cor]) => (
-                      <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: 2, background: cor }} />
-                        <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'capitalize' }}>{tipo}</span>
+                  {/* Legenda por fase */}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {[
+                      [COR_PREPARO,   'Preparo'],
+                      [COR_MONTAGEM,  'Montagem'],
+                      [COR_EXECUCAO,  'Execução'],
+                      [COR_ATRASADO,  'Atrasado'],
+                      [COR_CONCLUIDO, 'Concluído'],
+                    ].map(([cor, label]) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 12, height: 8, borderRadius: 2, background: cor, opacity: label === 'Concluído' ? 0.5 : 1 }} />
+                        <span style={{ fontSize: 10, color: '#94a3b8' }}>{label}</span>
                       </div>
                     ))}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -619,23 +632,40 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
                     {/* Linhas do Gantt */}
                     {etapasOrdenadas.map((etapa, i) => {
-                      const cor     = TIPO_COR[etapa.tipo] || '#7BAFD4';
-                      const di      = toDate(etapa.dataInicio || etapa.di);
-                      const de      = toDate(etapa.dataEntrega || etapa.de);
+                      const di  = toDate(etapa.dataInicio || etapa.di);
+                      const de  = toDate(etapa.dataEntrega || etapa.de);
+                      const cor = TIPO_COR[etapa.tipo] || '#7BAFD4';
                       const atrasado = de && de < hoje && etapa.status !== 'concluido';
-                      const barCor  = atrasado ? '#ef4444' : etapa.status === 'concluido' ? '#94a3b8' : cor;
-                      const left    = posLeft(di);
-                      const width   = posWidth(di, de);
-                      const isMine  = isFornecedor && supplierJobsMine.some(sj =>
+                      const concluido = etapa.status === 'concluido';
+                      const left  = posLeft(di);
+                      const width = posWidth(di, de);
+                      const isMine = isFornecedor && supplierJobsMine.some(sj =>
                         etapa.responsavel?.toLowerCase().includes((sj.serviceName||'').toLowerCase())
                       );
                       const fornNome = fornecedorNome[etapa.responsavel] || etapa.responsavel;
+
+                      // Busca supplierJob para pegar dias de preparo e montagem
+                      const sjEtapa = supplierJobs.find(j =>
+                        etapa.responsavel?.toLowerCase().includes((j.serviceName||'').toLowerCase()) ||
+                        (j.serviceName||'').toLowerCase().includes((etapa.nome||'').toLowerCase())
+                      );
+                      const dPreparo  = sjEtapa?.diasPreparo  || 0;
+                      const dMontagem = sjEtapa?.diasMontagem || 0;
+                      const totalDiasEtapa = di && de ? Math.max(1, Math.round((de - di) / 86400000)) : 0;
+                      const dExecucao = Math.max(0, totalDiasEtapa - dPreparo - dMontagem);
+
+                      // Calcula largura de cada segmento
+                      const wTotal = posWidth(di, de);
+                      const wPreparo   = totalDiasEtapa > 0 ? (dPreparo / totalDiasEtapa) * wTotal : 0;
+                      const wMontagem  = totalDiasEtapa > 0 ? (dMontagem / totalDiasEtapa) * wTotal : 0;
+                      const wExecucao  = Math.max(0, wTotal - wPreparo - wMontagem);
+                      const temSegmentos = (dPreparo > 0 || dMontagem > 0) && !concluido && !atrasado;
 
                       return (
                         <div key={etapa.id || i} style={{ display: 'flex', alignItems: 'center', height: ROW_H, borderBottom: '1px solid #f8faff', background: i % 2 === 0 ? 'white' : '#fafbff' }}>
                           {/* Label */}
                           <div style={{ width: LABEL_W, flexShrink: 0, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: isMine ? 700 : 500, color: isMine ? cor : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: 12, fontWeight: isMine ? 700 : 500, color: isMine ? COR_EXECUCAO : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {isMine && '★ '}{etapa.nome}
                             </div>
                             <div style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -649,16 +679,38 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {hojePos >= 0 && hojePos <= 100 && (
                               <div style={{ position: 'absolute', left: `${hojePos}%`, top: 0, bottom: 0, width: 2, background: '#ef444455', zIndex: 2 }} />
                             )}
-                            {/* Barra */}
+                            {/* Barra segmentada ou simples */}
                             {di && de && (
-                              <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: `${barCor}cc`, border: `1px solid ${barCor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
-                                title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)}`}>
-                                {width > 8 && <span style={{ fontSize: 9, color: 'white', fontWeight: 600, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtShort(etapa.dataEntrega||etapa.de)}</span>}
-                              </div>
+                              temSegmentos ? (
+                                // Barra com 3 segmentos: Preparo | Montagem | Execução
+                                <div style={{ position: 'absolute', left: `${left}%`, width: `${wTotal}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, display: 'flex', overflow: 'hidden', zIndex: 1, minWidth: 6 }}
+                                  title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)} | Preparo: ${dPreparo}d | Montagem: ${dMontagem}d | Execução: ${dExecucao}d`}>
+                                  {wPreparo > 0 && (
+                                    <div style={{ width: `${(wPreparo/wTotal)*100}%`, background: COR_PREPARO, borderRight: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 2 }}>
+                                      {wPreparo/wTotal > 0.15 && <span style={{ fontSize: 8, color: 'white', fontWeight: 700 }}>{dPreparo}d</span>}
+                                    </div>
+                                  )}
+                                  {wMontagem > 0 && (
+                                    <div style={{ width: `${(wMontagem/wTotal)*100}%`, background: COR_MONTAGEM, borderRight: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 2 }}>
+                                      {wMontagem/wTotal > 0.15 && <span style={{ fontSize: 8, color: 'white', fontWeight: 700 }}>{dMontagem}d</span>}
+                                    </div>
+                                  )}
+                                  {wExecucao > 0 && (
+                                    <div style={{ width: `${(wExecucao/wTotal)*100}%`, background: COR_EXECUCAO, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 2 }}>
+                                      {wExecucao/wTotal > 0.15 && <span style={{ fontSize: 8, color: 'white', fontWeight: 700 }}>{dExecucao}d</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                // Barra simples (sem segmentos, concluída ou atrasada)
+                                <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: atrasado ? `${COR_ATRASADO}cc` : concluido ? `${COR_CONCLUIDO}88` : `${COR_EXECUCAO}cc`, border: `1px solid ${atrasado ? COR_ATRASADO : concluido ? COR_CONCLUIDO : COR_EXECUCAO}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
+                                  title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)}`}>
+                                  {width > 8 && <span style={{ fontSize: 9, color: 'white', fontWeight: 600, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtShort(etapa.dataEntrega||etapa.de)}</span>}
+                                </div>
+                              )
                             )}
-                            {/* Badge status */}
                             {atrasado && (
-                              <div style={{ position: 'absolute', left: `${left + width + 0.5}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>⚠ atrasado</div>
+                              <div style={{ position: 'absolute', left: `${left + width + 0.5}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>⚠</div>
                             )}
                           </div>
                         </div>
