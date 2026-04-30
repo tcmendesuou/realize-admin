@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 
 const STATUS_MAP = {
@@ -36,6 +37,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [todasExpandidas, setTodasExpandidas] = useState(true);
   const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [aprovacaoModal, setAprovacaoModal] = useState(null); // { task, tipo: 'pre'|'execucao'|'entrega' }
+  const [aprovacaoArquivos, setAprovacaoArquivos] = useState([]);
+  const [aprovacaoObs, setAprovacaoObs] = useState('');
+  const [uploadingAprov, setUploadingAprov] = useState(false);
   const [newTask, setNewTask]     = useState({ name: '', descricao: '', prazo: '', prioridade: 'normal' });
   const [savingTask, setSavingTask] = useState(false);
 
@@ -191,6 +196,58 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setSupplierJobsMine(prev => prev.map(sj => sj.id === sjId ? { ...sj, status: 'rejected' } : sj));
     } catch (e) { console.error(e); alert('Erro ao recusar.'); }
     finally { setConfirming(false); }
+  };
+
+  // Fluxo de aprovação de tasks
+  const handleConcluirTask = async (task) => {
+    // Busca configuração de aprovações do serviço no catálogo
+    try {
+      const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', task.serviceName)));
+      const svc = svcSnap.docs[0]?.data() || {};
+      // Verifica se tem aprovação de execução (a mais comum ao concluir)
+      if (svc.aprovacaoExecucao) {
+        setAprovacaoModal({ task, tipo: 'execucao', label: 'Aprovação de Execução', svc });
+        setAprovacaoArquivos([]);
+        setAprovacaoObs('');
+        return;
+      }
+      if (svc.preAprovacao && task.status === 'pendente') {
+        setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
+        setAprovacaoArquivos([]);
+        setAprovacaoObs('');
+        return;
+      }
+    } catch (e) { console.error(e); }
+    // Sem aprovação — conclui direto
+    await updateDoc(doc(db, 'tasks', task.id), { status: 'concluido', concluidoAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  };
+
+  const handleEnviarParaAprovacao = async () => {
+    if (!aprovacaoModal) return;
+    setUploadingAprov(true);
+    try {
+      const storage = getStorage();
+      const urls = [];
+      for (const file of aprovacaoArquivos) {
+        const storageRef = ref(storage, `aprovacoes/${aprovacaoModal.task.budgetId}/${aprovacaoModal.task.id}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        urls.push({ nome: file.name, url });
+      }
+      const statusNovo = aprovacaoModal.tipo === 'pre' ? 'aguardando_pre_aprovacao' : aprovacaoModal.tipo === 'execucao' ? 'aguardando_aprovacao_execucao' : 'aguardando_aprovacao_entrega';
+      await updateDoc(doc(db, 'tasks', aprovacaoModal.task.id), {
+        status: statusNovo,
+        aprovacaoTipo:    aprovacaoModal.tipo,
+        aprovacaoArquivos: urls,
+        aprovacaoObs:     aprovacaoObs,
+        aprovacaoEnviadaEm: serverTimestamp(),
+        updatedAt:        serverTimestamp(),
+      });
+      setAprovacaoModal(null);
+      setAprovacaoArquivos([]);
+      setAprovacaoObs('');
+    } catch (e) { console.error(e); alert('Erro ao enviar para aprovação.'); }
+    finally { setUploadingAprov(false); }
   };
 
   // Disparo automático quando todos os supplierJobs forem respondidos
@@ -872,6 +929,36 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           placeholder="Suas observações sobre esta tarefa..."
                           style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none', color: '#475569' }} />
                       </div>
+                      {/* Botão concluir / status de aprovação */}
+                      {task.status === 'pendente' || task.status === 'em_andamento' || task.status === 'ajuste' ? (
+                        <div style={{ padding: '0 16px 14px', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                          {task.status === 'ajuste' && (
+                            <div style={{ flex: 1, fontSize: 11, color: '#ef4444', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                              ⚠ Ajuste solicitado — revise e envie novamente
+                            </div>
+                          )}
+                          <button onClick={() => handleConcluirTask(task)}
+                            style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            {task.status === 'ajuste' ? 'Reenviar para aprovação' : 'Concluir'}
+                          </button>
+                        </div>
+                      ) : (task.status === 'aguardando_pre_aprovacao' || task.status === 'aguardando_aprovacao_execucao' || task.status === 'aguardando_aprovacao_entrega') ? (
+                        <div style={{ padding: '0 16px 14px' }}>
+                          <div style={{ background: 'rgba(255,167,38,0.08)', borderRadius: 8, padding: '10px 14px', border: '1px solid rgba(255,167,38,0.2)', fontSize: 12, color: '#FFA726', fontWeight: 500 }}>
+                            ⏳ Aguardando aprovação do cliente...
+                            {task.aprovacaoArquivos?.length > 0 && (
+                              <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {task.aprovacaoArquivos.map((f, i) => (
+                                  <a key={i} href={f.url} target="_blank" rel="noreferrer"
+                                    style={{ fontSize: 11, color: '#667eea', textDecoration: 'none', background: 'rgba(102,126,234,0.1)', padding: '2px 8px', borderRadius: 4 }}>
+                                    📎 {f.nome}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -1362,6 +1449,45 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
         </div>
       </div>
+
+      {/* Modal de envio para aprovação */}
+      {aprovacaoModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 480, padding: 28, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{aprovacaoModal.label}</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>{aprovacaoModal.task.nome || aprovacaoModal.task.serviceName}</div>
+
+            {/* Upload de arquivos */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Arquivos / Fotos *</label>
+              <input type="file" multiple accept="image/*,.pdf,.doc,.docx"
+                onChange={e => setAprovacaoArquivos(Array.from(e.target.files))}
+                style={{ width: '100%', fontSize: 12, fontFamily: 'Outfit, sans-serif' }} />
+              {aprovacaoArquivos.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 11, color: '#667eea' }}>
+                  {aprovacaoArquivos.length} arquivo(s) selecionado(s)
+                </div>
+              )}
+            </div>
+
+            {/* Observação */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Observações</label>
+              <textarea value={aprovacaoObs} onChange={e => setAprovacaoObs(e.target.value)}
+                placeholder="Descreva o que foi entregue, detalhes relevantes..."
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 70, boxSizing: 'border-box', outline: 'none' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setAprovacaoModal(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+              <button onClick={handleEnviarParaAprovacao} disabled={uploadingAprov || aprovacaoArquivos.length === 0}
+                style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: aprovacaoArquivos.length === 0 ? '#e2e8f0' : 'linear-gradient(135deg,#667eea,#764ba2)', color: aprovacaoArquivos.length === 0 ? '#94a3b8' : 'white', fontSize: 13, fontWeight: 600, cursor: aprovacaoArquivos.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                {uploadingAprov ? 'Enviando...' : 'Enviar para aprovação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -19,6 +19,8 @@ export default function ClienteHome({ userData, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [aprovando, setAprovando] = useState(false);
+  const [tasksPendentesAprov, setTasksPendentesAprov] = useState([]);
+  const [aprovandoTask, setAprovandoTask] = useState(false);
 
   const userId = userData?.id;
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Cliente';
@@ -33,7 +35,40 @@ export default function ClienteHome({ userData, onLogout }) {
         setLoading(false);
       }
     );
+    // Busca tasks pendentes de aprovação do cliente
+  useEffect(() => {
+    if (!userId) return;
+    const statusPendentes = ['aguardando_pre_aprovacao', 'aguardando_aprovacao_execucao', 'aguardando_aprovacao_entrega'];
+    // Busca budgets do cliente para filtrar tasks
+    const budgetIds = events.map(e => e.id);
+    if (budgetIds.length === 0) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'tasks'), where('budgetId', 'in', budgetIds.slice(0, 10))),
+      snap => {
+        const pendentes = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(t => statusPendentes.includes(t.status));
+        setTasksPendentesAprov(pendentes);
+      }
+    );
     return () => unsub();
+  }, [userId, events]);
+
+  const handleAprovarTask = async (task, aprovado) => {
+    if (!aprovado && !window.confirm('Solicitar ajuste nesta entrega?')) return;
+    setAprovandoTask(true);
+    try {
+      await updateDoc(doc(db, 'tasks', task.id), {
+        status: aprovado ? 'concluido' : 'ajuste',
+        aprovacaoClienteEm: serverTimestamp(),
+        aprovacaoClienteOk: aprovado,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) { console.error(e); alert('Erro ao processar aprovação.'); }
+    finally { setAprovandoTask(false); }
+  };
+
+  return () => unsub();
   }, [userId]);
 
   return (
@@ -320,6 +355,53 @@ export default function ClienteHome({ userData, onLogout }) {
                 </p>
               </div>
             )}
+
+            {/* Tasks pendentes de aprovação */}
+            {tasksPendentesAprov.filter(t => t.budgetId === selectedEvent.id).map(task => {
+              const TIPO_LABEL = {
+                aguardando_pre_aprovacao:       { label: 'Pré-aprovação',         cor: '#7BAFD4' },
+                aguardando_aprovacao_execucao:  { label: 'Aprovação de Execução', cor: '#667eea' },
+                aguardando_aprovacao_entrega:   { label: 'Aprovação de Entrega',  cor: '#10b981' },
+              };
+              const tipoInfo = TIPO_LABEL[task.status] || { label: 'Aprovação', cor: '#FFA726' };
+              return (
+                <div key={task.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${tipoInfo.cor}33`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: tipoInfo.cor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{tipoInfo.label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>{task.nome || task.serviceName}</div>
+                      {task.supplierName && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{task.supplierName}</div>}
+                    </div>
+                    <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, background: `${tipoInfo.cor}22`, color: tipoInfo.cor, fontWeight: 600, flexShrink: 0 }}>Aguardando sua aprovação</span>
+                  </div>
+                  {task.aprovacaoObs && (
+                    <div style={{ fontSize: 12, color: '#7BAFD4', background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+                      {task.aprovacaoObs}
+                    </div>
+                  )}
+                  {task.aprovacaoArquivos?.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                      {task.aprovacaoArquivos.map((f, i) => (
+                        <a key={i} href={f.url} target="_blank" rel="noreferrer"
+                          style={{ fontSize: 12, color: '#00E5C4', textDecoration: 'none', background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', padding: '5px 12px', borderRadius: 8 }}>
+                          📎 {f.nome}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => handleAprovarTask(task, false)} disabled={aprovandoTask}
+                      style={{ flex: 1, padding: '9px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                      Solicitar Ajuste
+                    </button>
+                    <button onClick={() => handleAprovarTask(task, true)} disabled={aprovandoTask}
+                      style={{ flex: 2, padding: '9px', borderRadius: 8, border: 'none', background: aprovandoTask ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg,${tipoInfo.cor},#0080FF)`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                      {aprovandoTask ? 'Processando...' : '✓ Aprovar'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
