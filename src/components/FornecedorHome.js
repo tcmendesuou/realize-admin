@@ -18,10 +18,24 @@ export default function FornecedorHome({ userData, onLogout }) {
   const [hasServicos, setHasServicos]     = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
 
+  const [myTasks, setMyTasks] = useState([]);
+  const [calMes, setCalMes]   = useState(new Date().getMonth());
+  const [calAno, setCalAno]   = useState(new Date().getFullYear());
+
   const supplierId = userData?.supplierId || userData?.id;
   const userId     = userData?.id;
   const userName   = userData?.name || userData?.email?.split('@')[0] || 'Fornecedor';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  // ── busca tasks do fornecedor ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'tasks'), where('supplierId', '==', userId)),
+      snap => setMyTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [userId]);
 
   // ── verifica se já tem serviços cadastrados ───────────────────────────────
   useEffect(() => {
@@ -264,11 +278,190 @@ export default function FornecedorHome({ userData, onLogout }) {
           </div>
         )}
 
-        {activeSection === 'agenda' && (
-          <div style={{ color: '#7BAFD4', fontSize: 14, paddingTop: 40, textAlign: 'center' }}>
-            Agenda em breve
-          </div>
-        )}
+        {activeSection === 'agenda' && (() => {
+          const hoje = new Date(); hoje.setHours(0,0,0,0);
+          const primeiroDia = new Date(calAno, calMes, 1);
+          const ultimoDia   = new Date(calAno, calMes + 1, 0);
+          const diasNoMes   = ultimoDia.getDate();
+          const iniciaSemana = primeiroDia.getDay(); // 0=dom
+
+          const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+          const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+          // Gera eventos para cada task com datas de preparo, montagem e execução
+          const eventos = [];
+          myTasks.forEach(task => {
+            if (!task.dataInicio && !task.dataEntrega) return;
+            const toDate = s => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(y, m-1, d); };
+            const deDate = toDate(task.dataEntrega);
+            const diDate = toDate(task.dataInicio);
+
+            // Fase execução/evento — toda a duração da task
+            if (diDate && deDate) {
+              for (let d = new Date(diDate); d <= deDate; d.setDate(d.getDate() + 1)) {
+                eventos.push({ data: new Date(d), task, fase: 'execucao', cor: '#00E5C4' });
+              }
+            }
+
+            // Fase preparo — antes do início
+            if (diDate && task.diasPreparo > 0) {
+              const inicio = new Date(diDate);
+              inicio.setDate(inicio.getDate() - task.diasPreparo - (task.diasMontagem || 0));
+              const fim = new Date(diDate);
+              fim.setDate(fim.getDate() - (task.diasMontagem || 0) - 1);
+              for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+                eventos.push({ data: new Date(d), task, fase: 'preparo', cor: '#7BAFD4' });
+              }
+            }
+
+            // Fase montagem — entre preparo e início
+            if (diDate && task.diasMontagem > 0) {
+              const inicio = new Date(diDate);
+              inicio.setDate(inicio.getDate() - task.diasMontagem);
+              const fim = new Date(diDate);
+              fim.setDate(fim.getDate() - 1);
+              for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+                eventos.push({ data: new Date(d), task, fase: 'montagem', cor: '#FFA726' });
+              }
+            }
+          });
+
+          const getEventosDoDia = (dia) => {
+            const target = new Date(calAno, calMes, dia);
+            return eventos.filter(e =>
+              e.data.getFullYear() === target.getFullYear() &&
+              e.data.getMonth() === target.getMonth() &&
+              e.data.getDate() === target.getDate()
+            );
+          };
+
+          const prevMes = () => {
+            if (calMes === 0) { setCalMes(11); setCalAno(y => y - 1); }
+            else setCalMes(m => m - 1);
+          };
+          const nextMes = () => {
+            if (calMes === 11) { setCalMes(0); setCalAno(y => y + 1); }
+            else setCalMes(m => m + 1);
+          };
+
+          return (
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3, marginBottom: 4 }}>Agenda</h1>
+
+              {/* Legenda */}
+              <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
+                {[['#7BAFD4', 'Preparo'], ['#FFA726', 'Montagem'], ['#00E5C4', 'Execução/Evento']].map(([cor, label]) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: cor }} />
+                    <span style={{ fontSize: 11, color: '#7BAFD4' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Header do calendário */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <button onClick={prevMes} style={{ background: 'none', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 8, color: '#7BAFD4', padding: '6px 14px', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: 16 }}>‹</button>
+                <div style={{ fontSize: 18, fontWeight: 500, color: '#E8F4FF' }}>{MESES[calMes]} {calAno}</div>
+                <button onClick={nextMes} style={{ background: 'none', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 8, color: '#7BAFD4', padding: '6px 14px', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: 16 }}>›</button>
+              </div>
+
+              {/* Grid do calendário */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(0,180,255,0.08)', borderRadius: 14, overflow: 'hidden' }}>
+                {/* Cabeçalho dias da semana */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid rgba(0,180,255,0.08)' }}>
+                  {DIAS_SEMANA.map(d => (
+                    <div key={d} style={{ padding: '10px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'rgba(123,175,212,0.5)', letterSpacing: 0.5 }}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Células dos dias */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {/* Células vazias antes do primeiro dia */}
+                  {Array.from({ length: iniciaSemana }).map((_, i) => (
+                    <div key={`empty-${i}`} style={{ minHeight: 80, borderRight: '1px solid rgba(0,180,255,0.05)', borderBottom: '1px solid rgba(0,180,255,0.05)' }} />
+                  ))}
+
+                  {/* Dias do mês */}
+                  {Array.from({ length: diasNoMes }).map((_, i) => {
+                    const dia = i + 1;
+                    const isHoje = hoje.getDate() === dia && hoje.getMonth() === calMes && hoje.getFullYear() === calAno;
+                    const evsDia = getEventosDoDia(dia);
+                    const col = (iniciaSemana + i) % 7;
+                    const isBorderRight = col < 6;
+
+                    return (
+                      <div key={dia} style={{ minHeight: 80, borderRight: isBorderRight ? '1px solid rgba(0,180,255,0.05)' : 'none', borderBottom: '1px solid rgba(0,180,255,0.05)', padding: 6, background: isHoje ? 'rgba(0,229,196,0.04)' : 'none' }}>
+                        <div style={{ fontSize: 12, fontWeight: isHoje ? 700 : 400, color: isHoje ? '#00E5C4' : 'rgba(123,175,212,0.6)', marginBottom: 4, width: 22, height: 22, borderRadius: '50%', background: isHoje ? 'rgba(0,229,196,0.15)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {dia}
+                        </div>
+                        {/* Eventos do dia — agrupados por task+fase */}
+                        {(() => {
+                          const vistos = new Set();
+                          return evsDia.filter(e => {
+                            const key = `${e.task.id}-${e.fase}`;
+                            if (vistos.has(key)) return false;
+                            vistos.add(key);
+                            return true;
+                          }).slice(0, 3).map((ev, ei) => (
+                            <div key={ei} onClick={() => window.location.href = `/projeto/${ev.task.budgetId}`}
+                              style={{ fontSize: 9, padding: '2px 5px', borderRadius: 3, background: `${ev.cor}22`, border: `1px solid ${ev.cor}44`, color: ev.cor, marginBottom: 2, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                              {ev.fase === 'preparo' ? '▶' : ev.fase === 'montagem' ? '◆' : '●'} {ev.task.nome || ev.task.serviceName}
+                            </div>
+                          ));
+                        })()}
+                        {evsDia.length > 3 && <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.4)', paddingLeft: 2 }}>+{evsDia.length - 3}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Lista de tasks do mês */}
+              {myTasks.length > 0 && (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
+                    Tarefas em {MESES[calMes]}
+                  </div>
+                  {myTasks
+                    .filter(task => {
+                      if (!task.dataInicio && !task.dataEntrega) return false;
+                      const toDate = s => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(y, m-1, d); };
+                      const di = toDate(task.dataInicio);
+                      const de = toDate(task.dataEntrega);
+                      const inicio = di ? new Date(di) : null;
+                      if (inicio && task.diasPreparo) inicio.setDate(inicio.getDate() - task.diasPreparo - (task.diasMontagem || 0));
+                      return (inicio && inicio.getMonth() === calMes && inicio.getFullYear() === calAno) ||
+                             (de && de.getMonth() === calMes && de.getFullYear() === calAno);
+                    })
+                    .sort((a, b) => (a.dataInicio || '') < (b.dataInicio || '') ? -1 : 1)
+                    .map(task => {
+                      const STATUS_COR = { pendente: '#f59e0b', em_andamento: '#0080FF', concluido: '#10b981', ajuste: '#ef4444', aguardando_aprovacao_execucao: '#FFA726' };
+                      const cor = STATUS_COR[task.status] || '#7BAFD4';
+                      return (
+                        <div key={task.id} onClick={() => window.location.href = `/projeto/${task.budgetId}`}
+                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.08)', marginBottom: 8, background: 'rgba(255,255,255,0.02)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: cor, flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: '#E8F4FF' }}>{task.nome || task.serviceName}</div>
+                            <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>
+                              {task.dataInicio && <span>{task.dataInicio.split('-').reverse().join('/')}</span>}
+                              {task.dataInicio && task.dataEntrega && <span style={{ margin: '0 6px' }}>→</span>}
+                              {task.dataEntrega && <span>{task.dataEntrega.split('-').reverse().join('/')}</span>}
+                              {task.diasPreparo > 0 && <span style={{ marginLeft: 10, color: '#7BAFD4' }}>{task.diasPreparo}d preparo</span>}
+                              {task.diasMontagem > 0 && <span style={{ marginLeft: 6, color: '#FFA726' }}>{task.diasMontagem}d montagem</span>}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: `${cor}15`, color: cor }}>
+                            {task.status === 'pendente' ? 'Pendente' : task.status === 'em_andamento' ? 'Em andamento' : task.status === 'concluido' ? '✓ Concluído' : task.status === 'ajuste' ? '⚠ Ajuste' : 'Aguardando'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
