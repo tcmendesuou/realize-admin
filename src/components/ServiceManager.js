@@ -397,6 +397,9 @@ export default function ServiceManager() {
   const [expanded, setExpanded] = useState(null);
   const [showSubForm, setShowSubForm] = useState(null);
   const [editingSub, setEditingSub] = useState(null);
+  // Cascata
+  const [selCategoria, setSelCategoria] = useState(null);
+  const [selSub, setSelSub]             = useState(null);
 
   useEffect(() => { loadServices(); }, []);
 
@@ -537,180 +540,238 @@ export default function ServiceManager() {
     return <ServicoEspecialManager />;
   }
 
-  const tipoConfig = TIPOS.find(t => t.id === tipoAtivo);
-  const rootServices = services.filter(s => !s.parentId && s.tipo === tipoAtivo);
-  const getSubServices = (parentId) => services.filter(s => s.parentId === parentId);
+  const tipoConfig   = TIPOS.find(t => t.id === tipoAtivo);
+  const categorias   = services.filter(s => !s.parentId && s.tipo === tipoAtivo);
+  const subsDaCateg  = selCategoria ? services.filter(s => s.parentId === selCategoria) : [];
+  const color        = tipoConfig?.color || '#667eea';
 
   const inp = { padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box', outline: 'none' };
   const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
   return (
-    <div style={{ fontFamily: 'Outfit, sans-serif', overflowY: 'auto', height: '100%' }}>
+    <div style={{ fontFamily: 'Outfit, sans-serif', height: '100%', display: 'flex', flexDirection: 'column' }}>
+
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Servicos</h2>
-          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Catalogo de servicos para eventos</p>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Serviços</h2>
+          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Catálogo de serviços para eventos</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 4, marginRight: 12 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 4 }}>
             {[['catalogo', 'Catálogo'], ['especiais', 'Serviços Especiais']].map(([id, label]) => (
               <button key={id} onClick={() => setViewMode(id)}
-                style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${viewMode === id ? '#667eea' : '#e2e8f0'}`, background: viewMode === id ? '#f0f3ff' : 'white', color: viewMode === id ? '#667eea' : '#64748b', fontSize: 13, fontWeight: viewMode === id ? 600 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${viewMode === id ? '#667eea' : '#e2e8f0'}`, background: viewMode === id ? '#f0f3ff' : 'white', color: viewMode === id ? '#667eea' : '#64748b', fontSize: 12, fontWeight: viewMode === id ? 600 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                 {label}
               </button>
             ))}
           </div>
-          {viewMode === 'catalogo' && services.filter(s => !s.tipo).length > 0 || services.length === 0 ? (
+          {(services.filter(s => !s.tipo).length > 0 || services.length === 0) && (
             <button onClick={handleSeed} disabled={seeding}
-              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.3)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.3)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
               {seeding ? 'Criando...' : 'Popular com dados de mercado'}
             </button>
-          ) : null}
+          )}
           <button onClick={handleSeedEntGastro} disabled={seedingEG}
-            style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(255,167,38,0.3)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(255,167,38,0.3)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
             {seedingEG ? 'Adicionando...' : '+ Entretenimento e Gastronomia'}
-          </button>
-          <button onClick={() => { setForm({ name: '', description: '', active: true }); setEditing(null); setShowForm(true); }}
-            style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-            + Novo Servico
           </button>
         </div>
       </div>
 
-      {/* Tabs Estrutura / Operação */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      {/* Tabs de tipo */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexShrink: 0, flexWrap: 'wrap' }}>
         {TIPOS.map(t => (
-          <button key={t.id} onClick={() => { setTipoAtivo(t.id); setExpanded(null); setShowForm(false); }}
-            style={{ padding: '10px 24px', borderRadius: 10, border: `1.5px solid ${tipoAtivo === t.id ? t.color : '#e2e8f0'}`, background: tipoAtivo === t.id ? `${t.color}15` : 'white', color: tipoAtivo === t.id ? t.color : '#64748b', fontSize: 14, fontWeight: tipoAtivo === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
+          <button key={t.id} onClick={() => { setTipoAtivo(t.id); setSelCategoria(null); setSelSub(null); setEditingSub(null); setShowSubForm(null); }}
+            style={{ padding: '8px 18px', borderRadius: 10, border: `1.5px solid ${tipoAtivo === t.id ? t.color : '#e2e8f0'}`, background: tipoAtivo === t.id ? `${t.color}15` : 'white', color: tipoAtivo === t.id ? t.color : '#64748b', fontSize: 13, fontWeight: tipoAtivo === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
             {t.label}
-            <div style={{ fontSize: 11, fontWeight: 400, color: tipoAtivo === t.id ? t.color : '#94a3b8', marginTop: 2 }}>{t.desc}</div>
           </button>
         ))}
       </div>
 
-      {/* Form de serviço raiz */}
-      {showForm && (
-        <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: 20, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{editing ? 'Editar' : 'Novo'} Servico de {tipoConfig?.label}</h3>
-          <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>{tipoConfig?.desc}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
-            <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inp} placeholder={tipoAtivo === 'estrutura' ? 'Ex: Telao de LED' : 'Ex: Recepcao'} /></div>
-            <div><label style={lbl}>Descricao</label><input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={inp} placeholder="Breve descricao" /></div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <input type="checkbox" id="svc-active" checked={form.active !== false} onChange={e => setForm(p => ({ ...p, active: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#667eea' }} />
-            <label htmlFor="svc-active" style={{ fontSize: 13, color: '#64748b', cursor: 'pointer' }}>Servico ativo</label>
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => { setShowForm(false); setEditing(null); }} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-            <button onClick={handleSave} disabled={saving} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>{saving ? 'Salvando...' : 'Salvar'}</button>
-          </div>
-        </div>
-      )}
-
-      {/* Lista */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>
-      ) : rootServices.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', color: '#94a3b8' }}>
-          <p style={{ fontSize: 14 }}>Nenhum servico de {tipoConfig?.label} cadastrado.</p>
-          <p style={{ fontSize: 12, marginTop: 4 }}>Clique em "+ Novo Servico" para comecar.</p>
-        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {rootServices.map(s => {
-            const subs = getSubServices(s.id);
-            const isExpanded = expanded === s.id;
-            const color = tipoConfig?.color || '#667eea';
-            return (
-              <div key={s.id} style={{ background: 'white', borderRadius: 12, border: `1px solid ${isExpanded ? color + '44' : '#e2e8f0'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-                {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', cursor: 'pointer', opacity: s.active !== false ? 1 : 0.5 }}
-                  onClick={() => setExpanded(isExpanded ? null : s.id)}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.name}</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: s.active !== false ? '#dcfce7' : '#f1f5f9', color: s.active !== false ? '#16a34a' : '#94a3b8' }}>
-                        {s.active !== false ? 'Ativo' : 'Inativo'}
-                      </span>
-                      {subs.length > 0 && (
-                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${color}15`, color, fontWeight: 600 }}>
-                          {subs.length} sub
-                        </span>
-                      )}
-                    </div>
-                    {s.description && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{s.description}</div>}
+        /* Layout cascata */
+        <div style={{ display: 'flex', flex: 1, gap: 0, border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', minHeight: 500 }}>
+
+          {/* Col 1 — Categorias */}
+          <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid #e2e8f0', overflowY: 'auto', background: '#fafbff' }}>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Categoria</span>
+              <button onClick={() => { setForm({ name: '', description: '', active: true }); setEditing(null); setShowForm(true); setSelCategoria(null); setSelSub(null); }}
+                style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, border: `1px solid ${color}44`, background: 'none', color, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>+ Nova</button>
+            </div>
+            {/* Form de nova categoria */}
+            {showForm && !editing && (
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={{ ...inp, padding: '6px 10px', fontSize: 12, marginBottom: 6 }} placeholder="Nome da categoria" />
+                <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={{ ...inp, padding: '6px 10px', fontSize: 12, marginBottom: 8 }} placeholder="Descrição" />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => { setShowForm(false); }} style={{ flex: 1, padding: '5px', borderRadius: 5, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                  <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: '5px', borderRadius: 5, border: 'none', background: color, color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>{saving ? '...' : 'Salvar'}</button>
+                </div>
+              </div>
+            )}
+            {categorias.length === 0 ? (
+              <div style={{ padding: 20, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>Nenhuma categoria</div>
+            ) : categorias.map(cat => (
+              <div key={cat.id} onClick={() => { setSelCategoria(cat.id); setSelSub(null); setEditingSub(null); setShowSubForm(null); }}
+                style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: selCategoria === cat.id ? `${color}10` : 'none', borderLeft: `3px solid ${selCategoria === cat.id ? color : 'transparent'}`, transition: 'all 0.15s', opacity: cat.active !== false ? 1 : 0.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: selCategoria === cat.id ? 600 : 400, color: selCategoria === cat.id ? color : '#1e293b' }}>{cat.name}</span>
+                  <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setForm({ name: cat.name, description: cat.description || '', active: cat.active !== false }); setEditing(cat.id); setShowForm(true); }}
+                      style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✎</button>
+                    <button onClick={() => handleDelete(cat.id)}
+                      style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, border: '1px solid #fecaca', background: 'none', color: '#ef4444', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✕</button>
                   </div>
-                  <div style={{ display: 'flex', gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                    <button onClick={() => { setForm({ name: s.name, description: s.description || '', active: s.active !== false }); setEditing(s.id); setShowForm(true); }}
-                      style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
-                    <button onClick={() => toggleActive(s)}
-                      style={{ padding: '3px 9px', borderRadius: 5, border: `1px solid ${s.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: s.active !== false ? '#d97706' : '#16a34a', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                      {s.active !== false ? 'Desativar' : 'Ativar'}
+                </div>
+                {cat.description && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{cat.description}</div>}
+                <div style={{ fontSize: 10, color, marginTop: 2 }}>
+                  {services.filter(s => s.parentId === cat.id).length} sub-serviço(s)
+                </div>
+              </div>
+            ))}
+            {/* Form editar categoria inline */}
+            {showForm && editing && (
+              <div style={{ padding: '10px 12px', background: '#f0f3ff', borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#667eea', marginBottom: 8 }}>Editar categoria</div>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={{ ...inp, padding: '6px 10px', fontSize: 12, marginBottom: 6 }} />
+                <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={{ ...inp, padding: '6px 10px', fontSize: 12, marginBottom: 8 }} placeholder="Descrição" />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => { setShowForm(false); setEditing(null); }} style={{ flex: 1, padding: '5px', borderRadius: 5, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                  <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: '5px', borderRadius: 5, border: 'none', background: color, color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>{saving ? '...' : 'Salvar'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Col 2 — Sub-serviços */}
+          <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid #e2e8f0', overflowY: 'auto', background: 'white' }}>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Sub-serviço</span>
+              {selCategoria && (
+                <button onClick={() => { setShowSubForm(selCategoria); setEditingSub(null); setSelSub(null); }}
+                  style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, border: `1px solid ${color}44`, background: 'none', color, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>+ Novo</button>
+              )}
+            </div>
+            {!selCategoria ? (
+              <div style={{ padding: 20, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>Selecione uma categoria</div>
+            ) : (
+              <>
+                {showSubForm === selCategoria && !editingSub && (
+                  <div style={{ padding: 12, borderBottom: '1px solid #e2e8f0', background: '#f8faff' }}>
+                    <SubServiceForm parentId={selCategoria}
+                      onSave={() => { setShowSubForm(null); loadServices(); }}
+                      onCancel={() => setShowSubForm(null)} />
+                  </div>
+                )}
+                {subsDaCateg.length === 0 && showSubForm !== selCategoria && (
+                  <div style={{ padding: 20, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>Nenhum sub-serviço ainda</div>
+                )}
+                {subsDaCateg.map(sub => (
+                  <div key={sub.id}>
+                    {editingSub?.id === sub.id ? (
+                      <div style={{ padding: 12, background: '#f8faff', borderBottom: '1px solid #e2e8f0' }}>
+                        <SubServiceForm parentId={selCategoria} editData={editingSub}
+                          onSave={() => { setEditingSub(null); setSelSub(sub); loadServices(); }}
+                          onCancel={() => setEditingSub(null)} />
+                      </div>
+                    ) : (
+                      <div onClick={() => { setSelSub(sub); setEditingSub(null); setShowSubForm(null); }}
+                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: selSub?.id === sub.id ? `${color}08` : 'none', borderLeft: `3px solid ${selSub?.id === sub.id ? color : 'transparent'}`, opacity: sub.active !== false ? 1 : 0.5, transition: 'all 0.15s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: selSub?.id === sub.id ? 600 : 400, color: selSub?.id === sub.id ? color : '#1e293b' }}>{sub.name}</div>
+                            {sub.description && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{sub.description}</div>}
+                            {(sub.preAprovacao || sub.aprovacaoExecucao || sub.aprovacaoEntrega) && (
+                              <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
+                                {sub.preAprovacao      && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(123,175,212,0.15)', color: '#7BAFD4' }}>Pré</span>}
+                                {sub.aprovacaoExecucao && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>Exec</span>}
+                                {sub.aprovacaoEntrega  && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Entrega</span>}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 3, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                            <button onClick={() => { setEditingSub(sub); setSelSub(null); setShowSubForm(null); }}
+                              style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✎</button>
+                            <button onClick={() => toggleActive(sub)}
+                              style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: `1px solid ${sub.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: sub.active !== false ? '#d97706' : '#16a34a', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              {sub.active !== false ? '⏸' : '▶'}
+                            </button>
+                            <button onClick={async () => { if (window.confirm(`Excluir "${sub.name}"?`)) { await deleteDoc(doc(db, 'services', sub.id)); if (selSub?.id === sub.id) setSelSub(null); loadServices(); } }}
+                              style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #fecaca', background: 'none', color: '#ef4444', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✕</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Painel direito — detalhes do sub-serviço */}
+          <div style={{ flex: 1, overflowY: 'auto', background: '#fafbff', padding: 20 }}>
+            {!selSub ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+                Selecione um sub-serviço para ver os detalhes
+              </div>
+            ) : (
+              <div>
+                {/* Título */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{selSub.name}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                    {tipoConfig?.label} › {categorias.find(c => c.id === selCategoria)?.name}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: selSub.active !== false ? '#dcfce7' : '#f1f5f9', color: selSub.active !== false ? '#16a34a' : '#94a3b8', fontWeight: 600 }}>
+                      {selSub.active !== false ? 'Ativo' : 'Inativo'}
+                    </span>
+                    <button onClick={() => { setEditingSub(selSub); setSelSub(null); }}
+                      style={{ fontSize: 12, padding: '3px 12px', borderRadius: 20, border: `1px solid ${color}44`, background: `${color}10`, color, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>
+                      Editar sub-serviço
                     </button>
-                    <button onClick={() => handleDelete(s.id)}
-                      style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid #fecaca', background: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
                   </div>
-                  <span style={{ color: '#cbd5e1', fontSize: 14, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>
 
-                {/* Sub-serviços */}
-                {isExpanded && (
-                  <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px 16px', background: '#fafbff' }}>
-                    {showSubForm === s.id && !editingSub && (
-                      <SubServiceForm parentId={s.id}
-                        onSave={() => { setShowSubForm(null); loadServices(); }}
-                        onCancel={() => setShowSubForm(null)} />
-                    )}
-                    {subs.length === 0 && showSubForm !== s.id && (
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Nenhum sub-servico ainda.</div>
-                    )}
-                    {subs.map(sub => (
-                      <div key={sub.id}>
-                        {editingSub?.id === sub.id ? (
-                          <SubServiceForm parentId={s.id} editData={editingSub}
-                            onSave={() => { setEditingSub(null); loadServices(); }}
-                            onCancel={() => setEditingSub(null)} />
-                        ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', marginBottom: 5, background: 'white', borderRadius: 7, border: '1px solid #e2e8f0', opacity: sub.active !== false ? 1 : 0.5 }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{sub.name}</div>
-                              {sub.description && <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub.description}</div>}
-                              {(sub.preAprovacao || sub.aprovacaoExecucao || sub.aprovacaoEntrega) && (
-                                <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                                  {sub.preAprovacao      && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(123,175,212,0.15)', color: '#7BAFD4' }}>Pré-aprovação</span>}
-                                  {sub.aprovacaoExecucao && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>Exec. aprovação</span>}
-                                  {sub.aprovacaoEntrega  && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Entrega aprovação</span>}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                              <button onClick={() => setEditingSub(sub)}
-                                style={{ padding: '2px 8px', borderRadius: 5, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
-                              <button onClick={() => toggleActive(sub)}
-                                style={{ padding: '2px 8px', borderRadius: 5, border: `1px solid ${sub.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: sub.active !== false ? '#d97706' : '#16a34a', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                {sub.active !== false ? 'Pausar' : 'Ativar'}
-                              </button>
-                              <button onClick={async () => { if (window.confirm(`Excluir "${sub.name}"?`)) { await deleteDoc(doc(db, 'services', sub.id)); loadServices(); } }}
-                                style={{ padding: '2px 8px', borderRadius: 5, border: '1px solid #fecaca', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
-                            </div>
-                          </div>
-                        )}
+                {selSub.description && (
+                  <div style={{ marginBottom: 16, padding: '10px 14px', background: 'white', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, color: '#475569' }}>
+                    {selSub.description}
+                  </div>
+                )}
+
+                {/* Aprovações */}
+                <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Aprovações configuradas</div>
+                  {[
+                    { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Antes de iniciar a execução', cor: '#7BAFD4' },
+                    { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Trabalho concluído antes do evento', cor: '#667eea' },
+                    { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Avaliação durante/após o evento', cor: '#10b981' },
+                  ].map(ap => (
+                    <div key={ap.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: selSub[ap.key] ? ap.cor : '#64748b' }}>{ap.label}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{ap.desc}</div>
                       </div>
-                    ))}
-                    {showSubForm !== s.id && (
-                      <button onClick={() => { setShowSubForm(s.id); setEditingSub(null); }}
-                        style={{ width: '100%', padding: '7px', borderRadius: 7, border: `1.5px dashed ${color}44`, background: 'none', color, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginTop: 4 }}>
-                        + Adicionar sub-servico
-                      </button>
-                    )}
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: selSub[ap.key] ? `${ap.cor}15` : '#f1f5f9', color: selSub[ap.key] ? ap.cor : '#94a3b8' }}>
+                        {selSub[ap.key] ? '✓ Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Aviso se nenhuma aprovação */}
+                {!selSub.preAprovacao && !selSub.aprovacaoExecucao && !selSub.aprovacaoEntrega && (
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+                    Nenhuma aprovação configurada. Clique em "Editar sub-serviço" para configurar.
                   </div>
                 )}
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
       )}
     </div>
