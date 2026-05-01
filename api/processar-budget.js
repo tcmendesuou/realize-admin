@@ -1,27 +1,25 @@
-const { initializeApp, getApps } = require('firebase/app');
-const { getFirestore, collection, getDocs, addDoc, updateDoc, doc, query, where, serverTimestamp } = require('firebase/firestore');
+const admin = require('firebase-admin');
 const https = require('https');
 
-const firebaseConfig = {
-  apiKey:            process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain:        process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId:         process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket:     process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             process.env.REACT_APP_FIREBASE_APP_ID,
-};
-
-function getDB() {
-  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-  return getFirestore(app);
+// Inicializa Firebase Admin uma vez
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId:    process.env.FIREBASE_PROJECT_ID,
+      clientEmail:  process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey:   (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    }),
+  });
 }
 
-async function callClaude(prompt, systemPrompt) {
+const db = admin.firestore();
+
+async function callClaude(prompt) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 8000,
-      system: systemPrompt || 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks.',
+      system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks.',
       messages: [{ role: 'user', content: prompt }],
     });
     const options = {
@@ -52,14 +50,10 @@ module.exports = async function handler(req, res) {
   const { budgetId } = req.body;
   if (!budgetId) return res.status(400).json({ error: 'budgetId obrigatório' });
 
-  const db = getDB();
-
   try {
-    // 1. Busca o budget diretamente pelo ID
-    const { getDoc } = require('firebase/firestore');
-    const budgetRef = doc(db, 'budgets', budgetId);
-    const budgetSnap = await getDoc(budgetRef);
-    if (!budgetSnap.exists()) return res.status(404).json({ error: 'Budget não encontrado' });
+    // 1. Busca o budget
+    const budgetSnap = await db.collection('budgets').doc(budgetId).get();
+    if (!budgetSnap.exists) return res.status(404).json({ error: 'Budget não encontrado' });
 
     const budgetData = budgetSnap.data();
     const briefingJson = budgetData.briefingData || {};
@@ -67,10 +61,10 @@ module.exports = async function handler(req, res) {
     // 2. Atribui coordenador (menor carga)
     let assignedTo = null, assignedToName = null;
     try {
-      const usersSnap = await getDocs(query(collection(db, 'users'), where('systemRole', '==', 'coordenador')));
+      const usersSnap = await db.collection('users').where('systemRole', '==', 'coordenador').get();
       const coordenadores = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.active !== false);
       if (coordenadores.length > 0) {
-        const budgetsSnap = await getDocs(query(collection(db, 'budgets'), where('status', '==', 'analyzing')));
+        const budgetsSnap = await db.collection('budgets').where('status', '==', 'analyzing').get();
         const contagem = {};
         budgetsSnap.docs.forEach(d => {
           const at = d.data().assignedTo;
@@ -85,16 +79,16 @@ module.exports = async function handler(req, res) {
     } catch (e) { console.error('Erro coordenador:', e); }
 
     // 3. Atualiza budget com coordenador
-    await updateDoc(budgetRef, {
+    await db.collection('budgets').doc(budgetId).update({
       assignedTo,
       assignedToName,
-      assignedAt: assignedTo ? serverTimestamp() : null,
-      updatedAt: serverTimestamp(),
+      assignedAt: assignedTo ? admin.firestore.FieldValue.serverTimestamp() : null,
+      updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // 4. Cria supplierJobs
     const servicosNecessarios = briefingJson.servicosNecessarios || [];
-    const suppServSnap = await getDocs(collection(db, 'supplierServices'));
+    const suppServSnap = await db.collection('supplierServices').get();
     const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     const keywords = servicosNecessarios.flatMap(sn =>
@@ -126,8 +120,10 @@ module.exports = async function handler(req, res) {
     });
 
     const jobsCriados = [];
+    const batch = db.batch();
     for (const sv of suppServs) {
-      const jobRef = await addDoc(collection(db, 'supplierJobs'), {
+      const jobRef = db.collection('supplierJobs').doc();
+      batch.set(jobRef, {
         supplierId:        sv.supplierId,
         budgetId,
         eventName:         briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
@@ -143,13 +139,14 @@ module.exports = async function handler(req, res) {
         diasMontagem:      sv.diasMontagem || 0,
         stage:             'proposta',
         status:            'pending',
-        createdAt:         serverTimestamp(),
+        createdAt:         admin.firestore.FieldValue.serverTimestamp(),
       });
-      jobsCriados.push({ id: jobRef.id, serviceName: sv.serviceName });
+      jobsCriados.push(sv.serviceName);
     }
+    await batch.commit();
 
     // 5. Gera cronograma via IA
-    let cronograma = null;
+    let cronogramaEtapas = 0;
     try {
       const dataEvento = briefingJson.evento?.dataInicio || '';
       const servicosResumidos = todosServicos
@@ -174,7 +171,7 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
       const cronJson = JSON.parse(clean);
 
       if (cronJson?.etapas?.length > 0) {
-        const etapasNormalizadas = cronJson.etapas.map(e => ({
+        const etapas = cronJson.etapas.map(e => ({
           id:          e.id || e.n,
           nome:        e.n  || e.nome,
           descricao:   e.d  || e.descricao || '',
@@ -186,8 +183,11 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
           status:      e.s  || e.status || 'pendente',
           tipo:        e.t  || e.tipo || 'administrativo',
         }));
-        cronograma = { etapas: etapasNormalizadas };
-        await updateDoc(budgetRef, { cronograma, updatedAt: serverTimestamp() });
+        await db.collection('budgets').doc(budgetId).update({
+          cronograma: { etapas },
+          updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
+        });
+        cronogramaEtapas = etapas.length;
       }
     } catch (e) { console.error('Erro cronograma:', e); }
 
@@ -197,7 +197,7 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
       assignedTo,
       assignedToName,
       jobsCriados: jobsCriados.length,
-      cronograma: cronograma ? cronograma.etapas.length : 0,
+      cronograma: cronogramaEtapas,
     });
 
   } catch (e) {
