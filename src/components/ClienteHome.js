@@ -71,9 +71,6 @@ export default function ClienteHome({ userData, onLogout }) {
     finally { setAprovandoTask(false); }
   };
 
-  return () => unsub();
-  }, [userId]);
-
   return (
     <div style={{ minHeight: '100vh', background: '#0D1B2A', display: 'flex', fontFamily: 'Outfit, sans-serif' }}>
       <style>{`
