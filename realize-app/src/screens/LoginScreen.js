@@ -52,7 +52,7 @@ export default function LoginScreen({ navigation }) {
         id: userId,
         name: userData.name,
         email: userData.email,
-        userType: userData.userType, // ← Direto! String!
+        userType: userData.systemRole,
         companyId: userData.companyId,
         companyName: userData.companyName,
         roleId: userData.roleId,
@@ -67,18 +67,18 @@ export default function LoginScreen({ navigation }) {
       console.log('==== LOGIN DEBUG ====');
       console.log('User Type:', userData.userType);
       console.log('User Type (tipo):', typeof userData.userType);
-      console.log('É cliente?', userData.userType === 'cliente');
+      console.log('É cliente?', userData.systemRole === 'cliente');
       console.log('====================');
 
       // Redirecionar baseado no tipo de usuário e cargo
-      if (userData.userType === 'cliente') {
+      if (userData.systemRole === 'cliente') {
         // Cliente vai para ClientHome
         console.log('→ Redirecionando para ClientHome');
         navigation.reset({
           index: 0,
           routes: [{ name: 'ClientHome' }]
         });
-      } else if (userData.userType === 'equipe') {
+      } else if (userData.systemRole === 'equipe' || userData.userTypeName === 'Equipe') {
         // Verificar se é Diretora ou Atendimento
         const cargo = userData.roleName?.toLowerCase() || '';
         

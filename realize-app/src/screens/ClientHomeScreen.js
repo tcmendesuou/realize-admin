@@ -40,15 +40,15 @@ export default function ClientHomeScreen({ navigation }) {
       // Buscar projetos do cliente
       const budgetsRef = collection(db, 'budgets');
       const [snap1, snap2] = await Promise.all([
-        getDocs(query(budgetsRef, where('clientEmail', '==', user.email), where('isMae', '==', true))),
-        getDocs(query(budgetsRef, where('clientUserId', '==', user.id), where('isMae', '==', true))),
+        getDocs(query(budgetsRef, where('clientUserId', '==', user.id))),
+        getDocs(query(budgetsRef, where('clientEmail', '==', user.email))),
       ]);
       const ids = new Set();
-      const snapshot = { docs: [...snap1.docs, ...snap2.docs].filter(d => !ids.has(d.id) && ids.add(d.id)) };
-      const projectsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const allDocs = [...snap1.docs, ...snap2.docs].filter(d => !ids.has(d.id) && ids.add(d.id));
+      // Filtra apenas budgets mãe (não sub-budgets)
+      const projectsData = allDocs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(p => p.isMae !== false);
 
       // Ordenar por data (mais recente primeiro)
       projectsData.sort((a, b) => {
