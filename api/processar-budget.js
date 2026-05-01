@@ -55,13 +55,14 @@ module.exports = async function handler(req, res) {
   const db = getDB();
 
   try {
-    // 1. Busca o budget
-    const budgetSnap = await getDocs(query(collection(db, 'budgets'), where('__name__', '==', budgetId)));
-    if (budgetSnap.empty) return res.status(404).json({ error: 'Budget não encontrado' });
-
-    const budgetData = budgetSnap.docs[0].data();
-    const briefingJson = budgetData.briefingData || {};
+    // 1. Busca o budget diretamente pelo ID
+    const { getDoc } = require('firebase/firestore');
     const budgetRef = doc(db, 'budgets', budgetId);
+    const budgetSnap = await getDoc(budgetRef);
+    if (!budgetSnap.exists()) return res.status(404).json({ error: 'Budget não encontrado' });
+
+    const budgetData = budgetSnap.data();
+    const briefingJson = budgetData.briefingData || {};
 
     // 2. Atribui coordenador (menor carga)
     let assignedTo = null, assignedToName = null;
