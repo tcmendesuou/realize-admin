@@ -39,9 +39,12 @@ export default function ClientHomeScreen({ navigation }) {
 
       // Buscar projetos do cliente
       const budgetsRef = collection(db, 'budgets');
-      const q = query(budgetsRef, where('clientEmail', '==', user.email));
-
-      const snapshot = await getDocs(q);
+      const [snap1, snap2] = await Promise.all([
+        getDocs(query(budgetsRef, where('clientEmail', '==', user.email), where('isMae', '==', true))),
+        getDocs(query(budgetsRef, where('clientUserId', '==', user.id), where('isMae', '==', true))),
+      ]);
+      const ids = new Set();
+      const snapshot = { docs: [...snap1.docs, ...snap2.docs].filter(d => !ids.has(d.id) && ids.add(d.id)) };
       const projectsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -76,23 +79,16 @@ export default function ClientHomeScreen({ navigation }) {
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'analyzing': return '#FFA726';
-      case 'approved': return '#66BB6A';
-      case 'rejected': return '#EF5350';
-      default: return '#78909C';
-    }
+  const STATUS_CONFIG = {
+    analyzing:       { label: 'Em Análise',           color: '#FFA726' },
+    pendingApproval: { label: 'Orçamento disponível', color: '#0080FF' },
+    approved:        { label: 'Aprovado',              color: '#00E5C4' },
+    inProgress:      { label: 'Em andamento',          color: '#0080FF' },
+    completed:       { label: 'Concluído',             color: '#66BB6A' },
+    rejected:        { label: 'Cancelado',             color: '#EF5350' },
   };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'analyzing': return 'Em Análise';
-      case 'approved': return 'Aprovado';
-      case 'rejected': return 'Rejeitado';
-      default: return 'Aguardando';
-    }
-  };
+  const getStatusColor = (s) => (STATUS_CONFIG[s] || { color: '#78909C' }).color;
+  const getStatusText  = (s) => (STATUS_CONFIG[s] || { label: 'Aguardando' }).label;
 
   const formatDate = (timestamp) => {
     if (!timestamp) return '';
@@ -154,7 +150,7 @@ export default function ClientHomeScreen({ navigation }) {
         {/* BOTÃO NOVO ORÇAMENTO */}
         <TouchableOpacity
           style={styles.newBudgetButton}
-          onPress={() => navigation.navigate('EventTypes')}
+          onPress={() => navigation.navigate('ChatIA')}
         >
           <LinearGradient
             colors={['#00FFAA', '#00BFFF', '#0040FF']}
@@ -163,7 +159,7 @@ export default function ClientHomeScreen({ navigation }) {
             style={styles.newBudgetGradient}
           >
             <Text style={styles.newBudgetIcon}>+</Text>
-            <Text style={styles.newBudgetText}>Solicitar Novo Orçamento</Text>
+            <Text style={styles.newBudgetText}>+ Novo Evento com IA</Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -177,7 +173,7 @@ export default function ClientHomeScreen({ navigation }) {
               <Text style={styles.emptyIcon}>📋</Text>
               <Text style={styles.emptyTitle}>Nenhum projeto ainda</Text>
               <Text style={styles.emptyText}>
-                Clique em "Solicitar Novo Orçamento" para começar
+                Clique em "+ Novo Evento com IA" para começar
               </Text>
             </View>
           ) : (
@@ -185,10 +181,7 @@ export default function ClientHomeScreen({ navigation }) {
               <TouchableOpacity
                 key={project.id}
                 style={styles.projectCard}
-                onPress={() => {
-                  // Por enquanto, mostrar informações básicas
-                  alert(`Projeto: ${getProjectName(project)}\nStatus: ${getStatusText(project.status)}\n\nTela de detalhes em desenvolvimento!`);
-                }}
+                onPress={() => navigation.navigate('ProjectDetail', { budgetId: project.id })}
               >
                 <View style={styles.projectHeader}>
                   <View style={styles.projectTitleRow}>
