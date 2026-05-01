@@ -35,6 +35,9 @@ export default function ClienteHome({ userData, onLogout }) {
         setLoading(false);
       }
     );
+    return () => unsub();
+  }, [userId]);
+
     // Busca tasks pendentes de aprovação do cliente
   useEffect(() => {
     if (!userId) return;
