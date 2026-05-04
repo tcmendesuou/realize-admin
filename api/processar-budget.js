@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
     // 2. Atribui coordenador (menor carga)
     let assignedTo = null, assignedToName = null;
     try {
-      const usersSnap = await db.collection('users').where('systemRole', '==', 'coordenador').get();
+      const usersSnap = await db.collection('users').where('systemRole', '==', 'workspace').get();
       const coordenadores = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.active !== false);
       if (coordenadores.length > 0) {
         const budgetsSnap = await db.collection('budgets').where('status', '==', 'analyzing').get();
