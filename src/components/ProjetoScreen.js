@@ -204,21 +204,33 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     try {
       const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', task.serviceName)));
       const svc = svcSnap.docs[0]?.data() || {};
-      // Verifica se tem aprovação de execução (a mais comum ao concluir)
-      if (svc.aprovacaoExecucao) {
-        setAprovacaoModal({ task, tipo: 'execucao', label: 'Aprovação de Execução', svc });
-        setAprovacaoArquivos([]);
-        setAprovacaoObs('');
-        return;
-      }
-      if (svc.preAprovacao && task.status === 'pendente') {
+
+      if (task.fase === 'preparacao') {
+        // Task de preparação → sempre exige pré-aprovação do cliente antes de gerar execução
         setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
         setAprovacaoArquivos([]);
         setAprovacaoObs('');
         return;
       }
+
+      if (task.fase === 'execucao') {
+        // Task de execução → verifica aprovação de execução (no dia do evento)
+        if (svc.aprovacaoExecucao) {
+          setAprovacaoModal({ task, tipo: 'execucao', label: 'Aprovação de Execução', svc });
+          setAprovacaoArquivos([]);
+          setAprovacaoObs('');
+          return;
+        }
+        // Ou aprovação de entrega (encerramento do projeto)
+        if (svc.aprovacaoEntrega) {
+          setAprovacaoModal({ task, tipo: 'entrega', label: 'Aprovação de Entrega', svc });
+          setAprovacaoArquivos([]);
+          setAprovacaoObs('');
+          return;
+        }
+      }
     } catch (e) { console.error(e); }
-    // Sem aprovação — conclui direto
+    // Sem aprovação configurada — conclui direto
     await updateDoc(doc(db, 'tasks', task.id), { status: 'concluido', concluidoAt: serverTimestamp(), updatedAt: serverTimestamp() });
   };
 

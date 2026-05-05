@@ -421,9 +421,9 @@ export default function ClienteHome({ userData, onLogout }) {
             {/* Tasks pendentes de aprovação */}
             {tasksPendentesAprov.filter(t => t.budgetId === selectedEvent.id).map(task => {
               const TIPO_LABEL = {
-                aguardando_pre_aprovacao:       { label: 'Pré-aprovação',         cor: '#7BAFD4' },
-                aguardando_aprovacao_execucao:  { label: 'Aprovação de Execução', cor: '#667eea' },
-                aguardando_aprovacao_entrega:   { label: 'Aprovação de Entrega',  cor: '#10b981' },
+                aguardando_pre_aprovacao:       { label: 'Pré-aprovação — Aprovar preparação para liberar execução', cor: '#7BAFD4' },
+                aguardando_aprovacao_execucao:  { label: 'Aprovação de Execução — Entrega no dia do evento',        cor: '#667eea' },
+                aguardando_aprovacao_entrega:   { label: 'Aprovação de Entrega — Encerramento do projeto',          cor: '#10b981' },
               };
               const tipoInfo = TIPO_LABEL[task.status] || { label: 'Aprovação', cor: '#FFA726' };
               return (

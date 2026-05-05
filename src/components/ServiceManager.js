@@ -303,9 +303,9 @@ const SEED_PRICING = {
 
 // ── Sub-serviço form ──────────────────────────────────────────────────────────
 const APROVACOES_CONFIG = [
-  { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Aprovação antes de iniciar a execução (ex: modelo, projeto, amostra)', cor: '#7BAFD4' },
-  { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação do trabalho concluído antes do evento (ex: 3D, estande montado)', cor: '#667eea' },
-  { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Avaliação do cliente durante/após o evento (ex: qualidade da entrega)', cor: '#10b981' },
+  { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Fornecedor executa a preparação e envia para aprovação do cliente. Se aprovado, o sistema gera a task de execução (ex: modelo, projeto, amostra)', cor: '#7BAFD4' },
+  { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço ao cliente (ex: estande montado, estrutura pronta)', cor: '#667eea' },
+  { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Aprovação final do cliente ao encerrar o projeto, confirmando que tudo foi entregue corretamente', cor: '#10b981' },
 ];
 
 function SubServiceForm({ parentId, editData, onSave, onCancel }) {
@@ -747,9 +747,9 @@ export default function ServiceManager() {
                 <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Aprovações configuradas</div>
                   {[
-                    { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Antes de iniciar a execução', cor: '#7BAFD4' },
-                    { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Trabalho concluído antes do evento', cor: '#667eea' },
-                    { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Avaliação durante/após o evento', cor: '#10b981' },
+                    { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Fornecedor prepara e envia para aprovação do cliente. Se aprovado, gera a task de execução', cor: '#7BAFD4' },
+                    { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço', cor: '#667eea' },
+                    { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Aprovação final do cliente ao encerrar o projeto', cor: '#10b981' },
                   ].map(ap => (
                     <div key={ap.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ flex: 1 }}>
