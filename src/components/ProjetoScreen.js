@@ -891,7 +891,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const toggle = id => setTasksExpandidas(p => ({ ...p, [id]: !isExp(id) }));
 
             const renderTaskForn = (task) => {
-              const cor      = TIPO_COR[task.tipoServico] || '#7BAFD4';
+              const corFase2 = task.fase === 'preparacao' ? '#7BAFD4' : task.fase === 'execucao' ? '#00E5C4' : null;
+              const cor      = corFase2 || TIPO_COR[task.tipoServico] || '#7BAFD4';
               const deDate   = task.dataEntrega ? new Date(task.dataEntrega) : null;
               const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
               const expanded = isExp(task.id);
@@ -902,7 +903,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     <span style={{ fontSize: 11, color: '#94a3b8', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: atrasada ? '#ef4444' : cor, flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</span>
+                        {task.fase && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: task.fase === 'preparacao' ? 'rgba(123,175,212,0.15)' : 'rgba(0,229,196,0.15)', color: task.fase === 'preparacao' ? '#7BAFD4' : '#00E5C4' }}>{task.fase === 'preparacao' ? 'PREPARAÇÃO' : 'EXECUÇÃO'}</span>}
+                      </div>
                       {task.serviceParentName && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{task.serviceParentName}</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
@@ -1101,7 +1105,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 const toggleTask = (id) => setTasksExpandidas(prev => ({ ...prev, [id]: !isExpanded(id) }));
 
                 const renderTaskCoord = (task, isConcluida = false) => {
-                  const cor = TIPO_COR[task.tipoServico] || '#7BAFD4';
+                  const corFase = task.fase === 'preparacao' ? '#7BAFD4' : task.fase === 'execucao' ? '#00E5C4' : null;
+                  const cor = corFase || TIPO_COR[task.tipoServico] || '#7BAFD4';
                   const deDate = task.dataEntrega ? new Date(task.dataEntrega) : null;
                   const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
                   const diasEvento = project.briefingData?.evento?.diasDuracao || 1;

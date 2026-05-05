@@ -67,6 +67,37 @@ export default function ClienteHome({ userData, onLogout }) {
         aprovacaoClienteOk: aprovado,
         updatedAt: serverTimestamp(),
       });
+
+      // Se aprovada e era task de PREPARAÇÃO → cria task de EXECUÇÃO
+      if (aprovado && task.fase === 'preparacao') {
+        await addDoc(collection(db, 'tasks'), {
+          budgetId:          task.budgetId,
+          supplierJobId:     task.supplierJobId,
+          supplierId:        task.supplierId,
+          supplierName:      task.supplierName,
+          serviceName:       task.serviceName,
+          serviceParentName: task.serviceParentName,
+          tipoServico:       task.tipoServico,
+          nome:              `Execução — ${task.serviceName}`,
+          descricao:         task.descricao || '',
+          dataInicio:        task.dataInicio || '',
+          dataEntrega:       task.dataEntrega || '',
+          diasAntes:         task.diasAntes || 0,
+          diasPreparo:       task.diasPreparo || 0,
+          diasMontagem:      task.diasMontagem || 0,
+          diasEvento:        task.diasEvento || 1,
+          valor:             task.valor || 0,
+          preco:             task.preco || 0,
+          unidade:           task.unidade || '',
+          fase:              'execucao',
+          status:            'pendente',
+          cor:               '#00E5C4',
+          preAprovacao:      false,
+          aprovacaoExecucao: task.aprovacaoExecucao || false,
+          taskPreparacaoId:  task.id,
+          createdAt:         serverTimestamp(),
+        });
+      }
     } catch (e) { console.error(e); alert('Erro ao processar aprovação.'); }
     finally { setAprovandoTask(false); }
   };
@@ -310,30 +341,61 @@ export default function ClienteHome({ userData, onLogout }) {
                               (e.responsavel||'').toLowerCase().includes((sj.serviceName||'').toLowerCase())
                             );
 
-                            // Cria task
-                            await addDoc(collection(db, 'tasks'), {
-                              budgetId:     selectedEvent.id,
-                              supplierJobId: sj.id,
-                              supplierId:   sj.supplierId,
-                              supplierName: sj.supplierName || sj.confirmedBy || '',
-                              serviceName:  sj.serviceName || '',
+                            // Busca configuração de aprovação do serviço no catálogo
+                            let preAprovacao = false, aprovacaoExecucao = false;
+                            try {
+                              const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', sj.serviceName)));
+                              if (!svcSnap.empty) {
+                                const svcData = svcSnap.docs[0].data();
+                                preAprovacao = !!svcData.preAprovacao;
+                                aprovacaoExecucao = !!svcData.aprovacaoExecucao;
+                              }
+                            } catch (e) { console.error('Erro ao buscar config serviço:', e); }
+
+                            const taskBase = {
+                              budgetId:          selectedEvent.id,
+                              supplierJobId:     sj.id,
+                              supplierId:        sj.supplierId,
+                              supplierName:      sj.supplierName || sj.confirmedBy || '',
+                              serviceName:       sj.serviceName || '',
                               serviceParentName: sj.serviceParentName || '',
-                              tipoServico:  sj.tipoServico || '',
-                              nome:         sj.serviceName || '',
-                              descricao:    etapa?.descricao || '',
-                              dataInicio:   etapa?.dataInicio || etapa?.di || '',
-                              dataEntrega:  etapa?.dataEntrega || etapa?.de || '',
-                              diasAntes:    etapa?.diasAntes || 0,
-                              diasPreparo:  sj.diasPreparo || 0,
-                              diasMontagem: sj.diasMontagem || 0,
+                              tipoServico:       sj.tipoServico || '',
+                              nome:              sj.serviceName || '',
+                              descricao:         etapa?.descricao || '',
+                              dataInicio:        etapa?.dataInicio || etapa?.di || '',
+                              dataEntrega:       etapa?.dataEntrega || etapa?.de || '',
+                              diasAntes:         etapa?.diasAntes || 0,
+                              diasPreparo:       sj.diasPreparo || 0,
+                              diasMontagem:      sj.diasMontagem || 0,
                               diasEvento,
-                              valor:        sj.preco ? parseFloat(sj.preco) * diasEvento : 0,
-                              preco:        parseFloat(sj.preco || 0),
-                              unidade:      sj.unidade || '',
-                              status:       'pendente',
-                              observacao:   sj.observacaoFornecedor || '',
-                              createdAt:    serverTimestamp(),
-                            });
+                              valor:             sj.preco ? parseFloat(sj.preco) * diasEvento : 0,
+                              preco:             parseFloat(sj.preco || 0),
+                              unidade:           sj.unidade || '',
+                              observacao:        sj.observacaoFornecedor || '',
+                              preAprovacao,
+                              aprovacaoExecucao,
+                              createdAt:         serverTimestamp(),
+                            };
+
+                            if (preAprovacao) {
+                              // Cria task de PREPARAÇÃO — fornecedor prepara e envia para aprovação
+                              await addDoc(collection(db, 'tasks'), {
+                                ...taskBase,
+                                fase:   'preparacao',
+                                nome:   `Preparação — ${sj.serviceName}`,
+                                status: 'pendente',
+                                cor:    '#7BAFD4',
+                              });
+                            } else {
+                              // Sem pré-aprovação — cria task de EXECUÇÃO direto
+                              await addDoc(collection(db, 'tasks'), {
+                                ...taskBase,
+                                fase:   'execucao',
+                                nome:   `Execução — ${sj.serviceName}`,
+                                status: 'pendente',
+                                cor:    '#00E5C4',
+                              });
+                            }
                           }));
                         } catch (e) { console.error('Erro ao criar tasks:', e); }
                         setSelectedEvent(null);
