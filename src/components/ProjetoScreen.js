@@ -815,6 +815,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── BRIEFING ── */}
           {activeTab === 'briefing' && (
             <>
+              {/* Texto descritivo gerado pela IA */}
+              {project.descricaoBriefing && (
+                <div className="ps-card">
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#00E5C4', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Resumo do Evento</div>
+                  <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
+                    <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Estrutura */}
               <div className="ps-card">
                 <div className="ps-card-title">Estrutura</div>

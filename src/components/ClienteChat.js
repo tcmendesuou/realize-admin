@@ -330,6 +330,40 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
         }
       } catch (e) { console.error('Erro ao gerar cronograma:', e); }
 
+      // ── gera texto descritivo do briefing ──
+      try {
+        const descPrompt = `Com base nos dados abaixo, escreva um texto descritivo profissional sobre este evento para a equipe interna da Realize. Inclua: objetivo do evento, perfil do público, necessidades principais e observações relevantes para os fornecedores. Seja direto e objetivo, máximo 3 parágrafos.
+
+BRIEFING:
+Evento: ${briefingJson.evento?.nome || briefingJson.evento?.tipo}
+Tipo: ${briefingJson.evento?.tipo}
+Data: ${briefingJson.evento?.dataInicio} a ${briefingJson.evento?.dataFim}
+Local: ${briefingJson.evento?.local || briefingJson.evento?.cidade}
+Visitantes/dia: ${briefingJson.evento?.visitantesPorDia}
+Duração: ${briefingJson.evento?.diasDuracao} dia(s)
+Horário: ${briefingJson.evento?.horario || 'não informado'}
+Serviços necessários: ${(briefingJson.servicosNecessarios || []).join(', ')}
+Estrutura: ${JSON.stringify(briefingJson.estrutura || {})}
+Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
+
+        const descRes = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1000,
+            system: 'Você é um especialista em eventos corporativos. Escreva em português brasileiro, tom profissional mas acessível. Sem markdown, texto corrido.',
+            messages: [{ role: 'user', content: descPrompt }],
+          }),
+        });
+        const descData = await descRes.json();
+        const descText = (descData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+        if (descText) {
+          await updateDoc(doc(db, 'budgets', budgetRef.id), { descricaoBriefing: descText });
+          console.log('Descrição do briefing gerada:', descText.slice(0, 100));
+        }
+      } catch (e) { console.error('Erro ao gerar descrição:', e); }
+
       setStep('sent');
     } catch (err) {
       console.error('Erro ao salvar:', err);
