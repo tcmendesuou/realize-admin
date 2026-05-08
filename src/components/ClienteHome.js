@@ -68,6 +68,50 @@ export default function ClienteHome({ userData, onLogout }) {
         updatedAt: serverTimestamp(),
       });
 
+      // Se aprovada e era task de ENTREGA → verifica se todas concluíram para fechar o budget
+      if (aprovado && task.status === 'aguardando_aprovacao_entrega') {
+        try {
+          const allTasksSnap = await getDocs(
+            query(collection(db, 'tasks'), where('budgetId', '==', task.budgetId))
+          );
+          const allTasks = allTasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          // Verifica se todas as tasks de entrega estão concluídas (conta a atual como concluída)
+          const tasksEntrega = allTasks.filter(t => t.status === 'aguardando_aprovacao_entrega' || (t.aprovacaoEntrega === true && t.fase === 'execucao'));
+          const todasConcluidas = tasksEntrega.every(t => t.id === task.id ? true : t.status === 'concluido');
+
+          if (todasConcluidas) {
+            // Monta relatório com todos os serviços executados
+            const tasksExec = allTasks.filter(t => t.fase === 'execucao' || t.fase === 'preparacao');
+            const relatorioItens = tasksExec.map(t => ({
+              serviceName:          t.serviceName || '',
+              serviceParentName:    t.serviceParentName || '',
+              supplierName:         t.supplierName || '',
+              fase:                 t.fase || '',
+              status:               t.status || '',
+              dataInicio:           t.dataInicio || '',
+              dataEntrega:          t.dataEntrega || '',
+              valor:                t.valor || 0,
+              unidade:              t.unidade || '',
+              observacaoFornecedor: t.observacaoFornecedor || '',
+              aprovacaoObs:         t.aprovacaoObs || '',
+            }));
+
+            await updateDoc(doc(db, 'budgets', task.budgetId), {
+              status:         'completed',
+              workspaceStage: 'Concluido',
+              concluidoEm:    serverTimestamp(),
+              relatorioFinal: {
+                geradoEm:      new Date().toISOString(),
+                itens:         relatorioItens,
+                totalServicos: relatorioItens.length,
+              },
+              updatedAt: serverTimestamp(),
+            });
+          }
+        } catch (e) { console.error('Erro ao verificar conclusao do budget:', e); }
+      }
+
       // Se aprovada e era task de PREPARAÇÃO → cria task de EXECUÇÃO
       if (aprovado && task.fase === 'preparacao') {
         await addDoc(collection(db, 'tasks'), {

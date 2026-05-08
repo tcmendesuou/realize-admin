@@ -607,6 +607,72 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   </div>
                 </div>
               )}
+
+              {/* Relatório Final — visível quando budget está completed */}
+              {project.status === 'completed' && project.relatorioFinal && (() => {
+                const rel = project.relatorioFinal;
+                const itens = rel.itens || [];
+                const valorTotal = itens.reduce((acc, i) => acc + (i.valor || 0), 0);
+                const dataGeracao = rel.geradoEm ? new Date(rel.geradoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+                return (
+                  <div className="ps-card" style={{ border: '1px solid rgba(102,187,106,0.3)', background: 'rgba(102,187,106,0.02)' }}>
+                    <div className="ps-card-title" style={{ color: '#66BB6A' }}>Relatorio Final</div>
+
+                    {/* Resumo */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10, marginBottom: 20 }}>
+                      <div style={{ background: 'rgba(102,187,106,0.08)', borderRadius: 8, padding: '10px 14px', border: '1px solid rgba(102,187,106,0.2)' }}>
+                        <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Status</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#66BB6A' }}>Concluido</div>
+                      </div>
+                      <div style={{ background: '#f8faff', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Servicos</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{rel.totalServicos || itens.length}</div>
+                      </div>
+                      {valorTotal > 0 && (
+                        <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '10px 14px', border: '1px solid rgba(0,229,196,0.15)' }}>
+                          <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Valor total</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                      )}
+                      <div style={{ background: '#f8faff', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Encerrado em</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{dataGeracao}</div>
+                      </div>
+                    </div>
+
+                    {/* Itens do relatório */}
+                    {itens.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Servicos Executados</div>
+                        {itens.map((item, i) => (
+                          <div key={i} style={{ borderRadius: 8, border: '1px solid #e2e8f0', padding: '12px 14px', marginBottom: 8, background: 'white' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                              <div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{item.serviceName}</span>
+                                {item.serviceParentName && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{item.serviceParentName}</span>}
+                                <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: item.fase === 'preparacao' ? 'rgba(123,175,212,0.15)' : 'rgba(0,229,196,0.1)', color: item.fase === 'preparacao' ? '#7BAFD4' : '#00E5C4' }}>
+                                  {item.fase === 'preparacao' ? 'PREP' : 'EXEC'}
+                                </span>
+                              </div>
+                              {item.valor > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {item.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                              {item.supplierName && <span style={{ fontSize: 11, color: '#667eea' }}>{item.supplierName}</span>}
+                              {item.dataInicio && <span style={{ fontSize: 11, color: '#94a3b8' }}>Inicio: {item.dataInicio.split('-').reverse().join('/')}</span>}
+                              {item.dataEntrega && <span style={{ fontSize: 11, color: '#94a3b8' }}>Entrega: {item.dataEntrega.split('-').reverse().join('/')}</span>}
+                            </div>
+                            {item.observacaoFornecedor && (
+                              <div style={{ marginTop: 6, fontSize: 11, color: '#475569', background: '#f8faff', borderRadius: 6, padding: '6px 10px' }}>
+                                Obs. fornecedor: {item.observacaoFornecedor}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
 
