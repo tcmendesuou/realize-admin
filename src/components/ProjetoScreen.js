@@ -598,8 +598,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 </div>
               </div>
 
-              {/* Briefing — visível apenas para o fornecedor (coordenador tem aba própria) */}
-              {isFornecedor && project.descricaoBriefing && (
+              {/* Sobre o Evento — visível para todos os perfis */}
+              {project.descricaoBriefing && (
                 <div className="ps-card">
                   <div className="ps-card-title">Sobre o Evento</div>
                   <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
