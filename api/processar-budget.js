@@ -92,12 +92,13 @@ module.exports = async function handler(req, res) {
     const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     const keywords = servicosNecessarios.flatMap(sn =>
-      sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 2)
+      sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 1)
     );
     const sinonimos = {
+      dj:       ['dj', 'disc', 'jockey', 'musica', 'musical'],
       led:      ['led', 'neon', 'painel', 'telao', 'tela'],
       banner:   ['banner', 'backdrop', 'fundo', 'impresso'],
-      som:      ['som', 'audio', 'pa', 'caixa', 'microfone'],
+      som:      ['som', 'audio', 'pa', 'caixa', 'microfone', 'sistema', 'equipamento'],
       recepcao: ['recepcao', 'recepcionista', 'hostess'],
       seguranca:['seguranca', 'vigilancia'],
       limpeza:  ['limpeza', 'higiene', 'auxiliar'],
@@ -127,8 +128,16 @@ module.exports = async function handler(req, res) {
         supplierId:        sv.supplierId,
         budgetId,
         eventName:         briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
+        eventTypeName:     briefingJson.evento?.tipo || '',
         clientName:        budgetData.clientName || '',
         eventDate:         briefingJson.evento?.dataInicio || '',
+        eventDateFim:      briefingJson.evento?.dataFim || '',
+        eventLocal:        briefingJson.evento?.local || briefingJson.evento?.cidade || '',
+        eventCidade:       briefingJson.evento?.cidade || '',
+        eventHorarioInicio:briefingJson.evento?.horarioInicio || '',
+        eventHorarioFim:   briefingJson.evento?.horarioFim || '',
+        eventDiasDuracao:  briefingJson.evento?.diasDuracao || 1,
+        eventVisitantes:   briefingJson.evento?.visitantesPorDia || 0,
         serviceNames:      [sv.serviceName],
         serviceName:       sv.serviceName,
         serviceParentName: sv.serviceParentName || '',
@@ -190,6 +199,33 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
         cronogramaEtapas = etapas.length;
       }
     } catch (e) { console.error('Erro cronograma:', e); }
+
+    // 6. Gera descricaoBriefing via IA
+    try {
+      const ev = briefingJson.evento || {};
+      const briefPrompt = `Você é assistente de uma agência de eventos. Escreva um parágrafo curto (máximo 5 linhas) em português explicando o evento para os fornecedores contratados. Seja direto e objetivo, inclua: nome do evento, tipo, data, horário, local, número de participantes e os serviços contratados. Não use bullet points, escreva em texto corrido.
+
+Dados:
+- Evento: ${ev.nome || ev.tipo}
+- Tipo: ${ev.tipo}
+- Data: ${ev.dataInicio}${ev.dataFim && ev.dataFim !== ev.dataInicio ? ' a ' + ev.dataFim : ''}
+- Horário: ${ev.horarioInicio || ''}${ev.horarioFim ? ' às ' + ev.horarioFim : ''}
+- Local: ${ev.local || ev.cidade}
+- Cidade: ${ev.cidade}
+- Participantes: ${ev.visitantesPorDia}
+- Serviços contratados: ${servicosNecessarios.join(', ')}
+
+Responda APENAS com o texto do parágrafo, sem aspas, sem introdução.`;
+
+      const briefData = await callClaude(briefPrompt);
+      const briefText = (briefData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+      if (briefText) {
+        await db.collection('budgets').doc(budgetId).update({
+          descricaoBriefing: briefText,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) { console.error('Erro descricaoBriefing:', e); }
 
     res.status(200).json({
       success: true,
