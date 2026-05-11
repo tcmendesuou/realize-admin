@@ -512,6 +512,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         <div className="ps-hero">
           <h1 className="ps-hero-title">{project.eventName || project.eventTypeName || 'Projeto'}</h1>
           <div className="ps-hero-meta">
+            {project.numeroPedido && <span style={{ color: '#00E5C4', fontWeight: 500, letterSpacing: 1 }}>{project.numeroPedido}</span>}
             <span>{project.eventTypeName || '—'}</span>
             {ev.local && <span>{ev.local}</span>}
             {project.startDate && <span>{formatDateShort(project.startDate)}{project.endDate && project.endDate !== project.startDate ? ` até ${formatDateShort(project.endDate)}` : ''}</span>}

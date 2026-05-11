@@ -167,6 +167,21 @@ export default function ClienteChat({ userData, onClose }) {
         }
       } catch (e) { console.error('Erro ao buscar coordenador:', e); }
 
+      // ── gera número do pedido ──
+      let numeroPedido = '';
+      try {
+        const { runTransaction, doc: firestoreDoc, getDoc: firestoreGetDoc } = await import('firebase/firestore');
+        const contadorRef = firestoreDoc(db, 'config', 'contadores');
+        await runTransaction(db, async (transaction) => {
+          const contSnap = await transaction.get(contadorRef);
+          const atual = contSnap.exists() ? (contSnap.data().orcamentos || 0) : 0;
+          const proximo = atual + 1;
+          transaction.set(contadorRef, { orcamentos: proximo }, { merge: true });
+          const ano = new Date().getFullYear().toString().slice(-2);
+          numeroPedido = `OP-${String(proximo).padStart(4, '0')}-${ano}`;
+        });
+      } catch (e) { console.error('Erro ao gerar numeroPedido:', e); }
+
       const budgetRef = await addDoc(collection(db, 'budgets'), {
         clientUserId: userId,
         clientName: userName,
@@ -179,6 +194,7 @@ export default function ClienteChat({ userData, onClose }) {
         status: 'analyzing',
         workspaceStage: 'Propostas',
         isMae: true,
+        numeroPedido,
         briefingData: briefingJson,
         assignedTo,
         assignedToName,
@@ -198,16 +214,17 @@ export default function ClienteChat({ userData, onClose }) {
 
         // Extrai palavras-chave
         const keywords = servicosNecessarios.flatMap(sn =>
-            sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 2)
+            sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 1)
           );
           const sinonimos = {
-            led: ['led', 'neon', 'painel', 'telao', 'tela'],
-            banner: ['banner', 'backdrop', 'fundo', 'impresso'],
-            nobreak: ['nobreak', 'ups', 'energia', 'estabilizador'],
-            som: ['som', 'audio', 'pa', 'caixa', 'microfone'],
+            dj:       ['dj', 'disc', 'jockey', 'musica', 'musical'],
+            led:      ['led', 'neon', 'painel', 'telao', 'tela'],
+            banner:   ['banner', 'backdrop', 'fundo', 'impresso'],
+            nobreak:  ['nobreak', 'ups', 'energia', 'estabilizador'],
+            som:      ['som', 'audio', 'pa', 'caixa', 'microfone', 'sistema', 'equipamento'],
             recepcao: ['recepcao', 'recepcionista', 'hostess'],
-            seguranca: ['seguranca', 'vigilancia'],
-            limpeza: ['limpeza', 'higiene', 'auxiliar'],
+            seguranca:['seguranca', 'vigilancia'],
+            limpeza:  ['limpeza', 'higiene', 'auxiliar'],
           };
           const kwExpandidas = [...keywords];
           keywords.forEach(kw => {
@@ -243,8 +260,16 @@ export default function ClienteChat({ userData, onClose }) {
             supplierId: sv.supplierId,
             budgetId: budgetRef.id,
             eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
+            eventTypeName: briefingJson.evento?.tipo || '',
             clientName: userName,
             eventDate: briefingJson.evento?.dataInicio || '',
+            eventDateFim: briefingJson.evento?.dataFim || '',
+            eventLocal: briefingJson.evento?.local || briefingJson.evento?.cidade || '',
+            eventCidade: briefingJson.evento?.cidade || '',
+            eventHorarioInicio: briefingJson.evento?.horarioInicio || '',
+            eventHorarioFim: briefingJson.evento?.horarioFim || '',
+            eventDiasDuracao: briefingJson.evento?.diasDuracao || 1,
+            eventVisitantes: briefingJson.evento?.visitantesPorDia || 0,
             serviceNames: [sv.serviceName],
             serviceName: sv.serviceName,
             serviceParentName: sv.serviceParentName || '',
@@ -252,6 +277,7 @@ export default function ClienteChat({ userData, onClose }) {
             preco: sv.preco || 0,
             unidade: sv.unidade || '',
             diasPreparo: sv.diasPreparo || 0,
+            diasMontagem: sv.diasMontagem || 0,
             stage: 'proposta',
             status: 'pending',
             createdAt: serverTimestamp(),

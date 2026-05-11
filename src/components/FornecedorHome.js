@@ -71,6 +71,7 @@ export default function FornecedorHome({ userData, onLogout }) {
         eventName: job.eventName,
         clientName: job.clientName,
         eventDate: job.eventDate,
+        numeroPedido: job.numeroPedido || '',
         stage: job.stage || 'proposta',
         status: job.status,
         serviceNames: [],
@@ -246,6 +247,9 @@ export default function FornecedorHome({ userData, onLogout }) {
                           <div key={grupo.budgetId} className="fn-card" onClick={() => window.location.href = `/projeto/${grupo.budgetId}`}>
                             <div className="fn-card-name">{grupo.eventName || 'Evento'}</div>
                             <div className="fn-card-client">{grupo.clientName || ''}</div>
+                            {grupo.numeroPedido && (
+                              <div style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(123,175,212,0.12)', color: '#7BAFD4', display: 'inline-block', marginBottom: 4 }}>{grupo.numeroPedido}</div>
+                            )}
                             {grupo.serviceNames.length > 0 && (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '6px 0' }}>
                                 {grupo.serviceNames.map((s, i) => (

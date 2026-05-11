@@ -118,6 +118,7 @@ export default function EquipeHome({ userData, onLogout }) {
                             <div className="eq-card-name">{job.eventName || job.eventTypeName || 'Sem nome'}</div>
                             <div className="eq-card-client">{job.companyName || job.clientName || ''}</div>
                             <div className="eq-card-meta">
+                              {job.numeroPedido && <span className="eq-tag" style={{ background: 'rgba(123,175,212,0.12)', color: '#7BAFD4' }}>{job.numeroPedido}</span>}
                               {job.jobCode && <span className="eq-tag">{job.jobCode}</span>}
                               {job.eventTypeName && <span className="eq-tag">{job.eventTypeName}</span>}
                             </div>
