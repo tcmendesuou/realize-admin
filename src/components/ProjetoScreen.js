@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 
@@ -37,12 +37,39 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [todasExpandidas, setTodasExpandidas] = useState(true);
   const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
-  const [aprovacaoModal, setAprovacaoModal] = useState(null); // { task, tipo: 'pre'|'execucao'|'entrega' }
+  const [aprovacaoModal, setAprovacaoModal] = useState(null);
   const [aprovacaoArquivos, setAprovacaoArquivos] = useState([]);
   const [aprovacaoObs, setAprovacaoObs] = useState('');
   const [uploadingAprov, setUploadingAprov] = useState(false);
   const [newTask, setNewTask]     = useState({ name: '', descricao: '', prazo: '', prioridade: 'normal' });
   const [savingTask, setSavingTask] = useState(false);
+
+  // Envio de cotação
+  const [enviandoCotacao, setEnviandoCotacao] = useState(false);
+  const [confirmEnvio, setConfirmEnvio]       = useState(false);
+
+  const handleEnviarCotacao = async () => {
+    setEnviandoCotacao(true);
+    try {
+      // Atualiza todos os supplierJobs de draft para pending
+      const jobsSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId), where('status', '==', 'draft')));
+      const batch = writeBatch(db);
+      jobsSnap.docs.forEach(d => {
+        batch.update(d.ref, { status: 'pending', enviadoEm: serverTimestamp() });
+      });
+      // Salva data de envio no budget
+      batch.update(doc(db, 'budgets', projectId), {
+        cotacaoEnviadaEm: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+      setConfirmEnvio(false);
+    } catch (e) {
+      console.error('Erro ao enviar cotação:', e);
+    } finally {
+      setEnviandoCotacao(false);
+    }
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -533,6 +560,45 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── VISÃO GERAL ── */}
           {activeTab === 'info' && (
             <>
+              {/* Botão Enviar Cotação — só para coordenador, enquanto há jobs em draft */}
+              {isCoord && (() => {
+                const temDraft = supplierJobs.some(j => j.status === 'draft');
+                const enviadoEm = project.cotacaoEnviadaEm;
+                if (!temDraft && enviadoEm) {
+                  const dataEnvio = enviadoEm?.toDate ? enviadoEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+                  return (
+                    <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 16 }}>✓</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A' }}>Cotacao Enviada</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{dataEnvio}</div>
+                      </div>
+                    </div>
+                  );
+                }
+                if (temDraft) return (
+                  <div style={{ marginBottom: 20 }}>
+                    {confirmEnvio ? (
+                      <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.25)', borderRadius: 12, padding: '16px 20px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 6 }}>Confirmar envio da cotacao?</div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>Os fornecedores serao notificados e poderao confirmar ou recusar cada servico.</div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button onClick={handleEnviarCotacao} disabled={enviandoCotacao} style={{ padding: '8px 20px', background: '#00E5C4', border: 'none', borderRadius: 8, color: '#0D1B2A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            {enviandoCotacao ? 'Enviando...' : 'Confirmar'}
+                          </button>
+                          <button onClick={() => setConfirmEnvio(false)} style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmEnvio(true)} style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #00E5C4, #0080FF)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', letterSpacing: 0.3 }}>
+                        Enviar Cotacao para Fornecedores
+                      </button>
+                    )}
+                  </div>
+                );
+                return null;
+              })()}
+
               {/* Cliente */}
               <div className="ps-card">
                 <div className="ps-card-title">Cliente</div>

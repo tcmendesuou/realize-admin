@@ -279,7 +279,7 @@ export default function ClienteChat({ userData, onClose }) {
             diasPreparo: sv.diasPreparo || 0,
             diasMontagem: sv.diasMontagem || 0,
             stage: 'proposta',
-            status: 'pending',
+            status: 'draft',
             createdAt: serverTimestamp(),
           });
           console.log('supplierJob criado:', sv.serviceName, '→', sv.supplierId);

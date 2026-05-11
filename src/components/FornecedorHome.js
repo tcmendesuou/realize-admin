@@ -53,7 +53,7 @@ export default function FornecedorHome({ userData, onLogout }) {
   useEffect(() => {
     if (!userId) return;
     const unsub = onSnapshot(
-      query(collection(db, 'supplierJobs'), where('supplierId', '==', userId)),
+      query(collection(db, 'supplierJobs'), where('supplierId', '==', userId), where('status', '!=', 'draft')),
       snap => {
         setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoading(false);

@@ -147,7 +147,7 @@ module.exports = async function handler(req, res) {
         diasPreparo:       sv.diasPreparo || 0,
         diasMontagem:      sv.diasMontagem || 0,
         stage:             'proposta',
-        status:            'pending',
+        status:            'draft',
         createdAt:         admin.firestore.FieldValue.serverTimestamp(),
       });
       jobsCriados.push(sv.serviceName);
