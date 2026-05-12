@@ -120,9 +120,18 @@ module.exports = async function handler(req, res) {
       return kwSet.some(kw => fullLC.includes(kw));
     });
 
+    // Deduplica por supplierId + serviceName — evita jobs duplicados para o mesmo fornecedor+serviço
+    const vistos = new Set();
+    const suppServsDedupados = suppServs.filter(s => {
+      const key = `${s.supplierId}__${s.serviceName}`;
+      if (vistos.has(key)) return false;
+      vistos.add(key);
+      return true;
+    });
+
     const jobsCriados = [];
     const batch = db.batch();
-    for (const sv of suppServs) {
+    for (const sv of suppServsDedupados) {
       const jobRef = db.collection('supplierJobs').doc();
       batch.set(jobRef, {
         supplierId:        sv.supplierId,
