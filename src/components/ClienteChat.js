@@ -93,6 +93,19 @@ export default function ClienteChat({ userData, onClose }) {
           setCatalogoSummary(`\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`);
         }
       } catch (e) { console.error('Erro ao carregar catalogo:', e); }
+
+      // Carrega modelos de estandes especiais/modulares
+      try {
+        const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
+        const modelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (modelos.length > 0) {
+          const linhasModelos = modelos.map(m => {
+            const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
+            return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
+          });
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}`);
+        }
+      } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
     })();
   }, []);
 
