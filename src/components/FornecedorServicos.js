@@ -42,60 +42,73 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // Opções do serviço
-  const [opcoes, setOpcoes]           = useState([]);
-  const [opcaoForm, setOpcaoForm]     = useState({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
-  const [editandoOpcao, setEditandoOpcao] = useState(null); // id da opção sendo editada
+  // Opções em memória (salvas junto com o serviço)
+  const [opcoes, setOpcoes]               = useState([]); // opções já salvas no Firestore
+  const [opcoesMemoria, setOpcoesMemoria] = useState([]); // opções novas ainda não salvas
+  const [opcaoForm, setOpcaoForm]         = useState({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
+  const [editandoOpcaoId, setEditandoOpcaoId] = useState(null); // id temporário para edição em memória
   const [showOpcaoForm, setShowOpcaoForm] = useState(false);
-  const [savingOpcao, setSavingOpcao] = useState(false);
   const setO = (k, v) => setOpcaoForm(p => ({ ...p, [k]: v }));
+
+  const resetOpcaoForm = () => {
+    setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
+    setEditandoOpcaoId(null);
+    setShowOpcaoForm(false);
+  };
 
   const loadOpcoes = async (servicoId) => {
     if (!servicoId) { setOpcoes([]); return; }
     try {
       const snap = await getDocs(collection(db, 'supplierServices', servicoId, 'opcoes'));
       setOpcoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) { console.error('Erro ao carregar opções:', e); setOpcoes([]); }
+    } catch (e) { console.error('Erro ao carregar opções:', e); }
   };
 
-  const handleSalvarOpcao = async () => {
+  const handleAddOpcaoMemoria = () => {
     if (!opcaoForm.nome) { alert('Informe o nome da opção'); return; }
     if (!opcaoForm.valor) { alert('Informe o valor da opção'); return; }
-    if (!editando?.id) { alert('Salve o serviço primeiro antes de adicionar opções'); return; }
-    setSavingOpcao(true);
-    try {
-      const data = {
-        nome:           opcaoForm.nome,
-        caracteristica: opcaoForm.caracteristica,
-        observacoes:    opcaoForm.observacoes,
-        valor:          opcaoForm.valor,
-        unidade:        opcaoForm.unidade,
-        updatedAt:      serverTimestamp(),
-      };
-      if (editandoOpcao) {
-        await updateDoc(doc(db, 'supplierServices', editando.id, 'opcoes', editandoOpcao), data);
+    if (editandoOpcaoId) {
+      // Edita opção salva no Firestore (editando serviço existente)
+      if (editando?.id) {
+        updateDoc(doc(db, 'supplierServices', editando.id, 'opcoes', editandoOpcaoId), {
+          ...opcaoForm, updatedAt: serverTimestamp(),
+        }).then(() => loadOpcoes(editando.id));
       } else {
-        await addDoc(collection(db, 'supplierServices', editando.id, 'opcoes'), { ...data, createdAt: serverTimestamp() });
+        // Edita opção em memória
+        setOpcoesMemoria(prev => prev.map(o => o._tempId === editandoOpcaoId ? { ...o, ...opcaoForm } : o));
       }
-      await loadOpcoes(editando.id);
-      setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
-      setEditandoOpcao(null);
-      setShowOpcaoForm(false);
-    } catch (e) { console.error(e); alert('Erro ao salvar opção.'); }
-    finally { setSavingOpcao(false); }
+    } else {
+      if (editando?.id) {
+        // Serviço já existe → salva direto na sub-coleção
+        addDoc(collection(db, 'supplierServices', editando.id, 'opcoes'), {
+          ...opcaoForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        }).then(() => loadOpcoes(editando.id));
+      } else {
+        // Serviço novo → guarda em memória
+        setOpcoesMemoria(prev => [...prev, { ...opcaoForm, _tempId: Date.now().toString() }]);
+      }
+    }
+    resetOpcaoForm();
   };
 
   const handleEditarOpcao = (op) => {
     setOpcaoForm({ nome: op.nome, caracteristica: op.caracteristica || '', observacoes: op.observacoes || '', valor: op.valor, unidade: op.unidade || 'por hora' });
-    setEditandoOpcao(op.id);
+    setEditandoOpcaoId(op.id || op._tempId);
     setShowOpcaoForm(true);
   };
 
-  const handleExcluirOpcao = async (opId) => {
+  const handleExcluirOpcao = async (op) => {
     if (!window.confirm('Excluir esta opção?')) return;
-    await deleteDoc(doc(db, 'supplierServices', editando.id, 'opcoes', opId));
-    await loadOpcoes(editando.id);
+    if (op.id && editando?.id) {
+      await deleteDoc(doc(db, 'supplierServices', editando.id, 'opcoes', op.id));
+      loadOpcoes(editando.id);
+    } else {
+      setOpcoesMemoria(prev => prev.filter(o => o._tempId !== op._tempId));
+    }
   };
+
+  // Todas as opções visíveis = salvas + memória
+  const todasOpcoes = [...opcoes, ...opcoesMemoria];
 
   useEffect(() => { loadAll(); }, [supplierId]);
 
@@ -145,14 +158,10 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     const existing = servicos.find(s => s.serviceId === sub.id);
     if (existing) {
       setForm({
-        preco: existing.preco || '',
-        unidade: existing.unidade || 'por hora',
-        diasPreparo: existing.diasPreparo || '',
-        diasMontagem: existing.diasMontagem || '',
-        tempoExecucao: existing.tempoExecucao || '',
-        quantidade: existing.quantidade || '',
-        regiao: existing.regiao || 'São Paulo - Capital',
-        observacoes: existing.observacoes || '',
+        preco: existing.preco || '', unidade: existing.unidade || 'por hora',
+        diasPreparo: existing.diasPreparo || '', diasMontagem: existing.diasMontagem || '',
+        tempoExecucao: existing.tempoExecucao || '', quantidade: existing.quantidade || '',
+        regiao: existing.regiao || 'São Paulo - Capital', observacoes: existing.observacoes || '',
         ativo: existing.ativo !== false,
       });
       setEditando(existing);
@@ -162,9 +171,8 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
       setEditando(null);
       setOpcoes([]);
     }
-    setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
-    setEditandoOpcao(null);
-    setShowOpcaoForm(false);
+    setOpcoesMemoria([]);
+    resetOpcaoForm();
     setPrecoAlerta('');
   };
 
@@ -175,7 +183,6 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     setSaving(true);
     try {
       const catObj = catalogo.find(c => c.id === selCategoria);
-      const tipoObj = TIPOS.find(t => t.id === selTipo);
       const data = {
         supplierId,
         tipoServico:       selTipo,
@@ -194,16 +201,32 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
         ativo:             form.ativo,
         updatedAt:         new Date(),
       };
-      if (editando?.id) {
-        await updateDoc(doc(db, 'supplierServices', editando.id), data);
+
+      let servicoId = editando?.id;
+      if (servicoId) {
+        await updateDoc(doc(db, 'supplierServices', servicoId), data);
       } else {
-        await addDoc(collection(db, 'supplierServices'), { ...data, createdAt: new Date() });
+        const ref = await addDoc(collection(db, 'supplierServices'), { ...data, createdAt: new Date() });
+        servicoId = ref.id;
       }
+
+      // Salva opções em memória na sub-coleção
+      if (opcoesMemoria.length > 0) {
+        await Promise.all(opcoesMemoria.map(op => {
+          const { _tempId, ...opData } = op;
+          return addDoc(collection(db, 'supplierServices', servicoId, 'opcoes'), {
+            ...opData, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          });
+        }));
+      }
+
       await loadAll();
-      // Reset form mas mantém cascata aberta
       setSelSub(null);
       setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', observacoes: '', ativo: true });
       setEditando(null);
+      setOpcoes([]);
+      setOpcoesMemoria([]);
+      resetOpcaoForm();
       setPrecoAlerta('');
     } catch (e) { console.error(e); alert('Erro ao salvar.'); }
     finally { setSaving(false); }
@@ -234,9 +257,8 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     });
     setEditando(s);
     loadOpcoes(s.id);
-    setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
-    setEditandoOpcao(null);
-    setShowOpcaoForm(false);
+    setOpcoesMemoria([]);
+    resetOpcaoForm();
     setPrecoAlerta('');
     setShowCascata(true);
   };
@@ -246,6 +268,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const lbl = { fontSize: 11, fontWeight: 600, color: '#7BAFD4', display: 'block', marginBottom: 4 };
   const teto = selSub ? getTetoPreco(selSub.id) : null;
   const servicosDoTipo = servicos.filter(s => s.tipoServico === tipoAtivo);
+  const todasOpcoes = [...opcoes, ...opcoesMemoria];
 
   if (loading) return <div style={{ textAlign: 'center', padding: 40, color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>Carregando...</div>;
 
@@ -270,7 +293,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
       {showCascata && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setShowCascata(false)}>
-          <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 16, width: '100%', maxWidth: 1000, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 16, width: '100%', maxWidth: 1200, maxHeight: '95vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
             {/* Header modal */}
             <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(0,180,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -413,60 +436,51 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                       </div>
                     </div>
 
-                    {/* Opções do serviço */}
+                    {/* Opções */}
                     <div style={{ borderTop: '1px solid rgba(0,180,255,0.1)', paddingTop: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                         <div>
                           <label style={{ ...lbl, marginBottom: 0 }}>Opcoes</label>
-                          <p style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 2 }}>Ex: tamanhos, qualidades, configurações diferentes</p>
+                          <p style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 2 }}>Ex: tamanhos, qualidades, configuracoes diferentes com valores distintos</p>
                         </div>
-                        {editando?.id && (
-                          <button onClick={() => { setShowOpcaoForm(true); setEditandoOpcao(null); setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' }); }}
-                            style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>
-                            + Adicionar
-                          </button>
-                        )}
+                        <button onClick={() => { resetOpcaoForm(); setShowOpcaoForm(true); }}
+                          style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          + Adicionar opcao
+                        </button>
                       </div>
 
-                      {!editando?.id && (
-                        <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.35)', fontStyle: 'italic' }}>Salve o serviço primeiro para adicionar opções</p>
-                      )}
-
-                      {/* Lista de opções existentes */}
-                      {opcoes.length > 0 && (
+                      {/* Lista de opções (salvas + memória) */}
+                      {todasOpcoes.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                          {opcoes.map(op => (
-                            <div key={op.id} style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 8, padding: '10px 12px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
-                                  {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
-                                  {op.observacoes && <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>{op.observacoes}</div>}
-                                  <div style={{ fontSize: 12, color: '#00E5C4', fontWeight: 600, marginTop: 4 }}>
-                                    R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade}
-                                  </div>
+                          {todasOpcoes.map((op, i) => (
+                            <div key={op.id || op._tempId || i} style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 8, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</span>
+                                  {op._tempId && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,167,38,0.15)', color: '#FFA726' }}>nao salvo</span>}
                                 </div>
-                                <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 8 }}>
-                                  <button onClick={() => handleEditarOpcao(op)}
-                                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
-                                  <button onClick={() => handleExcluirOpcao(op.id)}
-                                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
-                                </div>
+                                {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
+                                {op.observacoes && <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.45)', marginTop: 2 }}>{op.observacoes}</div>}
+                                <div style={{ fontSize: 12, color: '#00E5C4', fontWeight: 600, marginTop: 4 }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade}</div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                                <button onClick={() => handleEditarOpcao(op)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                <button onClick={() => handleExcluirOpcao(op)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
                               </div>
                             </div>
                           ))}
                         </div>
                       )}
 
-                      {/* Formulário de nova opção */}
+                      {/* Formulário de nova/editar opção */}
                       {showOpcaoForm && (
-                        <div style={{ background: 'rgba(10,22,38,0.6)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 10, padding: '14px' }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#7BAFD4', marginBottom: 10 }}>{editandoOpcao ? 'Editar opcao' : 'Nova opcao'}</div>
+                        <div style={{ background: 'rgba(10,22,38,0.7)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 10, padding: '14px', marginBottom: 6 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#7BAFD4', marginBottom: 10 }}>{editandoOpcaoId ? 'Editar opcao' : 'Nova opcao'}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                               <div>
                                 <label style={lbl}>Nome *</label>
-                                <input value={opcaoForm.nome} onChange={e => setO('nome', e.target.value)} style={inp} placeholder="Ex: LED 4x2m, Padrão, Premium..." />
+                                <input value={opcaoForm.nome} onChange={e => setO('nome', e.target.value)} style={inp} placeholder="Ex: LED 4x2m, Padrao, Premium..." />
                               </div>
                               <div>
                                 <label style={lbl}>Caracteristica</label>
@@ -479,7 +493,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                                 <input type="number" min="0" step="0.01" value={opcaoForm.valor} onChange={e => setO('valor', e.target.value)} style={inp} placeholder="0,00" />
                               </div>
                               <div>
-                                <label style={lbl}>Unidade de cobrança</label>
+                                <label style={lbl}>Unidade de cobranca</label>
                                 <select value={opcaoForm.unidade} onChange={e => setO('unidade', e.target.value)} style={{ ...inp, background: 'rgba(10,22,38,0.8)' }}>
                                   {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
@@ -487,14 +501,12 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                             </div>
                             <div>
                               <label style={lbl}>Observacoes</label>
-                              <input value={opcaoForm.observacoes} onChange={e => setO('observacoes', e.target.value)} style={inp} placeholder="Detalhes adicionais desta opção..." />
+                              <input value={opcaoForm.observacoes} onChange={e => setO('observacoes', e.target.value)} style={inp} placeholder="Detalhes adicionais desta opcao..." />
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                              <button onClick={() => { setShowOpcaoForm(false); setEditandoOpcao(null); setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' }); }}
-                                style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                              <button onClick={handleSalvarOpcao} disabled={savingOpcao}
-                                style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: savingOpcao ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: savingOpcao ? '#7BAFD4' : 'white', fontSize: 12, fontWeight: 600, cursor: savingOpcao ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                {savingOpcao ? 'Salvando...' : editandoOpcao ? 'Atualizar' : 'Salvar opcao'}
+                              <button onClick={resetOpcaoForm} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={handleAddOpcaoMemoria} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                {editandoOpcaoId ? 'Atualizar' : 'Adicionar'}
                               </button>
                             </div>
                           </div>
