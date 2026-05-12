@@ -1412,12 +1412,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <textarea value={editJobForm.observacao} onChange={e => setEditJobForm(p => ({ ...p, observacao: e.target.value }))}
                                 style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none' }} />
                             </div>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                              <button onClick={() => handleSalvarJob(sj.id)} disabled={salvandoJob}
-                                style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                {salvandoJob ? 'Salvando...' : 'Salvar'}
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+                              <button onClick={async () => {
+                                if (!window.confirm(`Excluir o job "${sj.serviceName}"? Esta ação não pode ser desfeita.`)) return;
+                                await deleteDoc(doc(db, 'supplierJobs', sj.id));
+                                setEditandoJob(null);
+                              }} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                Excluir
                               </button>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                                <button onClick={() => handleSalvarJob(sj.id)} disabled={salvandoJob}
+                                  style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                  {salvandoJob ? 'Salvando...' : 'Salvar'}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}
