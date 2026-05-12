@@ -107,9 +107,6 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     }
   };
 
-  // Todas as opções visíveis = salvas + memória
-  const todasOpcoes = [...opcoes, ...opcoesMemoria];
-
   useEffect(() => { loadAll(); }, [supplierId]);
 
   const loadAll = async () => {
