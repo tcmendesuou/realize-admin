@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const TIPOS = [
@@ -41,6 +41,61 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const [precoAlerta, setPrecoAlerta] = useState('');
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // Opções do serviço
+  const [opcoes, setOpcoes]           = useState([]);
+  const [opcaoForm, setOpcaoForm]     = useState({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
+  const [editandoOpcao, setEditandoOpcao] = useState(null); // id da opção sendo editada
+  const [showOpcaoForm, setShowOpcaoForm] = useState(false);
+  const [savingOpcao, setSavingOpcao] = useState(false);
+  const setO = (k, v) => setOpcaoForm(p => ({ ...p, [k]: v }));
+
+  const loadOpcoes = async (servicoId) => {
+    if (!servicoId) { setOpcoes([]); return; }
+    try {
+      const snap = await getDocs(collection(db, 'supplierServices', servicoId, 'opcoes'));
+      setOpcoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error('Erro ao carregar opções:', e); setOpcoes([]); }
+  };
+
+  const handleSalvarOpcao = async () => {
+    if (!opcaoForm.nome) { alert('Informe o nome da opção'); return; }
+    if (!opcaoForm.valor) { alert('Informe o valor da opção'); return; }
+    if (!editando?.id) { alert('Salve o serviço primeiro antes de adicionar opções'); return; }
+    setSavingOpcao(true);
+    try {
+      const data = {
+        nome:           opcaoForm.nome,
+        caracteristica: opcaoForm.caracteristica,
+        observacoes:    opcaoForm.observacoes,
+        valor:          opcaoForm.valor,
+        unidade:        opcaoForm.unidade,
+        updatedAt:      serverTimestamp(),
+      };
+      if (editandoOpcao) {
+        await updateDoc(doc(db, 'supplierServices', editando.id, 'opcoes', editandoOpcao), data);
+      } else {
+        await addDoc(collection(db, 'supplierServices', editando.id, 'opcoes'), { ...data, createdAt: serverTimestamp() });
+      }
+      await loadOpcoes(editando.id);
+      setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
+      setEditandoOpcao(null);
+      setShowOpcaoForm(false);
+    } catch (e) { console.error(e); alert('Erro ao salvar opção.'); }
+    finally { setSavingOpcao(false); }
+  };
+
+  const handleEditarOpcao = (op) => {
+    setOpcaoForm({ nome: op.nome, caracteristica: op.caracteristica || '', observacoes: op.observacoes || '', valor: op.valor, unidade: op.unidade || 'por hora' });
+    setEditandoOpcao(op.id);
+    setShowOpcaoForm(true);
+  };
+
+  const handleExcluirOpcao = async (opId) => {
+    if (!window.confirm('Excluir esta opção?')) return;
+    await deleteDoc(doc(db, 'supplierServices', editando.id, 'opcoes', opId));
+    await loadOpcoes(editando.id);
+  };
 
   useEffect(() => { loadAll(); }, [supplierId]);
 
@@ -87,7 +142,6 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
 
   const handleSelectSub = (sub) => {
     setSelSub(sub);
-    // Se já tem cadastrado, carrega os dados
     const existing = servicos.find(s => s.serviceId === sub.id);
     if (existing) {
       setForm({
@@ -102,10 +156,15 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
         ativo: existing.ativo !== false,
       });
       setEditando(existing);
+      loadOpcoes(existing.id);
     } else {
       setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', observacoes: '', ativo: true });
       setEditando(null);
+      setOpcoes([]);
     }
+    setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
+    setEditandoOpcao(null);
+    setShowOpcaoForm(false);
     setPrecoAlerta('');
   };
 
@@ -162,7 +221,6 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   };
 
   const handleEditarExistente = (s) => {
-    // Abre cascata posicionada no serviço
     setSelTipo(s.tipoServico);
     setSelCategoria(s.serviceParentId);
     const sub = catalogo.find(c => c.id === s.serviceId);
@@ -175,6 +233,10 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
       ativo: s.ativo !== false,
     });
     setEditando(s);
+    loadOpcoes(s.id);
+    setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' });
+    setEditandoOpcao(null);
+    setShowOpcaoForm(false);
     setPrecoAlerta('');
     setShowCascata(true);
   };
@@ -349,6 +411,95 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                         <input type="checkbox" id="svc-ativo" checked={form.ativo !== false} onChange={e => setF('ativo', e.target.checked)} style={{ width: 15, height: 15, accentColor: '#00E5C4' }} />
                         <label htmlFor="svc-ativo" style={{ fontSize: 13, color: '#7BAFD4', cursor: 'pointer', whiteSpace: 'nowrap' }}>Serviço ativo</label>
                       </div>
+                    </div>
+
+                    {/* Opções do serviço */}
+                    <div style={{ borderTop: '1px solid rgba(0,180,255,0.1)', paddingTop: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div>
+                          <label style={{ ...lbl, marginBottom: 0 }}>Opcoes</label>
+                          <p style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 2 }}>Ex: tamanhos, qualidades, configurações diferentes</p>
+                        </div>
+                        {editando?.id && (
+                          <button onClick={() => { setShowOpcaoForm(true); setEditandoOpcao(null); setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' }); }}
+                            style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>
+                            + Adicionar
+                          </button>
+                        )}
+                      </div>
+
+                      {!editando?.id && (
+                        <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.35)', fontStyle: 'italic' }}>Salve o serviço primeiro para adicionar opções</p>
+                      )}
+
+                      {/* Lista de opções existentes */}
+                      {opcoes.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                          {opcoes.map(op => (
+                            <div key={op.id} style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 8, padding: '10px 12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
+                                  {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
+                                  {op.observacoes && <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>{op.observacoes}</div>}
+                                  <div style={{ fontSize: 12, color: '#00E5C4', fontWeight: 600, marginTop: 4 }}>
+                                    R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 8 }}>
+                                  <button onClick={() => handleEditarOpcao(op)}
+                                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                  <button onClick={() => handleExcluirOpcao(op.id)}
+                                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Formulário de nova opção */}
+                      {showOpcaoForm && (
+                        <div style={{ background: 'rgba(10,22,38,0.6)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 10, padding: '14px' }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#7BAFD4', marginBottom: 10 }}>{editandoOpcao ? 'Editar opcao' : 'Nova opcao'}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              <div>
+                                <label style={lbl}>Nome *</label>
+                                <input value={opcaoForm.nome} onChange={e => setO('nome', e.target.value)} style={inp} placeholder="Ex: LED 4x2m, Padrão, Premium..." />
+                              </div>
+                              <div>
+                                <label style={lbl}>Caracteristica</label>
+                                <input value={opcaoForm.caracteristica} onChange={e => setO('caracteristica', e.target.value)} style={inp} placeholder="Ex: Pixel pitch 3mm, Full HD..." />
+                              </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              <div>
+                                <label style={lbl}>Valor (R$) *</label>
+                                <input type="number" min="0" step="0.01" value={opcaoForm.valor} onChange={e => setO('valor', e.target.value)} style={inp} placeholder="0,00" />
+                              </div>
+                              <div>
+                                <label style={lbl}>Unidade de cobrança</label>
+                                <select value={opcaoForm.unidade} onChange={e => setO('unidade', e.target.value)} style={{ ...inp, background: 'rgba(10,22,38,0.8)' }}>
+                                  {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label style={lbl}>Observacoes</label>
+                              <input value={opcaoForm.observacoes} onChange={e => setO('observacoes', e.target.value)} style={inp} placeholder="Detalhes adicionais desta opção..." />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                              <button onClick={() => { setShowOpcaoForm(false); setEditandoOpcao(null); setOpcaoForm({ nome: '', caracteristica: '', observacoes: '', valor: '', unidade: 'por hora' }); }}
+                                style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={handleSalvarOpcao} disabled={savingOpcao}
+                                style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: savingOpcao ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: savingOpcao ? '#7BAFD4' : 'white', fontSize: 12, fontWeight: 600, cursor: savingOpcao ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                {savingOpcao ? 'Salvando...' : editandoOpcao ? 'Atualizar' : 'Salvar opcao'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Observações */}
