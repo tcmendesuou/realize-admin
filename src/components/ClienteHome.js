@@ -303,6 +303,26 @@ export default function ClienteHome({ userData, onLogout }) {
               ))}
             </div>
 
+            {/* Resumo do briefing */}
+            {selectedEvent.descricaoBriefing && (
+              <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: '#00E5C4', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Sobre o Evento</div>
+                <p style={{ fontSize: 13, color: '#7BAFD4', lineHeight: 1.7, margin: 0 }}>{selectedEvent.descricaoBriefing}</p>
+              </div>
+            )}
+
+            {/* Serviços identificados */}
+            {(selectedEvent.briefingData?.servicosNecessarios || []).length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Servicos Solicitados</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {selectedEvent.briefingData.servicosNecessarios.map((s, i) => (
+                    <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', color: '#00E5C4', border: '1px solid rgba(0,229,196,0.15)' }}>{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* ORÇAMENTO FINAL */}
             {selectedEvent.status === 'pendingApproval' && selectedEvent.orcamentoFinal && (
               <div style={{ background: 'rgba(0,128,255,0.06)', border: '1px solid rgba(0,128,255,0.2)', borderRadius: 14, padding: 20, marginBottom: 16 }}>
