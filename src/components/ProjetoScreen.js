@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 
@@ -43,6 +43,23 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [uploadingAprov, setUploadingAprov] = useState(false);
   const [newTask, setNewTask]     = useState({ name: '', descricao: '', prazo: '', prioridade: 'normal' });
   const [savingTask, setSavingTask] = useState(false);
+
+  // Envio de cotação
+  const [enviandoCotacao, setEnviandoCotacao] = useState(false);
+  const [confirmEnvio, setConfirmEnvio]       = useState(false);
+
+  const handleEnviarCotacao = async () => {
+    setEnviandoCotacao(true);
+    try {
+      const jobsSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId), where('status', '==', 'draft')));
+      const batch = writeBatch(db);
+      jobsSnap.docs.forEach(d => batch.update(d.ref, { status: 'pending', enviadoEm: serverTimestamp() }));
+      batch.update(doc(db, 'budgets', projectId), { cotacaoEnviadaEm: serverTimestamp(), updatedAt: serverTimestamp() });
+      await batch.commit();
+      setConfirmEnvio(false);
+    } catch (e) { console.error('Erro ao enviar cotação:', e); }
+    finally { setEnviandoCotacao(false); }
+  };
 
   useEffect(() => {
     if (!projectId) return;
