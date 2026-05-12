@@ -314,10 +314,15 @@ export default function ClienteHome({ userData, onLogout }) {
             {/* Serviços identificados */}
             {(selectedEvent.briefingData?.servicosNecessarios || []).length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Servicos Solicitados</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Servicos Solicitados</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {selectedEvent.briefingData.servicosNecessarios.map((s, i) => (
-                    <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', color: '#00E5C4', border: '1px solid rgba(0,229,196,0.15)' }}>{s}</span>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,229,196,0.15)', border: '1.5px solid rgba(0,229,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: 10, color: '#00E5C4', fontWeight: 700 }}>✓</span>
+                      </div>
+                      <span style={{ fontSize: 13, color: '#E8F4FF' }}>{s}</span>
+                    </div>
                   ))}
                 </div>
               </div>
