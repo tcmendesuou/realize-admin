@@ -448,7 +448,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     { id: 'cronograma', label: 'Cronograma' },
     { id: 'tasks',      label: 'Minha Tarefa' },
   ] : [
-    { id: 'info',       label: 'Visão Geral' },
     { id: 'briefing',   label: 'Briefing' },
     { id: 'cronograma', label: `Cronograma${cronograma.length ? ` (${cronograma.length})` : ''}` },
     { id: 'tasks',      label: `Tarefas${tasks.length ? ` (${tasks.length})` : ''}` },
@@ -493,6 +492,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         .ps-tl-item:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 42px; bottom: 0; width: 1px; background: #e8eaed; }
         .ps-tl-dot { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; background: rgba(0,229,196,0.1); border: 2px solid rgba(0,229,196,0.3); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #00E5C4; z-index: 1; }
         @media (max-width: 600px) { .ps-topbar { padding: 0 16px; } .ps-hero { padding: 20px 16px 0; } .ps-body { padding: 16px; } .ps-info-grid { grid-template-columns: 1fr; } }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 70% { box-shadow: 0 0 0 5px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
       `}</style>
 
       <div className="ps-wrap">
@@ -531,9 +531,48 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         {/* BODY */}
         <div className="ps-body">
 
-          {/* ── VISÃO GERAL ── */}
-          {activeTab === 'info' && (
+          {/* ── BRIEFING (coordenador) — inclui Cliente, Evento e detalhes do briefing ── */}
+          {activeTab === 'briefing' && !isFornecedor && (
             <>
+              {/* Botão Enviar Cotação */}
+              {isCoord && (() => {
+                const temDraft = supplierJobs.some(j => j.status === 'draft');
+                const enviadoEm = project.cotacaoEnviadaEm;
+                if (!temDraft && enviadoEm) {
+                  const dataEnvio = enviadoEm?.toDate ? enviadoEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+                  return (
+                    <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 16, color: '#66BB6A' }}>✓</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A' }}>Cotacao Enviada</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{dataEnvio}</div>
+                      </div>
+                    </div>
+                  );
+                }
+                if (temDraft) return (
+                  <div style={{ marginBottom: 20 }}>
+                    {confirmEnvio ? (
+                      <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.25)', borderRadius: 12, padding: '16px 20px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 6 }}>Confirmar envio da cotacao?</div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>Os fornecedores serao notificados e poderao confirmar ou recusar cada servico.</div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button onClick={handleEnviarCotacao} disabled={enviandoCotacao} style={{ padding: '8px 20px', background: '#00E5C4', border: 'none', borderRadius: 8, color: '#0D1B2A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            {enviandoCotacao ? 'Enviando...' : 'Confirmar'}
+                          </button>
+                          <button onClick={() => setConfirmEnvio(false)} style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmEnvio(true)} style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #00E5C4, #0080FF)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', letterSpacing: 0.3 }}>
+                        Enviar Cotacao para Fornecedores
+                      </button>
+                    )}
+                  </div>
+                );
+                return null;
+              })()}
+
               {/* Cliente */}
               <div className="ps-card">
                 <div className="ps-card-title">Cliente</div>
@@ -610,7 +649,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 </div>
               )}
 
-              {/* Relatório Final — visível quando budget está completed */}
+              {/* Relatório Final */}
               {project.status === 'completed' && project.relatorioFinal && (() => {
                 const rel = project.relatorioFinal;
                 const itens = rel.itens || [];
@@ -1136,7 +1175,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           <div onClick={() => setTasksExpandidas(p => ({ ...p, [sj.id]: !sjExp }))}
                             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: sjExp ? '1px solid #f8faff' : 'none' }}>
                             <span style={{ fontSize: 11, color: '#94a3b8', transform: sjExp ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: (!sj.supplierName || sj.supplierName === 'Fornecedor') ? '#ef4444' : isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0, animation: (!sj.supplierName || sj.supplierName === 'Fornecedor') ? 'pulse-red 1.5s infinite' : 'none' }} />
                             <div style={{ flex: 1 }}>
                               <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</span>
                               {sj.serviceParentName && !sjExp && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{sj.serviceParentName}</span>}
