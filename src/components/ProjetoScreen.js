@@ -15,7 +15,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [project, setProject]     = useState(null);
   const [client, setClient]       = useState(null);
   const [loading, setLoading]     = useState(true);
-  const [activeTab, setActiveTab] = useState('info');
+  const [activeTab, setActiveTab] = useState('briefing');
 
   // Fornecedor
   const [supplierJob, setSupplierJob]     = useState(null);   // primeiro job (compat)
@@ -666,6 +666,52 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 </div>
               )}
 
+              {/* Estrutura */}
+              <div className="ps-card">
+                <div className="ps-card-title">Estrutura</div>
+                <div className="ps-info-grid">
+                  {est.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est.areaM2} m²</span></div>}
+                  {[['Montagem', est.montagem], ['Iluminação', est.iluminacao], ['Som', est.som], ['Telão', est.telao], ['Mobiliário', est.mobiliario]].map(([label, val]) => (
+                    <div key={label} className="ps-info-item">
+                      <span className="ps-info-label">{label}</span>
+                      <span className={`ps-bool ${val ? 'ps-bool-yes' : 'ps-bool-no'}`}>{val ? '✓ Sim' : '✗ Não'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Equipe */}
+              <div className="ps-card">
+                <div className="ps-card-title">Equipe Operacional</div>
+                <div className="ps-info-grid">
+                  {Object.entries(equipe).map(([key, val]) => {
+                    if (!val || typeof val !== 'object') return null;
+                    const qtd = val.quantidade || 0;
+                    const hrs = val.horasPorDia || 0;
+                    if (qtd === 0) return null;
+                    return (
+                      <div key={key} className="ps-info-item">
+                        <span className="ps-info-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                        <span className="ps-info-value">{qtd} pessoa(s) × {hrs}h/dia</span>
+                      </div>
+                    );
+                  })}
+                  {Object.values(equipe).every(v => !v?.quantidade) && (
+                    <div className="ps-info-item full"><span className="ps-info-value" style={{ color: '#94a3b8' }}>Nenhuma equipe especificada</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Serviços identificados */}
+              {servicos.length > 0 && (
+                <div className="ps-card">
+                  <div className="ps-card-title">Serviços Identificados pela IA</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {servicos.map((s, i) => <span key={i} className="ps-tag">{s}</span>)}
+                  </div>
+                </div>
+              )}
+
               {/* Relatório Final */}
               {project.status === 'completed' && project.relatorioFinal && (() => {
                 const rel = project.relatorioFinal;
@@ -959,83 +1005,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           })()}
 
           {/* ── BRIEFING ── */}
-          {activeTab === 'briefing' && (
-            <>
-              {/* Texto descritivo gerado pela IA */}
-              {project.descricaoBriefing && (
-                <div className="ps-card">
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#00E5C4', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Resumo do Evento</div>
-                  <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
-                    <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Estrutura */}
-              <div className="ps-card">
-                <div className="ps-card-title">Estrutura</div>
-                <div className="ps-info-grid">
-                  {est.areaM2 > 0 && (
-                    <div className="ps-info-item">
-                      <span className="ps-info-label">Área</span>
-                      <span className="ps-info-value">{est.areaM2} m²</span>
-                    </div>
-                  )}
-                  {[
-                    ['Montagem', est.montagem],
-                    ['Iluminação', est.iluminacao],
-                    ['Som', est.som],
-                    ['Telão', est.telao],
-                    ['Mobiliário', est.mobiliario],
-                  ].map(([label, val]) => (
-                    <div key={label} className="ps-info-item">
-                      <span className="ps-info-label">{label}</span>
-                      <span className={`ps-bool ${val ? 'ps-bool-yes' : 'ps-bool-no'}`}>
-                        {val ? '✓ Sim' : '✗ Não'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Equipe */}
-              <div className="ps-card">
-                <div className="ps-card-title">Equipe Operacional</div>
-                <div className="ps-info-grid">
-                  {Object.entries(equipe).map(([key, val]) => {
-                    if (!val || typeof val !== 'object') return null;
-                    const qtd = val.quantidade || 0;
-                    const hrs = val.horasPorDia || 0;
-                    if (qtd === 0) return null;
-                    return (
-                      <div key={key} className="ps-info-item">
-                        <span className="ps-info-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                        <span className="ps-info-value">{qtd} pessoa(s) × {hrs}h/dia</span>
-                      </div>
-                    );
-                  })}
-                  {Object.values(equipe).every(v => !v?.quantidade) && (
-                    <div className="ps-info-item full">
-                      <span className="ps-info-value" style={{ color: '#94a3b8' }}>Nenhuma equipe especificada</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Serviços necessários */}
-              {servicos.length > 0 && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Serviços Identificados pela IA</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {servicos.map((s, i) => (
-                      <span key={i} className="ps-tag">{s}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
           {/* ── MINHA TAREFA (fornecedor) ── */}
           {activeTab === 'tasks' && isFornecedor && (() => {
             const myTasks          = projectTasks.filter(t => t.supplierId === userData?.id);
