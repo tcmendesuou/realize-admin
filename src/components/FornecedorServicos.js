@@ -36,7 +36,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const [form, setForm] = useState({
     preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '',
     tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital',
-    observacoes: '', ativo: true,
+    caracteristicas: '', observacoes: '', ativo: true,
   });
   const [precoAlerta, setPrecoAlerta] = useState('');
   const [saving, setSaving] = useState(false);
@@ -158,13 +158,13 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
         preco: existing.preco || '', unidade: existing.unidade || 'por hora',
         diasPreparo: existing.diasPreparo || '', diasMontagem: existing.diasMontagem || '',
         tempoExecucao: existing.tempoExecucao || '', quantidade: existing.quantidade || '',
-        regiao: existing.regiao || 'São Paulo - Capital', observacoes: existing.observacoes || '',
+        regiao: existing.regiao || 'São Paulo - Capital', caracteristicas: existing.caracteristicas || '', observacoes: existing.observacoes || '',
         ativo: existing.ativo !== false,
       });
       setEditando(existing);
       loadOpcoes(existing.id);
     } else {
-      setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', observacoes: '', ativo: true });
+      setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', caracteristicas: '', observacoes: '', ativo: true });
       setEditando(null);
       setOpcoes([]);
     }
@@ -195,6 +195,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
         quantidade:        form.quantidade,
         regiao:            form.regiao,
         observacoes:       form.observacoes,
+        caracteristicas:   form.caracteristicas,
         ativo:             form.ativo,
         updatedAt:         new Date(),
       };
@@ -219,7 +220,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
 
       await loadAll();
       setSelSub(null);
-      setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', observacoes: '', ativo: true });
+      setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', caracteristicas: '', observacoes: '', ativo: true });
       setEditando(null);
       setOpcoes([]);
       setOpcoesMemoria([]);
@@ -249,7 +250,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
       preco: s.preco || '', unidade: s.unidade || 'por hora',
       diasPreparo: s.diasPreparo || '', diasMontagem: s.diasMontagem || '',
       tempoExecucao: s.tempoExecucao || '', quantidade: s.quantidade || '',
-      regiao: s.regiao || 'São Paulo - Capital', observacoes: s.observacoes || '',
+      regiao: s.regiao || 'São Paulo - Capital', caracteristicas: s.caracteristicas || '', observacoes: s.observacoes || '',
       ativo: s.ativo !== false,
     });
     setEditando(s);
@@ -280,7 +281,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
             {servicos.length === 0 ? 'Nenhum serviço cadastrado ainda' : `${servicos.length} serviço${servicos.length > 1 ? 's' : ''} cadastrado${servicos.length > 1 ? 's' : ''}`}
           </p>
         </div>
-        <button onClick={() => { setShowCascata(true); setSelTipo(null); setSelCategoria(null); setSelSub(null); setEditando(null); setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', observacoes: '', ativo: true }); }}
+        <button onClick={() => { setShowCascata(true); setSelTipo(null); setSelCategoria(null); setSelSub(null); setEditando(null); setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', caracteristicas: '', observacoes: '', ativo: true }); }}
           style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
           + Adicionar Serviço
         </button>
@@ -433,6 +434,17 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                       </div>
                     </div>
 
+                    {/* Características */}
+                    <div>
+                      <label style={lbl}>Caracteristicas</label>
+                      <textarea
+                        value={form.caracteristicas}
+                        onChange={e => setF('caracteristicas', e.target.value)}
+                        style={{ ...inp, minHeight: 70, resize: 'vertical', lineHeight: 1.5 }}
+                        placeholder="Descreva as caracteristicas tecnicas do servico (ex: Pixel pitch 2.5mm, brilho 1000 nits, gabinete IP65...)"
+                      />
+                    </div>
+
                     {/* Opções */}
                     <div style={{ borderTop: '1px solid rgba(0,180,255,0.1)', paddingTop: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
@@ -519,7 +531,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
 
                     {/* Botão salvar */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 4 }}>
-                      <button onClick={() => { setSelSub(null); setEditando(null); setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', observacoes: '', ativo: true }); }}
+                      <button onClick={() => { setSelSub(null); setEditando(null); setForm({ preco: '', unidade: 'por hora', diasPreparo: '', diasMontagem: '', tempoExecucao: '', quantidade: '', regiao: 'São Paulo - Capital', caracteristicas: '', observacoes: '', ativo: true }); }}
                         style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Limpar
                       </button>
@@ -575,6 +587,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                   {s.regiao && <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)' }}>{s.regiao}</span>}
                 </div>
                 {s.observacoes && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)', marginTop: 4 }}>{s.observacoes}</div>}
+                {s.caracteristicas && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)', marginTop: 2, fontStyle: 'italic' }}>{s.caracteristicas}</div>}
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 <button onClick={() => handleEditarExistente(s)}
