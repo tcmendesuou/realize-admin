@@ -92,11 +92,10 @@ export default function EquipeHome({ userData, onLogout }) {
       {/* Main */}
       <main className="eq-main">
         {/* Header de boas-vindas */}
-        <div style={{ textAlign: 'center', padding: '32px 0 28px', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 32 }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(0,229,196,0.15)', border: '2px solid rgba(0,229,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: 20, color: '#00E5C4', fontWeight: 700 }}>{userInitials}</div>
-          <div style={{ fontSize: 26, fontWeight: 600, color: '#E8F4FF', letterSpacing: -0.3 }}>{userName}</div>
-          {userData?.roleName && <div style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>{userData.roleName}</div>}
-          {userData?.companyName && <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>{userData.companyName}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
+          {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
+          {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
         </div>
 
         {activeSection === 'workspace' && (
