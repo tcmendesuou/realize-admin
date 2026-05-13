@@ -91,47 +91,53 @@ module.exports = async function handler(req, res) {
     const suppServSnap = await db.collection('supplierServices').get();
     const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const keywords = servicosNecessarios.flatMap(sn =>
-      sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 1)
-    );
-    const sinonimos = {
-      dj:       ['dj', 'disc', 'jockey', 'musica', 'musical'],
-      led:      ['led', 'neon', 'painel', 'telao', 'tela'],
-      banner:   ['banner', 'backdrop', 'fundo', 'impresso'],
-      som:      ['som', 'audio', 'pa', 'caixa', 'microfone', 'sistema', 'equipamento'],
-      recepcao: ['recepcao', 'recepcionista', 'hostess'],
-      seguranca:['seguranca', 'vigilancia'],
-      limpeza:  ['limpeza', 'higiene', 'auxiliar'],
-    };
-    const kwExpandidas = [...keywords];
-    keywords.forEach(kw => {
-      Object.values(sinonimos).forEach(terms => {
-        if (terms.some(t => kw.includes(t) || t.includes(kw))) kwExpandidas.push(...terms);
-      });
-    });
-    const kwSet = [...new Set(kwExpandidas)];
+    const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
     const suppServs = todosServicos.filter(s => {
       if (s.ativo === false) return false;
-      const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const fullLC = normalize(s.serviceName) + ' ' + normalize(s.serviceParentName);
-      if (servicosNecessarios.includes(s.serviceName)) return true;
-      if (servicosNecessarios.includes(s.serviceParentName)) return true;
-      return kwSet.some(kw => fullLC.includes(kw));
-    });
+      const svcName = normalize(s.serviceName);
+      const parentName = normalize(s.serviceParentName);
 
-    // Deduplica por supplierId + serviceName — evita jobs duplicados para o mesmo fornecedor+serviço
-    const vistos = new Set();
-    const suppServsDedupados = suppServs.filter(s => {
-      const key = `${s.supplierId}__${s.serviceName}`;
-      if (vistos.has(key)) return false;
-      vistos.add(key);
-      return true;
+      // 1. Match exato pelo nome do serviço
+      if (servicosNecessarios.some(sn => normalize(sn) === svcName)) return true;
+
+      // 2. Match exato pelo nome da categoria pai
+      if (servicosNecessarios.some(sn => normalize(sn) === parentName)) return true;
+
+      // 3. Match parcial — servicosNecessarios contém o nome do serviço cadastrado
+      // (ex: "Painel de LED" bate em "LED / Neon")
+      if (servicosNecessarios.some(sn => {
+        const snNorm = normalize(sn);
+        return snNorm.includes(svcName) || svcName.includes(snNorm);
+      })) return true;
+
+      // 4. Sinônimos estritos — só para categorias bem definidas
+      const sinonimosExatos = {
+        'recepcionista': ['recepcionista', 'hostess', 'recepcao'],
+        'hostess':       ['recepcionista', 'hostess', 'recepcao'],
+        'dj':            ['dj', 'disc jockey'],
+        'seguranca':     ['seguranca', 'vigilancia', 'segurança patrimonial'],
+        'limpeza':       ['limpeza', 'auxiliar de limpeza'],
+        'led':           ['led', 'painel de led', 'led / neon', 'neon'],
+        'som':           ['som', 'sistema pa', 'sistema de som', 'caixa de som', 'audio'],
+      };
+
+      for (const [key, terms] of Object.entries(sinonimosExatos)) {
+        const svcMatch = terms.some(t => svcName.includes(t) || t.includes(svcName));
+        if (svcMatch) {
+          const pedidoMatch = servicosNecessarios.some(sn =>
+            terms.some(t => normalize(sn).includes(t) || t.includes(normalize(sn)))
+          );
+          if (pedidoMatch) return true;
+        }
+      }
+
+      return false;
     });
 
     const jobsCriados = [];
     const batch = db.batch();
-    for (const sv of suppServsDedupados) {
+    for (const sv of suppServs) {
       const jobRef = db.collection('supplierJobs').doc();
       batch.set(jobRef, {
         supplierId:        sv.supplierId,
