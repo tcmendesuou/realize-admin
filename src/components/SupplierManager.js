@@ -91,6 +91,9 @@ export default function SupplierManager() {
       // Remove supplierServices vinculados
       const svSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', selected.id)));
       await Promise.all(svSnap.docs.map(d => deleteDoc(doc(db, 'supplierServices', d.id))));
+      // Remove supplierJobs pendentes vinculados
+      const sjSnap = await getDocs(query(collection(db, 'supplierJobs'), where('supplierId', '==', selected.id)));
+      await Promise.all(sjSnap.docs.map(d => deleteDoc(doc(db, 'supplierJobs', d.id))));
       // Remove o supplier
       await deleteDoc(doc(db, 'suppliers', selected.id));
       setSelected(null);

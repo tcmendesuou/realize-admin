@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 
@@ -181,6 +181,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         confirmedAt: serverTimestamp(),
         confirmedBy: userData?.name,
       });
+
+      // Cancela outros fornecedores concorrentes para o mesmo serviço neste budget
+      const concorrentes = await getDocs(query(
+        collection(db, 'supplierJobs'),
+        where('budgetId', '==', projectId),
+        where('serviceName', '==', serviceName)
+      ));
+      await Promise.all(concorrentes.docs
+        .filter(d => d.id !== sjId && d.data().status === 'pending')
+        .map(d => updateDoc(d.ref, { status: 'cancelled', cancelledAt: serverTimestamp(), cancelledReason: 'Outro fornecedor confirmou primeiro' }))
+      );
+
       // Atualiza timeline
       await updateDoc(doc(db, 'budgets', projectId), {
         timeline: [
@@ -1282,16 +1294,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           {task.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem}d</div></div>}
                           {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs.</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacao}</div></div>}
                           {task.observacaoFornecedor && <div style={{ background: '#f0f9ff', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacaoFornecedor}</div></div>}
-                          {isCoord && (
-                            <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end', paddingTop: 6 }}>
-                              <button onClick={async () => {
-                                if (!window.confirm(`Excluir a task "${task.nome || task.serviceName}"? Esta ação não pode ser desfeita.`)) return;
-                                await deleteDoc(doc(db, 'tasks', task.id));
-                              }} style={{ padding: '5px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                Excluir task
-                              </button>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1412,21 +1414,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <textarea value={editJobForm.observacao} onChange={e => setEditJobForm(p => ({ ...p, observacao: e.target.value }))}
                                 style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none' }} />
                             </div>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
-                              <button onClick={async () => {
-                                if (!window.confirm(`Excluir o job "${sj.serviceName}"? Esta ação não pode ser desfeita.`)) return;
-                                await deleteDoc(doc(db, 'supplierJobs', sj.id));
-                                setEditandoJob(null);
-                              }} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                Excluir
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={() => handleSalvarJob(sj.id)} disabled={salvandoJob}
+                                style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                {salvandoJob ? 'Salvando...' : 'Salvar'}
                               </button>
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                                <button onClick={() => handleSalvarJob(sj.id)} disabled={salvandoJob}
-                                  style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                  {salvandoJob ? 'Salvando...' : 'Salvar'}
-                                </button>
-                              </div>
                             </div>
                           </div>
                         )}

@@ -289,8 +289,21 @@ export default function ClienteChat({ userData, onClose }) {
 
         const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+        const cidadeEvento = normalize(briefingJson.evento?.cidade || '');
         const suppServs = todosServicos.filter(s => {
           if (s.ativo === false) return false;
+
+          // Filtro por região — só inclui se a região do serviço bate com a cidade do evento
+          if (s.regiao) {
+            const regiaoServico = normalize(s.regiao);
+            const cidadeMatch = cidadeEvento && (
+              regiaoServico.includes(cidadeEvento) ||
+              cidadeEvento.includes(regiaoServico) ||
+              regiaoServico.includes('todo') ||
+              regiaoServico.includes('nacional')
+            );
+            if (!cidadeMatch) return false;
+          }
           const svcName  = normalize(s.serviceName);
           const parentName = normalize(s.serviceParentName);
 
