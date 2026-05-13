@@ -286,49 +286,49 @@ export default function ClienteChat({ userData, onClose }) {
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
         const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        console.log('supplierServices encontrados:', todosServicos.length, todosServicos.map(s => s.serviceName));
 
-        // Extrai palavras-chave
-        const keywords = servicosNecessarios.flatMap(sn =>
-            sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 1)
-          );
-          const sinonimos = {
-            dj:       ['dj', 'disc', 'jockey', 'musica', 'musical'],
-            led:      ['led', 'neon', 'painel', 'telao', 'tela'],
-            banner:   ['banner', 'backdrop', 'fundo', 'impresso'],
-            nobreak:  ['nobreak', 'ups', 'energia', 'estabilizador'],
-            som:      ['som', 'audio', 'pa', 'caixa', 'microfone', 'sistema', 'equipamento'],
-            recepcao: ['recepcao', 'recepcionista', 'hostess'],
-            seguranca:['seguranca', 'vigilancia'],
-            limpeza:  ['limpeza', 'higiene', 'auxiliar'],
+        const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        const suppServs = todosServicos.filter(s => {
+          if (s.ativo === false) return false;
+          const svcName  = normalize(s.serviceName);
+          const parentName = normalize(s.serviceParentName);
+
+          // 1. Match exato pelo nome do serviço
+          if (servicosNecessarios.some(sn => normalize(sn) === svcName)) return true;
+
+          // 2. Match exato pela categoria pai
+          if (servicosNecessarios.some(sn => normalize(sn) === parentName)) return true;
+
+          // 3. Match parcial controlado
+          if (servicosNecessarios.some(sn => {
+            const snNorm = normalize(sn);
+            return snNorm.includes(svcName) || svcName.includes(snNorm);
+          })) return true;
+
+          // 4. Sinônimos estritos
+          const sinonimosExatos = {
+            'recepcionista': ['recepcionista', 'hostess', 'recepcao'],
+            'hostess':       ['recepcionista', 'hostess', 'recepcao'],
+            'dj':            ['dj', 'disc jockey'],
+            'seguranca':     ['seguranca', 'vigilancia', 'segurança patrimonial'],
+            'limpeza':       ['limpeza', 'auxiliar de limpeza'],
+            'led':           ['led', 'painel de led', 'led / neon', 'neon'],
+            'som':           ['som', 'sistema pa', 'sistema de som', 'caixa de som', 'audio'],
           };
-          const kwExpandidas = [...keywords];
-          keywords.forEach(kw => {
-            Object.values(sinonimos).forEach(terms => {
-              if (terms.some(t => kw.includes(t) || t.includes(kw))) kwExpandidas.push(...terms);
-            });
-          });
-          const kwSet = [...new Set(kwExpandidas)];
-          console.log('keywords expandidas:', kwSet);
 
-          const suppServs = todosServicos.filter(s => {
-            if (s.ativo === false) return false;
-            const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const nameLC   = normalize(s.serviceName);
-            const parentLC = normalize(s.serviceParentName);
-            const fullLC   = nameLC + ' ' + parentLC;
-            if (servicosNecessarios.includes(s.serviceName)) return true;
-            if (servicosNecessarios.includes(s.serviceParentName)) return true;
-            return kwSet.some(kw => fullLC.includes(kw));
-          });
-        console.log('suppServs matched:', suppServs.length, suppServs.map(s => s.serviceName));
+          for (const [key, terms] of Object.entries(sinonimosExatos)) {
+            const svcMatch = terms.some(t => svcName.includes(t) || t.includes(svcName));
+            if (svcMatch) {
+              const pedidoMatch = servicosNecessarios.some(sn =>
+                terms.some(t => normalize(sn).includes(t) || t.includes(normalize(sn)))
+              );
+              if (pedidoMatch) return true;
+            }
+          }
 
-        const supplierMap = {};
-        suppServs.forEach(s => {
-          if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
-          supplierMap[s.supplierId].push(s.serviceName);
+          return false;
         });
-        console.log('supplierMap:', supplierMap);
 
         // Cria um supplierJob por serviço (não agrupado)
         for (const sv of suppServs) {
