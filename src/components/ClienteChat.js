@@ -343,8 +343,12 @@ export default function ClienteChat({ userData, onClose }) {
           return false;
         });
 
-        // Cria um supplierJob por serviço (não agrupado)
+        // Cria um supplierJob por serviço — deduplicado por supplierId + serviceName
+        const vistos = new Set();
         for (const sv of suppServs) {
+          const key = `${sv.supplierId}__${sv.serviceName}`;
+          if (vistos.has(key)) continue;
+          vistos.add(key);
           await addDoc(collection(db, 'supplierJobs'), {
             supplierId: sv.supplierId,
             budgetId: budgetRef.id,
@@ -372,6 +376,51 @@ export default function ClienteChat({ userData, onClose }) {
             createdAt: serverTimestamp(),
           });
           console.log('supplierJob criado:', sv.serviceName, '→', sv.supplierId);
+        }
+
+        // Cria supplierJobs para estandes modulares se o cliente pediu
+        const pedidoModular = servicosNecessarios.some(sn =>
+          normalize(sn).includes('modular') || normalize(sn).includes('estande')
+        );
+        if (pedidoModular && modeloSelecionado) {
+          try {
+            // Busca o tipoEspecial que tem esse modelo
+            const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
+            const tipoDoModelo = tiposSnap.docs
+              .map(d => ({ id: d.id, ...d.data() }))
+              .find(t => t.id === modeloSelecionado.tipoEspecialId);
+
+            const fornecedoresAutorizados = tipoDoModelo?.fornecedoresAutorizados || [];
+            for (const forn of fornecedoresAutorizados) {
+              await addDoc(collection(db, 'supplierJobs'), {
+                supplierId:         forn.id,
+                budgetId:           budgetRef.id,
+                eventName:          briefingJson.evento?.nome || 'Novo Evento',
+                eventTypeName:      briefingJson.evento?.tipo || '',
+                clientName:         userName,
+                eventDate:          briefingJson.evento?.dataInicio || '',
+                eventDateFim:       briefingJson.evento?.dataFim || '',
+                eventLocal:         briefingJson.evento?.local || briefingJson.evento?.cidade || '',
+                eventCidade:        briefingJson.evento?.cidade || '',
+                eventHorarioInicio: briefingJson.evento?.horarioInicio || '',
+                eventHorarioFim:    briefingJson.evento?.horarioFim || '',
+                eventDiasDuracao:   briefingJson.evento?.diasDuracao || 1,
+                eventVisitantes:    briefingJson.evento?.visitantesPorDia || 0,
+                serviceNames:       [modeloSelecionado.nome],
+                serviceName:        modeloSelecionado.nome,
+                serviceParentName:  tipoDoModelo?.nome || 'Estande Modular',
+                tipoServico:        'estrutura',
+                modeloEspecialId:   modeloSelecionado.id,
+                preco:              modeloSelecionado.precoBase || 0,
+                unidade:            'por evento',
+                diasPreparo:        modeloSelecionado.diasProducao || 0,
+                diasMontagem:       0,
+                stage:              'proposta',
+                status:             'draft',
+                createdAt:          serverTimestamp(),
+              });
+            }
+          } catch (e) { console.error('Erro ao criar jobs de estande modular:', e); }
         }
       } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
 
