@@ -379,16 +379,16 @@ export default function ClienteChat({ userData, onClose }) {
         }
 
         // Cria supplierJobs para estandes modulares se o cliente pediu
+        const modeloEstande = briefingJson.modeloEstande;
         const pedidoModular = servicosNecessarios.some(sn =>
           normalize(sn).includes('modular') || normalize(sn).includes('estande')
         );
-        if (pedidoModular && modeloSelecionado) {
+        if (pedidoModular && modeloEstande) {
           try {
-            // Busca o tipoEspecial que tem esse modelo
             const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
             const tipoDoModelo = tiposSnap.docs
               .map(d => ({ id: d.id, ...d.data() }))
-              .find(t => t.id === modeloSelecionado.tipoEspecialId);
+              .find(t => t.id === modeloEstande.tipoEspecialId);
 
             const fornecedoresAutorizados = tipoDoModelo?.fornecedoresAutorizados || [];
             for (const forn of fornecedoresAutorizados) {
@@ -406,14 +406,14 @@ export default function ClienteChat({ userData, onClose }) {
                 eventHorarioFim:    briefingJson.evento?.horarioFim || '',
                 eventDiasDuracao:   briefingJson.evento?.diasDuracao || 1,
                 eventVisitantes:    briefingJson.evento?.visitantesPorDia || 0,
-                serviceNames:       [modeloSelecionado.nome],
-                serviceName:        modeloSelecionado.nome,
+                serviceNames:       [modeloEstande.nome],
+                serviceName:        modeloEstande.nome,
                 serviceParentName:  tipoDoModelo?.nome || 'Estande Modular',
                 tipoServico:        'estrutura',
-                modeloEspecialId:   modeloSelecionado.id,
-                preco:              modeloSelecionado.precoBase || 0,
+                modeloEspecialId:   modeloEstande.id,
+                preco:              modeloEstande.precoBase || 0,
                 unidade:            'por evento',
-                diasPreparo:        modeloSelecionado.diasProducao || 0,
+                diasPreparo:        modeloEstande.diasProducao || 0,
                 diasMontagem:       0,
                 stage:              'proposta',
                 status:             'draft',
@@ -606,11 +606,12 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                 setBriefingJson(prev => ({
                   ...prev,
                   modeloEstande: {
-                    id: modeloSelecionado.id,
-                    nome: modeloSelecionado.nome,
-                    areaM2: modeloSelecionado.areaM2,
-                    precoBase: modeloSelecionado.precoBase,
-                    diasProducao: modeloSelecionado.diasProducao,
+                    id:             modeloSelecionado.id,
+                    nome:           modeloSelecionado.nome,
+                    areaM2:         modeloSelecionado.areaM2,
+                    precoBase:      modeloSelecionado.precoBase,
+                    diasProducao:   modeloSelecionado.diasProducao,
+                    tipoEspecialId: modeloSelecionado.tipoEspecialId,
                   },
                   servicosNecessarios: [
                     ...(prev.servicosNecessarios || []).filter(s => !s.toLowerCase().includes('estande')),
