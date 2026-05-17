@@ -383,14 +383,16 @@ export default function ClienteChat({ userData, onClose }) {
         const pedidoModular = servicosNecessarios.some(sn =>
           normalize(sn).includes('modular') || normalize(sn).includes('estande')
         );
+        console.log('DEBUG estande:', { pedidoModular, modeloEstande, servicosNecessarios });
         if (pedidoModular && modeloEstande) {
           try {
             const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
-            const tipoDoModelo = tiposSnap.docs
-              .map(d => ({ id: d.id, ...d.data() }))
-              .find(t => t.id === modeloEstande.tipoEspecialId);
-
+            const todosTipos = tiposSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            console.log('DEBUG tiposEspeciais:', todosTipos.map(t => ({ id: t.id, nome: t.nome, fornecedores: t.fornecedoresAutorizados })));
+            const tipoDoModelo = todosTipos.find(t => t.id === modeloEstande.tipoEspecialId);
+            console.log('DEBUG tipoDoModelo:', tipoDoModelo, 'buscando por tipoEspecialId:', modeloEstande.tipoEspecialId);
             const fornecedoresAutorizados = tipoDoModelo?.fornecedoresAutorizados || [];
+            console.log('DEBUG fornecedoresAutorizados:', fornecedoresAutorizados);
             for (const forn of fornecedoresAutorizados) {
               await addDoc(collection(db, 'supplierJobs'), {
                 supplierId:         forn.id,
@@ -422,7 +424,7 @@ export default function ClienteChat({ userData, onClose }) {
             }
           } catch (e) { console.error('Erro ao criar jobs de estande modular:', e); }
         }
-      } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
+      } catch (e) { console.error('Erro ao criar supplierJobs (catch externo):', e); }
 
       // ── gera cronograma via IA ──
       try {
