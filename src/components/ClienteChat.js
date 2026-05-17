@@ -24,7 +24,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [assistantName, setAssistantName] = useState('Realize');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
-  const modeloSelecionadoRef = useRef(null);
   const [catalogoSummary, setCatalogoSummary] = useState('');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -91,7 +90,8 @@ export default function ClienteChat({ userData, onClose }) {
         });
 
         if (linhas.length > 0) {
-          setCatalogoSummary(`\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`);
+          const catalogoTexto = `\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`;
+          setCatalogoSummary(catalogoTexto.slice(0, 3000));
         }
       } catch (e) { console.error('Erro ao carregar catalogo:', e); }
 
@@ -104,15 +104,9 @@ export default function ClienteChat({ userData, onClose }) {
             const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
             return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
           });
-          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO IMPORTANTE: Quando apresentar os estandes modulares ao cliente, inclua o marcador [MOSTRAR_MODELOS] no final da sua mensagem. O sistema vai mostrar as fotos automaticamente para o cliente escolher.`);
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}`);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
-
-      // Carrega modelos especiais para uso inline no chat
-      try {
-        const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
-        setModelosEspeciais(modelosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (e) { console.error('Erro ao carregar modelosEspeciais:', e); }
     })();
   }, []);
 
@@ -142,7 +136,7 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     try {
-      const history = updated.map(m => ({ role: m.role, content: m.content }));
+      const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
 
       const pricingSummary = pricingData.length > 0
         ? `\n\nTABELA DE PREÇOS (resumo):\n${pricingData.slice(0, 40).map(p =>
@@ -151,7 +145,9 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const systemPrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary;
+      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary;
+      // Limita o system prompt a 12000 caracteres para evitar erro 400
+      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -171,20 +167,8 @@ export default function ClienteChat({ userData, onClose }) {
         .map(b => b.text)
         .join('\n');
 
-      // Remove o marcador do texto visível
-      const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').trim();
-      const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
+      const assistantMsg = { role: 'assistant', content: assistantText, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
-
-      // Se a IA usou o marcador → injeta card de seleção de modelos
-      if (assistantText.includes('[MOSTRAR_MODELOS]') && modelosEspeciais.length > 0) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: '',
-          type: 'modelos',
-          id: Date.now() + 2,
-        }]);
-      }
 
       const json = extractJson(assistantText);
       if (json && json.evento) {
@@ -287,69 +271,52 @@ export default function ClienteChat({ userData, onClose }) {
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
         const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log('supplierServices encontrados:', todosServicos.length, todosServicos.map(s => s.serviceName));
 
-        const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-        const cidadeEvento = normalize(briefingJson.evento?.cidade || '');
-        const suppServs = todosServicos.filter(s => {
-          if (s.ativo === false) return false;
-
-          // Filtro por região — só inclui se a região do serviço bate com a cidade do evento
-          if (s.regiao) {
-            const regiaoServico = normalize(s.regiao);
-            const cidadeMatch = cidadeEvento && (
-              regiaoServico.includes(cidadeEvento) ||
-              cidadeEvento.includes(regiaoServico) ||
-              regiaoServico.includes('todo') ||
-              regiaoServico.includes('nacional')
-            );
-            if (!cidadeMatch) return false;
-          }
-          const svcName  = normalize(s.serviceName);
-          const parentName = normalize(s.serviceParentName);
-
-          // 1. Match exato pelo nome do serviço
-          if (servicosNecessarios.some(sn => normalize(sn) === svcName)) return true;
-
-          // 2. Match exato pela categoria pai
-          if (servicosNecessarios.some(sn => normalize(sn) === parentName)) return true;
-
-          // 3. Match parcial controlado
-          if (servicosNecessarios.some(sn => {
-            const snNorm = normalize(sn);
-            return snNorm.includes(svcName) || svcName.includes(snNorm);
-          })) return true;
-
-          // 4. Sinônimos estritos
-          const sinonimosExatos = {
-            'recepcionista': ['recepcionista', 'hostess', 'recepcao'],
-            'hostess':       ['recepcionista', 'hostess', 'recepcao'],
-            'dj':            ['dj', 'disc jockey'],
-            'seguranca':     ['seguranca', 'vigilancia', 'segurança patrimonial'],
-            'limpeza':       ['limpeza', 'auxiliar de limpeza'],
-            'led':           ['led', 'painel de led', 'led / neon', 'neon'],
-            'som':           ['som', 'sistema pa', 'sistema de som', 'caixa de som', 'audio'],
+        // Extrai palavras-chave
+        const keywords = servicosNecessarios.flatMap(sn =>
+            sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 1)
+          );
+          const sinonimos = {
+            dj:       ['dj', 'disc', 'jockey', 'musica', 'musical'],
+            led:      ['led', 'neon', 'painel', 'telao', 'tela'],
+            banner:   ['banner', 'backdrop', 'fundo', 'impresso'],
+            nobreak:  ['nobreak', 'ups', 'energia', 'estabilizador'],
+            som:      ['som', 'audio', 'pa', 'caixa', 'microfone', 'sistema', 'equipamento'],
+            recepcao: ['recepcao', 'recepcionista', 'hostess'],
+            seguranca:['seguranca', 'vigilancia'],
+            limpeza:  ['limpeza', 'higiene', 'auxiliar'],
           };
+          const kwExpandidas = [...keywords];
+          keywords.forEach(kw => {
+            Object.values(sinonimos).forEach(terms => {
+              if (terms.some(t => kw.includes(t) || t.includes(kw))) kwExpandidas.push(...terms);
+            });
+          });
+          const kwSet = [...new Set(kwExpandidas)];
+          console.log('keywords expandidas:', kwSet);
 
-          for (const [key, terms] of Object.entries(sinonimosExatos)) {
-            const svcMatch = terms.some(t => svcName.includes(t) || t.includes(svcName));
-            if (svcMatch) {
-              const pedidoMatch = servicosNecessarios.some(sn =>
-                terms.some(t => normalize(sn).includes(t) || t.includes(normalize(sn)))
-              );
-              if (pedidoMatch) return true;
-            }
-          }
+          const suppServs = todosServicos.filter(s => {
+            if (s.ativo === false) return false;
+            const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const nameLC   = normalize(s.serviceName);
+            const parentLC = normalize(s.serviceParentName);
+            const fullLC   = nameLC + ' ' + parentLC;
+            if (servicosNecessarios.includes(s.serviceName)) return true;
+            if (servicosNecessarios.includes(s.serviceParentName)) return true;
+            return kwSet.some(kw => fullLC.includes(kw));
+          });
+        console.log('suppServs matched:', suppServs.length, suppServs.map(s => s.serviceName));
 
-          return false;
+        const supplierMap = {};
+        suppServs.forEach(s => {
+          if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
+          supplierMap[s.supplierId].push(s.serviceName);
         });
+        console.log('supplierMap:', supplierMap);
 
-        // Cria um supplierJob por serviço — deduplicado por supplierId + serviceName
-        const vistos = new Set();
+        // Cria um supplierJob por serviço (não agrupado)
         for (const sv of suppServs) {
-          const key = `${sv.supplierId}__${sv.serviceName}`;
-          if (vistos.has(key)) continue;
-          vistos.add(key);
           await addDoc(collection(db, 'supplierJobs'), {
             supplierId: sv.supplierId,
             budgetId: budgetRef.id,
@@ -378,57 +345,7 @@ export default function ClienteChat({ userData, onClose }) {
           });
           console.log('supplierJob criado:', sv.serviceName, '→', sv.supplierId);
         }
-
-        // Cria supplierJobs para estandes modulares se o cliente pediu
-        const modeloEstande = modeloSelecionadoRef.current;
-        const pedidoModular = servicosNecessarios.some(sn =>
-          normalize(sn).includes('modular') || normalize(sn).includes('estande')
-        );
-        console.log('DEBUG estande:', { pedidoModular, modeloEstande, servicosNecessarios });
-        if (pedidoModular && modeloEstande) {
-          try {
-            const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
-            const todosTipos = tiposSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            console.log('DEBUG tiposEspeciais:', todosTipos.map(t => ({ id: t.id, nome: t.nome, fornecedores: t.fornecedoresAutorizados })));
-            const tipoDoModelo = todosTipos.find(t => t.id === modeloEstande.tipoEspecialId);
-            console.log('DEBUG tipoDoModelo:', tipoDoModelo, 'buscando por tipoEspecialId:', modeloEstande.tipoEspecialId);
-            const fornecedoresAutorizados = tipoDoModelo?.fornecedoresAutorizados || [];
-            console.log('DEBUG fornecedoresAutorizados:', fornecedoresAutorizados);
-            const fornVisto = new Set();
-            for (const forn of fornecedoresAutorizados) {
-              if (fornVisto.has(forn.id)) continue;
-              fornVisto.add(forn.id);
-              await addDoc(collection(db, 'supplierJobs'), {
-                supplierId:         forn.id,
-                budgetId:           budgetRef.id,
-                eventName:          briefingJson.evento?.nome || 'Novo Evento',
-                eventTypeName:      briefingJson.evento?.tipo || '',
-                clientName:         userName,
-                eventDate:          briefingJson.evento?.dataInicio || '',
-                eventDateFim:       briefingJson.evento?.dataFim || '',
-                eventLocal:         briefingJson.evento?.local || briefingJson.evento?.cidade || '',
-                eventCidade:        briefingJson.evento?.cidade || '',
-                eventHorarioInicio: briefingJson.evento?.horarioInicio || '',
-                eventHorarioFim:    briefingJson.evento?.horarioFim || '',
-                eventDiasDuracao:   briefingJson.evento?.diasDuracao || 1,
-                eventVisitantes:    briefingJson.evento?.visitantesPorDia || 0,
-                serviceNames:       [modeloEstande.nome],
-                serviceName:        modeloEstande.nome,
-                serviceParentName:  tipoDoModelo?.nome || 'Estande Modular',
-                tipoServico:        'estrutura',
-                modeloEspecialId:   modeloEstande.id,
-                preco:              modeloEstande.precoBase || 0,
-                unidade:            'por evento',
-                diasPreparo:        modeloEstande.diasProducao || 0,
-                diasMontagem:       0,
-                stage:              'proposta',
-                status:             'draft',
-                createdAt:          serverTimestamp(),
-              });
-            }
-          } catch (e) { console.error('Erro ao criar jobs de estande modular:', e); }
-        }
-      } catch (e) { console.error('Erro ao criar supplierJobs (catch externo):', e); }
+      } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
 
       // ── gera cronograma via IA ──
       try {
@@ -565,7 +482,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {modelosEspeciais.map(m => (
                 <div key={m.id}
-                  onClick={() => { setModeloSelecionado(m); modeloSelecionadoRef.current = m; }}
+                  onClick={() => setModeloSelecionado(m)}
                   style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
                   {/* Foto */}
                   <div style={{ height: 130, background: m.fotoUrl ? 'transparent' : 'rgba(0,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -612,12 +529,11 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                 setBriefingJson(prev => ({
                   ...prev,
                   modeloEstande: {
-                    id:             modeloSelecionado.id,
-                    nome:           modeloSelecionado.nome,
-                    areaM2:         modeloSelecionado.areaM2,
-                    precoBase:      modeloSelecionado.precoBase,
-                    diasProducao:   modeloSelecionado.diasProducao,
-                    tipoEspecialId: modeloSelecionado.tipoEspecialId,
+                    id: modeloSelecionado.id,
+                    nome: modeloSelecionado.nome,
+                    areaM2: modeloSelecionado.areaM2,
+                    precoBase: modeloSelecionado.precoBase,
+                    diasProducao: modeloSelecionado.diasProducao,
                   },
                   servicosNecessarios: [
                     ...(prev.servicosNecessarios || []).filter(s => !s.toLowerCase().includes('estande')),
@@ -764,54 +680,10 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
             {msg.role === 'assistant' && (
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, marginBottom: 2 }}>{initLetter}</div>
             )}
-
-            {/* Cards de modelos inline */}
-            {msg.type === 'modelos' ? (
-              <div style={{ flex: 1, maxWidth: '90%' }}>
-                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Escolha o modelo de estande:</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {modelosEspeciais.map(m => (
-                    <div key={m.id} onClick={() => {
-                      setModeloSelecionado(m);
-                      modeloSelecionadoRef.current = m;
-                      // Envia escolha como mensagem do usuário
-                      const escolha = `Quero o ${m.nome} (${m.areaM2}m²)`;
-                      setInput('');
-                      const userMsg = { role: 'user', content: escolha, id: Date.now() };
-                      setMessages(prev => [...prev, userMsg]);
-                      // Continua a conversa com a escolha
-                      setTimeout(() => {
-                        setInput(escolha);
-                        sendMessage();
-                      }, 100);
-                    }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
-                      <div style={{ height: 110, background: 'rgba(0,128,255,0.08)', overflow: 'hidden' }}>
-                        {m.fotoUrl ? <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏗️</div>}
-                      </div>
-                      <div style={{ padding: '10px 12px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', marginBottom: 3 }}>{m.nome}</div>
-                        {m.descricao && <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 6 }}>{m.descricao}</div>}
-                        <div style={{ display: 'flex', gap: 8, fontSize: 10, color: '#7BAFD4', marginBottom: 6 }}>
-                          {m.areaM2 && <span>📐 {m.areaM2}m²</span>}
-                          {m.altura && <span>↕ {m.altura}m</span>}
-                        </div>
-                        {m.caracteristicas?.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 6 }}>
-                            {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>)}
-                          </div>
-                        )}
-                        {m.precoBase && <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="bia-msg-bubble"
-                style={{ maxWidth: '72%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: msg.role === 'user' ? 'rgba(0,128,255,0.18)' : 'rgba(255,255,255,0.04)', border: msg.role === 'user' ? '1px solid rgba(0,128,255,0.3)' : '1px solid rgba(0,180,255,0.1)', fontSize: 13, lineHeight: 1.6, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}
-                dangerouslySetInnerHTML={{ __html: renderText(msg.content) }}
-              />
-            )}
+            <div className="bia-msg-bubble"
+              style={{ maxWidth: '72%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: msg.role === 'user' ? 'rgba(0,128,255,0.18)' : 'rgba(255,255,255,0.04)', border: msg.role === 'user' ? '1px solid rgba(0,128,255,0.3)' : '1px solid rgba(0,180,255,0.1)', fontSize: 13, lineHeight: 1.6, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}
+              dangerouslySetInnerHTML={{ __html: renderText(msg.content) }}
+            />
             {msg.role === 'user' && (
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,128,255,0.15)', border: '1px solid rgba(0,128,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#7BAFD4', flexShrink: 0, marginBottom: 2 }}>
                 {userName[0]?.toUpperCase()}
