@@ -24,6 +24,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [assistantName, setAssistantName] = useState('Realize');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
+  const modeloSelecionadoRef = useRef(null);
   const [catalogoSummary, setCatalogoSummary] = useState('');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -379,7 +380,7 @@ export default function ClienteChat({ userData, onClose }) {
         }
 
         // Cria supplierJobs para estandes modulares se o cliente pediu
-        const modeloEstande = briefingJson.modeloEstande;
+        const modeloEstande = modeloSelecionadoRef.current;
         const pedidoModular = servicosNecessarios.some(sn =>
           normalize(sn).includes('modular') || normalize(sn).includes('estande')
         );
@@ -561,7 +562,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {modelosEspeciais.map(m => (
                 <div key={m.id}
-                  onClick={() => setModeloSelecionado(m)}
+                  onClick={() => { setModeloSelecionado(m); modeloSelecionadoRef.current = m; }}
                   style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
                   {/* Foto */}
                   <div style={{ height: 130, background: m.fotoUrl ? 'transparent' : 'rgba(0,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -769,6 +770,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   {modelosEspeciais.map(m => (
                     <div key={m.id} onClick={() => {
                       setModeloSelecionado(m);
+                      modeloSelecionadoRef.current = m;
                       // Envia escolha como mensagem do usuário
                       const escolha = `Quero o ${m.nome} (${m.areaM2}m²)`;
                       setInput('');
