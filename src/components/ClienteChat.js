@@ -394,7 +394,10 @@ export default function ClienteChat({ userData, onClose }) {
             console.log('DEBUG tipoDoModelo:', tipoDoModelo, 'buscando por tipoEspecialId:', modeloEstande.tipoEspecialId);
             const fornecedoresAutorizados = tipoDoModelo?.fornecedoresAutorizados || [];
             console.log('DEBUG fornecedoresAutorizados:', fornecedoresAutorizados);
+            const fornVisto = new Set();
             for (const forn of fornecedoresAutorizados) {
+              if (fornVisto.has(forn.id)) continue;
+              fornVisto.add(forn.id);
               await addDoc(collection(db, 'supplierJobs'), {
                 supplierId:         forn.id,
                 budgetId:           budgetRef.id,
