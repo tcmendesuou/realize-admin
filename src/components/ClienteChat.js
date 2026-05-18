@@ -90,7 +90,8 @@ export default function ClienteChat({ userData, onClose }) {
         });
 
         if (linhas.length > 0) {
-          setCatalogoSummary(`\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`);
+          const catalogoTexto = `\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`;
+          setCatalogoSummary(catalogoTexto.slice(0, 3000));
         }
       } catch (e) { console.error('Erro ao carregar catalogo:', e); }
 
@@ -98,21 +99,30 @@ export default function ClienteChat({ userData, onClose }) {
       try {
         const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
         const todosModelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Filtra por região se já soubermos a cidade do evento
         const cidadeAtual = briefingJson?.evento?.cidade || '';
-        const modelosFiltrados = cidadeAtual ? todosModelos.filter(m => {
-          if (!m.regioes || m.regioes.length === 0) return true;
-          if (m.regioes.includes('Todo o Brasil')) return true;
-          const cidadeNorm = cidadeAtual.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-          const siglaMap = {'SP':'sao paulo','RJ':'rio de janeiro','MG':'minas gerais','PR':'parana','RS':'rio grande do sul','SC':'santa catarina','BA':'bahia','PE':'pernambuco','CE':'ceara','GO':'goias','DF':'distrito federal','ES':'espirito santo','MA':'maranhao','PA':'para','MT':'mato grosso','MS':'mato grosso do sul','PB':'paraiba','RN':'rio grande do norte','AL':'alagoas','PI':'piaui','SE':'sergipe','RO':'rondonia','AM':'amazonas','AC':'acre','AP':'amapa','RR':'roraima','TO':'tocantins'};
-          return m.regioes.some(r => { const nome = siglaMap[r] || r.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); return cidadeNorm.includes(nome) || nome.includes(cidadeNorm.split(' ')[0]); });
-        }) : todosModelos;
-        setModelosEspeciais(modelosFiltrados);
+        const modelosFiltrados = cidadeAtual
+          ? todosModelos.filter(m => {
+              if (!m.regioes || m.regioes.length === 0) return true;
+              if (m.regioes.includes('Todo o Brasil')) return true;
+              const cidadeNorm = cidadeAtual.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              // Mapa de siglas para nomes
+              const siglaMap = { 'SP': 'sao paulo', 'RJ': 'rio de janeiro', 'MG': 'minas gerais', 'PR': 'parana', 'RS': 'rio grande do sul', 'SC': 'santa catarina', 'BA': 'bahia', 'PE': 'pernambuco', 'CE': 'ceara', 'GO': 'goias', 'DF': 'distrito federal', 'ES': 'espirito santo', 'MA': 'maranhao', 'PA': 'para', 'MT': 'mato grosso', 'MS': 'mato grosso do sul', 'PB': 'paraiba', 'RN': 'rio grande do norte', 'AL': 'alagoas', 'PI': 'piaui', 'SE': 'sergipe', 'RO': 'rondonia', 'AM': 'amazonas', 'AC': 'acre', 'AP': 'amapa', 'RR': 'roraima', 'TO': 'tocantins' };
+              return m.regioes.some(r => {
+                const nomeEstado = siglaMap[r] || r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                return cidadeNorm.includes(nomeEstado) || nomeEstado.includes(cidadeNorm.split(' ')[0]);
+              });
+            })
+          : todosModelos;
+
         if (modelosFiltrados.length > 0) {
           const linhasModelos = modelosFiltrados.map(m => {
             const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
             return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
           });
-          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando o cliente escolher estande modular, use o marcador {MOSTRAR_MODELOS} no final da mensagem para o sistema exibir as fotos.`);
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando apresentar estandes modulares, inclua o marcador [MOSTRAR_MODELOS] no final da mensagem.`);
+          setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
     })();
@@ -133,8 +143,8 @@ export default function ClienteChat({ userData, onClose }) {
   }, [messages, loading]);
 
   // ── enviar mensagem ───────────────────────────────────────────────────────
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (textoForçado) => {
+    const text = (textoForçado || input).trim();
     if (!text || loading) return;
     setInput('');
 
@@ -154,7 +164,8 @@ export default function ClienteChat({ userData, onClose }) {
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary;
-      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) : basePrompt;
+      // Limita o system prompt a 12000 caracteres para evitar erro 400
+      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -174,30 +185,45 @@ export default function ClienteChat({ userData, onClose }) {
         .map(b => b.text)
         .join('\n');
 
-      // Detecta marcador de modelos (aceita {} ou [])
-      const temMarcador = assistantText.includes('{MOSTRAR_MODELOS}') || assistantText.includes('[MOSTRAR_MODELOS]');
-      const textoLimpo = assistantText.replace('{MOSTRAR_MODELOS}', '').replace('[MOSTRAR_MODELOS]', '').trim();
+      // Remove o marcador do texto visível (aceita [] ou {})
+      const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '').trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
-      console.log('DEBUG marcador:', { temMarcador, modelosEspeciais: modelosEspeciais.length, assistantTextSlice: assistantText.slice(-100) });
+      // Se a IA usou o marcador → injeta card de seleção de modelos
+      const temMarcador = assistantText.includes('[MOSTRAR_MODELOS]') || assistantText.includes('{MOSTRAR_MODELOS}');
       if (temMarcador) {
-        console.log('DEBUG setStep modelos');
-        setStep('modelos');
+        // Garante que os modelos estão carregados
+        let modelos = modelosEspeciais;
+        if (modelos.length === 0) {
+          try {
+            const snap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
+            modelos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setModelosEspeciais(modelos);
+          } catch (e) { console.error('Erro ao carregar modelos:', e); }
+        }
+        if (modelos.length > 0) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            type: 'modelos',
+            id: Date.now() + 2,
+          }]);
+        }
       }
 
       const json = extractJson(assistantText);
       if (json && json.evento) {
         setBriefingJson(json);
-        // Se pediu estande modular, usa modelos já carregados ou busca novos
+        // Se pediu estande modular, busca modelos disponíveis
         if (json.tipoEstande === 'modular') {
           try {
-            if (modelosEspeciais.length === 0) {
-              // Fallback: busca todos os modelos ativos
-              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
+            const tiposSnap = await getDocs(query(collection(db, 'tiposEspeciais'), where('ativo', '==', true)));
+            const tipoEstande = tiposSnap.docs.find(d => d.data().nome?.toLowerCase().includes('modular') || d.data().nome?.toLowerCase().includes('estande'));
+            if (tipoEstande) {
+              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('tipoEspecialId', '==', tipoEstande.id), where('ativo', '==', true)));
               setModelosEspeciais(modelosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
             }
-            // modelos já carregados no useEffect — só muda o step
           } catch (e) { console.error('Erro ao buscar modelos:', e); }
         }
       }
@@ -293,16 +319,27 @@ export default function ClienteChat({ userData, onClose }) {
 
         const suppServs = todosServicos.filter(s => {
           if (s.ativo === false) return false;
+
+          // Filtro por região
           if (s.regiao) {
             const regiaoServico = normalize(s.regiao);
             const cidadeMatch = !cidadeEvento || regiaoServico.includes(cidadeEvento) || cidadeEvento.includes(regiaoServico) || regiaoServico.includes('todo') || regiaoServico.includes('nacional');
             if (!cidadeMatch) return false;
           }
+
           const svcName = normalize(s.serviceName);
           const parentName = normalize(s.serviceParentName);
+
+          // 1. Match exato pelo nome do serviço
           if (servicosNecessarios.some(sn => normalize(sn) === svcName)) return true;
+          // 2. Match exato pela categoria pai
           if (servicosNecessarios.some(sn => normalize(sn) === parentName)) return true;
-          if (servicosNecessarios.some(sn => { const snNorm = normalize(sn); return snNorm.includes(svcName) || svcName.includes(snNorm); })) return true;
+          // 3. Match parcial controlado
+          if (servicosNecessarios.some(sn => {
+            const snNorm = normalize(sn);
+            return snNorm.includes(svcName) || svcName.includes(snNorm);
+          })) return true;
+          // 4. Sinônimos estritos
           const sinonimosExatos = {
             'recepcionista': ['recepcionista', 'hostess', 'recepcao'],
             'hostess':       ['recepcionista', 'hostess', 'recepcao'],
@@ -314,11 +351,15 @@ export default function ClienteChat({ userData, onClose }) {
           };
           for (const [, terms] of Object.entries(sinonimosExatos)) {
             const svcMatch = terms.some(t => svcName.includes(t) || t.includes(svcName));
-            if (svcMatch && servicosNecessarios.some(sn => terms.some(t => normalize(sn).includes(t) || t.includes(normalize(sn))))) return true;
+            if (svcMatch) {
+              const pedidoMatch = servicosNecessarios.some(sn => terms.some(t => normalize(sn).includes(t) || t.includes(normalize(sn))));
+              if (pedidoMatch) return true;
+            }
           }
           return false;
         });
 
+        // Deduplicação por supplierId + serviceName
         const vistos = new Set();
         const suppServsDedupados = suppServs.filter(s => {
           const key = `${s.supplierId}__${s.serviceName}`;
@@ -327,6 +368,7 @@ export default function ClienteChat({ userData, onClose }) {
           return true;
         });
 
+        // Cria um supplierJob por serviço
         for (const sv of suppServsDedupados) {
           await addDoc(collection(db, 'supplierJobs'), {
             supplierId: sv.supplierId,
@@ -691,10 +733,49 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
             {msg.role === 'assistant' && (
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, marginBottom: 2 }}>{initLetter}</div>
             )}
+
+            {/* Cards de modelos inline */}
+            {msg.type === 'modelos' ? (
+              <div style={{ flex: 1, maxWidth: '90%' }}>
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Escolha o modelo de estande:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {modelosEspeciais.map(m => (
+                    <div key={m.id} onClick={() => {
+                      modeloSelecionadoRef.current = m;
+                      setModeloSelecionado(m);
+                    }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
+                      <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)' }}>
+                        {m.fotoUrl ? <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏗️</div>}
+                      </div>
+                      <div style={{ padding: '10px 12px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', marginBottom: 3 }}>{m.nome}</div>
+                        {m.descricao && <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>{m.descricao}</div>}
+                        <div style={{ display: 'flex', gap: 8, fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>
+                          {m.areaM2 && <span>📐 {m.areaM2}m²</span>}
+                          {m.altura && <span>↕ {m.altura}m</span>}
+                        </div>
+                        {m.caracteristicas?.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 4 }}>
+                            {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>)}
+                          </div>
+                        )}
+                        {m.precoBase && <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {modeloSelecionado && (
+                  <button onClick={() => sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`)} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Confirmar: {modeloSelecionado.nome} →
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="bia-msg-bubble"
               style={{ maxWidth: '72%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: msg.role === 'user' ? 'rgba(0,128,255,0.18)' : 'rgba(255,255,255,0.04)', border: msg.role === 'user' ? '1px solid rgba(0,128,255,0.3)' : '1px solid rgba(0,180,255,0.1)', fontSize: 13, lineHeight: 1.6, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}
               dangerouslySetInnerHTML={{ __html: renderText(msg.content) }}
             />
+            )}
             {msg.role === 'user' && (
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,128,255,0.15)', border: '1px solid rgba(0,128,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#7BAFD4', flexShrink: 0, marginBottom: 2 }}>
                 {userName[0]?.toUpperCase()}
