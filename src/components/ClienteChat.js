@@ -24,7 +24,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [assistantName, setAssistantName] = useState('Realize');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
-  const [catalogoSummary, setCatalogoSummary] = useState('');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -49,64 +48,6 @@ export default function ClienteChat({ userData, onClose }) {
         const snap = await getDocs(collection(db, 'servicePricing'));
         setPricingData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error('Erro ao carregar pricing:', e); }
-
-      // Carrega catálogo de serviços dos fornecedores com opções
-      try {
-        const suppSnap = await getDocs(query(collection(db, 'supplierServices'), where('ativo', '!=', false)));
-        const servicos = suppSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        // Carrega opções de cada serviço em paralelo
-        const servicosComOpcoes = await Promise.all(servicos.map(async (s) => {
-          try {
-            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-            const opcoes = opSnap.docs.map(d => d.data());
-            return { ...s, opcoes };
-          } catch { return { ...s, opcoes: [] }; }
-        }));
-
-        // Agrupa por serviceName — sem identificar fornecedor
-        const agrupado = {};
-        servicosComOpcoes.forEach(s => {
-          const key = `${s.tipoServico || 'Outros'} > ${s.serviceParentName || ''} > ${s.serviceName || ''}`;
-          if (!agrupado[key]) agrupado[key] = { caracteristicas: s.caracteristicas || '', opcoes: [] };
-          // Mescla opções sem duplicar
-          s.opcoes.forEach(op => {
-            const jaExiste = agrupado[key].opcoes.some(o => o.nome === op.nome && o.valor === op.valor);
-            if (!jaExiste) agrupado[key].opcoes.push(op);
-          });
-          // Usa características se ainda não tem
-          if (!agrupado[key].caracteristicas && s.caracteristicas) agrupado[key].caracteristicas = s.caracteristicas;
-        });
-
-        // Monta texto do catálogo para injetar no prompt
-        const linhas = Object.entries(agrupado).map(([nome, info]) => {
-          let linha = `[${nome}]`;
-          if (info.caracteristicas) linha += `\n  Caracteristicas: ${info.caracteristicas}`;
-          if (info.opcoes.length > 0) {
-            const ops = info.opcoes.map(o => `${o.nome}${o.caracteristica ? ' (' + o.caracteristica + ')' : ''}: R$${parseFloat(o.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ${o.unidade || ''}`).join(' | ');
-            linha += `\n  Opcoes: ${ops}`;
-          }
-          return linha;
-        });
-
-        if (linhas.length > 0) {
-          const catalogoTexto = `\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`;
-          setCatalogoSummary(catalogoTexto.slice(0, 3000));
-        }
-      } catch (e) { console.error('Erro ao carregar catalogo:', e); }
-
-      // Carrega modelos de estandes especiais/modulares
-      try {
-        const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
-        const modelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (modelos.length > 0) {
-          const linhasModelos = modelos.map(m => {
-            const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
-            return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
-          });
-          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}`);
-        }
-      } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
     })();
   }, []);
 
@@ -136,7 +77,7 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     try {
-      const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
+      const history = updated.map(m => ({ role: m.role, content: m.content }));
 
       const pricingSummary = pricingData.length > 0
         ? `\n\nTABELA DE PREÇOS (resumo):\n${pricingData.slice(0, 40).map(p =>
@@ -145,9 +86,7 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary;
-      // Limita o system prompt a 12000 caracteres para evitar erro 400
-      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
+      const systemPrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
