@@ -5,12 +5,21 @@ import { db, storage } from '../firebase/config';
 
 // ── Formulário de modelo ──────────────────────────────────────────────────────
 function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, onSave, onCancel }) {
-  const [form, setForm] = useState(editData || {
-    nome: '', descricao: '', areaM2: '', altura: '',
-    precoBase: '', diasProducao: '',
-    caracteristicas: '',
-    regioes: [],
-    ativo: true,
+  const [form, setForm] = useState(() => {
+    if (!editData) return {
+      nome: '', descricao: '', areaM2: '', altura: '',
+      precoBase: '', diasProducao: '',
+      caracteristicas: '',
+      regioes: [],
+      ativo: true,
+    };
+    return {
+      ...editData,
+      caracteristicas: Array.isArray(editData.caracteristicas)
+        ? editData.caracteristicas.join(', ')
+        : (editData.caracteristicas || ''),
+      regioes: editData.regioes || [],
+    };
   });
   const [fotoFile, setFotoFile]   = useState(null);
   const [fotoPreview, setFotoPreview] = useState(editData?.fotoUrl || null);
@@ -54,9 +63,9 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
         altura: form.altura ? parseFloat(form.altura) : null,
         precoBase: parseFloat(form.precoBase),
         diasProducao: parseInt(form.diasProducao),
-        caracteristicas: form.caracteristicas
-          ? form.caracteristicas.split(',').map(s => s.trim()).filter(Boolean)
-          : [],
+        caracteristicas: Array.isArray(form.caracteristicas)
+          ? form.caracteristicas
+          : (form.caracteristicas ? form.caracteristicas.split(',').map(s => s.trim()).filter(Boolean) : []),
         regioes: form.regioes || [],
         fotoUrl,
         fotoPath: fotoFile ? `servicos-especiais/${tipoEspecialId}/${fotoFile.name}` : (editData?.fotoPath || null),
@@ -142,19 +151,25 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
           </div>
           <div>
             <label style={lbl}>Regiões de atendimento</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxHeight: 140, overflowY: 'auto', padding: '8px', background: '#f8faff', borderRadius: 8, border: '1px solid #e2e8f0' }}>
               {[
-                'São Paulo - Capital', 'Grande São Paulo', 'Interior SP',
-                'Rio de Janeiro', 'Minas Gerais', 'Paraná', 'Rio Grande do Sul',
-                'Bahia', 'Pernambuco', 'Ceará', 'Todo o Brasil',
+                'Todo o Brasil',
+                'AC','AL','AP','AM','BA','CE','DF','ES','GO',
+                'MA','MT','MS','MG','PA','PB','PR','PE','PI',
+                'RJ','RN','RS','RO','RR','SC','SP','SE','TO',
               ].map(r => (
-                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#475569', cursor: 'pointer', minWidth: r === 'Todo o Brasil' ? '100%' : 50 }}>
                   <input
                     type="checkbox"
                     checked={(form.regioes || []).includes(r)}
                     onChange={e => {
                       const atual = form.regioes || [];
-                      setF('regioes', e.target.checked ? [...atual, r] : atual.filter(x => x !== r));
+                      if (r === 'Todo o Brasil' && e.target.checked) {
+                        setF('regioes', ['Todo o Brasil']);
+                      } else {
+                        const sem = atual.filter(x => x !== 'Todo o Brasil');
+                        setF('regioes', e.target.checked ? [...sem, r] : sem.filter(x => x !== r));
+                      }
                     }}
                     style={{ accentColor: '#667eea' }}
                   />

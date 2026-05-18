@@ -104,11 +104,14 @@ export default function ClienteChat({ userData, onClose }) {
         const cidadeAtual = briefingJson?.evento?.cidade || '';
         const modelosFiltrados = cidadeAtual
           ? todosModelos.filter(m => {
-              if (!m.regioes || m.regioes.length === 0) return true; // sem restrição = atende tudo
+              if (!m.regioes || m.regioes.length === 0) return true;
+              if (m.regioes.includes('Todo o Brasil')) return true;
               const cidadeNorm = cidadeAtual.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              // Mapa de siglas para nomes
+              const siglaMap = { 'SP': 'sao paulo', 'RJ': 'rio de janeiro', 'MG': 'minas gerais', 'PR': 'parana', 'RS': 'rio grande do sul', 'SC': 'santa catarina', 'BA': 'bahia', 'PE': 'pernambuco', 'CE': 'ceara', 'GO': 'goias', 'DF': 'distrito federal', 'ES': 'espirito santo', 'MA': 'maranhao', 'PA': 'para', 'MT': 'mato grosso', 'MS': 'mato grosso do sul', 'PB': 'paraiba', 'RN': 'rio grande do norte', 'AL': 'alagoas', 'PI': 'piaui', 'SE': 'sergipe', 'RO': 'rondonia', 'AM': 'amazonas', 'AC': 'acre', 'AP': 'amapa', 'RR': 'roraima', 'TO': 'tocantins' };
               return m.regioes.some(r => {
-                const rNorm = r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                return rNorm.includes(cidadeNorm) || cidadeNorm.includes(rNorm) || rNorm.includes('brasil');
+                const nomeEstado = siglaMap[r] || r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                return cidadeNorm.includes(nomeEstado) || nomeEstado.includes(cidadeNorm.split(' ')[0]);
               });
             })
           : todosModelos;
