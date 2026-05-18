@@ -24,6 +24,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [assistantName, setAssistantName] = useState('Realize');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
+  const [catalogoSummary, setCatalogoSummary] = useState('');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -48,6 +49,72 @@ export default function ClienteChat({ userData, onClose }) {
         const snap = await getDocs(collection(db, 'servicePricing'));
         setPricingData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error('Erro ao carregar pricing:', e); }
+
+      // Carrega catálogo de serviços dos fornecedores com opções
+      try {
+        const suppSnap = await getDocs(query(collection(db, 'supplierServices'), where('ativo', '!=', false)));
+        const servicos = suppSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Carrega opções de cada serviço em paralelo
+        const servicosComOpcoes = await Promise.all(servicos.map(async (s) => {
+          try {
+            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+            const opcoes = opSnap.docs.map(d => d.data());
+            return { ...s, opcoes };
+          } catch { return { ...s, opcoes: [] }; }
+        }));
+
+        // Agrupa por serviceName — sem identificar fornecedor
+        const agrupado = {};
+        servicosComOpcoes.forEach(s => {
+          const key = `${s.tipoServico || 'Outros'} > ${s.serviceParentName || ''} > ${s.serviceName || ''}`;
+          if (!agrupado[key]) agrupado[key] = { caracteristicas: s.caracteristicas || '', opcoes: [] };
+          // Mescla opções sem duplicar
+          s.opcoes.forEach(op => {
+            const jaExiste = agrupado[key].opcoes.some(o => o.nome === op.nome && o.valor === op.valor);
+            if (!jaExiste) agrupado[key].opcoes.push(op);
+          });
+          // Usa características se ainda não tem
+          if (!agrupado[key].caracteristicas && s.caracteristicas) agrupado[key].caracteristicas = s.caracteristicas;
+        });
+
+        // Monta texto do catálogo para injetar no prompt
+        const linhas = Object.entries(agrupado).map(([nome, info]) => {
+          let linha = `[${nome}]`;
+          if (info.caracteristicas) linha += `\n  Caracteristicas: ${info.caracteristicas}`;
+          if (info.opcoes.length > 0) {
+            const ops = info.opcoes.map(o => `${o.nome}${o.caracteristica ? ' (' + o.caracteristica + ')' : ''}: R$${parseFloat(o.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ${o.unidade || ''}`).join(' | ');
+            linha += `\n  Opcoes: ${ops}`;
+          }
+          return linha;
+        });
+
+        if (linhas.length > 0) {
+          setCatalogoSummary(`\n\nCATALOGO DE SERVICOS DISPONIVEIS (use para oferecer opcoes ao cliente):\n${linhas.join('\n\n')}`);
+        }
+      } catch (e) { console.error('Erro ao carregar catalogo:', e); }
+
+      // Carrega modelos de estandes especiais/modulares
+      try {
+        const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
+        const todosModelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const cidadeAtual = briefingJson?.evento?.cidade || '';
+        const modelosFiltrados = cidadeAtual ? todosModelos.filter(m => {
+          if (!m.regioes || m.regioes.length === 0) return true;
+          if (m.regioes.includes('Todo o Brasil')) return true;
+          const cidadeNorm = cidadeAtual.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          const siglaMap = {'SP':'sao paulo','RJ':'rio de janeiro','MG':'minas gerais','PR':'parana','RS':'rio grande do sul','SC':'santa catarina','BA':'bahia','PE':'pernambuco','CE':'ceara','GO':'goias','DF':'distrito federal','ES':'espirito santo','MA':'maranhao','PA':'para','MT':'mato grosso','MS':'mato grosso do sul','PB':'paraiba','RN':'rio grande do norte','AL':'alagoas','PI':'piaui','SE':'sergipe','RO':'rondonia','AM':'amazonas','AC':'acre','AP':'amapa','RR':'roraima','TO':'tocantins'};
+          return m.regioes.some(r => { const nome = siglaMap[r] || r.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); return cidadeNorm.includes(nome) || nome.includes(cidadeNorm.split(' ')[0]); });
+        }) : todosModelos;
+        setModelosEspeciais(modelosFiltrados);
+        if (modelosFiltrados.length > 0) {
+          const linhasModelos = modelosFiltrados.map(m => {
+            const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
+            return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
+          });
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando o cliente escolher estande modular, use o marcador {MOSTRAR_MODELOS} no final da mensagem para o sistema exibir as fotos.`);
+        }
+      } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
     })();
   }, []);
 
@@ -77,7 +144,7 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     try {
-      const history = updated.map(m => ({ role: m.role, content: m.content }));
+      const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
 
       const pricingSummary = pricingData.length > 0
         ? `\n\nTABELA DE PREÇOS (resumo):\n${pricingData.slice(0, 40).map(p =>
@@ -86,7 +153,8 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const systemPrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary;
+      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary;
+      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) : basePrompt;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -106,8 +174,13 @@ export default function ClienteChat({ userData, onClose }) {
         .map(b => b.text)
         .join('\n');
 
-      const assistantMsg = { role: 'assistant', content: assistantText, id: Date.now() + 1 };
+      // Detecta marcador de modelos (aceita {} ou [])
+      const temMarcador = assistantText.includes('{MOSTRAR_MODELOS}') || assistantText.includes('[MOSTRAR_MODELOS]');
+      const textoLimpo = assistantText.replace('{MOSTRAR_MODELOS}', '').replace('[MOSTRAR_MODELOS]', '').trim();
+      const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
+
+      if (temMarcador) setStep('modelos');
 
       const json = extractJson(assistantText);
       if (json && json.evento) {
@@ -210,52 +283,47 @@ export default function ClienteChat({ userData, onClose }) {
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
         const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        console.log('supplierServices encontrados:', todosServicos.length, todosServicos.map(s => s.serviceName));
 
-        // Extrai palavras-chave
-        const keywords = servicosNecessarios.flatMap(sn =>
-            sn.toLowerCase().split(/[\s/,+()-]+/).filter(w => w.length > 1)
-          );
-          const sinonimos = {
-            dj:       ['dj', 'disc', 'jockey', 'musica', 'musical'],
-            led:      ['led', 'neon', 'painel', 'telao', 'tela'],
-            banner:   ['banner', 'backdrop', 'fundo', 'impresso'],
-            nobreak:  ['nobreak', 'ups', 'energia', 'estabilizador'],
-            som:      ['som', 'audio', 'pa', 'caixa', 'microfone', 'sistema', 'equipamento'],
-            recepcao: ['recepcao', 'recepcionista', 'hostess'],
-            seguranca:['seguranca', 'vigilancia'],
-            limpeza:  ['limpeza', 'higiene', 'auxiliar'],
+        const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const cidadeEvento = normalize(briefingJson.evento?.cidade || '');
+
+        const suppServs = todosServicos.filter(s => {
+          if (s.ativo === false) return false;
+          if (s.regiao) {
+            const regiaoServico = normalize(s.regiao);
+            const cidadeMatch = !cidadeEvento || regiaoServico.includes(cidadeEvento) || cidadeEvento.includes(regiaoServico) || regiaoServico.includes('todo') || regiaoServico.includes('nacional');
+            if (!cidadeMatch) return false;
+          }
+          const svcName = normalize(s.serviceName);
+          const parentName = normalize(s.serviceParentName);
+          if (servicosNecessarios.some(sn => normalize(sn) === svcName)) return true;
+          if (servicosNecessarios.some(sn => normalize(sn) === parentName)) return true;
+          if (servicosNecessarios.some(sn => { const snNorm = normalize(sn); return snNorm.includes(svcName) || svcName.includes(snNorm); })) return true;
+          const sinonimosExatos = {
+            'recepcionista': ['recepcionista', 'hostess', 'recepcao'],
+            'hostess':       ['recepcionista', 'hostess', 'recepcao'],
+            'dj':            ['dj', 'disc jockey'],
+            'seguranca':     ['seguranca', 'vigilancia', 'segurança patrimonial'],
+            'limpeza':       ['limpeza', 'auxiliar de limpeza'],
+            'led':           ['led', 'painel de led', 'led / neon', 'neon'],
+            'som':           ['som', 'sistema pa', 'sistema de som', 'caixa de som', 'audio'],
           };
-          const kwExpandidas = [...keywords];
-          keywords.forEach(kw => {
-            Object.values(sinonimos).forEach(terms => {
-              if (terms.some(t => kw.includes(t) || t.includes(kw))) kwExpandidas.push(...terms);
-            });
-          });
-          const kwSet = [...new Set(kwExpandidas)];
-          console.log('keywords expandidas:', kwSet);
-
-          const suppServs = todosServicos.filter(s => {
-            if (s.ativo === false) return false;
-            const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const nameLC   = normalize(s.serviceName);
-            const parentLC = normalize(s.serviceParentName);
-            const fullLC   = nameLC + ' ' + parentLC;
-            if (servicosNecessarios.includes(s.serviceName)) return true;
-            if (servicosNecessarios.includes(s.serviceParentName)) return true;
-            return kwSet.some(kw => fullLC.includes(kw));
-          });
-        console.log('suppServs matched:', suppServs.length, suppServs.map(s => s.serviceName));
-
-        const supplierMap = {};
-        suppServs.forEach(s => {
-          if (!supplierMap[s.supplierId]) supplierMap[s.supplierId] = [];
-          supplierMap[s.supplierId].push(s.serviceName);
+          for (const [, terms] of Object.entries(sinonimosExatos)) {
+            const svcMatch = terms.some(t => svcName.includes(t) || t.includes(svcName));
+            if (svcMatch && servicosNecessarios.some(sn => terms.some(t => normalize(sn).includes(t) || t.includes(normalize(sn))))) return true;
+          }
+          return false;
         });
-        console.log('supplierMap:', supplierMap);
 
-        // Cria um supplierJob por serviço (não agrupado)
-        for (const sv of suppServs) {
+        const vistos = new Set();
+        const suppServsDedupados = suppServs.filter(s => {
+          const key = `${s.supplierId}__${s.serviceName}`;
+          if (vistos.has(key)) return false;
+          vistos.add(key);
+          return true;
+        });
+
+        for (const sv of suppServsDedupados) {
           await addDoc(collection(db, 'supplierJobs'), {
             supplierId: sv.supplierId,
             budgetId: budgetRef.id,
