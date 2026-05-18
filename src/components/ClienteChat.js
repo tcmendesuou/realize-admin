@@ -185,8 +185,20 @@ export default function ClienteChat({ userData, onClose }) {
         .map(b => b.text)
         .join('\n');
 
-      const assistantMsg = { role: 'assistant', content: assistantText, id: Date.now() + 1 };
+      // Remove o marcador do texto visível
+      const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').trim();
+      const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
+
+      // Se a IA usou o marcador → injeta card de seleção de modelos
+      if (assistantText.includes('[MOSTRAR_MODELOS]') && modelosEspeciais.length > 0) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          type: 'modelos',
+          id: Date.now() + 2,
+        }]);
+      }
 
       const json = extractJson(assistantText);
       if (json && json.evento) {
@@ -698,10 +710,49 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
             {msg.role === 'assistant' && (
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, marginBottom: 2 }}>{initLetter}</div>
             )}
+
+            {/* Cards de modelos inline */}
+            {msg.type === 'modelos' ? (
+              <div style={{ flex: 1, maxWidth: '90%' }}>
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Escolha o modelo de estande:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {modelosEspeciais.map(m => (
+                    <div key={m.id} onClick={() => {
+                      modeloSelecionadoRef.current = m;
+                      setModeloSelecionado(m);
+                      const escolha = `Quero o ${m.nome} (${m.areaM2}m²)`;
+                      const userMsg = { role: 'user', content: escolha, id: Date.now() };
+                      setMessages(prev => [...prev, userMsg]);
+                      setInput(escolha);
+                      setTimeout(() => sendMessage(), 100);
+                    }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
+                      <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)' }}>
+                        {m.fotoUrl ? <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏗️</div>}
+                      </div>
+                      <div style={{ padding: '10px 12px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', marginBottom: 3 }}>{m.nome}</div>
+                        {m.descricao && <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>{m.descricao}</div>}
+                        <div style={{ display: 'flex', gap: 8, fontSize: 10, color: '#7BAFD4', marginBottom: 4 }}>
+                          {m.areaM2 && <span>📐 {m.areaM2}m²</span>}
+                          {m.altura && <span>↕ {m.altura}m</span>}
+                        </div>
+                        {m.caracteristicas?.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 4 }}>
+                            {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>)}
+                          </div>
+                        )}
+                        {m.precoBase && <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
             <div className="bia-msg-bubble"
               style={{ maxWidth: '72%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: msg.role === 'user' ? 'rgba(0,128,255,0.18)' : 'rgba(255,255,255,0.04)', border: msg.role === 'user' ? '1px solid rgba(0,128,255,0.3)' : '1px solid rgba(0,180,255,0.1)', fontSize: 13, lineHeight: 1.6, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}
               dangerouslySetInnerHTML={{ __html: renderText(msg.content) }}
             />
+            )}
             {msg.role === 'user' && (
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,128,255,0.15)', border: '1px solid rgba(0,128,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#7BAFD4', flexShrink: 0, marginBottom: 2 }}>
                 {userName[0]?.toUpperCase()}
