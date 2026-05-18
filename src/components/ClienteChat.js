@@ -398,6 +398,58 @@ export default function ClienteChat({ userData, onClose }) {
           });
           console.log('supplierJob criado:', sv.serviceName, '→', sv.supplierId);
         }
+
+        // Cria supplierJob para estande modular se cliente escolheu um modelo
+        const modeloEscolhido = modeloSelecionado || briefingJson.modeloEstande;
+        const pedidoModular = (briefingJson.servicosNecessarios || []).some(sn =>
+          (sn || '').toLowerCase().includes('modular') || (sn || '').toLowerCase().includes('estande')
+        );
+        if (pedidoModular && modeloEscolhido) {
+          try {
+            const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
+            const todosTipos = tiposSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const tipoDoModelo = todosTipos.find(t =>
+              t.id === modeloEscolhido.tipoEspecialId ||
+              t.nome?.toLowerCase().includes('modular') ||
+              t.nome?.toLowerCase().includes('estande')
+            );
+            const fornecedoresAutorizados = tipoDoModelo?.fornecedoresAutorizados || [];
+            const fornVisto = new Set();
+            for (const forn of fornecedoresAutorizados) {
+              if (fornVisto.has(forn.id)) continue;
+              fornVisto.add(forn.id);
+              await addDoc(collection(db, 'supplierJobs'), {
+                supplierId:         forn.id,
+                supplierName:       forn.nome || '',
+                budgetId:           budgetRef.id,
+                eventName:          briefingJson.evento?.nome || 'Novo Evento',
+                eventTypeName:      briefingJson.evento?.tipo || '',
+                clientName:         userName,
+                eventDate:          briefingJson.evento?.dataInicio || '',
+                eventDateFim:       briefingJson.evento?.dataFim || '',
+                eventLocal:         briefingJson.evento?.local || briefingJson.evento?.cidade || '',
+                eventCidade:        briefingJson.evento?.cidade || '',
+                eventHorarioInicio: briefingJson.evento?.horarioInicio || '',
+                eventHorarioFim:    briefingJson.evento?.horarioFim || '',
+                eventDiasDuracao:   briefingJson.evento?.diasDuracao || 1,
+                eventVisitantes:    briefingJson.evento?.visitantesPorDia || 0,
+                serviceNames:       [modeloEscolhido.nome],
+                serviceName:        modeloEscolhido.nome,
+                serviceParentName:  tipoDoModelo?.nome || 'Estande Modular',
+                tipoServico:        'estrutura',
+                modeloEspecialId:   modeloEscolhido.id,
+                preco:              modeloEscolhido.precoBase || 0,
+                unidade:            'por evento',
+                diasPreparo:        modeloEscolhido.diasProducao || 0,
+                diasMontagem:       0,
+                stage:              'proposta',
+                status:             'draft',
+                createdAt:          serverTimestamp(),
+              });
+              console.log('supplierJob estande modular criado:', modeloEscolhido.nome, '→', forn.id);
+            }
+          } catch (e) { console.error('Erro ao criar job estande modular:', e); }
+        }
       } catch (e) { console.error('Erro ao criar supplierJobs:', e); }
 
       // ── gera cronograma via IA ──
