@@ -185,13 +185,13 @@ export default function ClienteChat({ userData, onClose }) {
         .map(b => b.text)
         .join('\n');
 
-      // Remove o marcador do texto visível
-      const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').trim();
+      // Remove o marcador do texto visível (aceita [] ou {})
+      const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '').trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
       // Se a IA usou o marcador → injeta card de seleção de modelos
-      if (assistantText.includes('[MOSTRAR_MODELOS]') && modelosEspeciais.length > 0) {
+      if ((assistantText.includes('[MOSTRAR_MODELOS]') || assistantText.includes('{MOSTRAR_MODELOS}')) && modelosEspeciais.length > 0) {
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: '',
@@ -750,7 +750,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                         });
                         const data = await response.json();
                         const assistantText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-                        const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').trim();
+                        const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '').trim();
                         setMessages(prev => [...prev, { role: 'assistant', content: textoLimpo, id: Date.now() + 1 }]);
                       } catch (e) { console.error(e); }
                       finally { setLoading(false); }
