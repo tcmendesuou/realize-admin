@@ -185,15 +185,15 @@ export default function ClienteChat({ userData, onClose }) {
       const json = extractJson(assistantText);
       if (json && json.evento) {
         setBriefingJson(json);
-        // Se pediu estande modular, busca modelos disponíveis
+        // Se pediu estande modular, usa modelos já carregados ou busca novos
         if (json.tipoEstande === 'modular') {
           try {
-            const tiposSnap = await getDocs(query(collection(db, 'tiposEspeciais'), where('ativo', '==', true)));
-            const tipoEstande = tiposSnap.docs.find(d => d.data().nome?.toLowerCase().includes('modular') || d.data().nome?.toLowerCase().includes('estande'));
-            if (tipoEstande) {
-              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('tipoEspecialId', '==', tipoEstande.id), where('ativo', '==', true)));
+            if (modelosEspeciais.length === 0) {
+              // Fallback: busca todos os modelos ativos
+              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
               setModelosEspeciais(modelosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
             }
+            // modelos já carregados no useEffect — só muda o step
           } catch (e) { console.error('Erro ao buscar modelos:', e); }
         }
       }
