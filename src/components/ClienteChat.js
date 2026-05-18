@@ -741,7 +741,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {modelosEspeciais.map(m => (
                     <div key={m.id} onClick={() => {
-                      modeloSelecionadoRef.current = m;
                       setModeloSelecionado(m);
                     }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
                       <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)' }}>
