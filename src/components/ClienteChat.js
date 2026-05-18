@@ -98,13 +98,28 @@ export default function ClienteChat({ userData, onClose }) {
       // Carrega modelos de estandes especiais/modulares
       try {
         const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
-        const modelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (modelos.length > 0) {
-          const linhasModelos = modelos.map(m => {
+        const todosModelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Filtra por região se já soubermos a cidade do evento
+        const cidadeAtual = briefingJson?.evento?.cidade || '';
+        const modelosFiltrados = cidadeAtual
+          ? todosModelos.filter(m => {
+              if (!m.regioes || m.regioes.length === 0) return true; // sem restrição = atende tudo
+              const cidadeNorm = cidadeAtual.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              return m.regioes.some(r => {
+                const rNorm = r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                return rNorm.includes(cidadeNorm) || cidadeNorm.includes(rNorm) || rNorm.includes('brasil');
+              });
+            })
+          : todosModelos;
+
+        if (modelosFiltrados.length > 0) {
+          const linhasModelos = modelosFiltrados.map(m => {
             const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
             return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
           });
-          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}`);
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando apresentar estandes modulares, inclua o marcador [MOSTRAR_MODELOS] no final da mensagem.`);
+          setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
     })();

@@ -9,6 +9,7 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
     nome: '', descricao: '', areaM2: '', altura: '',
     precoBase: '', diasProducao: '',
     caracteristicas: '',
+    regioes: [],
     ativo: true,
   });
   const [fotoFile, setFotoFile]   = useState(null);
@@ -56,6 +57,7 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
         caracteristicas: form.caracteristicas
           ? form.caracteristicas.split(',').map(s => s.trim()).filter(Boolean)
           : [],
+        regioes: form.regioes || [],
         fotoUrl,
         fotoPath: fotoFile ? `servicos-especiais/${tipoEspecialId}/${fotoFile.name}` : (editData?.fotoPath || null),
         ativo: form.ativo,
@@ -137,6 +139,29 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
           <div>
             <label style={lbl}>Características (separadas por vírgula)</label>
             <input value={form.caracteristicas} onChange={e => setF('caracteristicas', e.target.value)} style={inp} placeholder="Ex: Balcão embutido, Backlight, Prateleiras, Tomadas" />
+          </div>
+          <div>
+            <label style={lbl}>Regiões de atendimento</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {[
+                'São Paulo - Capital', 'Grande São Paulo', 'Interior SP',
+                'Rio de Janeiro', 'Minas Gerais', 'Paraná', 'Rio Grande do Sul',
+                'Bahia', 'Pernambuco', 'Ceará', 'Todo o Brasil',
+              ].map(r => (
+                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={(form.regioes || []).includes(r)}
+                    onChange={e => {
+                      const atual = form.regioes || [];
+                      setF('regioes', e.target.checked ? [...atual, r] : atual.filter(x => x !== r));
+                    }}
+                    style={{ accentColor: '#667eea' }}
+                  />
+                  {r}
+                </label>
+              ))}
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="checkbox" id="modelo-ativo" checked={form.ativo !== false} onChange={e => setF('ativo', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#667eea' }} />
