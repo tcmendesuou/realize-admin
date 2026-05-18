@@ -180,7 +180,11 @@ export default function ClienteChat({ userData, onClose }) {
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
-      if (temMarcador) setStep('modelos');
+      console.log('DEBUG marcador:', { temMarcador, modelosEspeciais: modelosEspeciais.length, assistantTextSlice: assistantText.slice(-100) });
+      if (temMarcador) {
+        console.log('DEBUG setStep modelos');
+        setStep('modelos');
+      }
 
       const json = extractJson(assistantText);
       if (json && json.evento) {
