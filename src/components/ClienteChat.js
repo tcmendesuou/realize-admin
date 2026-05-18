@@ -728,32 +728,10 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                 <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Escolha o modelo de estande:</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {modelosEspeciais.map(m => (
-                    <div key={m.id} onClick={async () => {
+                    <div key={m.id} onClick={() => {
                       modeloSelecionadoRef.current = m;
                       setModeloSelecionado(m);
-                      const escolha = `Quero o ${m.nome} (${m.areaM2}m²)`;
-                      const userMsg = { role: 'user', content: escolha, id: Date.now() };
-                      const updated = [...messages, userMsg];
-                      setMessages(updated);
-                      setLoading(true);
-                      try {
-                        const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
-                        const systemPrompt = (() => {
-                          const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                          const base = `HOJE É: ${hoje}.\n\n` + systemScript + pricingSummary + catalogoSummary;
-                          return base.length > 12000 ? base.slice(0, 12000) : base;
-                        })();
-                        const response = await fetch('/api/chat', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system: systemPrompt, messages: history }),
-                        });
-                        const data = await response.json();
-                        const assistantText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-                        const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '').trim();
-                        setMessages(prev => [...prev, { role: 'assistant', content: textoLimpo, id: Date.now() + 1 }]);
-                      } catch (e) { console.error(e); }
-                      finally { setLoading(false); }
+                      setInput(`Quero o ${m.nome} (${m.areaM2}m²)`);
                     }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
                       <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)' }}>
                         {m.fotoUrl ? <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏗️</div>}
@@ -775,6 +753,11 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     </div>
                   ))}
                 </div>
+                {modeloSelecionado && (
+                  <button onClick={sendMessage} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Confirmar: {modeloSelecionado.nome} →
+                  </button>
+                )}
               </div>
             ) : (
             <div className="bia-msg-bubble"
