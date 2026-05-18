@@ -143,8 +143,8 @@ export default function ClienteChat({ userData, onClose }) {
   }, [messages, loading]);
 
   // ── enviar mensagem ───────────────────────────────────────────────────────
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (textoForçado) => {
+    const text = (textoForçado || input).trim();
     if (!text || loading) return;
     setInput('');
 
@@ -731,7 +731,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     <div key={m.id} onClick={() => {
                       modeloSelecionadoRef.current = m;
                       setModeloSelecionado(m);
-                      setInput(`Quero o ${m.nome} (${m.areaM2}m²)`);
                     }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
                       <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)' }}>
                         {m.fotoUrl ? <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏗️</div>}
@@ -754,7 +753,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   ))}
                 </div>
                 {modeloSelecionado && (
-                  <button onClick={sendMessage} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  <button onClick={() => sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`)} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
                 )}
