@@ -480,7 +480,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const tabs = isFornecedor ? [
     { id: 'info',       label: 'Visão Geral' },
     { id: 'cronograma', label: 'Cronograma' },
-    { id: 'tasks',      label: 'Minha Tarefa' },
+    { id: 'tasks',      label: 'Propostas' },
   ] : [
     { id: 'briefing',   label: 'Briefing' },
     { id: 'cronograma', label: `Cronograma${cronograma.length ? ` (${cronograma.length})` : ''}` },
@@ -1246,8 +1246,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   <div style={{ marginTop: myTasks.length > 0 ? 20 : 0 }}>
                     {myTasks.length > 0 && <div style={{ height: 1, background: '#f0f2f5', marginBottom: 16 }} />}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>
-                        Aguardando confirmação ({supplierJobsMine.length})
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#7BAFD4', letterSpacing: 0.5 }}>
+                        Propostas ({supplierJobsMine.length})
                       </div>
                       <button onClick={() => { setTodasExpandidas(s => !s); setTasksExpandidas({}); }}
                         style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -1263,7 +1263,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
                       const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : todasExpandidas;
                       return (
-                        <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden', marginBottom: 10 }}>
+                        <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.3)' : isRejected ? 'rgba(239,68,68,0.3)' : 'rgba(123,175,212,0.35)'}`, background: isConfirmed ? 'rgba(16,185,129,0.04)' : isRejected ? 'rgba(239,68,68,0.04)' : 'rgba(123,175,212,0.06)', overflow: 'hidden', marginBottom: 10 }}>
                           {/* Header clicável */}
                           <div onClick={() => setTasksExpandidas(p => ({ ...p, [sj.id]: !sjExp }))}
                             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: sjExp ? '1px solid #f8faff' : 'none' }}>
