@@ -10,6 +10,11 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
       nome: '', descricao: '', areaM2: '', altura: '',
       precoBase: '', diasProducao: '',
       caracteristicas: '',
+      moveis: '',
+      tecnologia: '',
+      preAprovacao: false,
+      aprovacaoExecucao: false,
+      aprovacaoEntrega: false,
       regioes: [],
       ativo: true,
     };
@@ -18,7 +23,16 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
       caracteristicas: Array.isArray(editData.caracteristicas)
         ? editData.caracteristicas.join(', ')
         : (editData.caracteristicas || ''),
+      moveis: Array.isArray(editData.moveis)
+        ? editData.moveis.join(', ')
+        : (editData.moveis || ''),
+      tecnologia: Array.isArray(editData.tecnologia)
+        ? editData.tecnologia.join(', ')
+        : (editData.tecnologia || ''),
       regioes: editData.regioes || [],
+      preAprovacao: editData.preAprovacao || false,
+      aprovacaoExecucao: editData.aprovacaoExecucao || false,
+      aprovacaoEntrega: editData.aprovacaoEntrega || false,
     };
   });
   const [fotoFile, setFotoFile]   = useState(null);
@@ -66,6 +80,11 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
         caracteristicas: Array.isArray(form.caracteristicas)
           ? form.caracteristicas
           : (form.caracteristicas ? form.caracteristicas.split(',').map(s => s.trim()).filter(Boolean) : []),
+        moveis: form.moveis ? form.moveis.split(',').map(s => s.trim()).filter(Boolean) : [],
+        tecnologia: form.tecnologia ? form.tecnologia.split(',').map(s => s.trim()).filter(Boolean) : [],
+        preAprovacao: form.preAprovacao || false,
+        aprovacaoExecucao: form.aprovacaoExecucao || false,
+        aprovacaoEntrega: form.aprovacaoEntrega || false,
         regioes: form.regioes || [],
         fotoUrl,
         fotoPath: fotoFile ? `servicos-especiais/${tipoEspecialId}/${fotoFile.name}` : (editData?.fotoPath || null),
@@ -148,6 +167,37 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
           <div>
             <label style={lbl}>Características (separadas por vírgula)</label>
             <input value={form.caracteristicas} onChange={e => setF('caracteristicas', e.target.value)} style={inp} placeholder="Ex: Balcão embutido, Backlight, Prateleiras, Tomadas" />
+          </div>
+          <div>
+            <label style={lbl}>Móveis inclusos (separados por vírgula)</label>
+            <input value={form.moveis} onChange={e => setF('moveis', e.target.value)} style={inp} placeholder="Ex: Sofá 2 lugares, Mesa de reunião, 4 cadeiras, Balcão" />
+          </div>
+          <div>
+            <label style={lbl}>Tecnologia inclusa (separada por vírgula)</label>
+            <input value={form.tecnologia} onChange={e => setF('tecnologia', e.target.value)} style={inp} placeholder="Ex: TV 55 polegadas, Tablet de recepção, Ponto de internet" />
+          </div>
+
+          {/* Aprovações */}
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
+            <label style={{ ...lbl, marginBottom: 8 }}>Aprovações necessárias</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { key: 'preAprovacao', label: 'Pré-aprovação', desc: 'Fornecedor envia preparação para aprovação do cliente antes de gerar a execução' },
+                { key: 'aprovacaoExecucao', label: 'Aprovação de Execução', desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço' },
+                { key: 'aprovacaoEntrega', label: 'Aprovação de Entrega', desc: 'Aprovação final do cliente ao encerrar o projeto' },
+              ].map(ap => (
+                <div key={ap.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ap.label}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{ap.desc}</div>
+                  </div>
+                  <div onClick={() => setF(ap.key, !form[ap.key])}
+                    style={{ width: 40, height: 22, borderRadius: 11, background: form[ap.key] ? '#667eea' : '#e2e8f0', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 2, left: form[ap.key] ? 20 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
           <div>
             <label style={lbl}>Regiões de atendimento</label>
