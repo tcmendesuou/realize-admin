@@ -608,6 +608,50 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   </div>
                 </div>
               </div>
+
+              {/* Estrutura */}
+              {est && (est.areaM2 > 0 || est.montagem || est.iluminacao || est.som || est.telao || est.mobiliario) && (
+                <div className="ps-card">
+                  <div className="ps-card-title">Estrutura</div>
+                  <div className="ps-info-grid">
+                    {est.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est.areaM2} m²</span></div>}
+                    {[['Montagem', est.montagem], ['Iluminação', est.iluminacao], ['Som', est.som], ['Telão', est.telao], ['Mobiliário', est.mobiliario]].map(([label, val]) => (
+                      <div key={label} className="ps-info-item">
+                        <span className="ps-info-label">{label}</span>
+                        <span className={`ps-bool ${val ? 'ps-bool-yes' : 'ps-bool-no'}`}>{val ? '✓ Sim' : '✗ Não'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Equipe Operacional */}
+              {equipe && Object.values(equipe).some(v => v?.quantidade > 0) && (
+                <div className="ps-card">
+                  <div className="ps-card-title">Equipe Operacional</div>
+                  <div className="ps-info-grid">
+                    {Object.entries(equipe).map(([key, val]) => {
+                      if (!val || typeof val !== 'object' || !val.quantidade) return null;
+                      return (
+                        <div key={key} className="ps-info-item">
+                          <span className="ps-info-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                          <span className="ps-info-value">{val.quantidade} pessoa(s) × {val.horasPorDia}h/dia</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Serviços identificados */}
+              {servicos.length > 0 && (
+                <div className="ps-card">
+                  <div className="ps-card-title">Serviços Identificados pela IA</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {servicos.map((s, i) => <span key={i} className="ps-tag">{s}</span>)}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
