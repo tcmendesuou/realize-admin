@@ -35,16 +35,27 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
       aprovacaoEntrega: editData.aprovacaoEntrega || false,
     };
   });
-  const [fotoFile, setFotoFile]   = useState(null);
-  const [fotoPreview, setFotoPreview] = useState(editData?.fotoUrl || null);
-  const [saving, setSaving]       = useState(false);
+  const [fotoFiles, setFotoFiles]     = useState([]);
+  const [fotoPreviews, setFotoPreviews] = useState(editData?.fotos || (editData?.fotoUrl ? [{ url: editData.fotoUrl, path: editData.fotoPath }] : []));
+  const [fotoAtiva, setFotoAtiva]     = useState(0);
+  const [saving, setSaving]           = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleFoto = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setFotoFile(file);
-    setFotoPreview(URL.createObjectURL(file));
+  const handleFotos = (e) => {
+    const files = Array.from(e.target.files).slice(0, 8 - fotoPreviews.length);
+    const novos = files.map(f => ({ file: f, url: URL.createObjectURL(f), isNew: true }));
+    setFotoFiles(prev => [...prev, ...files]);
+    setFotoPreviews(prev => [...prev, ...novos]);
+    setFotoAtiva(fotoPreviews.length);
+  };
+
+  const handleRemoverFoto = (idx) => {
+    setFotoPreviews(prev => prev.filter((_, i) => i !== idx));
+    setFotoFiles(prev => {
+      const novas = fotoPreviews.filter((f, i) => i !== idx && f.isNew);
+      return prev.filter(f => novas.some(n => n.file === f));
+    });
+    setFotoAtiva(i => Math.max(0, i > idx ? i - 1 : i));
   };
 
   const handleSave = async () => {
@@ -53,17 +64,17 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
     if (!form.diasProducao)   { alert('Dias de produção obrigatório'); return; }
     setSaving(true);
     try {
-      let fotoUrl = editData?.fotoUrl || null;
-
-      // Upload da foto se tiver nova
-      if (fotoFile) {
-        const path = `servicos-especiais/${tipoEspecialId}/${Date.now()}_${fotoFile.name}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, fotoFile);
-        fotoUrl = await getDownloadURL(storageRef);
-        // Remove foto antiga se existir
-        if (editData?.fotoPath) {
-          try { await deleteObject(ref(storage, editData.fotoPath)); } catch {}
+      // Upload das fotos novas
+      const fotosFinais = [];
+      for (const fp of fotoPreviews) {
+        if (fp.isNew && fp.file) {
+          const path = `servicos-especiais/${tipoEspecialId}/${Date.now()}_${fp.file.name}`;
+          const storageRef = ref(storage, path);
+          await uploadBytes(storageRef, fp.file);
+          const url = await getDownloadURL(storageRef);
+          fotosFinais.push({ url, path });
+        } else if (fp.url && !fp.isNew) {
+          fotosFinais.push({ url: fp.url, path: fp.path || null });
         }
       }
 
@@ -86,8 +97,9 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
         aprovacaoExecucao: form.aprovacaoExecucao || false,
         aprovacaoEntrega: form.aprovacaoEntrega || false,
         regioes: form.regioes || [],
-        fotoUrl,
-        fotoPath: fotoFile ? `servicos-especiais/${tipoEspecialId}/${fotoFile.name}` : (editData?.fotoPath || null),
+        fotos: fotosFinais,
+        fotoUrl: fotosFinais[0]?.url || null,
+        fotoPath: fotosFinais[0]?.path || null,
         ativo: form.ativo,
         updatedAt: new Date(),
       };
@@ -106,34 +118,57 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
   const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
   return (
-    <div style={{ background: '#f8faff', borderRadius: 12, border: '1px solid #e0e8ff', padding: 20, marginBottom: 16 }}>
+    <div style={{ background: '#f8faff', borderRadius: 12, border: '1px solid #e0e8ff', padding: 20, marginBottom: 16, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#667eea', marginBottom: 16, letterSpacing: 0.5, textTransform: 'uppercase' }}>
         {editData ? 'Editar modelo' : 'Novo modelo'}
       </div>
 
       <div style={{ display: 'flex', gap: 20 }}>
-        {/* Foto */}
-        <div style={{ flexShrink: 0 }}>
-          <label style={lbl}>Foto do modelo</label>
-          <div
-            style={{ width: 160, height: 120, borderRadius: 10, border: '2px dashed #c7d2fe', background: fotoPreview ? 'transparent' : '#f0f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}
-            onClick={() => document.getElementById('foto-input').click()}>
-            {fotoPreview ? (
-              <img src={fotoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {/* Fotos — carrossel com até 8 */}
+        <div style={{ flexShrink: 0, width: 200 }}>
+          <label style={lbl}>Fotos do modelo ({fotoPreviews.length}/8)</label>
+          {/* Preview principal */}
+          <div style={{ width: 200, height: 140, borderRadius: 10, border: '2px dashed #c7d2fe', background: '#f0f3ff', overflow: 'hidden', position: 'relative', marginBottom: 8 }}>
+            {fotoPreviews.length > 0 ? (
+              <img src={fotoPreviews[fotoAtiva]?.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#94a3b8', fontSize: 12 }}>
                 <div style={{ fontSize: 24, marginBottom: 4 }}>📷</div>
-                Clique para adicionar foto
+                Sem fotos
               </div>
             )}
+            {fotoPreviews.length > 1 && (
+              <>
+                <button onClick={() => setFotoAtiva(i => (i - 1 + fotoPreviews.length) % fotoPreviews.length)}
+                  style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', fontSize: 14 }}>‹</button>
+                <button onClick={() => setFotoAtiva(i => (i + 1) % fotoPreviews.length)}
+                  style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', fontSize: 14 }}>›</button>
+                <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
+                  {fotoPreviews.map((_, i) => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === fotoAtiva ? 'white' : 'rgba(255,255,255,0.5)' }} />)}
+                </div>
+              </>
+            )}
           </div>
-          <input id="foto-input" type="file" accept="image/*" onChange={handleFoto} style={{ display: 'none' }} />
-          {fotoPreview && (
-            <button onClick={() => { setFotoFile(null); setFotoPreview(null); }}
-              style={{ marginTop: 6, fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-              Remover foto
+          {/* Thumbnails */}
+          {fotoPreviews.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+              {fotoPreviews.map((fp, i) => (
+                <div key={i} onClick={() => setFotoAtiva(i)}
+                  style={{ width: 36, height: 36, borderRadius: 6, overflow: 'hidden', border: `2px solid ${i === fotoAtiva ? '#667eea' : '#e2e8f0'}`, cursor: 'pointer', position: 'relative' }}>
+                  <img src={fp.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button onClick={e => { e.stopPropagation(); handleRemoverFoto(i); }}
+                    style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(239,68,68,0.85)', border: 'none', color: 'white', fontSize: 8, width: 14, height: 14, borderRadius: '0 0 0 4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {fotoPreviews.length < 8 && (
+            <button onClick={() => document.getElementById('fotos-input').click()}
+              style={{ width: '100%', padding: '6px', borderRadius: 7, border: '1px dashed #c7d2fe', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              + Adicionar foto
             </button>
           )}
+          <input id="fotos-input" type="file" accept="image/*" multiple onChange={handleFotos} style={{ display: 'none' }} />
         </div>
 
         {/* Campos */}
