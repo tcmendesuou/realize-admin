@@ -1162,6 +1162,59 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         {task.descricao && <div style={{ background: 'rgba(123,175,212,0.06)', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1', border: '1px solid rgba(123,175,212,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Especificacao do servico</div><div style={{ fontSize: 12, color: '#475569', lineHeight: 1.6 }}>{task.descricao}</div></div>}
                         {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observacao</div><div style={{ fontSize: 12, color: '#475569' }}>{task.observacao}</div></div>}
                       </div>
+
+                      {/* Observações do Cliente — mapeadas do briefingData */}
+                      {(() => {
+                        const bd = project.briefingData || {};
+                        const nomeLC = (task.serviceName || '').toLowerCase();
+                        const linhas = [];
+                        if (nomeLC.includes('recepcion') || nomeLC.includes('hostess')) {
+                          const r = bd.equipe?.recepcionistas;
+                          if (r?.perfil) linhas.push(`Perfil: ${r.perfil}`);
+                          if (r?.vestuario) linhas.push(`Vestuário: ${r.vestuario}`);
+                          if (r?.horasPorDia) linhas.push(`Horas/dia: ${r.horasPorDia}h`);
+                        }
+                        if (nomeLC.includes('led') || nomeLC.includes('neon') || nomeLC.includes('painel')) {
+                          const p = bd.entretenimento?.painelLED;
+                          if (p?.tamanho) linhas.push(`Tamanho: ${p.tamanho}`);
+                          if (p?.objetivo) linhas.push(`Objetivo: ${p.objetivo}`);
+                          if (p?.ambiente) linhas.push(`Ambiente: ${p.ambiente}`);
+                          if (p?.conteudo) linhas.push(`Conteúdo: ${p.conteudo}`);
+                          if (p?.operador === true) linhas.push('Precisa de operador técnico');
+                        }
+                        if (nomeLC.includes('som') || nomeLC.includes('audio') || nomeLC.includes('pa')) {
+                          const s = bd.entretenimento?.som;
+                          if (s?.objetivo) linhas.push(`Objetivo: ${s.objetivo}`);
+                          if (s?.ambiente) linhas.push(`Ambiente: ${s.ambiente}`);
+                          if (s?.microfone) linhas.push(`Microfone: ${s.microfone}`);
+                        }
+                        if (nomeLC.includes('dj')) {
+                          const d = bd.entretenimento?.dj;
+                          if (d?.horas) linhas.push(`Horas: ${d.horas}h`);
+                          if (d?.estilo) linhas.push(`Estilo: ${d.estilo}`);
+                          if (d?.equipamento) linhas.push(`Equipamento: ${d.equipamento}`);
+                        }
+                        if (nomeLC.includes('seguran')) {
+                          const s = bd.equipe?.seguranca;
+                          if (s?.quantidade) linhas.push(`Quantidade: ${s.quantidade}`);
+                          if (s?.horasPorDia) linhas.push(`Horas/dia: ${s.horasPorDia}h`);
+                        }
+                        if (nomeLC.includes('buffet') || nomeLC.includes('gastronomia') || nomeLC.includes('bar') || nomeLC.includes('aliment')) {
+                          const g = bd.gastronomia;
+                          if (g?.formato) linhas.push(`Formato: ${g.formato}`);
+                          if (g?.pessoas) linhas.push(`Pessoas: ${g.pessoas}`);
+                          if (g?.nivel) linhas.push(`Nível: ${g.nivel}`);
+                        }
+                        if (linhas.length === 0) return null;
+                        return (
+                          <div style={{ margin: '0 16px 12px', background: 'rgba(123,175,212,0.06)', border: '1px solid rgba(123,175,212,0.2)', borderRadius: 8, padding: '10px 14px' }}>
+                            <div style={{ fontSize: 10, color: '#7BAFD4', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Observações do Cliente</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {linhas.map((l, i) => <div key={i} style={{ fontSize: 12, color: '#475569' }}>• {l}</div>)}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div style={{ padding: '0 16px 14px' }}>
                         <textarea defaultValue={task.observacaoFornecedor || ''}
                           onBlur={async e => { if (e.target.value !== (task.observacaoFornecedor || '')) await updateDoc(doc(db, 'tasks', task.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() }); }}
