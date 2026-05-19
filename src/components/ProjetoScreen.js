@@ -40,6 +40,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [showConcluidas, setShowConcluidas]       = useState(false);
   const [showFornConcluidos, setShowFornConcluidos] = useState(false);
   const [todasExpandidas, setTodasExpandidas] = useState(true);
+  const [propostasExpandidas, setPropostasExpandidas] = useState(true);
   const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [aprovacaoModal, setAprovacaoModal] = useState(null); // { task, tipo: 'pre'|'execucao'|'entrega' }
@@ -1302,9 +1303,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#7BAFD4', letterSpacing: 0.5 }}>
                         Propostas ({supplierJobsMine.length})
                       </div>
-                      <button onClick={() => { setTodasExpandidas(s => !s); setTasksExpandidas({}); }}
+                      <button onClick={() => { setPropostasExpandidas(s => !s); }}
                         style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                        {todasExpandidas ? '⊟ Recolher todas' : '⊞ Expandir todas'}
+                        {propostasExpandidas ? '⊟ Recolher todas' : '⊞ Expandir todas'}
                       </button>
                     </div>
                     {supplierJobsMine.map(sj => {
@@ -1314,7 +1315,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const isRejected  = sj.status === 'rejected';
                       const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
                       const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
-                      const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : todasExpandidas;
+                      const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : propostasExpandidas;
                       return (
                         <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.3)' : isRejected ? 'rgba(239,68,68,0.3)' : 'rgba(123,175,212,0.35)'}`, background: isConfirmed ? 'rgba(16,185,129,0.04)' : isRejected ? 'rgba(239,68,68,0.04)' : 'rgba(123,175,212,0.06)', overflow: 'hidden', marginBottom: 10 }}>
                           {/* Header clicável */}
