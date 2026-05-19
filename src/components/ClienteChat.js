@@ -12,6 +12,28 @@ function extractJson(text) {
   return null;
 }
 
+// Carrossel de fotos para os cards de estande
+function ModeloCarrossel({ fotos }) {
+  const [idx, setIdx] = React.useState(0);
+  if (!fotos?.length) return <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>;
+  return (
+    <>
+      <img src={fotos[idx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      {fotos.length > 1 && (
+        <>
+          <button onClick={e => { e.stopPropagation(); setIdx(i => (i - 1 + fotos.length) % fotos.length); }}
+            style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: 4, padding: '2px 7px', cursor: 'pointer', fontSize: 16, zIndex: 2 }}>‹</button>
+          <button onClick={e => { e.stopPropagation(); setIdx(i => (i + 1) % fotos.length); }}
+            style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: 4, padding: '2px 7px', cursor: 'pointer', fontSize: 16, zIndex: 2 }}>›</button>
+          <div style={{ position: 'absolute', bottom: 5, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
+            {fotos.map((_, i) => <div key={i} onClick={e => { e.stopPropagation(); setIdx(i); }} style={{ width: 6, height: 6, borderRadius: '50%', background: i === idx ? 'white' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />)}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function ClienteChat({ userData, onClose }) {
   const [messages, setMessages]         = useState([]);
   const [input, setInput]               = useState('');
@@ -585,32 +607,50 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              {modelosEspeciais.map(m => (
+              {modelosEspeciais.map(m => {
+                const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
+                const [fotoIdx, setFotoIdx] = [0, () => {}]; // será gerenciado por estado local abaixo
+                return (
                 <div key={m.id}
                   onClick={() => setModeloSelecionado(m)}
                   style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
-                  {/* Foto */}
-                  <div style={{ height: 130, background: m.fotoUrl ? 'transparent' : 'rgba(0,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {m.fotoUrl ? (
-                      <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ fontSize: 32 }}>🏗️</span>
-                    )}
+                  {/* Foto principal */}
+                  <div style={{ height: 150, background: 'rgba(0,128,255,0.08)', position: 'relative', overflow: 'hidden' }}>
+                    {fotos.length > 0 ? (
+                      <ModeloCarrossel fotos={fotos} />
+                    ) : <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>}
                   </div>
                   {/* Info */}
                   <div style={{ padding: '12px 14px' }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 4 }}>{m.nome}</div>
-                    {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 8 }}>{m.descricao}</div>}
+                    {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6 }}>{m.descricao}</div>}
                     <div style={{ display: 'flex', gap: 10, fontSize: 11, color: '#7BAFD4', marginBottom: 8 }}>
                       {m.areaM2 && <span>📐 {m.areaM2}m²</span>}
                       {m.altura && <span>↕ {m.altura}m</span>}
-                      <span>⏱ {m.diasProducao} dias</span>
+                      <span>⏱ {m.diasProducao} dias prod.</span>
                     </div>
                     {m.caracteristicas?.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                        {m.caracteristicas.map((c, i) => (
-                          <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>
-                        ))}
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Inclui</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>)}
+                        </div>
+                      </div>
+                    )}
+                    {m.moveis?.length > 0 && (
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Móveis</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {m.moveis.map((mv, i) => <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(123,175,212,0.1)', color: '#7BAFD4' }}>{mv}</span>)}
+                        </div>
+                      </div>
+                    )}
+                    {m.tecnologia?.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Tecnologia</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {m.tecnologia.map((t, i) => <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(102,126,234,0.1)', color: '#667eea' }}>{t}</span>)}
+                        </div>
                       </div>
                     )}
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>
@@ -621,7 +661,8 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     <div style={{ background: '#00E5C4', textAlign: 'center', padding: '6px', fontSize: 12, fontWeight: 700, color: '#0D1B2A' }}>✓ Selecionado</div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -791,12 +832,13 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
               <div style={{ flex: 1, maxWidth: '90%' }}>
                 <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Escolha o modelo de estande:</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {modelosEspeciais.map(m => (
-                    <div key={m.id} onClick={() => {
-                      setModeloSelecionado(m);
-                    }} style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
-                      <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)' }}>
-                        {m.fotoUrl ? <img src={m.fotoUrl} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏗️</div>}
+                  {modelosEspeciais.map(m => {
+                    const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
+                    return (
+                    <div key={m.id} onClick={() => setModeloSelecionado(m)}
+                      style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
+                      <div style={{ height: 110, overflow: 'hidden', background: 'rgba(0,128,255,0.08)', position: 'relative' }}>
+                        <ModeloCarrossel fotos={fotos} />
                       </div>
                       <div style={{ padding: '10px 12px' }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', marginBottom: 3 }}>{m.nome}</div>
@@ -810,10 +852,21 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                             {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(0,229,196,0.08)', color: '#00E5C4' }}>{c}</span>)}
                           </div>
                         )}
+                        {m.moveis?.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 4 }}>
+                            {m.moveis.map((mv, i) => <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(123,175,212,0.1)', color: '#7BAFD4' }}>{mv}</span>)}
+                          </div>
+                        )}
+                        {m.tecnologia?.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 4 }}>
+                            {m.tecnologia.map((t, i) => <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(102,126,234,0.1)', color: '#667eea' }}>{t}</span>)}
+                          </div>
+                        )}
                         {m.precoBase && <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {modeloSelecionado && (
                   <button onClick={() => sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`)} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
