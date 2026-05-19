@@ -17,6 +17,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [loading, setLoading]     = useState(true);
   const [activeTab, setActiveTab] = useState('briefing');
 
+  // Ajusta aba inicial baseado no perfil
+  useEffect(() => {
+    if (userData?.systemRole === 'fornecedor') setActiveTab('info');
+  }, [userData?.systemRole]);
+
   // Fornecedor
   const [supplierJob, setSupplierJob]     = useState(null);   // primeiro job (compat)
   const [supplierJobsMine, setSupplierJobsMine] = useState([]); // todos os jobs do fornecedor
@@ -559,6 +564,52 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
         {/* BODY */}
         <div className="ps-body">
+
+          {/* ── VISÃO GERAL (fornecedor) ── */}
+          {activeTab === 'info' && isFornecedor && (
+            <>
+              {/* Sobre o Evento */}
+              {project.descricaoBriefing && (
+                <div className="ps-card">
+                  <div className="ps-card-title">Sobre o Evento</div>
+                  <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
+                    <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Evento */}
+              <div className="ps-card">
+                <div className="ps-card-title">Evento</div>
+                <div className="ps-info-grid">
+                  <div className="ps-info-item">
+                    <span className="ps-info-label">Tipo</span>
+                    <span className="ps-info-value">{ev.tipo || project.eventTypeName || '—'}</span>
+                  </div>
+                  <div className="ps-info-item">
+                    <span className="ps-info-label">Nome</span>
+                    <span className="ps-info-value">{ev.nome || project.eventName || '—'}</span>
+                  </div>
+                  <div className="ps-info-item">
+                    <span className="ps-info-label">Data</span>
+                    <span className="ps-info-value">{formatDateShort(ev.dataInicio || project.startDate)}{ev.dataFim && ev.dataFim !== ev.dataInicio ? ` até ${formatDateShort(ev.dataFim)}` : ''}</span>
+                  </div>
+                  <div className="ps-info-item">
+                    <span className="ps-info-label">Horário</span>
+                    <span className="ps-info-value">{ev.horarioInicio ? `${ev.horarioInicio}${ev.horarioFim ? ` às ${ev.horarioFim}` : ''}` : '—'}</span>
+                  </div>
+                  <div className="ps-info-item">
+                    <span className="ps-info-label">Local</span>
+                    <span className="ps-info-value">{ev.local || ev.cidade || project.location || '—'}</span>
+                  </div>
+                  <div className="ps-info-item">
+                    <span className="ps-info-label">Participantes</span>
+                    <span className="ps-info-value">{ev.visitantesPorDia || project.guestCount || '—'}</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* ── BRIEFING (coordenador) — inclui Cliente, Evento e detalhes do briefing ── */}
           {activeTab === 'briefing' && !isFornecedor && (
