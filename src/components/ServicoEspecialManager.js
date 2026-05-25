@@ -14,7 +14,6 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
       tecnologia: '',
       preAprovacao: false,
       aprovacaoExecucao: false,
-      aprovacaoEntrega: false,
       regioes: [],
       ativo: true,
     };
@@ -32,7 +31,6 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
       regioes: editData.regioes || [],
       preAprovacao: editData.preAprovacao || false,
       aprovacaoExecucao: editData.aprovacaoExecucao || false,
-      aprovacaoEntrega: editData.aprovacaoEntrega || false,
     };
   });
   const [fotoFiles, setFotoFiles]     = useState([]);
@@ -95,7 +93,6 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
         tecnologia: form.tecnologia ? form.tecnologia.split(',').map(s => s.trim()).filter(Boolean) : [],
         preAprovacao: form.preAprovacao || false,
         aprovacaoExecucao: form.aprovacaoExecucao || false,
-        aprovacaoEntrega: form.aprovacaoEntrega || false,
         regioes: form.regioes || [],
         fotos: fotosFinais,
         fotoUrl: fotosFinais[0]?.url || null,
@@ -219,7 +216,6 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
               {[
                 { key: 'preAprovacao', label: 'Pré-aprovação', desc: 'Fornecedor envia preparação para aprovação do cliente antes de gerar a execução' },
                 { key: 'aprovacaoExecucao', label: 'Aprovação de Execução', desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço' },
-                { key: 'aprovacaoEntrega', label: 'Aprovação de Entrega', desc: 'Aprovação final do cliente ao encerrar o projeto' },
               ].map(ap => (
                 <div key={ap.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
                   <div>

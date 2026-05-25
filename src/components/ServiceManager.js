@@ -305,14 +305,12 @@ const SEED_PRICING = {
 const APROVACOES_CONFIG = [
   { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Fornecedor executa a preparação e envia para aprovação do cliente. Se aprovado, o sistema gera a task de execução (ex: modelo, projeto, amostra)', cor: '#7BAFD4' },
   { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço ao cliente (ex: estande montado, estrutura pronta)', cor: '#667eea' },
-  { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Aprovação final do cliente ao encerrar o projeto, confirmando que tudo foi entregue corretamente', cor: '#10b981' },
 ];
 
 function SubServiceForm({ parentId, editData, onSave, onCancel }) {
   const [form, setForm] = useState(editData || {
     name: '', description: '', active: true,
-    preAprovacao: false, aprovacaoExecucao: false, aprovacaoEntrega: false,
-  });
+    preAprovacao: false, aprovacaoExecucao: false,   });
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -324,7 +322,6 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
         name: form.name, description: form.description, active: form.active,
         preAprovacao:      !!form.preAprovacao,
         aprovacaoExecucao: !!form.aprovacaoExecucao,
-        aprovacaoEntrega:  !!form.aprovacaoEntrega,
         parentId, updatedAt: new Date(),
       };
       if (editData?.id) {
@@ -685,11 +682,10 @@ export default function ServiceManager() {
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: selSub?.id === sub.id ? 600 : 400, color: selSub?.id === sub.id ? color : '#1e293b' }}>{sub.name}</div>
                             {sub.description && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{sub.description}</div>}
-                            {(sub.preAprovacao || sub.aprovacaoExecucao || sub.aprovacaoEntrega) && (
+                            {(sub.preAprovacao || sub.aprovacaoExecucao) && (
                               <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
                                 {sub.preAprovacao      && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(123,175,212,0.15)', color: '#7BAFD4' }}>Pré</span>}
                                 {sub.aprovacaoExecucao && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>Exec</span>}
-                                {sub.aprovacaoEntrega  && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Entrega</span>}
                               </div>
                             )}
                           </div>
@@ -749,7 +745,6 @@ export default function ServiceManager() {
                   {[
                     { key: 'preAprovacao',        label: 'Pré-aprovação',          desc: 'Fornecedor prepara e envia para aprovação do cliente. Se aprovado, gera a task de execução', cor: '#7BAFD4' },
                     { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço', cor: '#667eea' },
-                    { key: 'aprovacaoEntrega',    label: 'Aprovação de Entrega',   desc: 'Aprovação final do cliente ao encerrar o projeto', cor: '#10b981' },
                   ].map(ap => (
                     <div key={ap.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ flex: 1 }}>
@@ -764,7 +759,7 @@ export default function ServiceManager() {
                 </div>
 
                 {/* Aviso se nenhuma aprovação */}
-                {!selSub.preAprovacao && !selSub.aprovacaoExecucao && !selSub.aprovacaoEntrega && (
+                {!selSub.preAprovacao && !selSub.aprovacaoExecucao && (
                   <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
                     Nenhuma aprovação configurada. Clique em "Editar sub-serviço" para configurar.
                   </div>
