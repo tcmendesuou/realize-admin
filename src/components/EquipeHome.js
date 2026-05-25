@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import ChatWidget from './ChatWidget';
 
 const STAGES = [
   { id: 'proposta',    label: 'Propostas',   color: '#7BAFD4' },
@@ -91,13 +92,6 @@ export default function EquipeHome({ userData, onLogout }) {
 
       {/* Main */}
       <main className="eq-main">
-        {/* Header de boas-vindas */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
-          {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
-          {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
-        </div>
-
         {activeSection === 'workspace' && (
           <>
             <div>
@@ -152,6 +146,7 @@ export default function EquipeHome({ userData, onLogout }) {
           </div>
         )}
       </main>
+      <ChatWidget userData={userData} budgetIds={jobs.map(j => j.id)} />
     </div>
   );
 }

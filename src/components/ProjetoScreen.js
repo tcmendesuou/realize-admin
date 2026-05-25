@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch, deleteDoc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
+import ChatPanel from './ChatPanel';
 
 const STATUS_MAP = {
   analyzing:  { label: 'EM ANÁLISE',   color: '#FFA726', bg: 'rgba(255,167,38,0.15)' },
@@ -52,11 +53,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
-  const [confirmEnvio, setConfirmEnvio]       = useState(false);
-
-  // Relatório final
-  const [enviandoRelatorio, setEnviandoRelatorio] = useState(false);
-  const [confirmRelatorio, setConfirmRelatorio]   = useState(false);
+  const [chatAberto, setChatAberto] = useState(false);
 
   const handleEnviarCotacao = async () => {
     setEnviandoCotacao(true);
@@ -69,40 +66,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setConfirmEnvio(false);
     } catch (e) { console.error('Erro ao enviar cotação:', e); }
     finally { setEnviandoCotacao(false); }
-  };
-
-  const handleEnviarRelatorio = async () => {
-    setEnviandoRelatorio(true);
-    try {
-      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('budgetId', '==', projectId)));
-      const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const relatorioItens = allTasks.map(t => ({
-        serviceName:          t.serviceName || '',
-        serviceParentName:    t.serviceParentName || '',
-        supplierName:         t.supplierName || '',
-        fase:                 t.fase || '',
-        status:               t.status || '',
-        dataInicio:           t.dataInicio || '',
-        dataEntrega:          t.dataEntrega || '',
-        valor:                t.valor || 0,
-        unidade:              t.unidade || '',
-        observacaoFornecedor: t.observacaoFornecedor || '',
-      }));
-      await updateDoc(doc(db, 'budgets', projectId), {
-        status:         'completed',
-        workspaceStage: 'Concluido',
-        concluidoEm:    serverTimestamp(),
-        relatorioFinal: {
-          geradoEm:      new Date().toISOString(),
-          itens:         relatorioItens,
-          totalServicos: relatorioItens.length,
-          enviadoPor:    userData?.name || 'Coordenador',
-        },
-        updatedAt: serverTimestamp(),
-      });
-      setConfirmRelatorio(false);
-    } catch (e) { console.error('Erro ao enviar relatório:', e); }
-    finally { setEnviandoRelatorio(false); }
   };
 
   useEffect(() => {
@@ -524,7 +487,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     { id: 'briefing',   label: 'Briefing' },
     { id: 'cronograma', label: `Cronograma${cronograma.length ? ` (${cronograma.length})` : ''}` },
     { id: 'tasks',      label: `Tarefas${tasks.length ? ` (${tasks.length})` : ''}` },
-    { id: 'relatorio',  label: 'Relatório' },
     { id: 'timeline',   label: 'Histórico' },
   ];
 
@@ -1830,85 +1792,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             );
           })()}
 
-          {/* ── RELATÓRIO (coordenador) ── */}
-          {activeTab === 'relatorio' && !isFornecedor && (() => {
-            const allTasks = projectTasks;
-            const todasConcluidas = allTasks.length > 0 && allTasks.every(t => t.status === 'concluido');
-            const jaEnviado = project.status === 'completed' && project.relatorioFinal;
-
-            return (
-              <>
-                {/* Status do relatório */}
-                {jaEnviado ? (
-                  <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 20, color: '#66BB6A' }}>✓</span>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#66BB6A' }}>Relatório enviado ao cliente</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-                        Por {project.relatorioFinal.enviadoPor} • {new Date(project.relatorioFinal.geradoEm).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
-                  </div>
-                ) : !todasConcluidas ? (
-                  <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 4 }}>Aguardando conclusão das tarefas</div>
-                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                      {allTasks.filter(t => t.status === 'concluido').length}/{allTasks.length} tarefas concluídas.
-                      O relatório só pode ser enviado quando todas estiverem concluídas.
-                    </div>
-                  </div>
-                ) : confirmRelatorio ? (
-                  <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.25)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A', marginBottom: 6 }}>Confirmar envio do relatório ao cliente?</div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>O projeto será marcado como concluído e o cliente receberá o relatório final.</div>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button onClick={handleEnviarRelatorio} disabled={enviandoRelatorio}
-                        style={{ padding: '8px 20px', background: '#66BB6A', border: 'none', borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                        {enviandoRelatorio ? 'Enviando...' : 'Confirmar'}
-                      </button>
-                      <button onClick={() => setConfirmRelatorio(false)}
-                        style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => setConfirmRelatorio(true)}
-                    style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #66BB6A, #43A047)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginBottom: 20 }}>
-                    Enviar Relatório Final ao Cliente
-                  </button>
-                )}
-
-                {/* Resumo das tarefas */}
-                <div className="ps-card">
-                  <div className="ps-card-title">Resumo das Tarefas ({allTasks.length})</div>
-                  {allTasks.length === 0 ? (
-                    <p style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma tarefa criada ainda.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {allTasks.map(t => (
-                        <div key={t.id} style={{ borderRadius: 8, border: '1px solid #e2e8f0', padding: '10px 14px', background: t.status === 'concluido' ? 'rgba(102,187,106,0.04)' : 'white' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{t.serviceName}</span>
-                              <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 8, background: t.fase === 'preparacao' ? 'rgba(123,175,212,0.15)' : 'rgba(0,229,196,0.1)', color: t.fase === 'preparacao' ? '#7BAFD4' : '#00E5C4' }}>
-                                {t.fase === 'preparacao' ? 'PREP' : 'EXEC'}
-                              </span>
-                            </div>
-                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 10, background: t.status === 'concluido' ? 'rgba(102,187,106,0.1)' : 'rgba(255,167,38,0.1)', color: t.status === 'concluido' ? '#66BB6A' : '#FFA726' }}>
-                              {t.status === 'concluido' ? '✓ Concluída' : 'Pendente'}
-                            </span>
-                          </div>
-                          {t.supplierName && <div style={{ fontSize: 11, color: '#667eea', marginTop: 4 }}>{t.supplierName}</div>}
-                          {t.observacaoFornecedor && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, background: '#f8faff', borderRadius: 6, padding: '4px 8px' }}>Obs: {t.observacaoFornecedor}</div>}
-                          {t.valor > 0 && <div style={{ fontSize: 12, fontWeight: 600, color: '#00E5C4', marginTop: 4 }}>R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            );
-          })()}
-
           {/* ── HISTÓRICO ── */}
           {activeTab === 'timeline' && (
             <div className="ps-card">
@@ -1968,6 +1851,52 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           </div>
         </div>
       )}
+      {/* ── CHAT FLUTUANTE ── */}
+      {(isFornecedor || userData?.systemRole === 'cliente') && project && (() => {
+        const tipo = isFornecedor ? 'fornecedor' : 'cliente';
+        const cor  = isFornecedor ? '#FFA726' : '#0080FF';
+        const chatId = isFornecedor
+          ? `${projectId}_${userData?.id}`
+          : `${projectId}_cliente`;
+        const titulo   = project.eventName || project.eventTypeName || 'Projeto';
+        const subtitulo = isFornecedor
+          ? `${project.numeroPedido || ''} • ${userData?.name || 'Fornecedor'}`
+          : `${project.numeroPedido || ''} • Cliente`;
+
+        const abrirChat = async () => {
+          // Garante que o documento do chat existe
+          await setDoc(doc(db, 'chats', chatId), {
+            budgetId:  projectId,
+            tipo,
+            titulo:    `${titulo}`,
+            subtitulo,
+            createdAt: serverTimestamp(),
+            naoLidas:  0,
+          }, { merge: true });
+          setChatAberto(true);
+        };
+
+        return (
+          <>
+            <button onClick={chatAberto ? () => setChatAberto(false) : abrirChat}
+              style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', border: 'none', background: cor, color: 'white', fontSize: 22, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 16px ${cor}55` }}>
+              💬
+            </button>
+            {chatAberto && (
+              <div style={{ position: 'fixed', bottom: 90, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: `1px solid ${cor}40`, borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <ChatPanel
+                  chatId={chatId}
+                  title={titulo}
+                  subtitle={subtitulo}
+                  accentColor={cor}
+                  userData={userData}
+                  onClose={() => setChatAberto(false)}
+                />
+              </div>
+            )}
+          </>
+        );
+      })()}
     </>
   );
 }
