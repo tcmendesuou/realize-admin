@@ -399,10 +399,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         }
       }
 
-      // Aplica impostos e fee
-      const valorImpostos = totalFornecedores * (pctImpostos / 100);
+      // Aplica fee e impostos
+      // Fee sobre a base de fornecedores
+      // Impostos sobre base + fee
       const valorFee      = totalFornecedores * (pctFee / 100);
-      const totalCliente  = totalFornecedores + valorImpostos + valorFee;
+      const valorImpostos = (totalFornecedores + valorFee) * (pctImpostos / 100);
+      const totalCliente  = totalFornecedores + valorFee + valorImpostos;
 
       await updateDoc(doc(db, 'budgets', projectId), {
         status:        'pendingApproval',
