@@ -53,6 +53,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
+  const [confirmEnvio, setConfirmEnvio] = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
