@@ -382,7 +382,6 @@ export default function ClienteHome({ userData, onLogout }) {
                   <span style={{ fontSize: 14, color: '#E8F4FF' }}>R$ {parseFloat(selectedEvent.financeiro?.valorFornecedores || selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
 
-                {/* Impostos e fee se existirem */}
                 {selectedEvent.financeiro?.valorImpostos > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
                     <span style={{ fontSize: 12, color: '#7BAFD4' }}>Impostos ({selectedEvent.financeiro.impostos}%)</span>
@@ -396,7 +395,6 @@ export default function ClienteHome({ userData, onLogout }) {
                   </div>
                 )}
 
-                {/* Total */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(0,128,255,0.2)' }}>
                   <span style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>Total</span>
                   <span style={{ fontSize: 22, fontWeight: 700, color: '#0080FF' }}>
@@ -404,21 +402,9 @@ export default function ClienteHome({ userData, onLogout }) {
                   </span>
                 </div>
 
-                {/* Forma de pagamento */}
-                {selectedEvent.financeiro?.formaPagamento && (
-                  <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(0,128,255,0.06)', borderRadius: 8 }}>
-                    <span style={{ fontSize: 11, color: '#7BAFD4' }}>Forma de pagamento: </span>
-                    <span style={{ fontSize: 11, color: '#E8F4FF', fontWeight: 600 }}>
-                      {{ '50_50': '50% + 50%', '30_60_90': '30 / 60 / 90 dias', '30_60_90_120': '30 / 60 / 90 / 120 dias' }[selectedEvent.financeiro.formaPagamento] || selectedEvent.financeiro.formaPagamento}
-                    </span>
-                  </div>
-                )}
-
-                {!selectedEvent.financeiro && (
-                  <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)', marginTop: 10, lineHeight: 1.5 }}>
-                    * Impostos e taxa de serviço serão adicionados na proposta final.
-                  </p>
-                )}
+                <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)', marginTop: 10, lineHeight: 1.5 }}>
+                  * Valores de referencia. Taxa de servico e impostos serao adicionados na proposta final.
+                </p>
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                   <button
@@ -478,14 +464,6 @@ export default function ClienteHome({ userData, onLogout }) {
                                 const svcData = svcSnap.docs[0].data();
                                 preAprovacao = !!svcData.preAprovacao;
                                 aprovacaoExecucao = !!svcData.aprovacaoExecucao;
-                              } else {
-                                // Tenta modelosEspeciais (estande modular etc)
-                                const modeloSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', sj.serviceName)));
-                                if (!modeloSnap.empty) {
-                                  const modeloData = modeloSnap.docs[0].data();
-                                  preAprovacao = !!modeloData.preAprovacao;
-                                  aprovacaoExecucao = !!modeloData.aprovacaoExecucao;
-                                }
                               }
                             } catch (e) { console.error('Erro ao buscar config serviço:', e); }
 
