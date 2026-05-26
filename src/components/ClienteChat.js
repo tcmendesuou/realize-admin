@@ -50,6 +50,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const [carrosselIdx, setCarrosselIdx] = useState({});
   const [catalogoSummary, setCatalogoSummary] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -146,7 +147,7 @@ export default function ClienteChat({ userData, onClose }) {
             const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
             return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
           });
-          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando apresentar estandes modulares, inclua o marcador [MOSTRAR_MODELOS] no final da mensagem.`);
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando apresentar estandes modulares, inclua o marcador [MOSTRAR_MODELOS] no final da mensagem.\n\nINSTRUCAO FORMA DE PAGAMENTO: Ao final do briefing, depois de coletar todas as informações do evento, obrigatoriamente pergunte ao cliente a forma de pagamento preferida. Use exatamente o marcador [ESCOLHER_PAGAMENTO] no final dessa mensagem. Não gere o JSON do briefing antes de o cliente escolher a forma de pagamento.`);
           setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
@@ -188,7 +189,8 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary;
+      const instrucaoPagamento = `\n\nINSTRUCAO FORMA DE PAGAMENTO: Ao final do briefing, depois de coletar todas as informações do evento e serviços, obrigatoriamente pergunte a forma de pagamento preferida. Use o marcador [ESCOLHER_PAGAMENTO] no final dessa mensagem. Não gere o JSON final do briefing antes de o cliente escolher a forma de pagamento.`;
+      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary + instrucaoPagamento;
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
@@ -211,7 +213,10 @@ export default function ClienteChat({ userData, onClose }) {
         .join('\n');
 
       // Remove o marcador do texto visível (aceita [] ou {})
-      const textoLimpo = assistantText.replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '').trim();
+      const textoLimpo = assistantText
+        .replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '')
+        .replace('[ESCOLHER_PAGAMENTO]', '').replace('{ESCOLHER_PAGAMENTO}', '')
+        .trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
@@ -235,6 +240,17 @@ export default function ClienteChat({ userData, onClose }) {
             id: Date.now() + 2,
           }]);
         }
+      }
+
+      // Se a IA usou o marcador de pagamento → injeta card com botões de opção
+      const temMarcadorPagamento = assistantText.includes('[ESCOLHER_PAGAMENTO]') || assistantText.includes('{ESCOLHER_PAGAMENTO}');
+      if (temMarcadorPagamento) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          type: 'pagamento',
+          id: Date.now() + 3,
+        }]);
       }
 
       const json = extractJson(assistantText);
@@ -323,7 +339,8 @@ export default function ClienteChat({ userData, onClose }) {
         workspaceStage: 'Propostas',
         isMae: true,
         numeroPedido,
-        briefingData: briefingJson,
+        briefingData: { ...briefingJson, formaPagamento: formaPagamento || '' },
+        financeiro: { formaPagamento: formaPagamento || '' },
         assignedTo,
         assignedToName,
         assignedAt: assignedTo ? serverTimestamp() : null,
@@ -782,6 +799,18 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
               </div>
             </Section>
           )}
+          {/* Forma de pagamento */}
+          {formaPagamento && (
+            <Section title="Forma de pagamento">
+              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '10px 14px', border: '1px solid rgba(0,180,255,0.08)' }}>
+                <div style={{ fontSize: 13, color: '#E8F4FF' }}>
+                  {formaPagamento === '50_50' && '50% na entrada + 50% no final do evento'}
+                  {formaPagamento === '30_60_90' && '30, 60 e 90 dias'}
+                  {formaPagamento === 'a_vista' && 'À vista'}
+                </div>
+              </div>
+            </Section>
+          )}
           <div style={{ background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.2)', borderRadius: 10, padding: '12px 16px', marginTop: 8 }}>
             <p style={{ fontSize: 12, color: 'rgba(0,229,196,0.8)', lineHeight: 1.6, margin: 0 }}>
               ℹ️ Este é um <strong>pré-orçamento estimado</strong>. Os valores finais serão confirmados pelos fornecedores.
@@ -888,6 +917,43 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
                 )}
+              </div>
+            ) : msg.type === 'pagamento' ? (
+              /* Botões de forma de pagamento */
+              <div style={{ flex: 1, maxWidth: '90%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { label: '50% na entrada + 50% no final do evento', valor: '50_50' },
+                    { label: '30, 60 e 90 dias', valor: '30_60_90' },
+                    { label: 'À vista', valor: 'a_vista' },
+                  ].map(op => {
+                    const selecionado = formaPagamento === op.valor;
+                    return (
+                      <button
+                        key={op.valor}
+                        onClick={() => {
+                          setFormaPagamento(op.valor);
+                          sendMessage(op.label);
+                        }}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: 10,
+                          border: `2px solid ${selecionado ? '#00E5C4' : 'rgba(0,180,255,0.2)'}`,
+                          background: selecionado ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.03)',
+                          color: selecionado ? '#00E5C4' : '#E8F4FF',
+                          fontSize: 13,
+                          fontWeight: selecionado ? 600 : 400,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          fontFamily: 'Outfit, sans-serif',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {selecionado ? '✓ ' : ''}{op.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
             <div className="bia-msg-bubble"
