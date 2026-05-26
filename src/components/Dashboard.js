@@ -1,193 +1,144 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import BudgetCard from './BudgetCard';
-import '../styles/Dashboard.css';
+
+function formatBRL(v) {
+  return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
 
 function Dashboard() {
-  const [budgets, setBudgets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterEventType, setFilterEventType] = useState('all');
-  const [stats, setStats] = useState({
-    total: 0,
-    analyzing: 0,
-    approved: 0,
-    rejected: 0,
-    paused: 0
-  });
+  const [budgets, setBudgets]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [filtro, setFiltro]     = useState('todos');
 
   useEffect(() => {
-    loadBudgets();
+    getDocs(query(collection(db, 'budgets'), orderBy('createdAt', 'desc')))
+      .then(snap => {
+        setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => !d.parentBudgetId));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const loadBudgets = async () => {
-    try {
-      const q = query(collection(db, 'budgets'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const budgetsData = querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(d => !d.parentBudgetId);
-      
-      setBudgets(budgetsData);
-      calculateStats(budgetsData);
-    } catch (error) {
-      console.error('Erro ao carregar orçamentos:', error);
-    } finally {
-      setLoading(false);
+  // Filtro por período
+  const filtrados = budgets.filter(b => {
+    if (filtro === 'todos') return true;
+    const d = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+    if (!d) return false;
+    const hoje = new Date();
+    if (filtro === 'mes') return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear();
+    if (filtro === 'trimestre') {
+      const diff = (hoje.getFullYear() - d.getFullYear()) * 12 + hoje.getMonth() - d.getMonth();
+      return diff <= 3;
     }
-  };
-
-  const calculateStats = (data) => {
-    const newStats = {
-      total: data.length,
-      analyzing: data.filter(b => b.status === 'analyzing').length,
-      approved: data.filter(b => b.status === 'approved').length,
-      rejected: data.filter(b => b.status === 'rejected').length,
-      paused: data.filter(b => b.status === 'paused').length
-    };
-    setStats(newStats);
-  };
-
-  const handleStatusChange = async (budgetId, newStatus) => {
-    try {
-      await updateDoc(doc(db, 'budgets', budgetId), {
-        status: newStatus,
-        updatedAt: new Date()
-      });
-      
-      // Atualizar localmente
-      const updatedBudgets = budgets.map(b => 
-        b.id === budgetId ? { ...b, status: newStatus } : b
-      );
-      setBudgets(updatedBudgets);
-      calculateStats(updatedBudgets);
-      
-      alert('Status atualizado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      alert('Erro ao atualizar status');
-    }
-  };
-
-  const translateStatus = (status) => {
-    const statuses = {
-      'analyzing': 'Em Análise',
-      'approved': 'Aprovado',
-      'rejected': 'Não Aprovado',
-      'paused': 'Parado'
-    };
-    return statuses[status] || status;
-  };
-
-  const getStatusClass = (status) => {
-    const classes = {
-      'analyzing': 'status-analyzing',
-      'approved': 'status-approved',
-      'rejected': 'status-rejected',
-      'paused': 'status-paused'
-    };
-    return classes[status] || '';
-  };
-
-  // Filtrar orçamentos
-  const filteredBudgets = budgets.filter(budget => {
-    if (filterStatus !== 'all' && budget.status !== filterStatus) return false;
-    if (filterEventType !== 'all' && budget.eventTypeId !== filterEventType) return false;
     return true;
   });
 
-  if (loading) {
-    return <div className="loading">Carregando dashboard...</div>;
-  }
+  // Stats de projetos
+  const stats = {
+    total:          filtrados.length,
+    analise:        filtrados.filter(b => b.status === 'analyzing').length,
+    aguardando:     filtrados.filter(b => b.status === 'pendingApproval').length,
+    aprovado:       filtrados.filter(b => b.status === 'approved').length,
+    acontecendo:    filtrados.filter(b => b.workspaceStage === 'Acontecendo').length,
+    concluido:      filtrados.filter(b => b.status === 'completed').length,
+    recusado:       filtrados.filter(b => b.status === 'rejected').length,
+  };
+
+  // Stats financeiros
+  const totalFaturamento  = filtrados.reduce((acc, b) => acc + (b.financeiro?.valorTotal || 0), 0);
+  const totalRecebido     = filtrados.reduce((acc, b) => acc + (b.financeiro?.parcelas || []).filter(p => p.pago).reduce((s, p) => s + p.valor, 0), 0);
+  const totalFornecedores = filtrados.reduce((acc, b) => acc + (b.financeiro?.valorFornecedores || 0), 0);
+  const totalFornPago     = filtrados.reduce((acc, b) => acc + (b.financeiro?.pagamentosFornecedores || []).filter(p => p.pago).reduce((s, p) => s + p.valor, 0), 0);
+  const totalMargem       = filtrados.reduce((acc, b) => acc + (b.financeiro?.valorFee || 0), 0);
+  const totalImpostos     = filtrados.reduce((acc, b) => acc + (b.financeiro?.valorImpostos || 0), 0);
+
+  const statsProjetos = [
+    { label: 'Total',         value: stats.total,       color: '#667eea', bg: 'rgba(102,126,234,0.1)' },
+    { label: 'Em Análise',    value: stats.analise,     color: '#7BAFD4', bg: 'rgba(123,175,212,0.1)' },
+    { label: 'Ag. Aprovação', value: stats.aguardando,  color: '#FFA726', bg: 'rgba(255,167,38,0.1)' },
+    { label: 'Aprovados',     value: stats.aprovado,    color: '#00E5C4', bg: 'rgba(0,229,196,0.1)' },
+    { label: 'Acontecendo',   value: stats.acontecendo, color: '#AB47BC', bg: 'rgba(171,71,188,0.1)' },
+    { label: 'Concluídos',    value: stats.concluido,   color: '#66BB6A', bg: 'rgba(102,187,106,0.1)' },
+    { label: 'Recusados',     value: stats.recusado,    color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  ];
+
+  const statsFinanceiros = [
+    { label: 'Faturamento total',    value: totalFaturamento,  color: '#667eea', bold: true },
+    { label: 'Recebido de clientes', value: totalRecebido,     color: '#66BB6A' },
+    { label: 'A receber',            value: totalFaturamento - totalRecebido, color: '#FFA726' },
+    { label: 'Custo fornecedores',   value: totalFornecedores, color: '#7BAFD4' },
+    { label: 'Pago a fornecedores',  value: totalFornPago,     color: '#94a3b8' },
+    { label: 'Margem (fee)',         value: totalMargem,       color: '#00E5C4' },
+    { label: 'Impostos gerados',     value: totalImpostos,     color: '#ef4444' },
+  ];
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, fontFamily: 'Outfit, sans-serif', color: '#94a3b8' }}>
+      Carregando...
+    </div>
+  );
 
   return (
-    <div className="dashboard-container" style={{ overflowY: "auto", height: "100%" }}>
-      {/* HEADER */}
-      <div className="dashboard-header">
+    <div style={{ fontFamily: 'Outfit, sans-serif', display: 'flex', flexDirection: 'column', gap: 24, padding: '4px 0' }}>
+
+      {/* Header com filtro */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1>Dashboard</h1>
-          <p className="dashboard-subtitle">Visão geral dos orçamentos e eventos</p>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Dashboard</h2>
+          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>{filtrados.length} projeto(s) no período</p>
         </div>
-      </div>
-
-      {/* ESTATÍSTICAS */}
-      <div className="stats-grid">
-        <div className="stat-card stat-total">
-          <div className="stat-number">{stats.total}</div>
-          <div className="stat-label">Total de Orçamentos</div>
-        </div>
-
-        <div className="stat-card stat-analyzing">
-          <div className="stat-number">{stats.analyzing}</div>
-          <div className="stat-label">Em Análise</div>
-        </div>
-
-        <div className="stat-card stat-approved">
-          <div className="stat-number">{stats.approved}</div>
-          <div className="stat-label">Aprovados</div>
-        </div>
-
-        <div className="stat-card stat-rejected">
-          <div className="stat-number">{stats.rejected}</div>
-          <div className="stat-label">Não Aprovados</div>
-        </div>
-
-        <div className="stat-card stat-paused">
-          <div className="stat-number">{stats.paused}</div>
-          <div className="stat-label">Parados</div>
-        </div>
-      </div>
-
-      {/* FILTROS */}
-      <div className="filters-section">
-        <div className="filter-group">
-          <label>Status:</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="all">Todos</option>
-            <option value="analyzing">Em Análise</option>
-            <option value="approved">Aprovado</option>
-            <option value="rejected">Não Aprovado</option>
-            <option value="paused">Parado</option>
-          </select>
-        </div>
-
-        <div className="filter-group">
-          <label>Tipo de Evento:</label>
-          <select value={filterEventType} onChange={(e) => setFilterEventType(e.target.value)}>
-            <option value="all">Todos</option>
-            <option value="casamento">Casamento</option>
-            <option value="corporativo">Corporativo</option>
-            <option value="aniversario">Aniversário</option>
-            <option value="formatura">Formatura</option>
-          </select>
-        </div>
-
-        <div className="filter-results">
-          {filteredBudgets.length} {filteredBudgets.length === 1 ? 'resultado' : 'resultados'}
-        </div>
-      </div>
-
-      {/* LISTA DE ORÇAMENTOS */}
-      {filteredBudgets.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-icon">📊</div>
-          <h3>Nenhum orçamento encontrado</h3>
-          <p>Os orçamentos enviados pelos clientes aparecerão aqui</p>
-        </div>
-      ) : (
-        <div className="budgets-list">
-          {filteredBudgets.map((budget) => (
-            <BudgetCard
-              key={budget.id}
-              budget={budget}
-              onStatusChange={handleStatusChange}
-              translateStatus={translateStatus}
-              getStatusClass={getStatusClass}
-            />
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['todos','Todos'], ['mes','Este mês'], ['trimestre','Trimestre']].map(([v, l]) => (
+            <button key={v} onClick={() => setFiltro(v)}
+              style={{ padding: '6px 14px', borderRadius: 20, border: `1px solid ${filtro === v ? '#667eea' : '#e2e8f0'}`, background: filtro === v ? '#667eea' : 'white', color: filtro === v ? 'white' : '#64748b', fontSize: 12, fontWeight: filtro === v ? 600 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              {l}
+            </button>
           ))}
         </div>
+      </div>
+
+      {/* Stats de projetos */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Projetos</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10 }}>
+          {statsProjetos.map(s => (
+            <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.color}30`, borderRadius: 12, padding: '16px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, lineHeight: 1.3 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats financeiros */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Financeiro</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          {statsFinanceiros.map(s => (
+            <div key={s.label} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 18px', borderLeft: `4px solid ${s.color}` }}>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: s.bold ? 20 : 17, fontWeight: 700, color: s.color }}>{formatBRL(s.value)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Barra de progresso financeiro */}
+      {totalFaturamento > 0 && (
+        <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Recebimento</div>
+          <div style={{ height: 10, background: '#f1f5f9', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.min(100, (totalRecebido / totalFaturamento) * 100)}%`, background: 'linear-gradient(90deg, #66BB6A, #00E5C4)', borderRadius: 6, transition: 'width 0.5s' }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+            <span>{formatBRL(totalRecebido)} recebido</span>
+            <span>{Math.round((totalRecebido / totalFaturamento) * 100)}% do total</span>
+            <span>{formatBRL(totalFaturamento - totalRecebido)} a receber</span>
+          </div>
+        </div>
       )}
+
     </div>
   );
 }
