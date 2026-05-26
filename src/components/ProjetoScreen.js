@@ -53,6 +53,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
+  const [confirmEnvio, setConfirmEnvio] = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
@@ -1349,6 +1350,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
                                 {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
                                 <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Duração</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dia(s)</div></div>
+                                {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) && (
+                                  <div style={{ background: 'rgba(255,167,38,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(255,167,38,0.2)', gridColumn: '1/-1' }}>
+                                    <div style={{ fontSize: 10, color: '#FFA726', textTransform: 'uppercase', marginBottom: 3, fontWeight: 700 }}>Forma de Pagamento</div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                                      {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) === '50_50' && '50% na entrada + 50% no final do evento'}
+                                      {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) === '30_60_90' && '30, 60 e 90 dias'}
+                                      {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) === 'a_vista' && 'À vista'}
+                                    </div>
+                                  </div>
+                                )}
                                 {sj.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observacao</div><div style={{ fontSize: 12, color: '#475569' }}>{sj.observacao}</div></div>}
                               </div>
 
