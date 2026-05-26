@@ -68,6 +68,26 @@ export default function ClienteHome({ userData, onLogout }) {
         updatedAt: serverTimestamp(),
       });
 
+      // Se aprovada e era task de EXECUÇÃO → verifica se todas concluíram para mudar para Acontecendo
+      if (aprovado && task.status === 'aguardando_aprovacao_execucao') {
+        try {
+          const allTasksSnap = await getDocs(
+            query(collection(db, 'tasks'), where('budgetId', '==', task.budgetId))
+          );
+          const allTasks = allTasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const tasksExec = allTasks.filter(t => t.fase === 'execucao');
+          const todasExecConcluidas = tasksExec.every(t =>
+            t.id === task.id ? true : t.status === 'concluido'
+          );
+          if (todasExecConcluidas) {
+            await updateDoc(doc(db, 'budgets', task.budgetId), {
+              workspaceStage: 'Acontecendo',
+              updatedAt:      serverTimestamp(),
+            });
+          }
+        } catch (e) { console.error('Erro ao verificar Acontecendo:', e); }
+      }
+
       // Se aprovada e era task de ENTREGA → verifica se todas concluíram para fechar o budget
       if (aprovado && task.status === 'aguardando_aprovacao_entrega') {
         try {
