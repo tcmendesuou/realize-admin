@@ -20,6 +20,7 @@ import EquipeHome from './components/EquipeHome';
 import FornecedorHome from './components/FornecedorHome';
 import ClienteHome from './components/ClienteHome';
 import ScriptManager from './components/ScriptManager';
+import FinanceiroManager from './components/FinanceiroManager';
 import './App.css';
 
 function ProjetoScreenWrapper({ user, userData, onLogout }) {
@@ -200,6 +201,10 @@ function App() {
             <button className={activeView === 'users' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('users')}>
               <span className="nav-text">Cadastros</span>
             </button>
+            <div className="nav-separator" />
+            <button className={activeView === 'financeiro' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('financeiro')}>
+              <span className="nav-text">Financeiro</span>
+            </button>
           </nav>
           <div className="sidebar-footer">
             <div className="user-info">
@@ -225,6 +230,7 @@ function App() {
                 {activeView === 'roles'     && 'Gestao de Acessos'}
                 {activeView === 'suppliers' && 'Fornecedores'}
                 {activeView === 'users'     && 'Cadastros'}
+                {activeView === 'financeiro' && 'Financeiro'}
               </h2>
             </div>
             <div className="header-right">
@@ -243,6 +249,7 @@ function App() {
             {activeView === 'roles'     && <RoleManagement />}
             {activeView === 'suppliers' && <SupplierManager />}
             {activeView === 'users'     && <UserManagement />}
+            {activeView === 'financeiro' && <FinanceiroManager />}
           </div>
         </main>
       </div>

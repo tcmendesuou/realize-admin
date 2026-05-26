@@ -356,16 +356,49 @@ export default function ClienteHome({ userData, onLogout }) {
                   </div>
                 ))}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(0,128,255,0.2)' }}>
+                {/* Subtotal serviços */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(0,128,255,0.1)' }}>
+                  <span style={{ fontSize: 13, color: '#7BAFD4' }}>Subtotal serviços</span>
+                  <span style={{ fontSize: 14, color: '#E8F4FF' }}>R$ {parseFloat(selectedEvent.financeiro?.valorFornecedores || selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                {/* Impostos e fee se existirem */}
+                {selectedEvent.financeiro?.valorImpostos > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
+                    <span style={{ fontSize: 12, color: '#7BAFD4' }}>Impostos ({selectedEvent.financeiro.impostos}%)</span>
+                    <span style={{ fontSize: 13, color: '#7BAFD4' }}>R$ {parseFloat(selectedEvent.financeiro.valorImpostos).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {selectedEvent.financeiro?.valorFee > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
+                    <span style={{ fontSize: 12, color: '#7BAFD4' }}>Taxa de serviço ({selectedEvent.financeiro.fee}%)</span>
+                    <span style={{ fontSize: 13, color: '#7BAFD4' }}>R$ {parseFloat(selectedEvent.financeiro.valorFee).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+
+                {/* Total */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(0,128,255,0.2)' }}>
                   <span style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>Total</span>
                   <span style={{ fontSize: 22, fontWeight: 700, color: '#0080FF' }}>
-                    R$ {parseFloat(selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {parseFloat(selectedEvent.financeiro?.valorTotal || selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 
-                <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)', marginTop: 10, lineHeight: 1.5 }}>
-                  * Valores de referencia. Taxa de servico e impostos serao adicionados na proposta final.
-                </p>
+                {/* Forma de pagamento */}
+                {selectedEvent.financeiro?.formaPagamento && (
+                  <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(0,128,255,0.06)', borderRadius: 8 }}>
+                    <span style={{ fontSize: 11, color: '#7BAFD4' }}>Forma de pagamento: </span>
+                    <span style={{ fontSize: 11, color: '#E8F4FF', fontWeight: 600 }}>
+                      {{ '50_50': '50% + 50%', '30_60_90': '30 / 60 / 90 dias', '30_60_90_120': '30 / 60 / 90 / 120 dias' }[selectedEvent.financeiro.formaPagamento] || selectedEvent.financeiro.formaPagamento}
+                    </span>
+                  </div>
+                )}
+
+                {!selectedEvent.financeiro && (
+                  <p style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)', marginTop: 10, lineHeight: 1.5 }}>
+                    * Impostos e taxa de serviço serão adicionados na proposta final.
+                  </p>
+                )}
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                   <button
