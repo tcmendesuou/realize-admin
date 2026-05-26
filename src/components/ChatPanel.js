@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export default function ChatPanel({ chatId, title, subtitle, accentColor, userData, onClose }) {
@@ -7,20 +7,43 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
+  const prevMsgCount = useRef(0);
 
   useEffect(() => {
     if (!chatId) return;
+
+    // Zera naoLidas quando abre o chat
+    updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
+
     const unsub = onSnapshot(
       query(collection(db, 'chats', chatId, 'msgs'), orderBy('createdAt', 'asc')),
       snap => {
         const ms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // Incrementa naoLidas para mensagens novas de outros usuários
+        const novasMsgs = snap.docChanges().filter(change => 
+          change.type === 'added' && 
+          change.doc.data().senderId !== userData?.id &&
+          !change.doc.data().read
+        );
+        if (novasMsgs.length > 0 && prevMsgCount.current > 0) {
+          // Só incrementa se o chat não está aberto (se está aberto, marca como lida)
+          novasMsgs.forEach(change => {
+            updateDoc(doc(db, 'chats', chatId, 'msgs', change.doc.id), { read: true }).catch(() => {});
+          });
+        }
+        prevMsgCount.current = ms.length;
+
         setMsgs(ms);
-        // Marca como lidas
+
+        // Marca todas não lidas como lidas
         snap.docs.forEach(d => {
           if (!d.data().read && d.data().senderId !== userData?.id) {
             updateDoc(doc(db, 'chats', chatId, 'msgs', d.id), { read: true }).catch(() => {});
           }
         });
+        // Zera contador
+        updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
       }
     );
     return () => unsub();
@@ -43,6 +66,11 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
         senderRole: userData?.systemRole || 'workspace',
         createdAt:  serverTimestamp(),
         read:       false,
+      });
+      // Incrementa naoLidas no documento do chat
+      await updateDoc(doc(db, 'chats', chatId), {
+        naoLidas:  increment(1),
+        ultimaMsg: text.slice(0, 60),
       });
     } catch (e) { console.error(e); }
     finally { setSending(false); }
