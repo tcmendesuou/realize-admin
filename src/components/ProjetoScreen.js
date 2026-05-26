@@ -276,9 +276,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       }
 
       if (task.fase === 'preparacao') {
-        setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
-        setAprovacaoArquivos([]);
-        setAprovacaoObs('');
+        if (svc.preAprovacao) {
+          setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
+          setAprovacaoArquivos([]);
+          setAprovacaoObs('');
+          return;
+        }
+        // Sem pré-aprovação — conclui e gera task de execução direto
+        await updateDoc(doc(db, 'tasks', task.id), {
+          status: 'concluido', concluidoAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        });
         return;
       }
 
