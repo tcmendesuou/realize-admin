@@ -263,13 +263,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Fluxo de aprovação de tasks
   const handleConcluirTask = async (task) => {
-    // Busca configuração de aprovações do serviço no catálogo
     try {
+      // Busca configuração de aprovações — tenta services e modelosEspeciais
+      let svc = {};
       const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', task.serviceName)));
-      const svc = svcSnap.docs[0]?.data() || {};
+      if (!svcSnap.empty) {
+        svc = svcSnap.docs[0].data();
+      } else {
+        // Tenta modelosEspeciais (serviços especiais como estande modular)
+        const modeloSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', task.serviceName)));
+        if (!modeloSnap.empty) svc = modeloSnap.docs[0].data();
+      }
 
       if (task.fase === 'preparacao') {
-        // Task de preparação → sempre exige pré-aprovação do cliente antes de gerar execução
         setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
         setAprovacaoArquivos([]);
         setAprovacaoObs('');
@@ -277,24 +283,29 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       }
 
       if (task.fase === 'execucao') {
-        // Task de execução → verifica aprovação de execução (no dia do evento)
         if (svc.aprovacaoExecucao) {
           setAprovacaoModal({ task, tipo: 'execucao', label: 'Aprovação de Execução', svc });
           setAprovacaoArquivos([]);
           setAprovacaoObs('');
           return;
         }
-        // Ou aprovação de entrega (encerramento do projeto)
-        if (svc.aprovacaoEntrega) {
-          setAprovacaoModal({ task, tipo: 'entrega', label: 'Aprovação de Entrega', svc });
-          setAprovacaoArquivos([]);
-          setAprovacaoObs('');
-          return;
-        }
       }
     } catch (e) { console.error(e); }
+
     // Sem aprovação configurada — conclui direto
-    await updateDoc(doc(db, 'tasks', task.id), { status: 'concluido', concluidoAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    await updateDoc(doc(db, 'tasks', task.id), {
+      status:      'concluido',
+      concluidoAt: serverTimestamp(),
+      updatedAt:   serverTimestamp(),
+    });
+
+    // Se task de execução concluída → muda stage para Acontecendo
+    if (task.fase === 'execucao') {
+      await updateDoc(doc(db, 'budgets', task.budgetId || projectId), {
+        workspaceStage: 'Acontecendo',
+        updatedAt:      serverTimestamp(),
+      });
+    }
   };
 
   const handleEnviarParaAprovacao = async () => {
