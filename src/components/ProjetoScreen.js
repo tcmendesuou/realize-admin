@@ -340,43 +340,79 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const handleGerarOrcamento = async () => {
     setGerandoOrcamento(true);
     try {
-      // Busca preços dos supplierServices confirmados
       const confirmed = supplierJobs.filter(j => j.status === 'confirmed');
-      let totalOrcamento = 0;
+      let totalFornecedores = 0;
       const itensOrcamento = [];
       const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
 
+      // Busca config de impostos e fee
+      const configSnap = await getDoc(doc(db, 'config', 'financeiro'));
+      const configFin = configSnap.exists() ? configSnap.data() : { impostos: 18, fee: 10 };
+      const pctImpostos = parseFloat(configFin.impostos) || 18;
+      const pctFee = parseFloat(configFin.fee) || 10;
+
       for (const sj of confirmed) {
-        for (const serviceName of (sj.serviceNames || [])) {
-          const svSnap = await getDocs(query(
-            collection(db, 'supplierServices'),
-            where('supplierId', '==', sj.supplierId),
-            where('serviceName', '==', serviceName)
-          ));
-          if (!svSnap.empty) {
-            const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
-            const preco = parseFloat(sv.preco || 0);
-            const subtotal = preco * diasEvento;
-            totalOrcamento += subtotal;
-            itensOrcamento.push({
-              supplierName: sj.confirmedBy || sj.supplierId,
-              serviceName,
-              preco,
-              diasEvento,
-              subtotal,
-              unidade: sv.unidade || 'por dia',
-            });
-          }
+        // Tenta buscar em supplierServices primeiro
+        let preco = 0;
+        let unidade = 'por dia';
+        let serviceName = sj.serviceName || (sj.serviceNames || [])[0] || '';
+
+        const svSnap = await getDocs(query(
+          collection(db, 'supplierServices'),
+          where('supplierId', '==', sj.supplierId),
+          where('serviceName', '==', serviceName)
+        ));
+
+        if (!svSnap.empty) {
+          // Serviço normal
+          const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
+          preco = parseFloat(sv.preco || 0);
+          unidade = sv.unidade || 'por dia';
+        } else if (sj.preco) {
+          // Serviço especial (estande modular) — usa preco do supplierJob
+          preco = parseFloat(sj.preco || 0);
+          unidade = sj.unidade || 'por evento';
+        }
+
+        if (preco > 0) {
+          const subtotal = unidade === 'por evento' ? preco : preco * diasEvento;
+          totalFornecedores += subtotal;
+          itensOrcamento.push({
+            supplierName: sj.supplierName || sj.confirmedBy || sj.supplierId,
+            serviceName,
+            preco,
+            diasEvento: unidade === 'por evento' ? 1 : diasEvento,
+            subtotal,
+            unidade,
+          });
         }
       }
 
+      // Aplica impostos e fee
+      const valorImpostos = totalFornecedores * (pctImpostos / 100);
+      const valorFee      = totalFornecedores * (pctFee / 100);
+      const totalCliente  = totalFornecedores + valorImpostos + valorFee;
+
       await updateDoc(doc(db, 'budgets', projectId), {
-        status: 'pendingApproval',
-        workspaceStage: 'Aguardando',
-        orcamentoFinal: { total: totalOrcamento, itens: itensOrcamento, geradoEm: new Date() },
+        status:        'pendingApproval',
+        workspaceStage:'Aguardando',
+        orcamentoFinal: {
+          total:           totalCliente,
+          totalFornecedores,
+          itens:           itensOrcamento,
+          geradoEm:        new Date(),
+        },
+        financeiro: {
+          valorFornecedores: totalFornecedores,
+          impostos:          pctImpostos,
+          fee:               pctFee,
+          valorImpostos,
+          valorFee,
+          valorTotal:        totalCliente,
+        },
         timeline: [...(project.timeline || []), {
-          action: 'orcamento_gerado',
-          description: `Orçamento final gerado — R$ ${totalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — enviado para aprovação do cliente`,
+          action:      'orcamento_gerado',
+          description: `Orçamento gerado — R$ ${totalCliente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (incl. ${pctImpostos}% impostos + ${pctFee}% fee)`,
           userId: userData?.id, userName: userData?.name, timestamp: new Date(),
         }],
         updatedAt: serverTimestamp(),
