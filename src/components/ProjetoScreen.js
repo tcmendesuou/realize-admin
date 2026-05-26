@@ -53,11 +53,47 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
+  const [confirmEnvio, setConfirmEnvio]       = useState(false);
+  const [enviandoRelatorio, setEnviandoRelatorio] = useState(false);
+  const [confirmRelatorio, setConfirmRelatorio]   = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
 
   const handleEnviarCotacao = async () => {
+    setEnviandoCotacao(true);
+    try {
+      const jobsSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId), where('status', '==', 'draft')));
+      const batch = writeBatch(db);
+      jobsSnap.docs.forEach(d => batch.update(d.ref, { status: 'pending', enviadoEm: serverTimestamp() }));
+      batch.update(doc(db, 'budgets', projectId), { cotacaoEnviadaEm: serverTimestamp(), updatedAt: serverTimestamp() });
+      await batch.commit();
+      setConfirmEnvio(false);
+    } catch (e) { console.error('Erro ao enviar cotação:', e); }
+    finally { setEnviandoCotacao(false); }
+  };
+
+  const handleEnviarRelatorio = async () => {
+    setEnviandoRelatorio(true);
+    try {
+      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('budgetId', '==', projectId)));
+      const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      await updateDoc(doc(db, 'budgets', projectId), {
+        status:         'completed',
+        workspaceStage: 'Concluido',
+        concluidoEm:    serverTimestamp(),
+        relatorioFinal: {
+          geradoEm:      new Date().toISOString(),
+          itens:         allTasks.map(t => ({ serviceName: t.serviceName || '', supplierName: t.supplierName || '', fase: t.fase || '', status: t.status || '', valor: t.valor || 0, observacaoFornecedor: t.observacaoFornecedor || '' })),
+          totalServicos: allTasks.length,
+          enviadoPor:    userData?.name || 'Coordenador',
+        },
+        updatedAt: serverTimestamp(),
+      });
+      setConfirmRelatorio(false);
+    } catch (e) { console.error('Erro ao enviar relatório:', e); }
+    finally { setEnviandoRelatorio(false); }
+  };
     setEnviandoCotacao(true);
     try {
       const jobsSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId), where('status', '==', 'draft')));
