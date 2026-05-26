@@ -53,7 +53,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
-  const [chatAberto, setChatAberto] = useState(false);
+  const [chatAberto, setChatAberto]     = useState(false);
+  const [coordChatId, setCoordChatId]   = useState(null);
+  const [coordChatInfo, setCoordChatInfo] = useState(null);
 
   const handleEnviarCotacao = async () => {
     setEnviandoCotacao(true);
@@ -1588,6 +1590,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
                                 <button onClick={() => handleTrocarFornecedor(sj)}
                                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Trocar</button>
+                                {isCoord && sj.supplierId && (
+                                  <button onClick={async () => {
+                                    const chatId = `${projectId}_${sj.supplierId}`;
+                                    await setDoc(doc(db, 'chats', chatId), {
+                                      budgetId:   projectId,
+                                      supplierId: sj.supplierId,
+                                      tipo:       'fornecedor',
+                                      titulo:     project.eventName || 'Projeto',
+                                      subtitulo:  `${project.numeroPedido || ''} • ${sj.supplierName || sj.serviceName}`,
+                                      createdAt:  serverTimestamp(),
+                                      naoLidas:   0,
+                                    }, { merge: true });
+                                    setCoordChatId(chatId);
+                                    setCoordChatInfo({ titulo: project.eventName, subtitulo: `${project.numeroPedido || ''} • ${sj.supplierName || sj.serviceName}` });
+                                  }} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>💬 Chat</button>
+                                )}
                               </>
                             )}
                           </div>
@@ -1851,7 +1869,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           </div>
         </div>
       )}
-      {/* ── CHAT FLUTUANTE ── */}
+      {/* ── CHAT COORDENADOR (abre via botão Chat nos fornecedores) ── */}
+      {isCoord && coordChatId && coordChatInfo && (
+        <div style={{ position: 'fixed', bottom: 28, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(255,167,38,0.3)', borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <ChatPanel
+            chatId={coordChatId}
+            title={coordChatInfo.titulo}
+            subtitle={coordChatInfo.subtitulo}
+            accentColor="#FFA726"
+            userData={userData}
+            onClose={() => { setCoordChatId(null); setCoordChatInfo(null); }}
+          />
+        </div>
+      )}
+
+      {/* ── CHAT FLUTUANTE (fornecedor/cliente) ── */}
       {(isFornecedor || userData?.systemRole === 'cliente') && project && (() => {
         const tipo = isFornecedor ? 'fornecedor' : 'cliente';
         const cor  = isFornecedor ? '#FFA726' : '#0080FF';

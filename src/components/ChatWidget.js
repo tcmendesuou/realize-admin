@@ -3,25 +3,26 @@ import { collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'f
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
 
-export default function ChatWidget({ userData, budgetIds }) {
+export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
   const [open, setOpen]           = useState(false);
   const [chats, setChats]         = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [activeChat, setActiveChat]   = useState(null);
   const [totalNaoLidas, setTotalNaoLidas] = useState(0);
 
-  // Carrega lista de chats dos projetos do coordenador
+  // Carrega lista de chats
   useEffect(() => {
     if (!budgetIds?.length) return;
-    const unsub = onSnapshot(
-      query(collection(db, 'chats'), where('budgetId', 'in', budgetIds.slice(0, 10))),
-      snap => {
-        const cs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setChats(cs);
-      }
-    );
+    // Fornecedor: busca chats pelo supplierId
+    const chatQuery = somenteVisualizar
+      ? query(collection(db, 'chats'), where('supplierId', '==', userData?.id))
+      : query(collection(db, 'chats'), where('budgetId', 'in', budgetIds.slice(0, 10)));
+    const unsub = onSnapshot(chatQuery, snap => {
+      const cs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setChats(cs);
+    });
     return () => unsub();
-  }, [budgetIds?.join(',')]);
+  }, [budgetIds?.join(','), somenteVisualizar, userData?.id]);
 
   // Conta mensagens não lidas
   useEffect(() => {
@@ -109,6 +110,11 @@ export default function ChatWidget({ userData, budgetIds }) {
       {/* Painel de conversa ativo */}
       {activeChatId && activeChat && (
         <div style={{ position: 'fixed', bottom: 28, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Botão voltar para lista */}
+          <button onClick={() => { setActiveChatId(null); setActiveChat(null); setOpen(true); }}
+            style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.08)', border: 'none', color: '#7BAFD4', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', zIndex: 2 }}>
+            ← Voltar
+          </button>
           <ChatPanel
             chatId={activeChatId}
             title={activeChat.titulo}
