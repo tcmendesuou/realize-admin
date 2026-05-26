@@ -332,7 +332,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           if (!svSnap.empty) {
             const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
             const preco = parseFloat(sv.preco || 0);
-            const subtotal = preco * diasEvento;
+            const unidade = sv.unidade || 'por dia';
+            const subtotal = unidade === 'por evento' ? preco : preco * diasEvento;
             totalOrcamento += subtotal;
             itensOrcamento.push({
               supplierName: sj.confirmedBy || sj.supplierId,
@@ -340,7 +341,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               preco,
               diasEvento,
               subtotal,
-              unidade: sv.unidade || 'por dia',
+              unidade,
+            });
+          } else if (sj.preco) {
+            // Fallback para serviços especiais (ex: estande modular) sem registro em supplierServices
+            const preco = parseFloat(sj.preco || 0);
+            const unidade = sj.unidade || 'por evento';
+            const subtotal = unidade === 'por evento' ? preco : preco * diasEvento;
+            totalOrcamento += subtotal;
+            itensOrcamento.push({
+              supplierName: sj.supplierName || sj.supplierId,
+              serviceName,
+              preco,
+              diasEvento,
+              subtotal,
+              unidade,
             });
           }
         }
