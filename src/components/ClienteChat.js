@@ -14,7 +14,6 @@ function extractJson(text) {
 
 // Carrossel de fotos para os cards de estande
 function ModeloCarrossel({ fotos, idx, onPrev, onNext, onDot }) {
-  console.log('ModeloCarrossel fotos:', fotos, 'idx:', idx);
   if (!fotos?.length) return <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>;
   return (
     <>
