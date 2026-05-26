@@ -53,9 +53,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
-  const [confirmEnvio, setConfirmEnvio]       = useState(false);
-  const [enviandoRelatorio, setEnviandoRelatorio] = useState(false);
-  const [confirmRelatorio, setConfirmRelatorio]   = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
@@ -71,55 +68,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setConfirmEnvio(false);
     } catch (e) { console.error('Erro ao enviar cotação:', e); }
     finally { setEnviandoCotacao(false); }
-  };
-
-  const handleEventoConcluido = async () => {
-    if (!window.confirm('Confirmar conclusão do evento? O relatório final será enviado ao cliente e o projeto será marcado como Concluído.')) return;
-    try {
-      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('budgetId', '==', projectId)));
-      const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      await updateDoc(doc(db, 'budgets', projectId), {
-        status:         'completed',
-        workspaceStage: 'Concluido',
-        concluidoEm:    serverTimestamp(),
-        relatorioFinal: {
-          geradoEm:      new Date().toISOString(),
-          itens:         allTasks.map(t => ({
-            serviceName:          t.serviceName || '',
-            supplierName:         t.supplierName || '',
-            fase:                 t.fase || '',
-            status:               t.status || '',
-            valor:                t.valor || 0,
-            observacaoFornecedor: t.observacaoFornecedor || '',
-          })),
-          totalServicos: allTasks.length,
-          enviadoPor:    userData?.name || 'Coordenador',
-        },
-        updatedAt: serverTimestamp(),
-      });
-    } catch (e) { console.error(e); alert('Erro ao concluir evento.'); }
-  };
-
-  const handleEnviarRelatorio = async () => {
-    setEnviandoRelatorio(true);
-    try {
-      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('budgetId', '==', projectId)));
-      const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      await updateDoc(doc(db, 'budgets', projectId), {
-        status:         'completed',
-        workspaceStage: 'Concluido',
-        concluidoEm:    serverTimestamp(),
-        relatorioFinal: {
-          geradoEm:      new Date().toISOString(),
-          itens:         allTasks.map(t => ({ serviceName: t.serviceName || '', supplierName: t.supplierName || '', fase: t.fase || '', status: t.status || '', valor: t.valor || 0, observacaoFornecedor: t.observacaoFornecedor || '' })),
-          totalServicos: allTasks.length,
-          enviadoPor:    userData?.name || 'Coordenador',
-        },
-        updatedAt: serverTimestamp(),
-      });
-      setConfirmRelatorio(false);
-    } catch (e) { console.error('Erro ao enviar relatório:', e); }
-    finally { setEnviandoRelatorio(false); }
   };
 
   useEffect(() => {
@@ -290,56 +238,38 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Fluxo de aprovação de tasks
   const handleConcluirTask = async (task) => {
+    // Busca configuração de aprovações do serviço no catálogo
     try {
-      // Busca configuração de aprovações — tenta services e modelosEspeciais
-      let svc = {};
       const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', task.serviceName)));
-      if (!svcSnap.empty) {
-        svc = svcSnap.docs[0].data();
-      } else {
-        // Tenta modelosEspeciais (serviços especiais como estande modular)
-        const modeloSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', task.serviceName)));
-        if (!modeloSnap.empty) svc = modeloSnap.docs[0].data();
-      }
+      const svc = svcSnap.docs[0]?.data() || {};
 
       if (task.fase === 'preparacao') {
-        if (svc.preAprovacao) {
-          setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
-          setAprovacaoArquivos([]);
-          setAprovacaoObs('');
-          return;
-        }
-        // Sem pré-aprovação — conclui e gera task de execução direto
-        await updateDoc(doc(db, 'tasks', task.id), {
-          status: 'concluido', concluidoAt: serverTimestamp(), updatedAt: serverTimestamp(),
-        });
+        // Task de preparação → sempre exige pré-aprovação do cliente antes de gerar execução
+        setAprovacaoModal({ task, tipo: 'pre', label: 'Pré-aprovação', svc });
+        setAprovacaoArquivos([]);
+        setAprovacaoObs('');
         return;
       }
 
       if (task.fase === 'execucao') {
+        // Task de execução → verifica aprovação de execução (no dia do evento)
         if (svc.aprovacaoExecucao) {
           setAprovacaoModal({ task, tipo: 'execucao', label: 'Aprovação de Execução', svc });
           setAprovacaoArquivos([]);
           setAprovacaoObs('');
           return;
         }
+        // Ou aprovação de entrega (encerramento do projeto)
+        if (svc.aprovacaoEntrega) {
+          setAprovacaoModal({ task, tipo: 'entrega', label: 'Aprovação de Entrega', svc });
+          setAprovacaoArquivos([]);
+          setAprovacaoObs('');
+          return;
+        }
       }
     } catch (e) { console.error(e); }
-
     // Sem aprovação configurada — conclui direto
-    await updateDoc(doc(db, 'tasks', task.id), {
-      status:      'concluido',
-      concluidoAt: serverTimestamp(),
-      updatedAt:   serverTimestamp(),
-    });
-
-    // Se task de execução concluída → muda stage para Acontecendo
-    if (task.fase === 'execucao') {
-      await updateDoc(doc(db, 'budgets', task.budgetId || projectId), {
-        workspaceStage: 'Acontecendo',
-        updatedAt:      serverTimestamp(),
-      });
-    }
+    await updateDoc(doc(db, 'tasks', task.id), { status: 'concluido', concluidoAt: serverTimestamp(), updatedAt: serverTimestamp() });
   };
 
   const handleEnviarParaAprovacao = async () => {
@@ -385,81 +315,43 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const handleGerarOrcamento = async () => {
     setGerandoOrcamento(true);
     try {
+      // Busca preços dos supplierServices confirmados
       const confirmed = supplierJobs.filter(j => j.status === 'confirmed');
-      let totalFornecedores = 0;
+      let totalOrcamento = 0;
       const itensOrcamento = [];
       const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
 
-      // Busca config de impostos e fee
-      const configSnap = await getDoc(doc(db, 'config', 'financeiro'));
-      const configFin = configSnap.exists() ? configSnap.data() : { impostos: 18, fee: 10 };
-      const pctImpostos = parseFloat(configFin.impostos) || 18;
-      const pctFee = parseFloat(configFin.fee) || 10;
-
       for (const sj of confirmed) {
-        // Tenta buscar em supplierServices primeiro
-        let preco = 0;
-        let unidade = 'por dia';
-        let serviceName = sj.serviceName || (sj.serviceNames || [])[0] || '';
-
-        const svSnap = await getDocs(query(
-          collection(db, 'supplierServices'),
-          where('supplierId', '==', sj.supplierId),
-          where('serviceName', '==', serviceName)
-        ));
-
-        if (!svSnap.empty) {
-          // Serviço normal
-          const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
-          preco = parseFloat(sv.preco || 0);
-          unidade = sv.unidade || 'por dia';
-        } else if (sj.preco) {
-          // Serviço especial (estande modular) — usa preco do supplierJob
-          preco = parseFloat(sj.preco || 0);
-          unidade = sj.unidade || 'por evento';
-        }
-
-        if (preco > 0) {
-          const subtotal = unidade === 'por evento' ? preco : preco * diasEvento;
-          totalFornecedores += subtotal;
-          itensOrcamento.push({
-            supplierName: sj.supplierName || sj.confirmedBy || sj.supplierId,
-            serviceName,
-            preco,
-            diasEvento: unidade === 'por evento' ? 1 : diasEvento,
-            subtotal,
-            unidade,
-          });
+        for (const serviceName of (sj.serviceNames || [])) {
+          const svSnap = await getDocs(query(
+            collection(db, 'supplierServices'),
+            where('supplierId', '==', sj.supplierId),
+            where('serviceName', '==', serviceName)
+          ));
+          if (!svSnap.empty) {
+            const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
+            const preco = parseFloat(sv.preco || 0);
+            const subtotal = preco * diasEvento;
+            totalOrcamento += subtotal;
+            itensOrcamento.push({
+              supplierName: sj.confirmedBy || sj.supplierId,
+              serviceName,
+              preco,
+              diasEvento,
+              subtotal,
+              unidade: sv.unidade || 'por dia',
+            });
+          }
         }
       }
 
-      // Aplica fee e impostos
-      // Fee sobre a base de fornecedores
-      // Impostos sobre base + fee
-      const valorFee      = totalFornecedores * (pctFee / 100);
-      const valorImpostos = (totalFornecedores + valorFee) * (pctImpostos / 100);
-      const totalCliente  = totalFornecedores + valorFee + valorImpostos;
-
       await updateDoc(doc(db, 'budgets', projectId), {
-        status:        'pendingApproval',
-        workspaceStage:'Aguardando',
-        orcamentoFinal: {
-          total:           totalCliente,
-          totalFornecedores,
-          itens:           itensOrcamento,
-          geradoEm:        new Date(),
-        },
-        financeiro: {
-          valorFornecedores: totalFornecedores,
-          impostos:          pctImpostos,
-          fee:               pctFee,
-          valorImpostos,
-          valorFee,
-          valorTotal:        totalCliente,
-        },
+        status: 'pendingApproval',
+        workspaceStage: 'Aguardando',
+        orcamentoFinal: { total: totalOrcamento, itens: itensOrcamento, geradoEm: new Date() },
         timeline: [...(project.timeline || []), {
-          action:      'orcamento_gerado',
-          description: `Orçamento gerado — R$ ${totalCliente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (incl. ${pctImpostos}% impostos + ${pctFee}% fee)`,
+          action: 'orcamento_gerado',
+          description: `Orçamento final gerado — R$ ${totalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — enviado para aprovação do cliente`,
           userId: userData?.id, userName: userData?.name, timestamp: new Date(),
         }],
         updatedAt: serverTimestamp(),
@@ -597,6 +489,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     { id: 'briefing',   label: 'Briefing' },
     { id: 'cronograma', label: `Cronograma${cronograma.length ? ` (${cronograma.length})` : ''}` },
     { id: 'tasks',      label: `Tarefas${tasks.length ? ` (${tasks.length})` : ''}` },
+    { id: 'relatorio',  label: 'Relatório' },
     { id: 'timeline',   label: 'Histórico' },
   ];
 
@@ -808,14 +701,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 );
                 return null;
               })()}
-
-              {/* Botão Evento Concluído — aparece quando projeto está Acontecendo */}
-              {isCoord && project.workspaceStage === 'Acontecendo' && project.status !== 'completed' && (
-                <button onClick={handleEventoConcluido}
-                  style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #66BB6A, #43A047)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginBottom: 20 }}>
-                  ✓ Evento Concluído — Enviar Relatório ao Cliente
-                </button>
-              )}
 
               {/* Cliente */}
               <div className="ps-card">
@@ -1923,6 +1808,82 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 );
               })}
             </div>
+            );
+          })()}
+
+          {/* ── RELATÓRIO (coordenador) ── */}
+          {activeTab === 'relatorio' && !isFornecedor && (() => {
+            const allTasks = projectTasks;
+            const todasConcluidas = allTasks.length > 0 && allTasks.every(t => t.status === 'concluido');
+            const jaEnviado = project.status === 'completed' && project.relatorioFinal;
+            return (
+              <>
+                {jaEnviado ? (
+                  <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 20, color: '#66BB6A' }}>✓</span>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#66BB6A' }}>Relatório enviado ao cliente</div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                        Por {project.relatorioFinal.enviadoPor} • {new Date(project.relatorioFinal.geradoEm).toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+                  </div>
+                ) : !todasConcluidas ? (
+                  <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 4 }}>Aguardando conclusão das tarefas</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                      {allTasks.filter(t => t.status === 'concluido').length}/{allTasks.length} tarefas concluídas.
+                    </div>
+                  </div>
+                ) : confirmRelatorio ? (
+                  <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.25)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A', marginBottom: 6 }}>Confirmar envio do relatório ao cliente?</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>O projeto será marcado como concluído.</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={handleEnviarRelatorio} disabled={enviandoRelatorio}
+                        style={{ padding: '8px 20px', background: '#66BB6A', border: 'none', borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {enviandoRelatorio ? 'Enviando...' : 'Confirmar'}
+                      </button>
+                      <button onClick={() => setConfirmRelatorio(false)}
+                        style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmRelatorio(true)}
+                    style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #66BB6A, #43A047)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginBottom: 20 }}>
+                    Enviar Relatório Final ao Cliente
+                  </button>
+                )}
+
+                {/* Resumo das tarefas */}
+                <div className="ps-card">
+                  <div className="ps-card-title">Resumo das Tarefas ({allTasks.length})</div>
+                  {allTasks.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma tarefa criada ainda.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {allTasks.map(t => (
+                        <div key={t.id} style={{ borderRadius: 8, border: '1px solid #e2e8f0', padding: '10px 14px', background: t.status === 'concluido' ? 'rgba(102,187,106,0.04)' : 'white' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{t.serviceName}</span>
+                              <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 8, background: t.fase === 'preparacao' ? 'rgba(123,175,212,0.15)' : 'rgba(0,229,196,0.1)', color: t.fase === 'preparacao' ? '#7BAFD4' : '#00E5C4' }}>
+                                {t.fase === 'preparacao' ? 'PREP' : 'EXEC'}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 10, background: t.status === 'concluido' ? 'rgba(102,187,106,0.1)' : 'rgba(255,167,38,0.1)', color: t.status === 'concluido' ? '#66BB6A' : '#FFA726' }}>
+                              {t.status === 'concluido' ? '✓ Concluída' : 'Pendente'}
+                            </span>
+                          </div>
+                          {t.supplierName && <div style={{ fontSize: 11, color: '#667eea', marginTop: 4 }}>{t.supplierName}</div>}
+                          {t.observacaoFornecedor && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, background: '#f8faff', borderRadius: 6, padding: '4px 8px' }}>Obs: {t.observacaoFornecedor}</div>}
+                          {t.valor > 0 && <div style={{ fontSize: 12, fontWeight: 600, color: '#00E5C4', marginTop: 4 }}>R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             );
           })()}
 
