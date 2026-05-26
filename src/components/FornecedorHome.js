@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, getDocs, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, getDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import FornecedorServicos from './FornecedorServicos';
 import ChatWidget from './ChatWidget';
@@ -20,6 +20,7 @@ export default function FornecedorHome({ userData, onLogout }) {
   const [onboardingDone, setOnboardingDone] = useState(false);
 
   const [myTasks, setMyTasks] = useState([]);
+  const [budgetsMap, setBudgetsMap] = useState({});
   const [calMes, setCalMes]   = useState(new Date().getMonth());
   const [calAno, setCalAno]   = useState(new Date().getFullYear());
 
@@ -55,9 +56,23 @@ export default function FornecedorHome({ userData, onLogout }) {
     if (!userId) return;
     const unsub = onSnapshot(
       query(collection(db, 'supplierJobs'), where('supplierId', '==', userId), where('status', '!=', 'draft')),
-      snap => {
-        setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      async snap => {
+        const jobsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setJobs(jobsList);
         setLoading(false);
+
+        // Busca formaPagamento dos budgets únicos
+        const budgetIds = [...new Set(jobsList.map(j => j.budgetId).filter(Boolean))];
+        const map = {};
+        await Promise.all(budgetIds.map(async bid => {
+          try {
+            const snap = await getDoc(doc(db, 'budgets', bid));
+            if (snap.exists()) {
+              map[bid] = snap.data()?.financeiro?.formaPagamento || '';
+            }
+          } catch (e) { /* silencioso */ }
+        }));
+        setBudgetsMap(map);
       }
     );
     return () => unsub();
@@ -265,7 +280,14 @@ export default function FornecedorHome({ userData, onLogout }) {
                                 ))}
                               </div>
                             )}
-                            {grupo.eventDate && <div className="fn-card-date">{grupo.eventDate}</div>}
+                            {stage.id === 'proposta' && budgetsMap[grupo.budgetId] && (
+                              <div style={{ marginTop: 6, fontSize: 10, color: '#FFA726', background: 'rgba(255,167,38,0.08)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
+                                {budgetsMap[grupo.budgetId] === '50_50' && 'Pagamento: 50% entrada + 50% final'}
+                                {budgetsMap[grupo.budgetId] === '30_60_90' && 'Pagamento: 30, 60 e 90 dias'}
+                                {budgetsMap[grupo.budgetId] === 'a_vista' && 'Pagamento: À vista'}
+                              </div>
+                            )}
+                            {grupo.eventDate && <div className="fn-card-date" style={{ marginTop: 6 }}>{grupo.eventDate}</div>}
                           </div>
                         ))}
                       </div>
