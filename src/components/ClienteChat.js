@@ -147,7 +147,7 @@ export default function ClienteChat({ userData, onClose }) {
             const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
             return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
           });
-          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando apresentar estandes modulares, inclua o marcador [MOSTRAR_MODELOS] no final da mensagem.`);
+          setCatalogoSummary(prev => prev + `\n\nESTANDES MODULARES DISPONÍVEIS (use APENAS estes quando o cliente pedir estande modular — NÃO invente outros):\n${linhasModelos.join('\n')}\n\nINSTRUCAO: Quando apresentar estandes modulares, inclua o marcador [MOSTRAR_MODELOS] no final da mensagem.\n\nINSTRUCAO FORMA DE PAGAMENTO: Ao final do briefing, depois de coletar todas as informações do evento, obrigatoriamente pergunte ao cliente a forma de pagamento preferida. Use exatamente o marcador [ESCOLHER_PAGAMENTO] no final dessa mensagem. Não gere o JSON do briefing antes de o cliente escolher a forma de pagamento.`);
           setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
