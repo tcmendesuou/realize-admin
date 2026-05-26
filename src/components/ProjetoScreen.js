@@ -94,17 +94,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     } catch (e) { console.error('Erro ao enviar relatório:', e); }
     finally { setEnviandoRelatorio(false); }
   };
-    setEnviandoCotacao(true);
-    try {
-      const jobsSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId), where('status', '==', 'draft')));
-      const batch = writeBatch(db);
-      jobsSnap.docs.forEach(d => batch.update(d.ref, { status: 'pending', enviadoEm: serverTimestamp() }));
-      batch.update(doc(db, 'budgets', projectId), { cotacaoEnviadaEm: serverTimestamp(), updatedAt: serverTimestamp() });
-      await batch.commit();
-      setConfirmEnvio(false);
-    } catch (e) { console.error('Erro ao enviar cotação:', e); }
-    finally { setEnviandoCotacao(false); }
-  };
 
   useEffect(() => {
     if (!projectId) return;
