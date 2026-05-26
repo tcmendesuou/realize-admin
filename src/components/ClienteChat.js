@@ -17,7 +17,10 @@ function ModeloCarrossel({ fotos, idx, onPrev, onNext, onDot }) {
   if (!fotos?.length) return <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>;
   return (
     <>
-      <img key={idx} src={fotos[idx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      <img key={idx} src={fotos[idx]} alt="" 
+        onError={e => console.error('Foto falhou:', fotos[idx], e)}
+        onLoad={() => console.log('Foto carregou:', idx, fotos[idx]?.slice(0,60))}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       {fotos.length > 1 && (
         <>
           <button onClick={e => { e.stopPropagation(); onPrev(); }}
