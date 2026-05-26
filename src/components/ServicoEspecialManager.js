@@ -69,7 +69,9 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
           const path = `servicos-especiais/${tipoEspecialId}/${Date.now()}_${fp.file.name}`;
           const storageRef = ref(storage, path);
           await uploadBytes(storageRef, fp.file);
-          const url = await getDownloadURL(storageRef);
+          // Usa URL pública sem token (não expira) já que o Storage é público
+          const encodedPath = path.split('/').map(p => encodeURIComponent(p)).join('%2F');
+          const url = `https://firebasestorage.googleapis.com/v0/b/realize-324a1.firebasestorage.app/o/${encodedPath}?alt=media`;
           fotosFinais.push({ url, path });
         } else if (fp.url && !fp.isNew) {
           fotosFinais.push({ url: fp.url, path: fp.path || null });

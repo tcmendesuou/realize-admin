@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
-import { getStorage, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 
 function extractJson(text) {
@@ -15,31 +14,10 @@ function extractJson(text) {
 
 // Carrossel de fotos para os cards de estande
 function ModeloCarrossel({ fotos, idx, onPrev, onNext, onDot }) {
-  const [freshUrls, setFreshUrls] = React.useState({});
-
-  // Pré-carrega URLs frescas para todas as fotos ao montar
-  React.useEffect(() => {
-    if (!fotos?.length) return;
-    fotos.forEach(async (url, i) => {
-      try {
-        const storage = getStorage();
-        const pathMatch = url.match(/\/o\/(.+?)\?/);
-        if (pathMatch) {
-          const path = decodeURIComponent(pathMatch[1]);
-          const fresh = await getDownloadURL(storageRef(storage, path));
-          setFreshUrls(prev => ({ ...prev, [i]: fresh }));
-        }
-      } catch (e) { /* usa URL original */ }
-    });
-  }, [fotos]);
-
   if (!fotos?.length) return <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>;
-
-  const src = freshUrls[idx] || fotos[idx];
-
   return (
     <>
-      <img key={`${idx}-${src}`} src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      <img key={idx} src={fotos[idx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       {fotos.length > 1 && (
         <>
           <button onClick={e => { e.stopPropagation(); onPrev(); }}
