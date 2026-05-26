@@ -478,6 +478,14 @@ export default function ClienteHome({ userData, onLogout }) {
                                 const svcData = svcSnap.docs[0].data();
                                 preAprovacao = !!svcData.preAprovacao;
                                 aprovacaoExecucao = !!svcData.aprovacaoExecucao;
+                              } else {
+                                // Tenta modelosEspeciais (estande modular etc)
+                                const modeloSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', sj.serviceName)));
+                                if (!modeloSnap.empty) {
+                                  const modeloData = modeloSnap.docs[0].data();
+                                  preAprovacao = !!modeloData.preAprovacao;
+                                  aprovacaoExecucao = !!modeloData.aprovacaoExecucao;
+                                }
                               }
                             } catch (e) { console.error('Erro ao buscar config serviço:', e); }
 
