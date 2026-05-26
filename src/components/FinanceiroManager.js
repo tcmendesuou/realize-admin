@@ -9,10 +9,10 @@ const FORMAS_PAGAMENTO = [
 ];
 
 function calcFinanceiro(valorFornecedores, impostos, fee) {
-  const base    = parseFloat(valorFornecedores) || 0;
-  const impVal  = base * (parseFloat(impostos) / 100);
-  const feeVal  = base * (parseFloat(fee) / 100);
-  return { base, impVal, feeVal, total: base + impVal + feeVal };
+  const base   = parseFloat(valorFornecedores) || 0;
+  const feeVal = base * (parseFloat(fee) / 100);
+  const impVal = (base + feeVal) * (parseFloat(impostos) / 100);
+  return { base, impVal, feeVal, total: base + feeVal + impVal };
 }
 
 function formatBRL(v) {
@@ -93,6 +93,8 @@ export default function FinanceiroManager() {
     setSaving(true);
     try {
       const { base, impVal, feeVal, total } = calcFinanceiro(finForm.valorFornecedores, finForm.impostos, finForm.fee);
+      const valorFee      = feeVal;
+      const valorImpostos = impVal;
       const forma = FORMAS_PAGAMENTO.find(f => f.id === finForm.formaPagamento);
       const dataBase = selected.startDate ? new Date(selected.startDate) : new Date();
       const parcelas = forma ? forma.parcelas.map((p, i) => {
