@@ -73,6 +73,33 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     finally { setEnviandoCotacao(false); }
   };
 
+  const handleEventoConcluido = async () => {
+    if (!window.confirm('Confirmar conclusão do evento? O relatório final será enviado ao cliente e o projeto será marcado como Concluído.')) return;
+    try {
+      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('budgetId', '==', projectId)));
+      const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      await updateDoc(doc(db, 'budgets', projectId), {
+        status:         'completed',
+        workspaceStage: 'Concluido',
+        concluidoEm:    serverTimestamp(),
+        relatorioFinal: {
+          geradoEm:      new Date().toISOString(),
+          itens:         allTasks.map(t => ({
+            serviceName:          t.serviceName || '',
+            supplierName:         t.supplierName || '',
+            fase:                 t.fase || '',
+            status:               t.status || '',
+            valor:                t.valor || 0,
+            observacaoFornecedor: t.observacaoFornecedor || '',
+          })),
+          totalServicos: allTasks.length,
+          enviadoPor:    userData?.name || 'Coordenador',
+        },
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) { console.error(e); alert('Erro ao concluir evento.'); }
+  };
+
   const handleEnviarRelatorio = async () => {
     setEnviandoRelatorio(true);
     try {
@@ -781,6 +808,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 );
                 return null;
               })()}
+
+              {/* Botão Evento Concluído — aparece quando projeto está Acontecendo */}
+              {isCoord && project.workspaceStage === 'Acontecendo' && project.status !== 'completed' && (
+                <button onClick={handleEventoConcluido}
+                  style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #66BB6A, #43A047)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', marginBottom: 20 }}>
+                  ✓ Evento Concluído — Enviar Relatório ao Cliente
+                </button>
+              )}
 
               {/* Cliente */}
               <div className="ps-card">

@@ -8,6 +8,7 @@ const STAGES = [
   { id: 'aguardando',  label: 'Aguardando',  color: '#FFA726' },
   { id: 'acontecendo', label: 'Acontecendo', color: '#00E5C4' },
   { id: 'concluido',   label: 'Concluido',   color: '#66BB6A' },
+  { id: 'finalizado',  label: 'Finalizado',  color: '#AB47BC' },
 ];
 
 export default function EquipeHome({ userData, onLogout }) {
