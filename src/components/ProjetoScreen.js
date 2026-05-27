@@ -242,7 +242,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     // Busca configuração de aprovações do serviço no catálogo
     try {
       const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', task.serviceName)));
-      const svc = svcSnap.docs[0]?.data() || {};
+      let svc = svcSnap.docs[0]?.data() || {};
+
+      // Se não achou em services, busca em modelosEspeciais pelo nome
+      if (!svcSnap.docs.length) {
+        const meSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', task.serviceName)));
+        if (meSnap.docs.length) {
+          svc = meSnap.docs[0].data();
+        }
+      }
 
       if (task.fase === 'preparacao') {
         // Task de preparação → sempre exige pré-aprovação do cliente antes de gerar execução
