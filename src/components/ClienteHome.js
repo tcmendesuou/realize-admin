@@ -379,26 +379,26 @@ export default function ClienteHome({ userData, onLogout }) {
                 {/* Subtotal serviços */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(0,128,255,0.1)' }}>
                   <span style={{ fontSize: 13, color: '#7BAFD4' }}>Subtotal serviços</span>
-                  <span style={{ fontSize: 14, color: '#E8F4FF' }}>R$ {parseFloat(selectedEvent.financeiro?.valorFornecedores || selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span style={{ fontSize: 14, color: '#E8F4FF' }}>R$ {parseFloat(selectedEvent.orcamentoFinal.subtotalFornecedores || selectedEvent.financeiro?.valorFornecedores || selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
 
-                {selectedEvent.financeiro?.valorImpostos > 0 && (
+                {(selectedEvent.orcamentoFinal.valorFee > 0 || selectedEvent.financeiro?.valorFee > 0) && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
-                    <span style={{ fontSize: 12, color: '#7BAFD4' }}>Impostos ({selectedEvent.financeiro.impostos}%)</span>
-                    <span style={{ fontSize: 13, color: '#7BAFD4' }}>R$ {parseFloat(selectedEvent.financeiro.valorImpostos).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span style={{ fontSize: 12, color: '#7BAFD4' }}>Taxa de serviço ({selectedEvent.orcamentoFinal.pctFee || selectedEvent.financeiro?.fee || 0}%)</span>
+                    <span style={{ fontSize: 13, color: '#7BAFD4' }}>R$ {parseFloat(selectedEvent.orcamentoFinal.valorFee || selectedEvent.financeiro?.valorFee || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                {selectedEvent.financeiro?.valorFee > 0 && (
+                {(selectedEvent.orcamentoFinal.valorImpostos > 0 || selectedEvent.financeiro?.valorImpostos > 0) && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
-                    <span style={{ fontSize: 12, color: '#7BAFD4' }}>Taxa de serviço ({selectedEvent.financeiro.fee}%)</span>
-                    <span style={{ fontSize: 13, color: '#7BAFD4' }}>R$ {parseFloat(selectedEvent.financeiro.valorFee).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span style={{ fontSize: 12, color: '#7BAFD4' }}>Impostos ({selectedEvent.orcamentoFinal.pctImpostos || selectedEvent.financeiro?.impostos || 0}%)</span>
+                    <span style={{ fontSize: 13, color: '#7BAFD4' }}>R$ {parseFloat(selectedEvent.orcamentoFinal.valorImpostos || selectedEvent.financeiro?.valorImpostos || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(0,128,255,0.2)' }}>
                   <span style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>Total</span>
                   <span style={{ fontSize: 22, fontWeight: 700, color: '#0080FF' }}>
-                    R$ {parseFloat(selectedEvent.financeiro?.valorTotal || selectedEvent.orcamentoFinal.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {parseFloat(selectedEvent.orcamentoFinal.total || selectedEvent.financeiro?.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 

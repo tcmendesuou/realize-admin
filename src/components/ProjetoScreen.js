@@ -361,13 +361,31 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         }
       }
 
+      // Busca config global de fee e impostos
+      const configSnap = await getDoc(doc(db, 'config', 'financeiro'));
+      const configFin = configSnap.exists() ? configSnap.data() : { fee: 10, impostos: 18 };
+      const pctFee = parseFloat(configFin.fee || 10) / 100;
+      const pctImpostos = parseFloat(configFin.impostos || 18) / 100;
+      const valorFee = totalOrcamento * pctFee;
+      const valorImpostos = (totalOrcamento + valorFee) * pctImpostos;
+      const totalCliente = totalOrcamento + valorFee + valorImpostos;
+
       await updateDoc(doc(db, 'budgets', projectId), {
         status: 'pendingApproval',
         workspaceStage: 'Aguardando',
-        orcamentoFinal: { total: totalOrcamento, itens: itensOrcamento, geradoEm: new Date() },
+        orcamentoFinal: {
+          subtotalFornecedores: totalOrcamento,
+          valorFee,
+          valorImpostos,
+          total: totalCliente,
+          pctFee: configFin.fee,
+          pctImpostos: configFin.impostos,
+          itens: itensOrcamento,
+          geradoEm: new Date(),
+        },
         timeline: [...(project.timeline || []), {
           action: 'orcamento_gerado',
-          description: `Orçamento final gerado — R$ ${totalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — enviado para aprovação do cliente`,
+          description: `Orçamento final gerado — R$ ${totalCliente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — enviado para aprovação do cliente`,
           userId: userData?.id, userName: userData?.name, timestamp: new Date(),
         }],
         updatedAt: serverTimestamp(),
