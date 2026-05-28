@@ -68,7 +68,11 @@ export default function FornecedorHome({ userData, onLogout }) {
           try {
             const snap = await getDoc(doc(db, 'budgets', bid));
             if (snap.exists()) {
-              map[bid] = snap.data()?.financeiro?.formaPagamento || '';
+              const bdata = snap.data();
+              map[bid] = {
+                formaPagamento: bdata?.financeiro?.formaPagamento || '',
+                workspaceStage: bdata?.workspaceStage || 'Propostas',
+              };
             }
           } catch (e) { /* silencioso */ }
         }));
@@ -88,7 +92,7 @@ export default function FornecedorHome({ userData, onLogout }) {
         clientName: job.clientName,
         eventDate: job.eventDate,
         numeroPedido: job.numeroPedido || '',
-        stage: job.stage || 'proposta',
+        stage: job.stage || 'proposta', // será sobrescrito abaixo pelo workspaceStage
         status: job.status,
         serviceNames: [],
         jobs: [],
@@ -100,7 +104,11 @@ export default function FornecedorHome({ userData, onLogout }) {
     if (job.status === 'confirmed') acc[bid].status = 'confirmed';
     return acc;
   }, {});
-  const jobsAgrupadosList = Object.values(jobsAgrupados);
+  const stageMap = { Propostas: 'proposta', Aguardando: 'aguardando', Acontecendo: 'acontecendo', Concluido: 'concluido', Finalizado: 'concluido' };
+  const jobsAgrupadosList = Object.values(jobsAgrupados).map(grupo => ({
+    ...grupo,
+    stage: stageMap[budgetsMap[grupo.budgetId]?.workspaceStage] || grupo.stage,
+  }));
   const jobsByStage = (stageId) => jobsAgrupadosList.filter(j => (j.stage || 'proposta') === stageId);
 
   // ── loading inicial ───────────────────────────────────────────────────────
@@ -280,11 +288,11 @@ export default function FornecedorHome({ userData, onLogout }) {
                                 ))}
                               </div>
                             )}
-                            {stage.id === 'proposta' && budgetsMap[grupo.budgetId] && (
+                            {stage.id === 'proposta' && budgetsMap[grupo.budgetId]?.formaPagamento && (
                               <div style={{ marginTop: 6, fontSize: 10, color: '#FFA726', background: 'rgba(255,167,38,0.08)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
-                                {budgetsMap[grupo.budgetId] === '50_50' && 'Pagamento: 50% entrada + 50% final'}
-                                {budgetsMap[grupo.budgetId] === '30_60_90' && 'Pagamento: 30, 60 e 90 dias'}
-                                {budgetsMap[grupo.budgetId] === 'a_vista' && 'Pagamento: À vista'}
+                                {budgetsMap[grupo.budgetId].formaPagamento === '50_50' && 'Pagamento: 50% entrada + 50% final'}
+                                {budgetsMap[grupo.budgetId].formaPagamento === '30_60_90' && 'Pagamento: 30, 60 e 90 dias'}
+                                {budgetsMap[grupo.budgetId].formaPagamento === 'a_vista' && 'Pagamento: À vista'}
                               </div>
                             )}
                             {grupo.eventDate && <div className="fn-card-date" style={{ marginTop: 6 }}>{grupo.eventDate}</div>}
