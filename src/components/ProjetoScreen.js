@@ -57,6 +57,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [confirmRelatorio, setConfirmRelatorio] = useState(false);
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
+  const [chatNaoLidas, setChatNaoLidas] = useState(0);
+  const isFornecedor = userData?.systemRole === 'fornecedor';
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
 
@@ -359,6 +361,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplierJobs]);
 
+  // Escuta naoLidas do chat flutuante (fornecedor e cliente)
+  useEffect(() => {
+    if (!projectId || (!isFornecedor && userData?.systemRole !== 'cliente')) return;
+    const chatId = isFornecedor
+      ? `${projectId}_${userData?.id}`
+      : `${projectId}_cliente`;
+    const unsub = onSnapshot(doc(db, 'chats', chatId), snap => {
+      if (snap.exists()) setChatNaoLidas(snap.data().naoLidas || 0);
+    });
+    return () => unsub();
+  }, [projectId, isFornecedor, userData?.id]);
+
   const handleGerarOrcamento = async () => {
     setGerandoOrcamento(true);
     try {
@@ -558,7 +572,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const servicos = project.briefingData?.servicosNecessarios || [];
   const statusInfo = STATUS_MAP[project.status] || STATUS_MAP.analyzing;
 
-  const isFornecedor = userData?.systemRole === 'fornecedor';
+
   const isCoord      = userData?.systemRole === 'workspace';
   const cronograma   = project.cronograma?.etapas || [];
   const tabs = isFornecedor ? [
@@ -1690,6 +1704,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                       tipo:       'fornecedor',
                                       titulo:     project.eventName || 'Projeto',
                                       subtitulo:  `${project.numeroPedido || ''} • ${sj.supplierName || sj.serviceName}`,
+                                      empresa:    sj.companyName || sj.supplierName || '',
                                       createdAt:  serverTimestamp(),
                                       naoLidas:   0,
                                     }, { merge: true });
@@ -2069,6 +2084,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             tipo,
             titulo:    `${titulo}`,
             subtitulo,
+            empresa:   isFornecedor
+              ? (userData?.companyName || userData?.name || '')
+              : (client?.companyName || project.clientCompanyName || ''),
             createdAt: serverTimestamp(),
             naoLidas:  0,
           }, { merge: true });
@@ -2078,8 +2096,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         return (
           <>
             <button onClick={chatAberto ? () => setChatAberto(false) : abrirChat}
-              style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', border: 'none', background: cor, color: 'white', fontSize: 22, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 16px ${cor}55` }}>
+              style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', border: 'none', background: cor, color: 'white', fontSize: 22, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 16px ${cor}55`, position: 'fixed' }}>
               💬
+              {!chatAberto && chatNaoLidas > 0 && (
+                <span style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', background: '#66BB6A', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: '2px solid #0D1B2A' }}>
+                  {chatNaoLidas > 9 ? '9+' : chatNaoLidas}
+                </span>
+              )}
             </button>
             {chatAberto && (
               <div style={{ position: 'fixed', bottom: 90, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: `1px solid ${cor}40`, borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
