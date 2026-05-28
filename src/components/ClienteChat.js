@@ -512,16 +512,23 @@ export default function ClienteChat({ userData, onClose }) {
           .map(s => `${s.serviceName}:preparo=${s.diasPreparo||0}d,montagem=${s.diasMontagem||0}d`)
           .join(';');
 
+        const hoje = new Date().toISOString().split('T')[0];
         const cronogramaPrompt = `Monte cronograma de produção para evento corporativo. Responda APENAS JSON compacto sem espaços desnecessários.
 
 Evento:${briefingJson.evento?.nome||briefingJson.evento?.tipo},data:${dataEvento},dias:${briefingJson.evento?.diasDuracao||1},cidade:${briefingJson.evento?.cidade||''}
 Serviços:${(briefingJson.servicosNecessarios||[]).join(',')}
 Tempos:${servicosResumidos||'padrão'}
+Hoje:${hoje}
 
-Regras:máximo 10 etapas,ordem lógica,campos curtos,sem texto longo em descricao(max 60 chars)
+Regras:
+- máximo 10 etapas, ordem lógica, campos curtos, descrição max 60 chars
+- calcule datas de trás para frente a partir da data do evento
+- NUNCA coloque datas anteriores a hoje (${hoje})
+- se alguma etapa precisaria ter começado antes de hoje, coloque dataInicio e dataEntrega iguais a hoje e adicione o campo "atrasado":true
+- se o prazo total for inviável (menos de 5 dias úteis para o evento), adicione "prazoInviavel":true no JSON raiz
 
-JSON:{"etapas":[{"id":"e1","n":"nome curto","d":"desc curta","r":"coordenador","di":"YYYY-MM-DD","de":"YYYY-MM-DD","da":30,"s":"pendente","t":"administrativo"}]}
-Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(diasAntes),s(status),t(tipo)`;
+JSON:{"prazoInviavel":false,"etapas":[{"id":"e1","n":"nome curto","d":"desc curta","r":"coordenador","di":"YYYY-MM-DD","de":"YYYY-MM-DD","da":30,"s":"pendente","t":"administrativo","atrasado":false}]}
+Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(diasAntes),s(status),t(tipo),atrasado`;
 
         const cronRes = await fetch('/api/chat', {
           method: 'POST',
@@ -559,8 +566,21 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
             status:       e.s  || e.status || 'pendente',
             tipo:         e.t  || e.tipo || 'administrativo',
           }));
-          await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: { etapas: etapasNormalizadas } });
+          await updateDoc(doc(db, 'budgets', budgetRef.id), {
+            cronograma: {
+              etapas: etapasNormalizadas,
+              prazoInviavel: cronJson.prazoInviavel || false,
+            }
+          });
           console.log('Cronograma gerado:', etapasNormalizadas.length, 'etapas');
+
+          // Se prazo inviável, adiciona mensagem de aviso no chat
+          if (cronJson.prazoInviavel) {
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: '⚠️ **Atenção:** O prazo para este evento é muito curto. Algumas etapas de produção não poderão ser concluídas a tempo. Recomendo verificar com o coordenador quais itens ainda são viáveis de contratar.',
+            }]);
+          }
         }
       } catch (e) { console.error('Erro ao gerar cronograma:', e); }
 
