@@ -54,6 +54,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
   const [confirmEnvio, setConfirmEnvio] = useState(false);
+  const [confirmRelatorio, setConfirmRelatorio] = useState(false);
+  const [enviandoRelatorio, setEnviandoRelatorio] = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
@@ -69,6 +71,42 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       setConfirmEnvio(false);
     } catch (e) { console.error('Erro ao enviar cotação:', e); }
     finally { setEnviandoCotacao(false); }
+  };
+
+  const handleEnviarRelatorio = async () => {
+    setEnviandoRelatorio(true);
+    try {
+      const itens = projectTasks.map(t => ({
+        serviceName: t.serviceName,
+        supplierName: t.supplierName || '',
+        fase: t.fase,
+        status: t.status,
+        observacaoFornecedor: t.observacaoFornecedor || '',
+        valor: t.valor || 0,
+      }));
+      const totalServicos = itens.reduce((acc, t) => acc + (t.valor || 0), 0);
+      await updateDoc(doc(db, 'budgets', projectId), {
+        status: 'completed',
+        workspaceStage: 'Concluido',
+        concluidoEm: serverTimestamp(),
+        relatorioFinal: {
+          geradoEm: new Date().toISOString(),
+          itens,
+          totalServicos,
+          enviadoPor: userData?.name || 'Coordenador',
+        },
+        timeline: [...(project.timeline || []), {
+          action: 'relatorio_enviado',
+          description: `Relatório final enviado ao cliente por ${userData?.name}`,
+          userId: userData?.id,
+          userName: userData?.name,
+          timestamp: new Date(),
+        }],
+        updatedAt: serverTimestamp(),
+      });
+      setConfirmRelatorio(false);
+    } catch (e) { console.error(e); alert('Erro ao enviar relatório.'); }
+    finally { setEnviandoRelatorio(false); }
   };
 
   useEffect(() => {
