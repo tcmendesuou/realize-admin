@@ -81,6 +81,26 @@ export default function FornecedorHome({ userData, onLogout }) {
     );
     return () => unsub();
   }, [userId]);
+  
+   // ── escuta mudanças nos budgets em tempo real ─────────────────────────────
+  useEffect(() => {
+    if (!jobs.length) return;
+    const budgetIds = [...new Set(jobs.map(j => j.budgetId).filter(Boolean))];
+    const unsubs = budgetIds.map(bid =>
+      onSnapshot(doc(db, 'budgets', bid), snap => {
+        if (!snap.exists()) return;
+        const bdata = snap.data();
+        setBudgetsMap(prev => ({
+          ...prev,
+          [bid]: {
+            formaPagamento: bdata?.financeiro?.formaPagamento || '',
+            workspaceStage: bdata?.workspaceStage || 'Propostas',
+          },
+        }));
+      })
+    );
+    return () => unsubs.forEach(u => u());
+  }, [jobs]);
 
   // Agrupa jobs por budgetId — 1 card por evento
   const jobsAgrupados = jobs.reduce((acc, job) => {
