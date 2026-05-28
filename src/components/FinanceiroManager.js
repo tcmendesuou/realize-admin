@@ -83,8 +83,8 @@ export default function FinanceiroManager() {
   };
 
   const somarFornecedores = (b) => {
-    // Usa orcamentoFinal se existir
-    if (b.orcamentoFinal?.total) return b.orcamentoFinal.total;
+    // Usa subtotal dos fornecedores (sem fee e impostos)
+    if (b.orcamentoFinal?.subtotalFornecedores) return b.orcamentoFinal.subtotalFornecedores;
     return 0;
   };
 
