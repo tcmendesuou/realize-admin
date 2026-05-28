@@ -1038,12 +1038,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               if (sj.supplierName) fornecedorNome[sj.serviceName] = sj.supplierName;
             });
 
-            // Gera marcadores de datas (a cada 7 dias)
+            // Gera marcadores de datas — diário se range < 14 dias, senão a cada 3 dias
             const marcadores = [];
             const cur = new Date(minDate);
+            const intervalo = totalDias <= 14 ? 1 : totalDias <= 30 ? 3 : 7;
             while (cur <= maxDate) {
               marcadores.push(new Date(cur));
-              cur.setDate(cur.getDate() + 7);
+              cur.setDate(cur.getDate() + intervalo);
             }
 
             const ROW_H = 44;
@@ -1158,7 +1159,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 </div>
                               ) : (
                                 // Barra simples (sem segmentos, concluída ou atrasada)
-                                <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: atrasado ? `${COR_ATRASADO}cc` : concluido ? `${COR_CONCLUIDO}88` : `${COR_EXECUCAO}cc`, border: `1px solid ${atrasado ? COR_ATRASADO : concluido ? COR_CONCLUIDO : COR_EXECUCAO}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
+                                <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: atrasado ? `${COR_ATRASADO}cc` : concluido ? `${COR_CONCLUIDO}88` : `${cor}cc`, border: `1px solid ${atrasado ? COR_ATRASADO : concluido ? COR_CONCLUIDO : cor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
                                   title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)}`}>
                                   {width > 8 && <span style={{ fontSize: 9, color: 'white', fontWeight: 600, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtShort(etapa.dataEntrega||etapa.de)}</span>}
                                 </div>
