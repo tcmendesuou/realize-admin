@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, getDocs, addDoc, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ClienteChat from './ClienteChat';
+import ClienteProjetoScreen from './ClienteProjetoScreen';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em analise',           color: '#FFA726', bg: 'rgba(255,167,38,0.1)' },
@@ -166,6 +167,17 @@ export default function ClienteHome({ userData, onLogout }) {
     finally { setAprovandoTask(false); }
   };
 
+  // Abre página do projeto ao clicar no card
+  if (selectedEvent) {
+    return (
+      <ClienteProjetoScreen
+        budget={selectedEvent}
+        userData={userData}
+        onBack={() => setSelectedEvent(null)}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#0D1B2A', display: 'flex', fontFamily: 'Outfit, sans-serif' }}>
       <style>{`
@@ -297,11 +309,9 @@ export default function ClienteHome({ userData, onLogout }) {
         )}
       </main>
 
-      {/* Modal de detalhe do evento */}
-      {selectedEvent && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={e => e.target === e.currentTarget && setSelectedEvent(null)}>
-          <div style={{ background: '#0D1B2A', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 20, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', padding: 32 }}>
+      {/* Modal removido — selectedEvent agora abre ClienteProjetoScreen */}
+      {false && (
+        <div>
 
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
@@ -533,62 +543,6 @@ export default function ClienteHome({ userData, onLogout }) {
               </div>
             )}
 
-            {selectedEvent.status !== 'pendingApproval' && (
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)' }}>
-                  {selectedEvent.status === 'approved' ? '✓ Orcamento aprovado! Em producao.' : 'Aguardando processamento...'}
-                </p>
-              </div>
-            )}
-
-            {/* Tasks pendentes de aprovação */}
-            {tasksPendentesAprov.filter(t => t.budgetId === selectedEvent.id).map(task => {
-              const TIPO_LABEL = {
-                aguardando_pre_aprovacao:       { label: 'Pré-aprovação — Aprovar preparação para liberar execução', cor: '#7BAFD4' },
-                aguardando_aprovacao_execucao:  { label: 'Aprovação de Execução — Entrega no dia do evento',        cor: '#667eea' },
-                aguardando_aprovacao_entrega:   { label: 'Aprovação de Entrega — Encerramento do projeto',          cor: '#10b981' },
-              };
-              const tipoInfo = TIPO_LABEL[task.status] || { label: 'Aprovação', cor: '#FFA726' };
-              return (
-                <div key={task.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${tipoInfo.cor}33`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: tipoInfo.cor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{tipoInfo.label}</div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>{task.nome || task.serviceName}</div>
-                      {task.supplierName && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{task.supplierName}</div>}
-                    </div>
-                    <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, background: `${tipoInfo.cor}22`, color: tipoInfo.cor, fontWeight: 600, flexShrink: 0 }}>Aguardando sua aprovação</span>
-                  </div>
-                  {task.aprovacaoObs && (
-                    <div style={{ fontSize: 12, color: '#7BAFD4', background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-                      {task.aprovacaoObs}
-                    </div>
-                  )}
-                  {task.aprovacaoArquivos?.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                      {task.aprovacaoArquivos.map((f, i) => (
-                        <a key={i} href={f.url} target="_blank" rel="noreferrer"
-                          style={{ fontSize: 12, color: '#00E5C4', textDecoration: 'none', background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', padding: '5px 12px', borderRadius: 8 }}>
-                          📎 {f.nome}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleAprovarTask(task, false)} disabled={aprovandoTask}
-                      style={{ flex: 1, padding: '9px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                      Solicitar Ajuste
-                    </button>
-                    <button onClick={() => handleAprovarTask(task, true)} disabled={aprovandoTask}
-                      style={{ flex: 2, padding: '9px', borderRadius: 8, border: 'none', background: aprovandoTask ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg,${tipoInfo.cor},#0080FF)`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                      {aprovandoTask ? 'Processando...' : '✓ Aprovar'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       )}
 
       {/* Modal do Chat com a Bia */}
