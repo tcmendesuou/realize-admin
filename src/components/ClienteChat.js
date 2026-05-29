@@ -189,10 +189,9 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const instrucaoPagamento = `\n\nINSTRUCAO FORMA DE PAGAMENTO: Ao final do briefing, depois de coletar todas as informações do evento e serviços, obrigatoriamente pergunte a forma de pagamento preferida. Use o marcador [ESCOLHER_PAGAMENTO] no final dessa mensagem. Não gere o JSON final do briefing antes de o cliente escolher a forma de pagamento.`;
-      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary + instrucaoPagamento;
-      // Limita o system prompt a 12000 caracteres para evitar erro 400
-      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
+      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas.\n\n` + systemScript;
+      // Prompt enxuto — catálogo e preços não são mais injetados na IA
+      const systemPrompt = basePrompt.length > 8000 ? basePrompt.slice(0, 8000) + '\n\n[script truncado]' : basePrompt;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -340,6 +339,7 @@ export default function ClienteChat({ userData, onClose }) {
         isMae: true,
         numeroPedido,
         briefingData: { ...briefingJson, formaPagamento: formaPagamento || '' },
+        itensEmAnalise: briefingJson.itensEmAnalise || [],
         financeiro: { formaPagamento: formaPagamento || '' },
         assignedTo,
         assignedToName,
@@ -347,6 +347,23 @@ export default function ClienteChat({ userData, onClose }) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      // ── cria tarefas para itens em análise ──
+      try {
+        const itensAnalise = briefingJson.itensEmAnalise || [];
+        await Promise.all(itensAnalise.map(item => addDoc(collection(db, 'tasks'), {
+          budgetId:    budgetRef.id,
+          tipo:        'analise',
+          nome:        `⚠️ Item em análise: ${item}`,
+          descricao:   `Cliente solicitou "${item}" — item não disponível na rede de fornecedores. Buscar solução antes da aprovação do orçamento.`,
+          status:      'pendente',
+          prioridade:  'alta',
+          fase:        'analise',
+          assignedTo,
+          createdAt:   serverTimestamp(),
+        })));
+      } catch (e) { console.error('Erro ao criar tarefas de análise:', e); }
+
 
       // ── cria supplierJobs ──
       try {
