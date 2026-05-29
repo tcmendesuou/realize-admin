@@ -62,6 +62,9 @@ export default function ClienteChat({ userData, onClose }) {
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const [carrosselIdx, setCarrosselIdx] = useState({});
   const [catalogoSummary, setCatalogoSummary] = useState('');
+  const [opcoesServico, setOpcoesServico]   = useState([]); // opções do [MOSTRAR_OPCOES:X]
+  const [opcoesTitulo, setOpcoesTitulo]     = useState(''); // nome do serviço sendo exibido
+  const [opcaoSelecionada, setOpcaoSelecionada] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -227,6 +230,7 @@ export default function ClienteChat({ userData, onClose }) {
       const textoLimpo = assistantText
         .replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '')
         .replace('[ESCOLHER_PAGAMENTO]', '').replace('{ESCOLHER_PAGAMENTO}', '')
+        .replace(/\[MOSTRAR_OPCOES:[^\]]*\]/g, '').replace(/\{MOSTRAR_OPCOES:[^\}]*\}/g, '')
         .trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
@@ -251,6 +255,44 @@ export default function ClienteChat({ userData, onClose }) {
             id: Date.now() + 2,
           }]);
         }
+      }
+
+      // Detecta [MOSTRAR_OPCOES:Nome do Serviço]
+      const matchOpcoes = assistantText.match(/\[MOSTRAR_OPCOES:([^\]]+)\]/) || assistantText.match(/\{MOSTRAR_OPCOES:([^\}]+)\}/);
+      if (matchOpcoes) {
+        const nomeServico = matchOpcoes[1].trim();
+        setOpcoesTitulo(nomeServico);
+        setOpcaoSelecionada(null);
+        try {
+          const svSnap = await getDocs(collection(db, 'supplierServices'));
+          const todos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+          const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const nomeNorm = normalize(nomeServico);
+          // Busca serviços que batem com o nome
+          const servicos = todos.filter(s =>
+            normalize(s.serviceName).includes(nomeNorm) ||
+            nomeNorm.includes(normalize(s.serviceName)) ||
+            normalize(s.serviceParentName).includes(nomeNorm) ||
+            nomeNorm.includes(normalize(s.serviceParentName))
+          );
+          // Busca opções de cada serviço
+          const comOpcoes = await Promise.all(servicos.map(async s => {
+            try {
+              const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+              return opSnap.docs.map(d => ({ id: d.id, serviceName: s.serviceName, ...d.data() }));
+            } catch { return []; }
+          }));
+          const todasOpcoes = comOpcoes.flat();
+          if (todasOpcoes.length > 0) {
+            setOpcoesServico(todasOpcoes);
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: '',
+              type: 'opcoes_servico',
+              id: Date.now() + 4,
+            }]);
+          }
+        } catch (e) { console.error('Erro ao carregar opções:', e); }
       }
 
       // Se a IA usou o marcador de pagamento → injeta card com botões de opção
@@ -967,6 +1009,30 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   </button>
                 )}
               </div>
+
+              ) : msg.type === 'opcoes_servico' ? (
+              <div style={{ flex: 1, maxWidth: '90%' }}>
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Opções disponíveis para {opcoesTitulo}:</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {opcoesServico.map(op => (
+                    <div key={op.id} onClick={() => setOpcaoSelecionada(op)}
+                      style={{ padding: '12px 14px', borderRadius: 10, border: `2px solid ${opcaoSelecionada?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcaoSelecionada?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 2 }}>{op.nome}</div>
+                      {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4 }}>{op.caracteristica}</div>}
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        {op.valor && <span style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade || ''}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {opcaoSelecionada && (
+                  <button onClick={() => { sendMessage(`Quero a opção ${opcaoSelecionada.nome}${opcaoSelecionada.caracteristica ? ' (' + opcaoSelecionada.caracteristica + ')' : ''}`); setOpcaoSelecionada(null); }}
+                    style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Confirmar: {opcaoSelecionada.nome} →
+                  </button>
+                )}
+              </div>
+              
             ) : msg.type === 'pagamento' ? (
               /* Botões de forma de pagamento */
               <div style={{ flex: 1, maxWidth: '90%' }}>
