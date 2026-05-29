@@ -565,7 +565,7 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 8000,
-            system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks. O JSON deve ser parseável por JSON.parse().',
+            system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks, sem explicações, sem comentários. NUNCA escreva texto antes ou depois do JSON. Mesmo que o prazo seja inviável, responda APENAS o JSON com "prazoInviavel":true. O JSON deve começar com { e ser parseável por JSON.parse().',
             messages: [{ role: 'user', content: cronogramaPrompt }],
           }),
         });
