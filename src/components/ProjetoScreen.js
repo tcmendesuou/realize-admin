@@ -1175,66 +1175,25 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   </div>
                 </div>
 
-                {/* Lista detalhada abaixo do Gantt — checklist automático */}
+                {/* Lista detalhada abaixo do Gantt */}
                 <div style={{ padding: '0 24px 20px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', margin: '16px 0 10px' }}>Detalhes</div>
                   {etapasOrdenadas.map((etapa, i) => {
                     const cor = TIPO_COR[etapa.tipo] || '#7BAFD4';
                     const di  = toDate(etapa.dataInicio || etapa.di);
                     const de  = toDate(etapa.dataEntrega || etapa.de);
-                    const sj  = supplierJobs.find(j =>
-                      etapa.responsavel?.toLowerCase().includes((j.serviceName||'').toLowerCase()) ||
-                      (j.serviceName||'').toLowerCase().includes((etapa.nome||'').toLowerCase())
-                    );
-
-                    // ── Status calculado automaticamente ──
-                    const nomeNorm = (etapa.nome || '').toLowerCase();
-                    let statusCalc = 'pendente';
-
-                    // Briefing/Contrato → concluído quando orçamento aprovado
-                    if (nomeNorm.includes('briefing') || nomeNorm.includes('contrato')) {
-                      if (project.status === 'approved' || project.status === 'inProgress' || project.status === 'completed') statusCalc = 'concluido';
-                    }
-                    // Execução do evento → concluído quando projeto concluído
-                    else if (nomeNorm.includes('execução') || nomeNorm.includes('execucao')) {
-                      if (project.status === 'completed') statusCalc = 'concluido';
-                    }
-                    // Etapas de preparo/montagem → cruza com tasks concluídas
-                    else {
-                      const taskRelacionada = projectTasks.find(t =>
-                        (t.serviceName || '').toLowerCase().includes(nomeNorm.replace('preparo ', '').replace('montagem ', '').replace('produção ', '').trim()) ||
-                        nomeNorm.includes((t.serviceName || '').toLowerCase())
-                      );
-                      if (taskRelacionada?.status === 'concluido') statusCalc = 'concluido';
-                      else if (taskRelacionada?.status === 'aguardando_pre_aprovacao' || taskRelacionada?.status === 'aguardando_aprovacao_execucao') statusCalc = 'aguardando';
-                      else if (taskRelacionada?.status === 'ajuste') statusCalc = 'ajuste';
-                    }
-
-                    // Fallback: usa status salvo se já concluído
-                    if (etapa.status === 'concluido') statusCalc = 'concluido';
-
-                    const concluido = statusCalc === 'concluido';
-                    const aguardando = statusCalc === 'aguardando';
-                    const ajuste = statusCalc === 'ajuste';
-                    const atrasado = de && de < hoje && !concluido;
-
-                    const checkBg = concluido ? '#10b981' : atrasado ? '#ef4444' : aguardando ? '#FFA726' : ajuste ? '#667eea' : '#e2e8f0';
-                    const checkColor = concluido || atrasado || aguardando || ajuste ? 'white' : '#94a3b8';
-
+                    const atrasado = de && de < hoje && etapa.status !== 'concluido';
+                    const sj  = supplierJobs.find(j => etapa.responsavel?.toLowerCase().includes((j.serviceName||'').toLowerCase()));
                     return (
-                      <div key={etapa.id || i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid #f8faff', alignItems: 'flex-start', opacity: concluido ? 0.7 : 1 }}>
-                        {/* Checkbox visual */}
-                        <div style={{ width: 20, height: 20, borderRadius: 6, background: checkBg, flexShrink: 0, marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: checkColor, fontWeight: 700, transition: 'all 0.2s' }}>
-                          {concluido ? '✓' : atrasado ? '!' : aguardando ? '…' : ajuste ? '↩' : ''}
-                        </div>
+                      <div key={etapa.id || i} style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid #f8faff', alignItems: 'flex-start' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: atrasado ? '#ef4444' : cor, flexShrink: 0, marginTop: 5 }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: concluido ? '#94a3b8' : '#1e293b', textDecoration: concluido ? 'line-through' : 'none' }}>{etapa.nome}</span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{etapa.nome}</span>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                               {atrasado && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>⚠ Atrasado</span>}
-                              {aguardando && <span style={{ fontSize: 10, color: '#FFA726', fontWeight: 700 }}>Aguardando aprovação</span>}
-                              {ajuste && <span style={{ fontSize: 10, color: '#667eea', fontWeight: 700 }}>Ajuste solicitado</span>}
                               {etapa.dataInicio && <span style={{ fontSize: 11, color: '#64748b' }}>{fmtShort(etapa.dataInicio||etapa.di)} → {fmtShort(etapa.dataEntrega||etapa.de)}</span>}
+                              {etapa.diasAntes > 0 && <span style={{ fontSize: 10, color: '#94a3b8' }}>{etapa.diasAntes}d antes</span>}
                             </div>
                           </div>
                           {etapa.descricao && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{etapa.descricao}</div>}
