@@ -380,7 +380,7 @@ export default function ClienteChat({ userData, onClose }) {
       // ── cria supplierJobs ──
       try {
         const servicosNecessarios = briefingJson.servicosNecessarios || [];
-        console.log('servicosNecessarios:', servicosNecessarios);
+      
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
         const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
