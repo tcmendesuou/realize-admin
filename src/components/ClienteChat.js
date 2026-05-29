@@ -2,6 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
+// Converte DD-MM-AAAA ou DD/MM/AAAA para YYYY-MM-DD
+function toISODate(str) {
+  if (!str) return '';
+  const s = str.trim();
+  // já está em YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD-MM-AAAA ou DD/MM/AAAA
+  const m = s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return s;
+}
+
 function extractJson(text) {
   const match = text.match(/```json\s*([\s\S]*?)```/);
   if (match) {
@@ -330,8 +342,8 @@ export default function ClienteChat({ userData, onClose }) {
         clientName: userName,
         eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
         eventTypeName: briefingJson.evento?.tipo || '',
-        startDate: briefingJson.evento?.dataInicio || '',
-        endDate: briefingJson.evento?.dataFim || '',
+        startDate: toISODate(briefingJson.evento?.dataInicio || ''),
+        endDate: toISODate(briefingJson.evento?.dataFim || ''),
         location: briefingJson.evento?.local || briefingJson.evento?.cidade || '',
         guestCount: briefingJson.evento?.visitantesPorDia || 0,
         status: 'analyzing',
@@ -435,8 +447,8 @@ export default function ClienteChat({ userData, onClose }) {
             eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
             eventTypeName: briefingJson.evento?.tipo || '',
             clientName: userName,
-            eventDate: briefingJson.evento?.dataInicio || '',
-            eventDateFim: briefingJson.evento?.dataFim || '',
+            eventDate: toISODate(briefingJson.evento?.dataInicio || ''),
+            eventDateFim: toISODate(briefingJson.evento?.dataFim || ''),
             eventLocal: briefingJson.evento?.local || briefingJson.evento?.cidade || '',
             eventCidade: briefingJson.evento?.cidade || '',
             eventHorarioInicio: briefingJson.evento?.horarioInicio || '',
@@ -523,7 +535,7 @@ export default function ClienteChat({ userData, onClose }) {
           .map(s => `${s.serviceName}: ${s.diasPreparo} dias de preparo`)
           .join('\n');
 
-        const dataEvento = briefingJson.evento?.dataInicio || '';
+        const dataEvento = toISODate(briefingJson.evento?.dataInicio || '');
         const servicosResumidos = svAll
           .filter(s => s.diasPreparo > 0 || s.diasMontagem > 0)
           .map(s => `${s.serviceName}:preparo=${s.diasPreparo||0}d,montagem=${s.diasMontagem||0}d`)
