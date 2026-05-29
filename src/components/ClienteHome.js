@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, getDocs, addDoc, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import ClienteChat from './ClienteChat';
+import ClienteChat from './ClienteChatV2';
 import ClienteProjetoScreen from './ClienteProjetoScreen';
 
 const STATUS_CONFIG = {
