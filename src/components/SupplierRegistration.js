@@ -6,21 +6,33 @@ const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG
 
 export default function SupplierRegistration() {
   const [services, setServices] = useState([]);
-  const [step, setStep] = useState(1); // 1: form, 2: sucesso
+  const [cargos, setCargos] = useState([]);
+  const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     companyName: '', tradeName: '', cnpj: '', email: '', phone: '',
     city: '', state: '', website: '',
     selectedServices: [],
     description: '',
-    contactName: '', contactRole: '',
+    contactName: '', contactRole: '', roleId: '', roleName: '',
+    password: '', confirmPassword: '',
   });
 
-  useEffect(() => { loadServices(); }, []);
+  useEffect(() => { loadServices(); loadCargos(); }, []);
 
   const loadServices = async () => {
     const snap = await getDocs(query(collection(db, 'services'), orderBy('name')));
     setServices(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.active !== false));
+  };
+
+  const loadCargos = async () => {
+    try {
+      const typesSnap = await getDocs(query(collection(db, 'userTypes'), where('systemRole', '==', 'fornecedor')));
+      if (typesSnap.empty) return;
+      const typeId = typesSnap.docs[0].id;
+      const rolesSnap = await getDocs(query(collection(db, 'roles'), where('userTypeId', '==', typeId)));
+      setCargos(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error(e); }
   };
 
   const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
@@ -40,7 +52,9 @@ export default function SupplierRegistration() {
     if (!form.phone.trim()) { alert('Telefone obrigatório'); return; }
     if (!form.city.trim() || !form.state) { alert('Cidade e estado obrigatórios'); return; }
     if (form.selectedServices.length === 0) { alert('Selecione ao menos um serviço'); return; }
-    if (!form.contactName.trim()) { alert('Nome do contato obrigatório'); return; }
+    if (!form.contactName.trim()) { alert('Nome do contato obrigatorio'); return; }
+    if (!form.password || form.password.length < 6) { alert('Senha deve ter ao menos 6 caracteres'); return; }
+    if (form.password !== form.confirmPassword) { alert('As senhas nao conferem'); return; }
 
     setSaving(true);
     try {
@@ -53,6 +67,9 @@ export default function SupplierRegistration() {
         ...form,
         email: form.email.trim().toLowerCase(),
         serviceNames,
+        roleId: form.roleId,
+        roleName: form.roleName,
+        password: form.password,
         status: 'pendente',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -188,8 +205,28 @@ export default function SupplierRegistration() {
                 <input value={form.contactName} onChange={e => setF('contactName', e.target.value)} style={inp} placeholder="Seu nome completo" />
               </div>
               <div>
-                <label style={lbl}>Cargo / Função</label>
-                <input value={form.contactRole} onChange={e => setF('contactRole', e.target.value)} style={inp} placeholder="Ex: Sócio, Gerente comercial" />
+                <label style={lbl}>Funcao / Posicao na empresa</label>
+                {cargos.length > 0 ? (
+                  <select value={form.roleId} onChange={e => {
+                    const c = cargos.find(r => r.id === e.target.value);
+                    setF('roleId', e.target.value);
+                    setF('roleName', c?.name || '');
+                    setF('contactRole', c?.name || '');
+                  }} style={{ ...inp, background: 'white' }}>
+                    <option value="">Selecione sua funcao...</option>
+                    {cargos.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                ) : (
+                  <input value={form.contactRole} onChange={e => setF('contactRole', e.target.value)} style={inp} placeholder="Ex: Socio, Gerente comercial" />
+                )}
+              </div>
+              <div>
+                <label style={lbl}>Senha *</label>
+                <input type="password" value={form.password} onChange={e => setF('password', e.target.value)} style={inp} placeholder="Minimo 6 caracteres" />
+              </div>
+              <div>
+                <label style={lbl}>Confirmar senha *</label>
+                <input type="password" value={form.confirmPassword} onChange={e => setF('confirmPassword', e.target.value)} style={inp} placeholder="Repita a senha" />
               </div>
             </div>
           </div>

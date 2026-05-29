@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -7,9 +7,24 @@ const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG
 export default function ClientRegistration() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [cargos, setCargos] = useState([]);
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', city: '', state: '', password: '', confirmPassword: '',
+    name: '', email: '', phone: '', city: '', state: '', companyName: '',
+    password: '', confirmPassword: '', roleId: '', roleName: '',
   });
+
+  useEffect(() => { loadCargos(); }, []);
+
+  const loadCargos = async () => {
+    try {
+      // Busca o tipo "Cliente" e os cargos vinculados
+      const typesSnap = await getDocs(query(collection(db, 'userTypes'), where('systemRole', '==', 'cliente')));
+      if (typesSnap.empty) return;
+      const typeId = typesSnap.docs[0].id;
+      const rolesSnap = await getDocs(query(collection(db, 'roles'), where('userTypeId', '==', typeId)));
+      setCargos(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error(e); }
+  };
 
   const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
 
@@ -31,6 +46,10 @@ export default function ClientRegistration() {
         phone: form.phone.trim(),
         city: form.city.trim(),
         state: form.state,
+        companyName: form.companyName.trim(),
+        roleId: form.roleId,
+        roleName: form.roleName,
+        password: form.password,
         systemRole: 'cliente',
         active: true,
         createdAt: new Date(),
@@ -94,6 +113,10 @@ export default function ClientRegistration() {
               <label style={lbl}>Telefone / WhatsApp *</label>
               <input value={form.phone} onChange={e => setF('phone', e.target.value)} style={inp} placeholder="(11) 99999-9999" />
             </div>
+            <div>
+              <label style={lbl}>Empresa / Organizacao</label>
+              <input value={form.companyName} onChange={e => setF('companyName', e.target.value)} style={inp} placeholder="Nome da empresa (opcional)" />
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 12 }}>
               <div>
                 <label style={lbl}>Cidade</label>
@@ -107,6 +130,19 @@ export default function ClientRegistration() {
                 </select>
               </div>
             </div>
+            {cargos.length > 0 && (
+              <div>
+                <label style={lbl}>Funcao / Perfil</label>
+                <select value={form.roleId} onChange={e => {
+                  const c = cargos.find(r => r.id === e.target.value);
+                  setF('roleId', e.target.value);
+                  setF('roleName', c?.name || '');
+                }} style={{ ...inp, background: 'white' }}>
+                  <option value="">Selecione sua funcao...</option>
+                  {cargos.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label style={lbl}>Senha *</label>
               <input type="password" value={form.password} onChange={e => setF('password', e.target.value)} style={inp} placeholder="Minimo 6 caracteres" />

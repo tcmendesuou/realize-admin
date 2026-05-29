@@ -16,6 +16,8 @@ export default function ChatIAScreen({ navigation }) {
   const [loading, setLoading]     = useState(false);
   const [user, setUser]           = useState(null);
   const [systemScript, setSystemScript] = useState('');
+  const [briefingDetectado, setBriefingDetectado] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export default function ChatIAScreen({ navigation }) {
         try {
           const briefingJson = JSON.parse(jsonMatch[1].trim());
           if (briefingJson.evento || briefingJson.servicosNecessarios) {
-            await salvarBriefing(briefingJson, [...(isInit ? [] : newMessages), assistantMsg]);
+            setBriefingDetectado(briefingJson);
           }
         } catch (e) { /* JSON inválido, ignora */ }
       }
@@ -93,15 +95,8 @@ export default function ChatIAScreen({ navigation }) {
   };
 
   const salvarBriefing = async (briefingJson, chatMessages) => {
-    if (!user) return;
+    if (!user) return null;
     try {
-      // Verifica se já existe budget para esse chat
-      const existing = await getDocs(query(
-        collection(db, 'budgets'),
-        where('clientUserId', '==', user.id),
-        where('status', '==', 'chatting')
-      ));
-
       const budgetData = {
         clientUserId:   user.id,
         clientEmail:    user.email,
@@ -116,15 +111,53 @@ export default function ChatIAScreen({ navigation }) {
         updatedAt:      serverTimestamp(),
       };
 
+      // Verifica se já existe budget em rascunho
+      const existing = await getDocs(query(
+        collection(db, 'budgets'),
+        where('clientUserId', '==', user.id),
+        where('status', '==', 'chatting')
+      ));
+
       if (!existing.empty) {
         await updateDoc(doc(db, 'budgets', existing.docs[0].id), budgetData);
+        return existing.docs[0].id;
       } else {
-        await addDoc(collection(db, 'budgets'), {
+        const ref = await addDoc(collection(db, 'budgets'), {
           ...budgetData,
           createdAt: serverTimestamp(),
         });
+        return ref.id;
       }
-    } catch (e) { console.error('Erro ao salvar briefing:', e); }
+    } catch (e) {
+      console.error('Erro ao salvar briefing:', e);
+      return null;
+    }
+  };
+
+  const handleConfirmar = async () => {
+    if (!briefingDetectado) return;
+    setConfirmando(true);
+    try {
+      const budgetId = await salvarBriefing(briefingDetectado, messages);
+      // Chama API para processar: atribuir coordenador, criar supplierJobs e cronograma
+      if (budgetId) {
+        fetch('https://www.realizehub.com.br/api/processar-budget', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ budgetId }),
+        }).catch(e => console.error('Erro ao processar budget:', e));
+      }
+      Alert.alert(
+        '✓ Enviado!',
+        'Seu pedido foi enviado para análise. A equipe Realize entrará em contato em breve.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erro', 'Não foi possível enviar o pedido. Tente novamente.');
+    } finally {
+      setConfirmando(false);
+    }
   };
 
   const handleSend = () => {
@@ -194,6 +227,16 @@ export default function ChatIAScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Botão de confirmar */}
+      {briefingDetectado && (
+        <TouchableOpacity onPress={handleConfirmar} disabled={confirmando}
+          style={[styles.confirmBtn, confirmando && styles.confirmBtnDisabled]}>
+          {confirmando
+            ? <ActivityIndicator size="small" color="white" />
+            : <Text style={styles.confirmBtnText}>✓ Confirmar e Enviar Pedido</Text>}
+        </TouchableOpacity>
+      )}
 
       {/* Input */}
       <View style={styles.inputRow}>
@@ -282,5 +325,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  confirmBtn: {
+    margin: 12, marginBottom: 0, padding: 16, borderRadius: 14,
+    backgroundColor: '#00E5C4', alignItems: 'center',
+  },
+  confirmBtnDisabled: { backgroundColor: 'rgba(0,229,196,0.4)' },
+  confirmBtnText: { color: '#0D1B2A', fontSize: 15, fontWeight: '700' },
   sendIcon: { color: 'white', fontSize: 20, fontWeight: '700' },
 });

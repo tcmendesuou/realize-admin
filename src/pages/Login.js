@@ -17,23 +17,58 @@ function Login() {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (firebaseErr) {
       try {
-        const q = query(
-          collection(db, 'users'),
-          where('email', '==', email.toLowerCase().trim()),
-          where('password', '==', password)
-        );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const userData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        const emailClean = email.toLowerCase().trim();
+
+        // 1. Tenta em users (equipe, cliente, admin homologado)
+        const qUsers = query(collection(db, 'users'), where('email', '==', emailClean), where('password', '==', password));
+        const snapUsers = await getDocs(qUsers);
+        if (!snapUsers.empty) {
+          const userData = { id: snapUsers.docs[0].id, ...snapUsers.docs[0].data() };
           if (userData.active === false) {
-            setError('Usuário inativo. Entre em contato com o administrador.');
+            setError('Usuario inativo. Entre em contato com o administrador.');
             return;
           }
           sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
           window.dispatchEvent(new Event('firestoreLogin'));
-        } else {
-          setError('Email ou senha incorretos.');
+          return;
         }
+
+        // 2. Tenta em suppliers (fornecedor pendente ou homologado)
+        const qSuppliers = query(collection(db, 'suppliers'), where('email', '==', emailClean), where('password', '==', password));
+        const snapSuppliers = await getDocs(qSuppliers);
+        if (!snapSuppliers.empty) {
+          const supplier = { id: snapSuppliers.docs[0].id, ...snapSuppliers.docs[0].data() };
+          if (supplier.status === 'pendente') {
+            // Loga mas com flag de pendente — App.js vai mostrar tela de aguardando
+            const pendingUser = {
+              id: supplier.id,
+              name: supplier.contactName || supplier.tradeName || supplier.companyName,
+              email: supplier.email,
+              systemRole: 'fornecedor_pendente',
+              supplierData: supplier,
+            };
+            sessionStorage.setItem('firestoreUser', JSON.stringify(pendingUser));
+            window.dispatchEvent(new Event('firestoreLogin'));
+            return;
+          }
+          if (supplier.status === 'recusado') {
+            setError('Seu cadastro foi recusado. Entre em contato com o suporte.');
+            return;
+          }
+          // Homologado mas sem users ainda — usa dados do supplier
+          const userData = {
+            id: supplier.userId || supplier.id,
+            name: supplier.contactName || supplier.tradeName,
+            email: supplier.email,
+            systemRole: 'fornecedor',
+            supplierId: supplier.id,
+          };
+          sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
+          window.dispatchEvent(new Event('firestoreLogin'));
+          return;
+        }
+
+        setError('Email ou senha incorretos.');
       } catch (firestoreErr) {
         console.error('Erro Firestore:', firestoreErr);
         setError('Erro ao conectar. Tente novamente.');
@@ -330,11 +365,20 @@ function Login() {
                 </button>
               </form>
 
-              <div className="rl-note">
-                Plataforma em fase de desenvolvimento.<br/>
-                Acesso disponível apenas para membros da equipe.
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+                <a href="/cliente/cadastro" style={{ display: 'block', width: '100%', padding: '13px', borderRadius: 10, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.05)', color: '#00E5C4', fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 500, letterSpacing: 1, textAlign: 'center', textDecoration: 'none', transition: 'all 0.2s', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,196,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,229,196,0.05)'}>
+                  CRIAR CONTA
+                </a>
+                <a href="/fornecedor/cadastro" style={{ display: 'block', width: '100%', padding: '13px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(0,180,255,0.04)', color: '#7BAFD4', fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 400, letterSpacing: 1, textAlign: 'center', textDecoration: 'none', transition: 'all 0.2s', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,180,255,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,180,255,0.04)'}>
+                  SOU FORNECEDOR
+                </a>
               </div>
-              <div className="rl-footer">© 2026 Realize Hub · Todos os direitos reservados</div>
+
+              <div className="rl-footer" style={{ marginTop: 20 }}>© 2026 Realize Hub · Todos os direitos reservados</div>
             </div>
           </div>
 

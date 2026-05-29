@@ -24,27 +24,10 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
     return () => unsub();
   }, [budgetIds?.join(','), somenteVisualizar, userData?.id]);
 
-  // Conta mensagens não lidas
+  // Conta mensagens não lidas — direto do campo naoLidas de cada chat (atualizado em tempo real via onSnapshot)
   useEffect(() => {
-    if (!chats.length) { setTotalNaoLidas(0); return; }
-    let total = 0;
-    const unsubList = chats.map(c => {
-      return onSnapshot(
-        query(collection(db, 'chats', c.id, 'msgs'), where('read', '==', false), where('senderId', '!=', userData?.id)),
-        snap => {
-          total = 0;
-          chats.forEach(() => {}); // força re-count
-          setTotalNaoLidas(prev => {
-            // conta todas as não lidas de todos os chats
-            return prev; // será atualizado abaixo
-          });
-        }
-      );
-    });
-    // Abordagem simples: salva naoLidas no próprio documento do chat
     setTotalNaoLidas(chats.reduce((acc, c) => acc + (c.naoLidas || 0), 0));
-    return () => unsubList.forEach(u => u());
-  }, [chats, userData?.id]);
+  }, [chats]);
 
   const handleOpenChat = (chat) => {
     setActiveChatId(chat.id);
@@ -95,6 +78,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.titulo}</div>
                     <div style={{ fontSize: 10, color: cor, marginTop: 1 }}>{c.subtitulo}</div>
+                    {c.empresa && <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.empresa}</div>}
                     {c.ultimaMsg && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.ultimaMsg}</div>}
                   </div>
                   {(c.naoLidas || 0) > 0 && (
