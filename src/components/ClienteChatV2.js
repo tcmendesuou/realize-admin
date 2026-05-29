@@ -143,6 +143,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [equipeAtual, setEquipeAtual]         = useState(null); // profissional sendo coletado
   const [equipAtual, setEquipAtual]           = useState(null); // equipamento sendo coletado
   const [aguardandoResposta, setAguardandoResposta] = useState(false);
+  const [dadosExtraidos, setDadosExtraidos]         = useState({}); // dados extraídos da primeira msg
 
   // Cards
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
@@ -303,10 +304,11 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     try {
-      // Se é a primeira mensagem e é longa, tenta extrair tudo de uma vez
-      let extraido = {};
-      if (stepAtual === 'tipo_evento' && texto.length > 80) {
+      // Se é a primeira mensagem e é longa, extrai tudo de uma vez e salva no state
+      let extraido = dadosExtraidos;
+      if (stepAtual === 'tipo_evento' && texto.length > 60) {
         extraido = await extrairMultiplosCampos(texto);
+        setDadosExtraidos(extraido);
       }
 
       const dados = await interpretarResposta(subStep || stepAtual, texto);
@@ -357,30 +359,90 @@ export default function ClienteChat({ userData, onClose }) {
         }
         case 'nome_evento': {
           setBriefing(p => ({ ...p, evento: { ...p.evento, nome: dados.valor || texto } }));
+          if (extraido.dataInicio) {
+            setBriefing(p => ({ ...p, evento: { ...p.evento, dataInicio: extraido.dataInicio } }));
+            if (extraido.dataFim) {
+              setBriefing(p => ({ ...p, evento: { ...p.evento, dataFim: extraido.dataFim } }));
+              if (extraido.horarioInicio) {
+                setBriefing(p => ({ ...p, evento: { ...p.evento, horarioInicio: extraido.horarioInicio, horarioFim: extraido.horarioFim || '' } }));
+                if (extraido.cidade) {
+                  setBriefing(p => ({ ...p, evento: { ...p.evento, cidade: extraido.cidade, local: extraido.local || '', endereco: extraido.endereco || '' } }));
+                  if (extraido.visitantes) {
+                    setBriefing(p => ({ ...p, evento: { ...p.evento, visitantesPorDia: extraido.visitantes } }));
+                    setStepAtual('empresa'); addMsg('assistant', PERGUNTAS.empresa()); break;
+                  }
+                  setStepAtual('visitantes'); addMsg('assistant', PERGUNTAS.visitantes()); break;
+                }
+                setStepAtual('local'); addMsg('assistant', PERGUNTAS.local()); break;
+              }
+              setStepAtual('horario'); addMsg('assistant', PERGUNTAS.horario()); break;
+            }
+            setStepAtual('data_fim'); addMsg('assistant', PERGUNTAS.data_fim()); break;
+          }
           setStepAtual('data_inicio');
           addMsg('assistant', PERGUNTAS.data_inicio());
           break;
         }
         case 'data_inicio': {
           setBriefing(p => ({ ...p, evento: { ...p.evento, dataInicio: dados.valor || texto } }));
+          if (extraido.dataFim) {
+            setBriefing(p => ({ ...p, evento: { ...p.evento, dataFim: extraido.dataFim } }));
+            if (extraido.horarioInicio) {
+              setBriefing(p => ({ ...p, evento: { ...p.evento, horarioInicio: extraido.horarioInicio, horarioFim: extraido.horarioFim || '' } }));
+              if (extraido.cidade) {
+                setBriefing(p => ({ ...p, evento: { ...p.evento, cidade: extraido.cidade, local: extraido.local || '', endereco: extraido.endereco || '' } }));
+                if (extraido.visitantes) {
+                  setBriefing(p => ({ ...p, evento: { ...p.evento, visitantesPorDia: extraido.visitantes } }));
+                  setStepAtual('empresa'); addMsg('assistant', PERGUNTAS.empresa()); break;
+                }
+                setStepAtual('visitantes'); addMsg('assistant', PERGUNTAS.visitantes()); break;
+              }
+              setStepAtual('local'); addMsg('assistant', PERGUNTAS.local()); break;
+            }
+            setStepAtual('horario'); addMsg('assistant', PERGUNTAS.horario()); break;
+          }
           setStepAtual('data_fim');
           addMsg('assistant', PERGUNTAS.data_fim());
           break;
         }
         case 'data_fim': {
           setBriefing(p => ({ ...p, evento: { ...p.evento, dataFim: dados.valor || texto } }));
+          if (extraido.horarioInicio) {
+            setBriefing(p => ({ ...p, evento: { ...p.evento, horarioInicio: extraido.horarioInicio, horarioFim: extraido.horarioFim || '' } }));
+            if (extraido.cidade) {
+              setBriefing(p => ({ ...p, evento: { ...p.evento, cidade: extraido.cidade, local: extraido.local || '', endereco: extraido.endereco || '' } }));
+              if (extraido.visitantes) {
+                setBriefing(p => ({ ...p, evento: { ...p.evento, visitantesPorDia: extraido.visitantes } }));
+                setStepAtual('empresa'); addMsg('assistant', PERGUNTAS.empresa()); break;
+              }
+              setStepAtual('visitantes'); addMsg('assistant', PERGUNTAS.visitantes()); break;
+            }
+            setStepAtual('local'); addMsg('assistant', PERGUNTAS.local()); break;
+          }
           setStepAtual('horario');
           addMsg('assistant', PERGUNTAS.horario());
           break;
         }
         case 'horario': {
           setBriefing(p => ({ ...p, evento: { ...p.evento, horarioInicio: dados.inicio || '', horarioFim: dados.fim || '' } }));
+          if (extraido.cidade) {
+            setBriefing(p => ({ ...p, evento: { ...p.evento, cidade: extraido.cidade, local: extraido.local || '', endereco: extraido.endereco || '' } }));
+            if (extraido.visitantes) {
+              setBriefing(p => ({ ...p, evento: { ...p.evento, visitantesPorDia: extraido.visitantes } }));
+              setStepAtual('empresa'); addMsg('assistant', PERGUNTAS.empresa()); break;
+            }
+            setStepAtual('visitantes'); addMsg('assistant', PERGUNTAS.visitantes()); break;
+          }
           setStepAtual('local');
           addMsg('assistant', PERGUNTAS.local());
           break;
         }
         case 'local': {
           setBriefing(p => ({ ...p, evento: { ...p.evento, cidade: dados.cidade || '', local: dados.local || texto, endereco: dados.endereco || '' } }));
+          if (extraido.visitantes) {
+            setBriefing(p => ({ ...p, evento: { ...p.evento, visitantesPorDia: extraido.visitantes } }));
+            setStepAtual('empresa'); addMsg('assistant', PERGUNTAS.empresa()); break;
+          }
           setStepAtual('visitantes');
           addMsg('assistant', PERGUNTAS.visitantes());
           break;
@@ -403,8 +465,15 @@ export default function ClienteChat({ userData, onClose }) {
           if (querProdutor) {
             setBriefing(p => ({ ...p, servicosNecessarios: [...p.servicosNecessarios, 'Produtor de Eventos'] }));
           }
-          setStepAtual('precisa_estrutura');
-          addMsg('assistant', PERGUNTAS.precisa_estrutura());
+          // Pula estrutura se já extraído como false
+          if (extraido.precisaEstrutura === false || extraido.precisaEstrutura === 'false') {
+            setBriefing(p => ({ ...p, estrutura: { ...p.estrutura, ativo: false } }));
+            setStepAtual('precisa_equipe');
+            addMsg('assistant', PERGUNTAS.precisa_equipe());
+          } else {
+            setStepAtual('precisa_estrutura');
+            addMsg('assistant', PERGUNTAS.precisa_estrutura());
+          }
           break;
         }
         case 'precisa_estrutura': {
