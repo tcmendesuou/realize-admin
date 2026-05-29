@@ -2,18 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-// Converte DD-MM-AAAA ou DD/MM/AAAA para YYYY-MM-DD
-function toISODate(str) {
-  if (!str) return '';
-  const s = str.trim();
-  // já está em YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // DD-MM-AAAA ou DD/MM/AAAA
-  const m = s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return s;
-}
-
 function extractJson(text) {
   const match = text.match(/```json\s*([\s\S]*?)```/);
   if (match) {
@@ -62,9 +50,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const [carrosselIdx, setCarrosselIdx] = useState({});
   const [catalogoSummary, setCatalogoSummary] = useState('');
-  const [opcoesServico, setOpcoesServico]   = useState([]); // opções do [MOSTRAR_OPCOES:X]
-  const [opcoesTitulo, setOpcoesTitulo]     = useState(''); // nome do serviço sendo exibido
-  const [opcaoSelecionada, setOpcaoSelecionada] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -204,9 +189,10 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas.\n\n` + systemScript;
-      // Prompt enxuto — catálogo e preços não são mais injetados na IA
-      const systemPrompt = basePrompt.length > 8000 ? basePrompt.slice(0, 8000) + '\n\n[script truncado]' : basePrompt;
+      const instrucaoPagamento = `\n\nINSTRUCAO FORMA DE PAGAMENTO: Ao final do briefing, depois de coletar todas as informações do evento e serviços, obrigatoriamente pergunte a forma de pagamento preferida. Use o marcador [ESCOLHER_PAGAMENTO] no final dessa mensagem. Não gere o JSON final do briefing antes de o cliente escolher a forma de pagamento.`;
+      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary + instrucaoPagamento;
+      // Limita o system prompt a 12000 caracteres para evitar erro 400
+      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -230,7 +216,6 @@ export default function ClienteChat({ userData, onClose }) {
       const textoLimpo = assistantText
         .replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '')
         .replace('[ESCOLHER_PAGAMENTO]', '').replace('{ESCOLHER_PAGAMENTO}', '')
-        .replace(/\[MOSTRAR_OPCOES:[^\]]*\]/g, '').replace(/\{MOSTRAR_OPCOES:[^\}]*\}/g, '')
         .trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
@@ -255,44 +240,6 @@ export default function ClienteChat({ userData, onClose }) {
             id: Date.now() + 2,
           }]);
         }
-      }
-
-      // Detecta [MOSTRAR_OPCOES:Nome do Serviço]
-      const matchOpcoes = assistantText.match(/\[MOSTRAR_OPCOES:([^\]]+)\]/) || assistantText.match(/\{MOSTRAR_OPCOES:([^\}]+)\}/);
-      if (matchOpcoes) {
-        const nomeServico = matchOpcoes[1].trim();
-        setOpcoesTitulo(nomeServico);
-        setOpcaoSelecionada(null);
-        try {
-          const svSnap = await getDocs(collection(db, 'supplierServices'));
-          const todos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-          const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const nomeNorm = normalize(nomeServico);
-          // Busca serviços que batem com o nome
-          const servicos = todos.filter(s =>
-            normalize(s.serviceName).includes(nomeNorm) ||
-            nomeNorm.includes(normalize(s.serviceName)) ||
-            normalize(s.serviceParentName).includes(nomeNorm) ||
-            nomeNorm.includes(normalize(s.serviceParentName))
-          );
-          // Busca opções de cada serviço
-          const comOpcoes = await Promise.all(servicos.map(async s => {
-            try {
-              const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-              return opSnap.docs.map(d => ({ id: d.id, serviceName: s.serviceName, ...d.data() }));
-            } catch { return []; }
-          }));
-          const todasOpcoes = comOpcoes.flat();
-          if (todasOpcoes.length > 0) {
-            setOpcoesServico(todasOpcoes);
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: '',
-              type: 'opcoes_servico',
-              id: Date.now() + 4,
-            }]);
-          }
-        } catch (e) { console.error('Erro ao carregar opções:', e); }
       }
 
       // Se a IA usou o marcador de pagamento → injeta card com botões de opção
@@ -384,8 +331,8 @@ export default function ClienteChat({ userData, onClose }) {
         clientName: userName,
         eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
         eventTypeName: briefingJson.evento?.tipo || '',
-        startDate: toISODate(briefingJson.evento?.dataInicio || ''),
-        endDate: toISODate(briefingJson.evento?.dataFim || ''),
+        startDate: briefingJson.evento?.dataInicio || '',
+        endDate: briefingJson.evento?.dataFim || '',
         location: briefingJson.evento?.local || briefingJson.evento?.cidade || '',
         guestCount: briefingJson.evento?.visitantesPorDia || 0,
         status: 'analyzing',
@@ -393,7 +340,6 @@ export default function ClienteChat({ userData, onClose }) {
         isMae: true,
         numeroPedido,
         briefingData: { ...briefingJson, formaPagamento: formaPagamento || '' },
-        itensEmAnalise: briefingJson.itensEmAnalise || [],
         financeiro: { formaPagamento: formaPagamento || '' },
         assignedTo,
         assignedToName,
@@ -402,27 +348,10 @@ export default function ClienteChat({ userData, onClose }) {
         updatedAt: serverTimestamp(),
       });
 
-      // ── cria tarefas para itens em análise ──
-      try {
-        const itensAnalise = briefingJson.itensEmAnalise || [];
-        await Promise.all(itensAnalise.map(item => addDoc(collection(db, 'tasks'), {
-          budgetId:    budgetRef.id,
-          tipo:        'analise',
-          nome:        `⚠️ Item em análise: ${item}`,
-          descricao:   `Cliente solicitou "${item}" — item não disponível na rede de fornecedores. Buscar solução antes da aprovação do orçamento.`,
-          status:      'pendente',
-          prioridade:  'alta',
-          fase:        'analise',
-          assignedTo,
-          createdAt:   serverTimestamp(),
-        })));
-      } catch (e) { console.error('Erro ao criar tarefas de análise:', e); }
-
-
       // ── cria supplierJobs ──
       try {
         const servicosNecessarios = briefingJson.servicosNecessarios || [];
-      
+        console.log('servicosNecessarios:', servicosNecessarios);
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
         const todosServicos = suppServSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -489,8 +418,8 @@ export default function ClienteChat({ userData, onClose }) {
             eventName: briefingJson.evento?.nome || briefingJson.evento?.tipo || 'Novo Evento',
             eventTypeName: briefingJson.evento?.tipo || '',
             clientName: userName,
-            eventDate: toISODate(briefingJson.evento?.dataInicio || ''),
-            eventDateFim: toISODate(briefingJson.evento?.dataFim || ''),
+            eventDate: briefingJson.evento?.dataInicio || '',
+            eventDateFim: briefingJson.evento?.dataFim || '',
             eventLocal: briefingJson.evento?.local || briefingJson.evento?.cidade || '',
             eventCidade: briefingJson.evento?.cidade || '',
             eventHorarioInicio: briefingJson.evento?.horarioInicio || '',
@@ -577,7 +506,7 @@ export default function ClienteChat({ userData, onClose }) {
           .map(s => `${s.serviceName}: ${s.diasPreparo} dias de preparo`)
           .join('\n');
 
-        const dataEvento = toISODate(briefingJson.evento?.dataInicio || '');
+        const dataEvento = briefingJson.evento?.dataInicio || '';
         const servicosResumidos = svAll
           .filter(s => s.diasPreparo > 0 || s.diasMontagem > 0)
           .map(s => `${s.serviceName}:preparo=${s.diasPreparo||0}d,montagem=${s.diasMontagem||0}d`)
@@ -607,7 +536,7 @@ Campos: id,n(nome),d(desc),r(responsavel),di(dataInicio),de(dataEntrega),da(dias
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 8000,
-            system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks, sem explicações, sem comentários. NUNCA escreva texto antes ou depois do JSON. Mesmo que o prazo seja inviável, responda APENAS o JSON com "prazoInviavel":true. O JSON deve começar com { e ser parseável por JSON.parse().',
+            system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks. O JSON deve ser parseável por JSON.parse().',
             messages: [{ role: 'user', content: cronogramaPrompt }],
           }),
         });
@@ -1009,30 +938,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   </button>
                 )}
               </div>
-
-              ) : msg.type === 'opcoes_servico' ? (
-              <div style={{ flex: 1, maxWidth: '90%' }}>
-                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Opções disponíveis para {opcoesTitulo}:</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {opcoesServico.map(op => (
-                    <div key={op.id} onClick={() => setOpcaoSelecionada(op)}
-                      style={{ padding: '12px 14px', borderRadius: 10, border: `2px solid ${opcaoSelecionada?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcaoSelecionada?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.15s' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 2 }}>{op.nome}</div>
-                      {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4 }}>{op.caracteristica}</div>}
-                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                        {op.valor && <span style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade || ''}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {opcaoSelecionada && (
-                  <button onClick={() => { sendMessage(`Quero a opção ${opcaoSelecionada.nome}${opcaoSelecionada.caracteristica ? ' (' + opcaoSelecionada.caracteristica + ')' : ''}`); setOpcaoSelecionada(null); }}
-                    style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                    Confirmar: {opcaoSelecionada.nome} →
-                  </button>
-                )}
-              </div>
-              
             ) : msg.type === 'pagamento' ? (
               /* Botões de forma de pagamento */
               <div style={{ flex: 1, maxWidth: '90%' }}>
