@@ -563,7 +563,12 @@ export default function ClienteChat({ userData, onClose }) {
           setBriefing(p => ({ ...p, equipamentos: { ...p.equipamentos, led: { ...p.equipamentos.led, operador } } }));
           // Busca opções de LED
           addMsg('assistant', 'Deixa eu verificar as opções de painel de LED disponíveis para você...');
-          const opcoes = await buscarOpcoes('LED', briefing.evento.cidade);
+          const termosLed = ['led', 'painel de led', 'led / neon', 'neon'];
+          let opcoes = [];
+          for (const termo of termosLed) {
+           opcoes = await buscarOpcoes(termo, briefing.evento.cidade);
+           if (opcoes.length > 0) break;
+          }
           if (opcoes.length > 0) {
             setOpcoesLed(opcoes);
             setBriefing(p => ({ ...p, servicosNecessarios: [...p.servicosNecessarios, 'LED / Neon'] }));
@@ -905,7 +910,7 @@ export default function ClienteChat({ userData, onClose }) {
             clientName:         userName,
             eventDate:          toISODate(briefing.evento.dataInicio || ''),
             eventDateFim:       toISODate(briefing.evento.dataFim || ''),
-            eventLocal:         briefing.evento.local || briefing.evento.cidade || '',
+            eventLocal:         briefing.evento.endereco || briefing.evento.local || briefing.evento.cidade || '',
             eventCidade:        briefing.evento.cidade || '',
             eventHorarioInicio: briefing.evento.horarioInicio || '',
             eventHorarioFim:    briefing.evento.horarioFim || '',
@@ -919,6 +924,32 @@ export default function ClienteChat({ userData, onClose }) {
             unidade:            sv.unidade || '',
             diasPreparo:        sv.diasPreparo || 0,
             diasMontagem:       sv.diasMontagem || 0,
+            observacaoCliente:  (() => {
+              const obs = [];
+              // Observações de equipe
+              const profissional = (briefing.equipe?.itens || []).find(i => normalize(i.tipo) === normalize(sv.serviceName));
+              if (profissional?.perfil) obs.push(`Perfil: ${profissional.perfil}`);
+              // Observações de LED
+              if (normalize(sv.serviceName).includes('led') || normalize(sv.serviceParentName).includes('led')) {
+                const led = briefing.equipamentos?.led;
+                if (led?.objetivo)  obs.push(`Objetivo: ${led.objetivo}`);
+                if (led?.ambiente)  obs.push(`Ambiente: ${led.ambiente}`);
+                if (led?.conteudo)  obs.push(`Conteúdo: ${led.conteudo}`);
+                if (led?.operador !== undefined) obs.push(`Operador: ${led.operador ? 'Sim' : 'Não'}`);
+                if (led?.opcaoEscolhida) obs.push(`Opção escolhida: ${led.opcaoEscolhida.nome}`);
+              }
+              // Observações de estrutura
+              if (normalize(sv.tipoServico) === 'estrutura' || normalize(sv.serviceParentName).includes('estande')) {
+                const est = briefing.estrutura;
+                if (est?.areaM2)          obs.push(`Área: ${est.areaM2}m²`);
+                if (est?.alturaTeto)      obs.push(`Altura teto: ${est.alturaTeto}`);
+                if (est?.diasMontagem)    obs.push(`Dias montagem: ${est.diasMontagem}`);
+                if (est?.restricoes)      obs.push(`Restrições: ${est.restricoes}`);
+                if (est?.identidadeVisual) obs.push(`Identidade visual: ${est.identidadeVisual}`);
+                if (est?.energia)         obs.push(`Energia: ${est.energia}`);
+              }
+              return obs.join(' | ') || '';
+            })(),
             stage:              'proposta',
             status:             'draft',
             createdAt:          serverTimestamp(),
@@ -941,7 +972,7 @@ export default function ClienteChat({ userData, onClose }) {
                 supplierId: forn.id, supplierName: forn.nome || '',
                 budgetId: budgetRef.id, eventName: briefing.evento.nome || 'Novo Evento',
                 clientName: userName, eventDate: toISODate(briefing.evento.dataInicio || ''),
-                eventLocal: briefing.evento.local || '', eventCidade: briefing.evento.cidade || '',
+                eventLocal: briefing.evento.endereco || briefing.evento.local || '',
                 eventHorarioInicio: briefing.evento.horarioInicio || '', eventHorarioFim: briefing.evento.horarioFim || '',
                 eventDiasDuracao: diasDuracao, eventVisitantes: briefing.evento.visitantesPorDia || 0,
                 serviceNames: [modeloEscolhido.nome], serviceName: modeloEscolhido.nome,
