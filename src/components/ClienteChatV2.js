@@ -278,12 +278,37 @@ export default function ClienteChat({ userData, onClose }) {
     return comOpcoes.flat();
   };
 
+  // ── Extrai múltiplos campos de uma resposta longa ────────────────────────
+  const extrairMultiplosCampos = async (texto) => {
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 500,
+          system: 'Responda APENAS com JSON válido. Sem texto, sem markdown, sem explicações.',
+          messages: [{ role: 'user', content: `O cliente descreveu o evento: "${texto}"\n\nExtraia APENAS os campos que estão claramente mencionados. Para campos não mencionados, use null.\nResponda APENAS: {"tipo":null,"nome":null,"dataInicio":null,"dataFim":null,"horarioInicio":null,"horarioFim":null,"cidade":null,"local":null,"endereco":null,"visitantes":null,"empresa":null,"precisaEstrutura":null,"precisaEquipe":null,"tiposEquipe":null,"precisaLed":null,"precisaSom":null,"precisaDj":null,"precisaFoto":null,"precisaGastronomia":null}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+      return JSON.parse(text.replace(/```json|```/g, '').trim());
+    } catch (e) { return {}; }
+  };
+
   // ── Processa resposta do usuário ──────────────────────────────────────────
   const processarResposta = async (texto) => {
     setAguardandoResposta(true);
     setLoading(true);
 
     try {
+      // Se é a primeira mensagem e é longa, tenta extrair tudo de uma vez
+      let extraido = {};
+      if (stepAtual === 'tipo_evento' && texto.length > 80) {
+        extraido = await extrairMultiplosCampos(texto);
+      }
+
       const dados = await interpretarResposta(subStep || stepAtual, texto);
 
       // ── SUB-FLUXOS ──
@@ -295,9 +320,39 @@ export default function ClienteChat({ userData, onClose }) {
       // ── FLUXO PRINCIPAL ──
       switch (stepAtual) {
         case 'tipo_evento': {
-          setBriefing(p => ({ ...p, evento: { ...p.evento, tipo: dados.valor || texto } }));
-          setStepAtual('nome_evento');
-          addMsg('assistant', PERGUNTAS.nome_evento());
+          // Aplica tudo que foi extraído de uma vez
+          if (Object.keys(extraido).length > 0) {
+            setBriefing(p => ({
+              ...p,
+              evento: {
+                ...p.evento,
+                tipo:             extraido.tipo       || dados.valor || texto,
+                nome:             extraido.nome       || p.evento.nome,
+                dataInicio:       extraido.dataInicio || p.evento.dataInicio,
+                dataFim:          extraido.dataFim    || p.evento.dataFim,
+                horarioInicio:    extraido.horarioInicio || p.evento.horarioInicio,
+                horarioFim:       extraido.horarioFim    || p.evento.horarioFim,
+                cidade:           extraido.cidade     || p.evento.cidade,
+                local:            extraido.local      || p.evento.local,
+                endereco:         extraido.endereco   || p.evento.endereco,
+                visitantesPorDia: extraido.visitantes || p.evento.visitantesPorDia,
+                nomeEmpresa:      extraido.empresa    || p.evento.nomeEmpresa,
+              }
+            }));
+          } else {
+            setBriefing(p => ({ ...p, evento: { ...p.evento, tipo: dados.valor || texto } }));
+          }
+          // Avança pulando perguntas já respondidas
+          if (extraido.nome)       { setStepAtual('data_inicio');  if (!extraido.dataInicio)  { addMsg('assistant', PERGUNTAS.data_inicio()); break; } }
+          else                     { setStepAtual('nome_evento');   addMsg('assistant', PERGUNTAS.nome_evento()); break; }
+          if (extraido.dataInicio) { setStepAtual('data_fim');      if (!extraido.dataFim)     { addMsg('assistant', PERGUNTAS.data_fim()); break; } }
+          if (extraido.dataFim)    { setStepAtual('horario');       if (!extraido.horarioInicio){ addMsg('assistant', PERGUNTAS.horario()); break; } }
+          if (extraido.horarioInicio){ setStepAtual('local');       if (!extraido.cidade)      { addMsg('assistant', PERGUNTAS.local()); break; } }
+          if (extraido.cidade)     { setStepAtual('visitantes');    if (!extraido.visitantes)  { addMsg('assistant', PERGUNTAS.visitantes()); break; } }
+          if (extraido.visitantes) { setStepAtual('empresa');       if (!extraido.empresa)     { addMsg('assistant', PERGUNTAS.empresa()); break; } }
+          if (extraido.empresa !== null) { setStepAtual('produtor'); addMsg('assistant', PERGUNTAS.produtor(userName)); break; }
+          setStepAtual('produtor');
+          addMsg('assistant', PERGUNTAS.produtor(userName));
           break;
         }
         case 'nome_evento': {
