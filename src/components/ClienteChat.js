@@ -12,6 +12,66 @@ function extractJson(text) {
   return null;
 }
 
+function normalizeText(value) {
+  return (value || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function parseBrazilianDate(value) {
+  const match = (value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function daysUntil(value) {
+  const date = parseBrazilianDate(value);
+  if (!date) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return Math.ceil((date.getTime() - today.getTime()) / 86400000);
+}
+
+function escapeHtml(value) {
+  return (value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+const SERVICE_ALIASES = {
+  led: ['led', 'painel de led', 'painel led', 'tela de led', 'neon'],
+  som: ['som', 'sonorizacao', 'audio', 'sistema pa', 'caixa de som', 'microfone'],
+  dj: ['dj', 'disc jockey'],
+  foto: ['foto', 'fotografo', 'fotografia'],
+  video: ['video', 'filmagem', 'cinegrafista'],
+  recepcao: ['recepcionista', 'recepcao', 'hostess', 'promotora'],
+  seguranca: ['seguranca', 'vigilancia'],
+  limpeza: ['limpeza', 'auxiliar de limpeza'],
+  alimentacao: ['buffet', 'coffee break', 'alimentacao', 'comida', 'bebida', 'bar', 'bartender'],
+  produtor: ['produtor', 'coordenador', 'producao'],
+  gerador: ['gerador', 'energia'],
+  palco: ['palco'],
+  tenda: ['tenda', 'cobertura'],
+  iluminacao: ['iluminacao', 'luz cenica'],
+  mobiliario: ['mobiliario', 'moveis', 'mesa', 'cadeira'],
+};
+
+function serviceMatchesText(service, text) {
+  const haystack = ` ${normalizeText(text)} `;
+  const serviceName = normalizeText(service.serviceName);
+  const parentName = normalizeText(service.serviceParentName);
+  if (serviceName.length >= 3 && haystack.includes(serviceName)) return true;
+  if (parentName.length >= 3 && haystack.includes(parentName)) return true;
+
+  return Object.values(SERVICE_ALIASES).some(aliases => {
+    const catalogMatchesAlias = aliases.some(alias => serviceName.includes(alias) || parentName.includes(alias));
+    return catalogMatchesAlias && aliases.some(alias => haystack.includes(` ${alias} `) || haystack.includes(alias));
+  });
+}
+
 // Carrossel de fotos para os cards de estande
 function ModeloCarrossel({ fotos, idx, onPrev, onNext, onDot }) {
   if (!fotos?.length) return <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>;
@@ -41,7 +101,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
   const [systemScript, setSystemScript] = useState('');
-  const [pricingData, setPricingData]   = useState([]);
   const [briefingJson, setBriefingJson] = useState(null);
   const [step, setStep]                 = useState('chat');
   const [submitting, setSubmitting]     = useState(false);
@@ -49,8 +108,9 @@ export default function ClienteChat({ userData, onClose }) {
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const [carrosselIdx, setCarrosselIdx] = useState({});
-  const [catalogoSummary, setCatalogoSummary] = useState('');
   const [formaPagamento, setFormaPagamento] = useState(null);
+  const [supplierCatalog, setSupplierCatalog] = useState([]);
+  const [servicosSelecionados, setServicosSelecionados] = useState([]);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -72,11 +132,9 @@ export default function ClienteChat({ userData, onClose }) {
       } catch (e) { console.error('Erro ao carregar script:', e); }
 
       try {
-        const snap = await getDocs(collection(db, 'servicePricing'));
-        setPricingData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (e) { console.error('Erro ao carregar pricing:', e); }
-
-      
+        const snap = await getDocs(collection(db, 'supplierServices'));
+        setSupplierCatalog(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false));
+      } catch (e) { console.error('Erro ao carregar serviços dos fornecedores:', e); }
 
       // Carrega modelos de estandes especiais/modulares
       try {
@@ -100,11 +158,6 @@ export default function ClienteChat({ userData, onClose }) {
           : todosModelos;
 
         if (modelosFiltrados.length > 0) {
-          const linhasModelos = modelosFiltrados.map(m => {
-            const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
-            return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
-          });
-          setCatalogoSummary(''); // catálogo não é mais injetado no prompt
           setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
@@ -125,6 +178,70 @@ export default function ClienteChat({ userData, onClose }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  const getTipoEstande = (briefing = briefingJson) => briefing?.estrutura?.tipoEstande || briefing?.tipoEstande || '';
+
+  const getServiceAvailability = (service, briefing = briefingJson) => {
+    const availableDays = daysUntil(briefing?.evento?.dataInicio);
+    const requiredDays = Math.min(...(service.fornecedores || [service]).map(item =>
+      Number(item.diasPreparo || 0) + Number(item.diasMontagem || 0)
+    ));
+    if (availableDays === null) return { feasible: true, label: requiredDays ? `Prazo mínimo: ${requiredDays} dias` : 'Prazo sob consulta' };
+    return {
+      feasible: requiredDays <= availableDays,
+      label: requiredDays <= availableDays
+        ? `Disponível para a data informada (${requiredDays} dias de preparo)`
+        : `Indisponível: precisa de ${requiredDays} dias e faltam ${availableDays}`,
+    };
+  };
+
+  const findRegisteredServices = async (text, json) => {
+    let catalog = supplierCatalog;
+    if (catalog.length === 0) {
+      try {
+        const snap = await getDocs(collection(db, 'supplierServices'));
+        catalog = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+        setSupplierCatalog(catalog);
+      } catch (e) {
+        console.error('Erro ao buscar serviços cadastrados:', e);
+        return [];
+      }
+    }
+
+    const mentioned = [
+      text,
+      ...((json?.servicosNecessarios || []).map(String)),
+    ].join(' ');
+    const grouped = new Map();
+    catalog.filter(service => serviceMatchesText(service, mentioned)).forEach(service => {
+      const key = service.serviceId || normalizeText(service.serviceName);
+      const current = grouped.get(key);
+      if (current) current.fornecedores.push(service);
+      else grouped.set(key, { ...service, fornecedores: [service] });
+    });
+    return [...grouped.values()].filter(service =>
+      !servicosSelecionados.some(selected => selected.serviceId === service.serviceId || selected.serviceName === service.serviceName)
+    );
+  };
+
+  const selectRegisteredService = (service) => {
+    const availability = getServiceAvailability(service);
+    if (!availability.feasible) return;
+    setServicosSelecionados(prev => {
+      if (prev.some(item => item.serviceId === service.serviceId || item.serviceName === service.serviceName)) return prev;
+      return [...prev, service];
+    });
+    setBriefingJson(prev => ({
+      ...(prev || {}),
+      servicosNecessarios: [
+        ...new Set([...(prev?.servicosNecessarios || []), service.serviceName]),
+      ],
+      servicosSelecionados: [
+        ...(prev?.servicosSelecionados || []).filter(item => item.serviceId !== service.serviceId),
+        { serviceId: service.serviceId || '', serviceName: service.serviceName, serviceParentName: service.serviceParentName || '' },
+      ],
+    }));
+  };
+
   // ── enviar mensagem ───────────────────────────────────────────────────────
   const sendMessage = async (textoForçado) => {
     const text = (textoForçado || input).trim();
@@ -138,12 +255,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     try {
       const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
-
-      const pricingSummary = pricingData.length > 0
-        ? `\n\nTABELA DE PREÇOS (resumo):\n${pricingData.slice(0, 40).map(p =>
-            `- ${p.tipo || ''} | ${p.subServiceId || p.serviceId || ''} | ${p.estado || 'SP'} | ${p.custoHora ? `R$${p.custoHora}/h` : ''} ${p.custoDiaria ? `R$${p.custoDiaria}/dia` : ''}`
-          ).join('\n')}`
-        : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript;
@@ -211,9 +322,13 @@ export default function ClienteChat({ userData, onClose }) {
 
       const json = extractJson(assistantText);
       if (json && json.evento) {
-        setBriefingJson(json);
+        setBriefingJson(prev => ({
+          ...json,
+          servicosNecessarios: [...new Set([...(json.servicosNecessarios || []), ...(prev?.servicosNecessarios || [])])],
+          servicosSelecionados: prev?.servicosSelecionados || [],
+        }));
         // Se pediu estande modular, busca modelos disponíveis
-        if (json.tipoEstande === 'modular') {
+        if (getTipoEstande(json) === 'modular') {
           try {
             const tiposSnap = await getDocs(query(collection(db, 'tiposEspeciais'), where('ativo', '==', true)));
             const tipoEstande = tiposSnap.docs.find(d => d.data().nome?.toLowerCase().includes('modular') || d.data().nome?.toLowerCase().includes('estande'));
@@ -223,6 +338,17 @@ export default function ClienteChat({ userData, onClose }) {
             }
           } catch (e) { console.error('Erro ao buscar modelos:', e); }
         }
+      }
+
+      const servicosEncontrados = await findRegisteredServices(text, json);
+      if (servicosEncontrados.length > 0) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          type: 'servicos',
+          services: servicosEncontrados,
+          id: Date.now() + 4,
+        }]);
       }
     } catch (err) {
       console.error('Erro na API:', err);
@@ -244,6 +370,13 @@ export default function ClienteChat({ userData, onClose }) {
   // ── confirmar e salvar no Firestore ───────────────────────────────────────
   const handleConfirm = async () => {
     if (!briefingJson) return;
+    const servicoInviavel = servicosSelecionados.find(service => !getServiceAvailability(service).feasible);
+    const modeloInviavel = modeloSelecionado && daysUntil(briefingJson.evento?.dataInicio) !== null
+      && Number(modeloSelecionado.diasProducao || 0) > daysUntil(briefingJson.evento?.dataInicio);
+    if (servicoInviavel || modeloInviavel) {
+      alert('Existe pelo menos um item sem prazo suficiente para a data do evento. Volte ao chat e escolha uma alternativa disponível.');
+      return;
+    }
     setSubmitting(true);
     try {
       // Busca coordenadores
@@ -307,6 +440,7 @@ export default function ClienteChat({ userData, onClose }) {
       // ── cria supplierJobs ──
       try {
         const servicosNecessarios = briefingJson.servicosNecessarios || [];
+        const idsSelecionados = new Set(servicosSelecionados.map(s => s.serviceId).filter(Boolean));
         console.log('servicosNecessarios:', servicosNecessarios);
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
@@ -317,6 +451,10 @@ export default function ClienteChat({ userData, onClose }) {
 
         const suppServs = todosServicos.filter(s => {
           if (s.ativo === false) return false;
+          if (!idsSelecionados.has(s.serviceId)) return false;
+          const diasDisponiveis = daysUntil(briefingJson.evento?.dataInicio);
+          const diasNecessarios = Number(s.diasPreparo || 0) + Number(s.diasMontagem || 0);
+          if (diasDisponiveis !== null && diasNecessarios > diasDisponiveis) return false;
 
           // Filtro por região
           if (s.regiao) {
@@ -584,7 +722,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
   };
 
   const renderText = (text) => {
-    return text
+    return escapeHtml(text)
       .replace(/```json[\s\S]*?```/g, '<div class="bia-json-block" style="cursor:pointer" onclick="document.getElementById(\'btn-ver-resumo\').click()">📋 Resumo do briefing gerado — clique para revisar</div>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/_(.*?)_/g, '<em>$1</em>')
@@ -592,7 +730,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
   };
 
   // ─── tela de seleção de modelo modular ──────────────────────────────────────
-  if (step === 'modelos' && briefingJson?.tipoEstande === 'modular') {
+  if (step === 'modelos' && getTipoEstande() === 'modular') {
     return (
       <Overlay onClose={onClose}>
         <ModalHeader title="Escolha o modelo de estande" subtitle="Selecione o modelo que melhor atende seu evento" onClose={onClose} assistantName={assistantName} />
@@ -741,7 +879,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
           <Section title="Estrutura">
             <Grid2>
               <Field label="Área" value={est.areaM2 ? `${est.areaM2} m²` : null} />
-              <Field label="Tipo de estande" value={briefingJson.tipoEstande === 'modular' ? 'Modular' : briefingJson.tipoEstande === 'personalizado' ? 'Personalizado' : null} />
+              <Field label="Tipo de estande" value={getTipoEstande() === 'modular' ? 'Modular' : getTipoEstande() === 'personalizado' ? 'Personalizado' : null} />
               {briefingJson.modeloEstande && <Field label="Modelo selecionado" value={briefingJson.modeloEstande.nome} />}
               <Field label="Montagem" value={est.montagem ? 'Sim' : 'Não'} />
               <Field label="Iluminação" value={est.iluminacao ? 'Sim' : 'Não'} />
@@ -771,6 +909,15 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {briefingJson.servicosNecessarios.map((s, i) => (
                   <span key={i} style={{ padding: '5px 12px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 12, fontWeight: 500 }}>{s}</span>
+                ))}
+              </div>
+            </Section>
+          )}
+          {servicosSelecionados.length > 0 && (
+            <Section title="Serviços confirmados pelo cliente">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {servicosSelecionados.map(s => (
+                  <span key={s.serviceId || s.serviceName} style={{ padding: '5px 12px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 12, fontWeight: 500 }}>✓ {s.serviceName}</span>
                 ))}
               </div>
             </Section>
@@ -823,7 +970,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
         assistantName={assistantName}
         extra={briefingJson && (
           <button id="btn-ver-resumo" onClick={() => {
-            if (briefingJson.tipoEstande === 'modular' && modelosEspeciais.length > 0) {
+            if (getTipoEstande() === 'modular' && modelosEspeciais.length > 0) {
               setStep('modelos');
             } else {
               setStep('review');
@@ -893,6 +1040,25 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
                 )}
+              </div>
+            ) : msg.type === 'servicos' ? (
+              <div style={{ flex: 1, maxWidth: '90%' }}>
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Encontrei estas opções cadastradas. Selecione o que deseja incluir:</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {msg.services.map(service => {
+                    const availability = getServiceAvailability(service);
+                    const selected = servicosSelecionados.some(item => item.serviceId === service.serviceId || item.serviceName === service.serviceName);
+                    return (
+                      <button key={service.serviceId || service.serviceName}
+                        onClick={() => selectRegisteredService(service)}
+                        disabled={!availability.feasible || selected}
+                        style={{ padding: '11px 13px', borderRadius: 10, border: `1px solid ${selected ? '#00E5C4' : availability.feasible ? 'rgba(0,180,255,0.25)' : 'rgba(255,100,100,0.3)'}`, background: selected ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.03)', color: selected ? '#00E5C4' : availability.feasible ? '#E8F4FF' : '#ff9b9b', cursor: availability.feasible && !selected ? 'pointer' : 'not-allowed', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{selected ? '✓ ' : ''}{service.serviceName}</div>
+                        <div style={{ fontSize: 11, color: availability.feasible ? '#7BAFD4' : '#ff9b9b', marginTop: 3 }}>{service.serviceParentName || 'Serviço'} · {availability.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ) : msg.type === 'pagamento' ? (
               /* Botões de forma de pagamento */
