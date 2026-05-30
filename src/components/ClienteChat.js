@@ -12,24 +12,70 @@ function extractJson(text) {
   return null;
 }
 
-function normalizeText(value) {
-  return (value || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
+const EMPTY_BRIEFING = {
+  evento: {
+    tipo: '', nome: '', dataInicio: '', dataFim: '', diasDuracao: 0,
+    horarioInicio: '', horarioFim: '', cidade: '', local: '', endereco: '',
+    visitantesPorDia: 0, nomeEmpresa: '',
+  },
+  estrutura: {
+    ativo: false, areaM2: 0, alturaTeto: '', diasMontagem: 0,
+    restricoes: '', energia: '', identidadeVisual: '', tipoEstande: '',
+    observacoes: '',
+  },
+  equipe: {
+    produtor: { ativo: false, dias: 0, observacoes: '' },
+    ativo: false, observacoes: '', itens: [],
+  },
+  equipamentos: {
+    observacoes: '', led: { ativo: false, observacoes: '' },
+    som: { ativo: false, observacoes: '' }, dj: { ativo: false, observacoes: '' },
+    foto: { ativo: false, observacoes: '' }, outros: [],
+  },
+  gastronomia: {
+    ativo: false,
+    alimentos: { ativo: false, formato: '', pessoas: 0, horario: '', restricoes: '', cozinha: '', observacoes: '' },
+    bar: { ativo: false, tipo: '', bebidas: '', horas: 0, bartender: false, observacoes: '' },
+  },
+  servicosNecessarios: [],
+  formaPagamento: '',
+};
 
-function parseBrazilianDate(value) {
-  const match = (value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return null;
-  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
+const INTAKE_FLOW = [
+  { id: 'evento.tipo', question: 'Que tipo de evento você está planejando?' },
+  { id: 'evento.nome', question: 'O evento já tem nome? Se ainda não tiver, pode responder "não definido".' },
+  { id: 'evento.dataInicio', question: 'Qual é a data de início? Use o formato DD/MM/AAAA.' },
+  { id: 'evento.dataFim', question: 'Qual é a data de término? Use o formato DD/MM/AAAA.' },
+  { id: 'evento.horario', question: 'Qual será o horário de início e término do evento?' },
+  { id: 'evento.local', question: 'Em qual cidade e local será realizado? Se já souber, inclua o endereço.' },
+  { id: 'evento.visitantesPorDia', question: 'Quantas pessoas participarão por dia?' },
+  { id: 'evento.nomeEmpresa', question: 'Qual é o nome da empresa organizadora?' },
+  { id: 'equipe.produtor.ativo', question: 'Gostaria de solicitar um produtor de eventos dedicado para coordenar tudo no dia?' },
+  { id: 'equipe.produtor.observacoes', question: 'Por quantos dias precisará do produtor? Existe alguma preferência?', when: b => b.equipe.produtor.ativo },
+  { id: 'estrutura.ativo', question: 'Vai precisar de alguma estrutura física, como estande, palco ou tendas?' },
+  { id: 'estrutura.areaM2', question: 'Qual é o tamanho aproximado da área em m²?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.alturaTeto', question: 'Qual é a altura do teto?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.diasMontagem', question: 'Quantos dias antes do evento o local estará liberado para montagem?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.restricoes', question: 'Existe alguma restrição de acesso, como horários, elevador ou rampa?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.energia', question: 'Vai precisar de energia elétrica dedicada?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.identidadeVisual', question: 'Já existe identidade visual definida, como logo, cores ou materiais?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.tipoEstande', question: 'Para a estrutura, prefere um estande modular pronto ou um projeto personalizado?', when: b => b.estrutura.ativo },
+  { id: 'estrutura.observacoes', question: 'Quais ambientes, móveis ou monitores deseja incluir no projeto personalizado?', when: b => b.estrutura.ativo && b.estrutura.tipoEstande === 'personalizado' },
+  { id: 'equipe.ativo', question: 'Vai precisar de profissionais como recepcionistas, hostess, segurança ou limpeza?' },
+  { id: 'equipe.observacoes', question: 'Descreva os profissionais necessários, quantidades, horas por dia, dias de trabalho e preferências de perfil.', when: b => b.equipe.ativo },
+  { id: 'equipamentos.observacoes', question: 'Vai precisar de equipamentos ou atrações, como LED, som, DJ ou fotógrafo? Descreva o que precisa ou responda "não".' },
+  { id: 'gastronomia.ativo', question: 'Vai precisar de alimentação ou bebidas?' },
+  { id: 'gastronomia.alimentos.formato', question: 'Qual formato deseja, por exemplo coffee break, coquetel, almoço ou jantar?', when: b => b.gastronomia.ativo },
+  { id: 'gastronomia.alimentos.pessoas', question: 'A alimentação será para quantas pessoas?', when: b => b.gastronomia.ativo },
+  { id: 'gastronomia.alimentos.horario', question: 'Qual será o horário e a duração do serviço de alimentação?', when: b => b.gastronomia.ativo },
+  { id: 'gastronomia.alimentos.restricoes', question: 'Existem restrições alimentares?', when: b => b.gastronomia.ativo },
+  { id: 'gastronomia.alimentos.cozinha', question: 'Existe cozinha disponível no local?', when: b => b.gastronomia.ativo },
+  { id: 'gastronomia.bar.ativo', question: 'Vai precisar de bar?', when: b => b.gastronomia.ativo },
+  { id: 'gastronomia.bar.observacoes', question: 'Quais bebidas deseja incluir, por quantas horas e com quantos bartenders?', when: b => b.gastronomia.ativo && b.gastronomia.bar.ativo },
+];
 
-function daysUntil(value) {
-  const date = parseBrazilianDate(value);
-  if (!date) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  date.setHours(0, 0, 0, 0);
-  return Math.ceil((date.getTime() - today.getTime()) / 86400000);
+function normalize(value) {
+  return (value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function escapeHtml(value) {
@@ -41,35 +87,84 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-const SERVICE_ALIASES = {
-  led: ['led', 'painel de led', 'painel led', 'tela de led', 'neon'],
-  som: ['som', 'sonorizacao', 'audio', 'sistema pa', 'caixa de som', 'microfone'],
-  dj: ['dj', 'disc jockey'],
-  foto: ['foto', 'fotografo', 'fotografia'],
-  video: ['video', 'filmagem', 'cinegrafista'],
-  recepcao: ['recepcionista', 'recepcao', 'hostess', 'promotora'],
-  seguranca: ['seguranca', 'vigilancia'],
-  limpeza: ['limpeza', 'auxiliar de limpeza'],
-  alimentacao: ['buffet', 'coffee break', 'alimentacao', 'comida', 'bebida', 'bar', 'bartender'],
-  produtor: ['produtor', 'coordenador', 'producao'],
-  gerador: ['gerador', 'energia'],
-  palco: ['palco'],
-  tenda: ['tenda', 'cobertura'],
-  iluminacao: ['iluminacao', 'luz cenica'],
-  mobiliario: ['mobiliario', 'moveis', 'mesa', 'cadeira'],
-};
+function isYes(value) {
+  return /(^|\s)(sim|quero|preciso|gostaria|vou precisar|com certeza|pode incluir)(\s|$)/i.test(normalize(value));
+}
 
-function serviceMatchesText(service, text) {
-  const haystack = ` ${normalizeText(text)} `;
-  const serviceName = normalizeText(service.serviceName);
-  const parentName = normalizeText(service.serviceParentName);
-  if (serviceName.length >= 3 && haystack.includes(serviceName)) return true;
-  if (parentName.length >= 3 && haystack.includes(parentName)) return true;
-
-  return Object.values(SERVICE_ALIASES).some(aliases => {
-    const catalogMatchesAlias = aliases.some(alias => serviceName.includes(alias) || parentName.includes(alias));
-    return catalogMatchesAlias && aliases.some(alias => haystack.includes(` ${alias} `) || haystack.includes(alias));
+function addServices(briefing, text) {
+  const value = normalize(text);
+  const known = [
+    ['Painel de LED', ['painel de led', 'tela de led', 'led']],
+    ['Som', ['som', 'sonorizacao', 'audio']],
+    ['DJ', [' dj ', 'disc jockey']],
+    ['Fotógrafo', ['fotografo', 'fotografia']],
+    ['Recepcionista', ['recepcionista', 'hostess', 'promotora']],
+    ['Segurança', ['seguranca', 'vigilancia']],
+    ['Limpeza', ['limpeza']],
+    ['Buffet', ['buffet', 'coffee break', 'coquetel', 'almoco', 'jantar', 'alimentacao']],
+    ['Bar', [' bar ', 'bartender']],
+    ['Palco', ['palco']],
+    ['Tenda', ['tenda']],
+    ['Gerador', ['gerador']],
+  ];
+  const padded = ` ${value} `;
+  known.forEach(([service, terms]) => {
+    if (terms.some(term => padded.includes(term))) briefing.servicosNecessarios.push(service);
   });
+  briefing.servicosNecessarios = [...new Set(briefing.servicosNecessarios)];
+}
+
+function setAnswer(briefing, field, text) {
+  const next = JSON.parse(JSON.stringify(briefing));
+  const number = parseInt((text.match(/\d+/) || [0])[0], 10) || 0;
+  switch (field) {
+    case 'evento.tipo': next.evento.tipo = text; break;
+    case 'evento.nome': next.evento.nome = text; break;
+    case 'evento.dataInicio': next.evento.dataInicio = text; break;
+    case 'evento.dataFim': next.evento.dataFim = text; break;
+    case 'evento.horario': next.evento.horarioInicio = text; next.evento.horarioFim = text; break;
+    case 'evento.local': next.evento.cidade = text; next.evento.local = text; next.evento.endereco = text; break;
+    case 'evento.visitantesPorDia': next.evento.visitantesPorDia = number; break;
+    case 'evento.nomeEmpresa': next.evento.nomeEmpresa = text; break;
+    case 'equipe.produtor.ativo':
+      next.equipe.produtor.ativo = isYes(text);
+      if (next.equipe.produtor.ativo) next.servicosNecessarios.push('Produtor Executivo');
+      break;
+    case 'equipe.produtor.observacoes': next.equipe.produtor.observacoes = text; break;
+    case 'estrutura.ativo': next.estrutura.ativo = isYes(text); addServices(next, text); break;
+    case 'estrutura.areaM2': next.estrutura.areaM2 = number; break;
+    case 'estrutura.alturaTeto': next.estrutura.alturaTeto = text; break;
+    case 'estrutura.diasMontagem': next.estrutura.diasMontagem = number; break;
+    case 'estrutura.restricoes': next.estrutura.restricoes = text; break;
+    case 'estrutura.energia': next.estrutura.energia = text; addServices(next, text); break;
+    case 'estrutura.identidadeVisual': next.estrutura.identidadeVisual = text; break;
+    case 'estrutura.tipoEstande':
+      next.estrutura.tipoEstande = normalize(text).includes('modular') ? 'modular' : 'personalizado';
+      if (next.estrutura.tipoEstande === 'modular') next.servicosNecessarios.push('Estande Modular');
+      break;
+    case 'estrutura.observacoes': next.estrutura.observacoes = text; addServices(next, text); break;
+    case 'equipe.ativo': next.equipe.ativo = isYes(text); break;
+    case 'equipe.observacoes': next.equipe.observacoes = text; addServices(next, text); break;
+    case 'equipamentos.observacoes': next.equipamentos.observacoes = text; addServices(next, text); break;
+    case 'gastronomia.ativo':
+      next.gastronomia.ativo = isYes(text);
+      next.gastronomia.alimentos.ativo = next.gastronomia.ativo;
+      if (next.gastronomia.ativo) next.servicosNecessarios.push('Buffet');
+      break;
+    case 'gastronomia.alimentos.formato': next.gastronomia.alimentos.formato = text; addServices(next, text); break;
+    case 'gastronomia.alimentos.pessoas': next.gastronomia.alimentos.pessoas = number; break;
+    case 'gastronomia.alimentos.horario': next.gastronomia.alimentos.horario = text; break;
+    case 'gastronomia.alimentos.restricoes': next.gastronomia.alimentos.restricoes = text; break;
+    case 'gastronomia.alimentos.cozinha': next.gastronomia.alimentos.cozinha = text; break;
+    case 'gastronomia.bar.ativo':
+      next.gastronomia.bar.ativo = isYes(text);
+      if (next.gastronomia.bar.ativo) next.servicosNecessarios.push('Bar');
+      break;
+    case 'gastronomia.bar.observacoes': next.gastronomia.bar.observacoes = text; addServices(next, text); break;
+    default: break;
+  }
+  next.servicosNecessarios = [...new Set(next.servicosNecessarios)];
+  return next;
 }
 
 // Carrossel de fotos para os cards de estande
@@ -101,6 +196,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
   const [systemScript, setSystemScript] = useState('');
+  const [pricingData, setPricingData]   = useState([]);
   const [briefingJson, setBriefingJson] = useState(null);
   const [step, setStep]                 = useState('chat');
   const [submitting, setSubmitting]     = useState(false);
@@ -108,9 +204,12 @@ export default function ClienteChat({ userData, onClose }) {
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const [carrosselIdx, setCarrosselIdx] = useState({});
+  const [catalogoSummary, setCatalogoSummary] = useState('');
   const [formaPagamento, setFormaPagamento] = useState(null);
-  const [supplierCatalog, setSupplierCatalog] = useState([]);
-  const [servicosSelecionados, setServicosSelecionados] = useState([]);
+  const [intakeIndex, setIntakeIndex] = useState(0);
+  const [briefingDraft, setBriefingDraft] = useState(EMPTY_BRIEFING);
+  const [aguardandoModelo, setAguardandoModelo] = useState(false);
+  const [aguardandoPagamento, setAguardandoPagamento] = useState(false);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -132,9 +231,11 @@ export default function ClienteChat({ userData, onClose }) {
       } catch (e) { console.error('Erro ao carregar script:', e); }
 
       try {
-        const snap = await getDocs(collection(db, 'supplierServices'));
-        setSupplierCatalog(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false));
-      } catch (e) { console.error('Erro ao carregar serviços dos fornecedores:', e); }
+        const snap = await getDocs(collection(db, 'servicePricing'));
+        setPricingData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (e) { console.error('Erro ao carregar pricing:', e); }
+
+      
 
       // Carrega modelos de estandes especiais/modulares
       try {
@@ -158,6 +259,11 @@ export default function ClienteChat({ userData, onClose }) {
           : todosModelos;
 
         if (modelosFiltrados.length > 0) {
+          const linhasModelos = modelosFiltrados.map(m => {
+            const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
+            return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
+          });
+          setCatalogoSummary(''); // catálogo não é mais injetado no prompt
           setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
@@ -178,189 +284,88 @@ export default function ClienteChat({ userData, onClose }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const getTipoEstande = (briefing = briefingJson) => briefing?.estrutura?.tipoEstande || briefing?.tipoEstande || '';
-
-  const getServiceAvailability = (service, briefing = briefingJson) => {
-    const availableDays = daysUntil(briefing?.evento?.dataInicio);
-    const requiredDays = Math.min(...(service.fornecedores || [service]).map(item =>
-      Number(item.diasPreparo || 0) + Number(item.diasMontagem || 0)
-    ));
-    if (availableDays === null) return { feasible: true, label: requiredDays ? `Prazo mínimo: ${requiredDays} dias` : 'Prazo sob consulta' };
-    return {
-      feasible: requiredDays <= availableDays,
-      label: requiredDays <= availableDays
-        ? `Disponível para a data informada (${requiredDays} dias de preparo)`
-        : `Indisponível: precisa de ${requiredDays} dias e faltam ${availableDays}`,
-    };
+  const appendAssistant = (content, extra = {}) => {
+    setMessages(prev => [...prev, { role: 'assistant', content, id: Date.now() + Math.random(), ...extra }]);
   };
 
-  const findRegisteredServices = async (text, json) => {
-    let catalog = supplierCatalog;
-    if (catalog.length === 0) {
-      try {
-        const snap = await getDocs(collection(db, 'supplierServices'));
-        catalog = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-        setSupplierCatalog(catalog);
-      } catch (e) {
-        console.error('Erro ao buscar serviços cadastrados:', e);
-        return [];
-      }
+  const getNextQuestionIndex = (currentIndex, draft) => {
+    for (let i = currentIndex + 1; i < INTAKE_FLOW.length; i += 1) {
+      if (!INTAKE_FLOW[i].when || INTAKE_FLOW[i].when(draft)) return i;
     }
-
-    const mentioned = [
-      text,
-      ...((json?.servicosNecessarios || []).map(String)),
-    ].join(' ');
-    const grouped = new Map();
-    catalog.filter(service => serviceMatchesText(service, mentioned)).forEach(service => {
-      const key = service.serviceId || normalizeText(service.serviceName);
-      const current = grouped.get(key);
-      if (current) current.fornecedores.push(service);
-      else grouped.set(key, { ...service, fornecedores: [service] });
-    });
-    return [...grouped.values()].filter(service =>
-      !servicosSelecionados.some(selected => selected.serviceId === service.serviceId || selected.serviceName === service.serviceName)
-    );
+    return -1;
   };
 
-  const selectRegisteredService = (service) => {
-    const availability = getServiceAvailability(service);
-    if (!availability.feasible) return;
-    setServicosSelecionados(prev => {
-      if (prev.some(item => item.serviceId === service.serviceId || item.serviceName === service.serviceName)) return prev;
-      return [...prev, service];
-    });
-    setBriefingJson(prev => ({
-      ...(prev || {}),
-      servicosNecessarios: [
-        ...new Set([...(prev?.servicosNecessarios || []), service.serviceName]),
-      ],
-      servicosSelecionados: [
-        ...(prev?.servicosSelecionados || []).filter(item => item.serviceId !== service.serviceId),
-        { serviceId: service.serviceId || '', serviceName: service.serviceName, serviceParentName: service.serviceParentName || '' },
-      ],
-    }));
+  const requestPayment = () => {
+    setAguardandoPagamento(true);
+    appendAssistant('Perfeito. Para concluir o briefing, escolha a forma de pagamento:', { type: 'pagamento' });
   };
 
-  // ── enviar mensagem ───────────────────────────────────────────────────────
+  const continueIntake = (currentIndex, draft) => {
+    const nextIndex = getNextQuestionIndex(currentIndex, draft);
+    if (nextIndex === -1) {
+      requestPayment();
+      return;
+    }
+    setIntakeIndex(nextIndex);
+    appendAssistant(INTAKE_FLOW[nextIndex].question);
+  };
+
+  const confirmModeloInline = () => {
+    if (!modeloSelecionado) return;
+    const next = JSON.parse(JSON.stringify(briefingDraft));
+    next.modeloEstande = {
+      id: modeloSelecionado.id,
+      nome: modeloSelecionado.nome,
+      areaM2: modeloSelecionado.areaM2,
+      precoBase: modeloSelecionado.precoBase,
+      diasProducao: modeloSelecionado.diasProducao,
+    };
+    next.servicosNecessarios = [
+      ...new Set([...(next.servicosNecessarios || []).filter(s => !s.toLowerCase().includes('estande')), modeloSelecionado.nome]),
+    ];
+    setBriefingDraft(next);
+    setAguardandoModelo(false);
+    appendAssistant(`Modelo **${modeloSelecionado.nome}** selecionado.`);
+    continueIntake(intakeIndex, next);
+  };
+
+  const finalizeBriefing = (paymentValue, paymentLabel) => {
+    const finalBriefing = {
+      ...briefingDraft,
+      formaPagamento: paymentValue,
+    };
+    setFormaPagamento(paymentValue);
+    setAguardandoPagamento(false);
+    setBriefingJson(finalBriefing);
+    setMessages(prev => [
+      ...prev,
+      { role: 'user', content: paymentLabel, id: Date.now() },
+      { role: 'assistant', content: 'Briefing concluído. Revise o resumo antes de enviar.\n\n```json\n' + JSON.stringify(finalBriefing, null, 2) + '\n```', id: Date.now() + 1 },
+    ]);
+  };
+
+  // O código controla o roteiro. A IA não escolhe a próxima pergunta.
   const sendMessage = async (textoForçado) => {
     const text = (textoForçado || input).trim();
-    if (!text || loading) return;
+    if (!text || loading || aguardandoModelo || aguardandoPagamento || briefingJson) return;
     setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: text, id: Date.now() }]);
 
-    const userMsg = { role: 'user', content: text, id: Date.now() };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
-    setLoading(true);
+    const current = INTAKE_FLOW[intakeIndex];
+    const next = setAnswer(briefingDraft, current.id, text);
+    setBriefingDraft(next);
 
-    try {
-      const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
-
-      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript;
-      // Limita o system prompt a 12000 caracteres para evitar erro 400
-      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
-
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: history,
-        }),
-      });
-
-      const data = await response.json();
-
-      const assistantText = (data.content || [])
-        .filter(b => b.type === 'text')
-        .map(b => b.text)
-        .join('\n');
-
-      // Remove o marcador do texto visível (aceita [] ou {})
-      const textoLimpo = assistantText
-        .replace(/\[?{?MOSTRAR_MODELOS}?\]?/g, '')
-        .replace(/\[?{?ESCOLHER_PAGAMENTO}?\]?/g, '')
-        .trim();
-      const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
-      setMessages(prev => [...prev, assistantMsg]);
-
-      // Se a IA usou o marcador → injeta card de seleção de modelos
-      const temMarcador = assistantText.includes('MOSTRAR_MODELOS');
-      if (temMarcador) {
-        // Garante que os modelos estão carregados
-        let modelos = modelosEspeciais;
-        if (modelos.length === 0) {
-          try {
-            const snap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
-            modelos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setModelosEspeciais(modelos);
-          } catch (e) { console.error('Erro ao carregar modelos:', e); }
-        }
-        if (modelos.length > 0) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: '',
-            type: 'modelos',
-            id: Date.now() + 2,
-          }]);
-        }
+    if (current.id === 'estrutura.tipoEstande' && next.estrutura.tipoEstande === 'modular') {
+      if (modelosEspeciais.length > 0) {
+        setAguardandoModelo(true);
+        appendAssistant('Escolha um dos modelos modulares cadastrados:', { type: 'modelos' });
+        return;
       }
-
-      // Se a IA usou o marcador de pagamento → injeta card com botões de opção
-      const temMarcadorPagamento = assistantText.includes('ESCOLHER_PAGAMENTO');
-      if (temMarcadorPagamento) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: '',
-          type: 'pagamento',
-          id: Date.now() + 3,
-        }]);
-      }
-
-      const json = extractJson(assistantText);
-      if (json && json.evento) {
-        setBriefingJson(prev => ({
-          ...json,
-          servicosNecessarios: [...new Set([...(json.servicosNecessarios || []), ...(prev?.servicosNecessarios || [])])],
-          servicosSelecionados: prev?.servicosSelecionados || [],
-        }));
-        // Se pediu estande modular, busca modelos disponíveis
-        if (getTipoEstande(json) === 'modular') {
-          try {
-            const tiposSnap = await getDocs(query(collection(db, 'tiposEspeciais'), where('ativo', '==', true)));
-            const tipoEstande = tiposSnap.docs.find(d => d.data().nome?.toLowerCase().includes('modular') || d.data().nome?.toLowerCase().includes('estande'));
-            if (tipoEstande) {
-              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('tipoEspecialId', '==', tipoEstande.id), where('ativo', '==', true)));
-              setModelosEspeciais(modelosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-            }
-          } catch (e) { console.error('Erro ao buscar modelos:', e); }
-        }
-      }
-
-      const servicosEncontrados = await findRegisteredServices(text, json);
-      if (servicosEncontrados.length > 0) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: '',
-          type: 'servicos',
-          services: servicosEncontrados,
-          id: Date.now() + 4,
-        }]);
-      }
-    } catch (err) {
-      console.error('Erro na API:', err);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Desculpe, tive um problema de conexão. Pode repetir a última mensagem?',
-        id: Date.now() + 2,
-      }]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      appendAssistant('Não encontrei modelos modulares ativos no momento. Vou registrar a necessidade para análise da equipe.');
     }
+
+    continueIntake(intakeIndex, next);
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const handleKey = (e) => {
@@ -370,13 +375,6 @@ export default function ClienteChat({ userData, onClose }) {
   // ── confirmar e salvar no Firestore ───────────────────────────────────────
   const handleConfirm = async () => {
     if (!briefingJson) return;
-    const servicoInviavel = servicosSelecionados.find(service => !getServiceAvailability(service).feasible);
-    const modeloInviavel = modeloSelecionado && daysUntil(briefingJson.evento?.dataInicio) !== null
-      && Number(modeloSelecionado.diasProducao || 0) > daysUntil(briefingJson.evento?.dataInicio);
-    if (servicoInviavel || modeloInviavel) {
-      alert('Existe pelo menos um item sem prazo suficiente para a data do evento. Volte ao chat e escolha uma alternativa disponível.');
-      return;
-    }
     setSubmitting(true);
     try {
       // Busca coordenadores
@@ -440,7 +438,6 @@ export default function ClienteChat({ userData, onClose }) {
       // ── cria supplierJobs ──
       try {
         const servicosNecessarios = briefingJson.servicosNecessarios || [];
-        const idsSelecionados = new Set(servicosSelecionados.map(s => s.serviceId).filter(Boolean));
         console.log('servicosNecessarios:', servicosNecessarios);
 
         const suppServSnap = await getDocs(collection(db, 'supplierServices'));
@@ -451,10 +448,6 @@ export default function ClienteChat({ userData, onClose }) {
 
         const suppServs = todosServicos.filter(s => {
           if (s.ativo === false) return false;
-          if (!idsSelecionados.has(s.serviceId)) return false;
-          const diasDisponiveis = daysUntil(briefingJson.evento?.dataInicio);
-          const diasNecessarios = Number(s.diasPreparo || 0) + Number(s.diasMontagem || 0);
-          if (diasDisponiveis !== null && diasNecessarios > diasDisponiveis) return false;
 
           // Filtro por região
           if (s.regiao) {
@@ -730,7 +723,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
   };
 
   // ─── tela de seleção de modelo modular ──────────────────────────────────────
-  if (step === 'modelos' && getTipoEstande() === 'modular') {
+  if (step === 'modelos' && briefingJson?.estrutura?.tipoEstande === 'modular') {
     return (
       <Overlay onClose={onClose}>
         <ModalHeader title="Escolha o modelo de estande" subtitle="Selecione o modelo que melhor atende seu evento" onClose={onClose} assistantName={assistantName} />
@@ -879,7 +872,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
           <Section title="Estrutura">
             <Grid2>
               <Field label="Área" value={est.areaM2 ? `${est.areaM2} m²` : null} />
-              <Field label="Tipo de estande" value={getTipoEstande() === 'modular' ? 'Modular' : getTipoEstande() === 'personalizado' ? 'Personalizado' : null} />
+              <Field label="Tipo de estande" value={est.tipoEstande === 'modular' ? 'Modular' : est.tipoEstande === 'personalizado' ? 'Personalizado' : null} />
               {briefingJson.modeloEstande && <Field label="Modelo selecionado" value={briefingJson.modeloEstande.nome} />}
               <Field label="Montagem" value={est.montagem ? 'Sim' : 'Não'} />
               <Field label="Iluminação" value={est.iluminacao ? 'Sim' : 'Não'} />
@@ -909,15 +902,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {briefingJson.servicosNecessarios.map((s, i) => (
                   <span key={i} style={{ padding: '5px 12px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 12, fontWeight: 500 }}>{s}</span>
-                ))}
-              </div>
-            </Section>
-          )}
-          {servicosSelecionados.length > 0 && (
-            <Section title="Serviços confirmados pelo cliente">
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {servicosSelecionados.map(s => (
-                  <span key={s.serviceId || s.serviceName} style={{ padding: '5px 12px', borderRadius: 20, background: 'rgba(0,229,196,0.08)', border: '1px solid rgba(0,229,196,0.2)', color: '#00E5C4', fontSize: 12, fontWeight: 500 }}>✓ {s.serviceName}</span>
                 ))}
               </div>
             </Section>
@@ -969,13 +953,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
         onClose={onClose}
         assistantName={assistantName}
         extra={briefingJson && (
-          <button id="btn-ver-resumo" onClick={() => {
-            if (getTipoEstande() === 'modular' && modelosEspeciais.length > 0) {
-              setStep('modelos');
-            } else {
-              setStep('review');
-            }
-          }} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+          <button id="btn-ver-resumo" onClick={() => setStep('review')} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
             Ver resumo →
           </button>
         )}
@@ -1036,29 +1014,10 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   })}
                 </div>
                 {modeloSelecionado && (
-                  <button onClick={() => sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`)} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  <button onClick={confirmModeloInline} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
                 )}
-              </div>
-            ) : msg.type === 'servicos' ? (
-              <div style={{ flex: 1, maxWidth: '90%' }}>
-                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>Encontrei estas opções cadastradas. Selecione o que deseja incluir:</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {msg.services.map(service => {
-                    const availability = getServiceAvailability(service);
-                    const selected = servicosSelecionados.some(item => item.serviceId === service.serviceId || item.serviceName === service.serviceName);
-                    return (
-                      <button key={service.serviceId || service.serviceName}
-                        onClick={() => selectRegisteredService(service)}
-                        disabled={!availability.feasible || selected}
-                        style={{ padding: '11px 13px', borderRadius: 10, border: `1px solid ${selected ? '#00E5C4' : availability.feasible ? 'rgba(0,180,255,0.25)' : 'rgba(255,100,100,0.3)'}`, background: selected ? 'rgba(0,229,196,0.1)' : 'rgba(255,255,255,0.03)', color: selected ? '#00E5C4' : availability.feasible ? '#E8F4FF' : '#ff9b9b', cursor: availability.feasible && !selected ? 'pointer' : 'not-allowed', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{selected ? '✓ ' : ''}{service.serviceName}</div>
-                        <div style={{ fontSize: 11, color: availability.feasible ? '#7BAFD4' : '#ff9b9b', marginTop: 3 }}>{service.serviceParentName || 'Serviço'} · {availability.label}</div>
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             ) : msg.type === 'pagamento' ? (
               /* Botões de forma de pagamento */
@@ -1074,8 +1033,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       <button
                         key={op.valor}
                         onClick={() => {
-                          setFormaPagamento(op.valor);
-                          sendMessage(op.label);
+                          finalizeBriefing(op.valor, op.label);
                         }}
                         style={{
                           padding: '12px 16px',
@@ -1126,11 +1084,12 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
 
       <div style={{ padding: '12px 16px 16px', borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         <textarea ref={inputRef} className="bia-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
-          placeholder="Digite sua mensagem... (Enter para enviar)" rows={1}
+          disabled={aguardandoModelo || aguardandoPagamento || !!briefingJson}
+          placeholder={aguardandoModelo ? 'Escolha um modelo acima para continuar' : aguardandoPagamento ? 'Escolha uma forma de pagamento acima' : briefingJson ? 'Briefing concluído' : 'Digite sua mensagem... (Enter para enviar)'} rows={1}
           style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.15)', background: 'rgba(255,255,255,0.04)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', resize: 'none', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto' }}
           onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'; }}
         />
-        <button className="bia-send-btn" onClick={sendMessage} disabled={loading || !input.trim()}
+        <button className="bia-send-btn" onClick={sendMessage} disabled={loading || aguardandoModelo || aguardandoPagamento || !!briefingJson || !input.trim()}
           style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.08)', color: '#00E5C4', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.15s' }}>
           ↑
         </button>
