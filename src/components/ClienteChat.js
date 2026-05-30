@@ -170,14 +170,14 @@ export default function ClienteChat({ userData, onClose }) {
 
       // Remove o marcador do texto visível (aceita [] ou {})
       const textoLimpo = assistantText
-        .replace('[MOSTRAR_MODELOS]', '').replace('{MOSTRAR_MODELOS}', '')
-        .replace('[ESCOLHER_PAGAMENTO]', '').replace('{ESCOLHER_PAGAMENTO}', '')
+        .replace(/\[?{?MOSTRAR_MODELOS}?\]?/g, '')
+        .replace(/\[?{?ESCOLHER_PAGAMENTO}?\]?/g, '')
         .trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
       // Se a IA usou o marcador → injeta card de seleção de modelos
-      const temMarcador = assistantText.includes('[MOSTRAR_MODELOS]') || assistantText.includes('{MOSTRAR_MODELOS}');
+      const temMarcador = assistantText.includes('MOSTRAR_MODELOS');
       if (temMarcador) {
         // Garante que os modelos estão carregados
         let modelos = modelosEspeciais;
@@ -199,7 +199,7 @@ export default function ClienteChat({ userData, onClose }) {
       }
 
       // Se a IA usou o marcador de pagamento → injeta card com botões de opção
-      const temMarcadorPagamento = assistantText.includes('[ESCOLHER_PAGAMENTO]') || assistantText.includes('{ESCOLHER_PAGAMENTO}');
+      const temMarcadorPagamento = assistantText.includes('ESCOLHER_PAGAMENTO');
       if (temMarcadorPagamento) {
         setMessages(prev => [...prev, {
           role: 'assistant',
