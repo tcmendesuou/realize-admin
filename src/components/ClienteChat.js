@@ -190,7 +190,7 @@ export default function ClienteChat({ userData, onClose }) {
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const instrucaoPagamento = `\n\nINSTRUCAO FORMA DE PAGAMENTO: Ao final do briefing, depois de coletar todas as informações do evento e serviços, obrigatoriamente pergunte a forma de pagamento preferida. Use o marcador [ESCOLHER_PAGAMENTO] no final dessa mensagem. Não gere o JSON final do briefing antes de o cliente escolher a forma de pagamento.`;
-      const basePrompt = `HOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + pricingSummary + catalogoSummary + instrucaoPagamento;
+      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript;
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
