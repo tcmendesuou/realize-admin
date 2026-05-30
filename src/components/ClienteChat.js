@@ -167,6 +167,50 @@ function setAnswer(briefing, field, text) {
   return next;
 }
 
+function mergeBriefing(base, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return base;
+  const next = JSON.parse(JSON.stringify(base));
+  Object.entries(patch).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (Array.isArray(value)) {
+      next[key] = value;
+      return;
+    }
+    if (typeof value === 'object') {
+      next[key] = mergeBriefing(next[key] || {}, value);
+      return;
+    }
+    next[key] = value;
+  });
+  return next;
+}
+
+function parseExtractorJson(text) {
+  try {
+    return JSON.parse((text || '').replace(/```json|```/g, '').trim());
+  } catch {
+    return null;
+  }
+}
+
+function unique(values) {
+  return [...new Set((values || []).filter(Boolean))];
+}
+
+function getPathValue(object, path) {
+  return path.split('.').reduce((value, key) => value?.[key], object);
+}
+
+function isFlowAnswered(item, draft, fields) {
+  if (fields.includes(item.id)) return true;
+  if (item.id === 'evento.horario') return Boolean(draft.evento.horarioInicio && draft.evento.horarioFim);
+  if (item.id === 'equipe.observacoes') return Boolean(draft.equipe.observacoes || draft.equipe.itens?.length);
+  const value = getPathValue(draft, item.id);
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'number') return value > 0;
+  return false;
+}
+
 // Carrossel de fotos para os cards de estande
 function ModeloCarrossel({ fotos, idx, onPrev, onNext, onDot }) {
   if (!fotos?.length) return <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 32 }}>🏗️</span>;
@@ -210,6 +254,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [briefingDraft, setBriefingDraft] = useState(EMPTY_BRIEFING);
   const [aguardandoModelo, setAguardandoModelo] = useState(false);
   const [aguardandoPagamento, setAguardandoPagamento] = useState(false);
+  const [answeredFields, setAnsweredFields] = useState([]);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -288,8 +333,9 @@ export default function ClienteChat({ userData, onClose }) {
     setMessages(prev => [...prev, { role: 'assistant', content, id: Date.now() + Math.random(), ...extra }]);
   };
 
-  const getNextQuestionIndex = (currentIndex, draft) => {
-    for (let i = currentIndex + 1; i < INTAKE_FLOW.length; i += 1) {
+  const getNextQuestionIndex = (draft, fields) => {
+    for (let i = 0; i < INTAKE_FLOW.length; i += 1) {
+      if (isFlowAnswered(INTAKE_FLOW[i], draft, fields)) continue;
       if (!INTAKE_FLOW[i].when || INTAKE_FLOW[i].when(draft)) return i;
     }
     return -1;
@@ -300,14 +346,14 @@ export default function ClienteChat({ userData, onClose }) {
     appendAssistant('Perfeito. Para concluir o briefing, escolha a forma de pagamento:', { type: 'pagamento' });
   };
 
-  const continueIntake = (currentIndex, draft) => {
-    const nextIndex = getNextQuestionIndex(currentIndex, draft);
+  const continueIntake = (draft, fields) => {
+    const nextIndex = getNextQuestionIndex(draft, fields);
     if (nextIndex === -1) {
       requestPayment();
       return;
     }
     setIntakeIndex(nextIndex);
-    appendAssistant(INTAKE_FLOW[nextIndex].question);
+    appendAssistant(`Entendi. ${INTAKE_FLOW[nextIndex].question}`);
   };
 
   const confirmModeloInline = () => {
@@ -326,7 +372,7 @@ export default function ClienteChat({ userData, onClose }) {
     setBriefingDraft(next);
     setAguardandoModelo(false);
     appendAssistant(`Modelo **${modeloSelecionado.nome}** selecionado.`);
-    continueIntake(intakeIndex, next);
+    continueIntake(next, answeredFields);
   };
 
   const finalizeBriefing = (paymentValue, paymentLabel) => {
@@ -344,28 +390,103 @@ export default function ClienteChat({ userData, onClose }) {
     ]);
   };
 
-  // O código controla o roteiro. A IA não escolhe a próxima pergunta.
+  const extractBriefingPatch = async (text, currentQuestion) => {
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    const extractorPrompt = `Extraia fatos de uma mensagem de cliente sobre um evento.
+Responda SOMENTE JSON valido, sem markdown, no formato:
+{"patch":{},"answeredFields":[],"servicosNecessarios":[]}
+
+HOJE: ${hoje}
+PERGUNTA ATUAL: ${currentQuestion}
+CAMPOS JA RESPONDIDOS: ${JSON.stringify(answeredFields)}
+IDS VALIDOS DO ROTEIRO: ${JSON.stringify(INTAKE_FLOW.map(item => item.id))}
+BRIEFING ATUAL: ${JSON.stringify(briefingDraft)}
+MENSAGEM DO CLIENTE: ${JSON.stringify(text)}
+
+Regras:
+- Leia a mensagem inteira. Extraia todos os fatos informados, mesmo que respondam perguntas futuras.
+- patch deve conter somente campos informados ou inferencias diretas e seguras.
+- answeredFields deve listar os IDs respondidos nesta mensagem usando apenas IDs existentes no roteiro.
+- Nao invente dados ausentes.
+- Preserve observacoes detalhadas, inclusive vestuario, perfil solicitado, medidas e conteudo de LED.
+- Use DD/MM/AAAA. Se houver uma unica data para um evento de um dia, use a mesma data em evento.dataInicio e evento.dataFim.
+- Se houver stand, palco ou tenda, marque estrutura.ativo=true.
+- Se o cliente disser que nao quer algo, registre false e marque o campo como respondido.
+- Para horario do evento, preencha evento.horarioInicio e evento.horarioFim e marque evento.horario.
+- Para local, separe quando possivel evento.cidade, evento.local e evento.endereco e marque evento.local.
+- Para profissionais, use equipe.itens: [{"tipo":"","quantidade":0,"horasPorDia":0,"dias":0,"observacoes":""}].
+- Se mencionar qualquer profissional, marque equipe.ativo=true, equipe.ativo em answeredFields e equipe.observacoes quando houver detalhes suficientes.
+- Para LED, registre equipamentos.led.ativo=true e detalhes em equipamentos.led.observacoes.
+- servicosNecessarios deve conter nomes objetivos mencionados, por exemplo "Recepcionista", "Painel de LED", "Estande Modular".
+- Nao escolha modular ou personalizado sem o cliente declarar isso claramente.
+- Nao escreva pergunta, conselho, explicacao ou texto fora do JSON.`;
+
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2500,
+        system: 'Voce e um extrator de dados. Responda apenas JSON valido. Nunca converse com o cliente.',
+        messages: [{ role: 'user', content: extractorPrompt }],
+      }),
+    });
+    if (!response.ok) throw new Error(`Extrator respondeu ${response.status}`);
+    const data = await response.json();
+    const raw = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const parsed = parseExtractorJson(raw);
+    if (!parsed?.patch || !Array.isArray(parsed.answeredFields)) throw new Error('JSON invalido retornado pelo extrator');
+    return parsed;
+  };
+
+  // A IA interpreta a mensagem inteira. O código continua escolhendo a próxima pergunta.
   const sendMessage = async (textoForçado) => {
     const text = (textoForçado || input).trim();
     if (!text || loading || aguardandoModelo || aguardandoPagamento || briefingJson) return;
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: text, id: Date.now() }]);
-
     const current = INTAKE_FLOW[intakeIndex];
-    const next = setAnswer(briefingDraft, current.id, text);
-    setBriefingDraft(next);
-
-    if (current.id === 'estrutura.tipoEstande' && next.estrutura.tipoEstande === 'modular') {
-      if (modelosEspeciais.length > 0) {
-        setAguardandoModelo(true);
-        appendAssistant('Escolha um dos modelos modulares cadastrados:', { type: 'modelos' });
-        return;
+    setLoading(true);
+    try {
+      let extraction;
+      try {
+        extraction = await extractBriefingPatch(text, current.question);
+      } catch (error) {
+        console.error('Erro no extrator, usando resposta da etapa atual:', error);
+        extraction = {
+          patch: setAnswer(briefingDraft, current.id, text),
+          answeredFields: [current.id],
+          servicosNecessarios: [],
+        };
       }
-      appendAssistant('Não encontrei modelos modulares ativos no momento. Vou registrar a necessidade para análise da equipe.');
-    }
 
-    continueIntake(intakeIndex, next);
-    setTimeout(() => inputRef.current?.focus(), 100);
+      let next = mergeBriefing(briefingDraft, extraction.patch);
+      next.servicosNecessarios = unique([
+        ...(briefingDraft.servicosNecessarios || []),
+        ...(next.servicosNecessarios || []),
+        ...(extraction.servicosNecessarios || []),
+      ]);
+      const fields = unique([...answeredFields, ...extraction.answeredFields]);
+      setBriefingDraft(next);
+      setAnsweredFields(fields);
+
+      if (next.estrutura.tipoEstande === 'modular' && !next.modeloEstande) {
+        if (modelosEspeciais.length > 0) {
+          setAguardandoModelo(true);
+          appendAssistant('Entendi. Escolha um dos modelos modulares cadastrados:', { type: 'modelos' });
+          return;
+        }
+        appendAssistant('Não encontrei modelos modulares ativos no momento. Vou registrar a necessidade para análise da equipe.');
+      }
+
+      continueIntake(next, fields);
+    } catch (error) {
+      console.error('Erro ao processar mensagem:', error);
+      appendAssistant('Não consegui interpretar essa resposta. Pode reformular em uma frase curta?');
+    } finally {
+      setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
   };
 
   const handleKey = (e) => {
