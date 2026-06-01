@@ -160,6 +160,7 @@ export default function ClienteChat({ userData, onClose }) {
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + catalogoSummary;
+      console.log('catalogoSummary no prompt:', catalogoSummary);
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
