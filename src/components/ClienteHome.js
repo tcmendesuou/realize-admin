@@ -18,7 +18,7 @@ export default function ClienteHome({ userData, onLogout }) {
   const [activeSection, setActiveSection] = useState('workspace');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showChat, setShowChat] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
   const [aprovando, setAprovando] = useState(false);
   const [tasksPendentesAprov, setTasksPendentesAprov] = useState([]);
   const [aprovandoTask, setAprovandoTask] = useState(false);
@@ -239,7 +239,7 @@ export default function ClienteHome({ userData, onLogout }) {
                 style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,196,0.12)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,229,196,0.06)'}
-                onClick={() => setShowChat(true)}>
+                onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}>
                 + Novo Evento
               </button>
             </div>
@@ -250,7 +250,7 @@ export default function ClienteHome({ userData, onLogout }) {
               <div style={{ textAlign: 'center', padding: 80 }}>
                 <div style={{ fontSize: 14, color: 'rgba(123,175,212,0.5)', marginBottom: 20 }}>Voce ainda nao tem eventos</div>
                 <button
-                  onClick={() => setShowChat(true)}
+                  onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}
                   style={{ padding: '12px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                   Planejar meu primeiro evento
                 </button>
@@ -314,6 +314,7 @@ export default function ClienteHome({ userData, onLogout }) {
       {/* Modal do Chat com a Bia */}
       {showChat && (
         <ClienteChat
+          key={chatKey}
           userData={userData}
           onClose={() => setShowChat(false)}
         />
