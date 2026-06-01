@@ -83,10 +83,11 @@ export default function ClienteChat({ userData, onClose }) {
 
       // Carrega lista de nomes dos serviços cadastrados para injetar no prompt
       try {
-        const svSnap = await getDocs(query(collection(db, 'supplierServices'), where('ativo', '!=', false)));
+        const svSnap = await getDocs(collection(db, 'supplierServices'));
         const nomes = [...new Set(svSnap.docs.map(d => d.data().serviceName).filter(Boolean))];
         if (nomes.length > 0) {
           setCatalogoSummary(`\n\nSERVIÇOS DISPONÍVEIS NO SISTEMA (use esses nomes EXATOS nos marcadores MOSTRAR_OPCOES):\n${nomes.map(n => `- ${n}`).join('\n')}`);
+          console.log('Serviços carregados:', nomes);
         }
       } catch (e) { console.error('Erro ao carregar nomes dos serviços:', e); }
 
