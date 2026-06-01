@@ -225,6 +225,8 @@ export default function ClienteChat({ userData, onClose }) {
           }]);
         }
       }
+      
+      console.log('texto da IA:', assistantText);
 
       // Detecta marcadores dinâmicos MOSTRAR_OPCOES:NomeServico
       const matchesOpcoes = [...assistantText.matchAll(/MOSTRAR_OPCOES:([^\s\n,]+)/g)];
@@ -973,14 +975,14 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
               </div>
 
               ) : msg.type === 'opcoes_servico' ? (
-                  <div style={{ width: '100%', marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>
-                      Opções disponíveis para <strong style={{ color: '#E8F4FF' }}>{msg.nomeServico}</strong>:
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {opcoesCards.map(op => (
-                        <div key={op.id} onClick={() => setOpcaoCardSelecionada(op)}
-                          style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${opcaoCardSelecionada?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcaoCardSelecionada?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
+                <div style={{ width: '100%', marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>
+                    Opções disponíveis para <strong style={{ color: '#E8F4FF' }}>{msg.nomeServico}</strong>:
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(msg.opcoes || []).map(op => (
+                      <div key={op.id} onClick={() => setOpcaoCardSelecionada(op)}
+                        style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${opcaoCardSelecionada?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcaoCardSelecionada?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
                           {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
                           {op.valor && <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4', marginTop: 4 }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade || ''}</div>}
