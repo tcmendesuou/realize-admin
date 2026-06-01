@@ -87,7 +87,6 @@ export default function ClienteChat({ userData, onClose }) {
         const nomes = [...new Set(svSnap.docs.map(d => d.data().serviceName).filter(Boolean))];
         if (nomes.length > 0) {
           setCatalogoSummary(`\n\nSERVIÇOS DISPONÍVEIS NO SISTEMA (use esses nomes EXATOS nos marcadores MOSTRAR_OPCOES):\n${nomes.map(n => `- ${n}`).join('\n')}`);
-          console.log('Serviços carregados:', nomes);
         }
       } catch (e) { console.error('Erro ao carregar nomes dos serviços:', e); }
 
@@ -171,9 +170,7 @@ export default function ClienteChat({ userData, onClose }) {
           }
         } catch (e) { console.error(e); }
       }
-      console.log('catalogoSummary no prompt:', listaNomes);
       const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + listaNomes;
-      console.log('catalogoSummary no prompt:', catalogoSummary);
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
@@ -226,7 +223,6 @@ export default function ClienteChat({ userData, onClose }) {
         }
       }
       
-      console.log('texto da IA:', assistantText);
 
       // Detecta marcadores dinâmicos MOSTRAR_OPCOES:NomeServico
       const matchesOpcoes = [...assistantText.matchAll(/MOSTRAR_OPCOES:([^\s\n,]+)/g)];
