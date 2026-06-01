@@ -256,12 +256,9 @@ export default function ClienteChat({ userData, onClose }) {
           const opcoes = comOpcoes.flat();
 
           if (opcoes.length > 0) {
-            setServicoCardAtual(nomeServico);
-            setOpcoesCards(opcoes);
-            setOpcaoCardSelecionada(null);
             setMessages(prev => [...prev, {
               role: 'assistant', content: '', type: 'opcoes_servico',
-              nomeServico, id: Date.now() + Math.random(),
+              nomeServico, opcoes, id: Date.now() + Math.random(),
             }]);
           } else {
             // Não encontrou — avisa o cliente e cria item em análise
