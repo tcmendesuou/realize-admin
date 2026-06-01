@@ -51,6 +51,9 @@ export default function ClienteChat({ userData, onClose }) {
   const [carrosselIdx, setCarrosselIdx] = useState({});
   const [catalogoSummary, setCatalogoSummary] = useState('');
   const [formaPagamento, setFormaPagamento] = useState(null);
+  const [opcoesCards, setOpcoesCards]       = useState([]); // opções do serviço atual
+  const [opcaoCardSelecionada, setOpcaoCardSelecionada] = useState(null);
+  const [servicoCardAtual, setServicoCardAtual] = useState(''); // nome do serviço sendo exibido
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -172,6 +175,7 @@ export default function ClienteChat({ userData, onClose }) {
       const textoLimpo = assistantText
         .replace(/\[?{?MOSTRAR_MODELOS}?\]?/g, '')
         .replace(/\[?{?ESCOLHER_PAGAMENTO}?\]?/g, '')
+        .replace(/MOSTRAR_OPCOES:[^\s\n,]*/g, '')
         .trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
@@ -196,6 +200,58 @@ export default function ClienteChat({ userData, onClose }) {
             id: Date.now() + 2,
           }]);
         }
+      }
+
+      // Detecta marcadores dinâmicos MOSTRAR_OPCOES:NomeServico
+      const matchesOpcoes = [...assistantText.matchAll(/MOSTRAR_OPCOES:([^\s\n,]+)/g)];
+      for (const match of matchesOpcoes) {
+        const nomeServico = match[1].replace(/_/g, ' ').trim();
+        try {
+          const svSnap = await getDocs(collection(db, 'supplierServices'));
+          const todos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+          const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const cidade = briefingJson?.evento?.cidade || '';
+          const cidadeNorm = cidade.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+          const servicos = todos.filter(s => {
+            if (cidadeNorm && s.regiao) {
+              const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
+            }
+            const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
+          });
+
+          const comOpcoes = await Promise.all(servicos.map(async s => {
+            try {
+              const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+              return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo || 0, diasMontagem: s.diasMontagem || 0, ...d.data() }));
+            } catch { return []; }
+          }));
+          const opcoes = comOpcoes.flat();
+
+          if (opcoes.length > 0) {
+            setServicoCardAtual(nomeServico);
+            setOpcoesCards(opcoes);
+            setOpcaoCardSelecionada(null);
+            setMessages(prev => [...prev, {
+              role: 'assistant', content: '', type: 'opcoes_servico',
+              nomeServico, id: Date.now() + Math.random(),
+            }]);
+          } else {
+            // Não encontrou — avisa o cliente e cria item em análise
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `⚠️ Não encontramos **${nomeServico}** cadastrado no sistema. Nosso coordenador vai avaliar e incluir antes da aprovação final.`,
+              id: Date.now() + Math.random(),
+            }]);
+            setBriefingJson(prev => ({
+              ...prev,
+              itensEmAnalise: [...(prev?.itensEmAnalise || []), nomeServico],
+            }));
+          }
+        } catch (e) { console.error('Erro ao buscar opções:', e); }
       }
 
       // Se a IA usou o marcador de pagamento → injeta card com botões de opção
@@ -894,6 +950,40 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   </button>
                 )}
               </div>
+
+              ) : msg.type === 'opcoes_servico' ? (
+                  <div style={{ width: '100%', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 10 }}>
+                      Opções disponíveis para <strong style={{ color: '#E8F4FF' }}>{msg.nomeServico}</strong>:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {opcoesCards.map(op => (
+                        <div key={op.id} onClick={() => setOpcaoCardSelecionada(op)}
+                          style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${opcaoCardSelecionada?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcaoCardSelecionada?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
+                          {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
+                          {op.valor && <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4', marginTop: 4 }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade || ''}</div>}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button onClick={() => {
+                        sendMessage(`Não preciso de ${msg.nomeServico}`);
+                        setOpcaoCardSelecionada(null);
+                      }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        Não preciso
+                      </button>
+                      {opcaoCardSelecionada && (
+                        <button onClick={() => {
+                          sendMessage(`Quero: ${opcaoCardSelecionada.nome}${opcaoCardSelecionada.caracteristica ? ' (' + opcaoCardSelecionada.caracteristica + ')' : ''}`);
+                          setOpcaoCardSelecionada(null);
+                        }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                          Confirmar: {opcaoCardSelecionada.nome} →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
             ) : msg.type === 'pagamento' ? (
               /* Botões de forma de pagamento */
               <div style={{ flex: 1, maxWidth: '90%' }}>
