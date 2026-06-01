@@ -159,7 +159,20 @@ export default function ClienteChat({ userData, onClose }) {
         : '';
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + catalogoSummary;
+      // Garante lista de serviços atualizada a cada mensagem
+      let listaNomes = catalogoSummary;
+      if (!listaNomes) {
+        try {
+          const svSnap = await getDocs(collection(db, 'supplierServices'));
+          const nomes = [...new Set(svSnap.docs.map(d => d.data().serviceName).filter(Boolean))];
+          if (nomes.length > 0) {
+            listaNomes = `\n\nSERVIÇOS DISPONÍVEIS NO SISTEMA (use esses nomes EXATOS nos marcadores MOSTRAR_OPCOES):\n${nomes.map(n => `- ${n}`).join('\n')}`;
+            setCatalogoSummary(listaNomes);
+          }
+        } catch (e) { console.error(e); }
+      }
+      console.log('catalogoSummary no prompt:', listaNomes);
+      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + listaNomes;
       console.log('catalogoSummary no prompt:', catalogoSummary);
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
