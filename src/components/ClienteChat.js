@@ -17,12 +17,46 @@ PERSONALIDADE:
 - Registre TUDO que o cliente mencionar em observacoes
 
 OBJETIVO:
-Coletar as informações necessárias para montar a proposta do evento seguindo exatamente a instrução recebida a cada mensagem. Você não sugere produtos, tamanhos ou opções — isso é feito pelo sistema.
+Coletar as informações necessárias para montar a proposta do evento seguindo exatamente a instrução recebida. Você não sugere produtos, tamanhos ou opções — isso é feito pelo sistema.
+
+PERGUNTAS OBRIGATÓRIAS POR BLOCO:
+
+D1. EVENTO (colete nesta ordem, pulando o que já foi respondido):
+1. Tipo do evento (corporativo, feira, lançamento...)
+2. Nome do evento
+3. Data de início (DD/MM/AAAA)
+4. Data de término
+5. Horário de início e fim
+6. Cidade e local (peça endereço completo)
+7. Número de pessoas por dia
+8. Nome da empresa organizadora
+
+D2. PRODUTOR:
+- Pergunte se o cliente quer um Produtor de Eventos dedicado
+
+D3. ESTRUTURA:
+- Pergunte se precisa de estrutura física
+- Se sim: área m², altura do teto, dias disponíveis antes, restrições de acesso, identidade visual, modular ou personalizado
+
+D4. EQUIPE:
+- Pergunte se precisa de algum profissional
+- Se sim: tipo, quantidade, horas/dia, dias, perfil específico (vestuário, etnia, gênero...)
+
+D5. SERVIÇOS:
+- Pergunte se precisa de equipamentos ou atrações (LED, som, DJ, fotógrafo...)
+- Para cada confirmado → escreva MOSTRAR_OPCOES:NomeExato
+
+D6. GASTRONOMIA:
+- Pergunte se precisa de alimentação ou bebidas
+- Se sim: formato, pessoas, horário, restrições, cozinha disponível, bar?
 
 MARCADORES DO SISTEMA (escreva exatamente no texto quando indicado):
+- BLOCO_COMPLETO → quando todas as perguntas obrigatórias do bloco atual estiverem respondidas
 - MOSTRAR_MODELOS → quando cliente confirmar estande modular
-- MOSTRAR_OPCOES:NomeExatoDoServiço → para cada serviço confirmado (use os nomes da lista de serviços disponíveis)
+- MOSTRAR_OPCOES:NomeExatoDoServiço → para cada serviço confirmado
 - ESCOLHER_PAGAMENTO → após confirmar todos os serviços
+
+IMPORTANTE: Escreva BLOCO_COMPLETO em linha separada assim que tiver todas as respostas do bloco atual. Não avance para o próximo bloco sem escrever BLOCO_COMPLETO.
 
 JSON FINAL (apenas quando a instrução pedir):
 {
@@ -194,36 +228,12 @@ export default function ClienteChat({ userData, onClose }) {
   }, [messages, loading]);
 
   // ── avança o step baseado na resposta do cliente ─────────────────────────
-  const avancarStep = (texto) => {
-    const t = texto.toLowerCase();
-    const prev = stepRef.current;
-    let next = prev;
-    if (prev === 'inicio')        next = 'd1_dados';
-    else if (prev === 'd1_dados') {
-      if (t.includes('produtor') || t.includes('sim') || t.includes('não') || t.includes('nao')) next = 'd2_produtor';
-      else next = 'd1_dados';
-    }
-    else if (prev === 'd2_produtor')   next = 'd3_estrutura';
-    else if (prev === 'd3_estrutura') {
-      if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) next = 'd4_equipe';
-      else next = 'd3_detalhes';
-    }
-    else if (prev === 'd3_detalhes') {
-      if (t.includes('modular') || t.includes('zero') || t.includes('pronto') || t.includes('personaliz')) next = 'd4_equipe';
-      else next = 'd3_detalhes';
-    }
-    else if (prev === 'd4_equipe') {
-      if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) next = 'd5_servicos';
-      else next = 'd4_detalhes';
-    }
-    else if (prev === 'd4_detalhes')   next = 'd5_servicos';
-    else if (prev === 'd5_servicos')   next = 'd6_gastro';
-    else if (prev === 'd6_gastro') {
-      if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) next = 'pagamento';
-      else next = 'd6_detalhes';
-    }
-    else if (prev === 'd6_detalhes')   next = 'pagamento';
-    else if (prev === 'pagamento')     next = 'json';
+  const ORDEM_STEPS = ['inicio', 'd1_dados', 'd2_produtor', 'd3_estrutura', 'd3_detalhes', 'd4_equipe', 'd4_detalhes', 'd5_servicos', 'd6_gastro', 'd6_detalhes', 'pagamento', 'json'];
+
+  const avancarStep = () => {
+    const atual = stepRef.current;
+    const idx = ORDEM_STEPS.indexOf(atual);
+    const next = idx >= 0 && idx < ORDEM_STEPS.length - 1 ? ORDEM_STEPS[idx + 1] : atual;
     stepRef.current = next;
     setStepAtual(next);
     return next;
@@ -244,8 +254,7 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     // Avança o step e pega o próximo sincronamente via ref
-    const proximoStep = avancarStep(text);
-
+    const stepParaPrompt = stepRef.current;
     try {
       const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
 
@@ -283,7 +292,7 @@ export default function ClienteChat({ userData, onClose }) {
         pagamento:   'Todos os blocos estão completos. Escreva um resumo breve e use o marcador ESCOLHER_PAGAMENTO.',
         json:        'O cliente escolheu o pagamento. Gere o JSON final completo.',
       };
-      const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM (siga exatamente, ignore qualquer outro caminho):\n${STEPS[proximoStep] || STEPS.inicio}\nNão avance para outros blocos. Não faça perguntas de outros blocos. Não gere o JSON ainda (exceto se a instrução pedir).`;
+      const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM:\n${STEPS[stepParaPrompt] || STEPS.inicio}\nQuando todas as perguntas do bloco atual estiverem respondidas, escreva BLOCO_COMPLETO em linha separada.`;
       const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + SYSTEM_SCRIPT + listaNomes + instrucaoStep;
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
@@ -311,7 +320,14 @@ export default function ClienteChat({ userData, onClose }) {
         .replace(/\[?{?MOSTRAR_MODELOS}?\]?/g, '')
         .replace(/\[?{?ESCOLHER_PAGAMENTO}?\]?/g, '')
         .replace(/MOSTRAR_OPCOES:[^\n]*/g, '')
+        .replace(/BLOCO_COMPLETO/g, '')
         .trim();
+
+      // Detecta BLOCO_COMPLETO e avança o step
+      if (assistantText.includes('BLOCO_COMPLETO')) {
+        const next = avancarStep('BLOCO_COMPLETO');
+        console.log('Bloco completo! Avançando para:', next);
+      }
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
 
