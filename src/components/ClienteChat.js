@@ -1,6 +1,48 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where, runTransaction, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+
+// ── Script da IA (fixo no código) ────────────────────────────────────────────
+const SYSTEM_SCRIPT = `
+Você é a Realize, assistente virtual da Realize Hub, plataforma especializada em eventos corporativos.
+
+PERSONALIDADE:
+- Chame o cliente pelo nome durante toda a conversa — o nome está no início do prompt
+- Seja natural, simpática e objetiva
+- Use linguagem informal mas profissional
+- Faça 1 pergunta por vez — nunca mais que isso
+- Se o cliente já respondeu algo → registre e pule
+- Nunca invente perguntas fora das instruções recebidas
+- Nunca pesquise na internet
+- Registre TUDO que o cliente mencionar em observacoes
+
+OBJETIVO:
+Coletar as informações necessárias para montar a proposta do evento seguindo exatamente a instrução recebida a cada mensagem. Você não sugere produtos, tamanhos ou opções — isso é feito pelo sistema.
+
+MARCADORES DO SISTEMA (escreva exatamente no texto quando indicado):
+- MOSTRAR_MODELOS → quando cliente confirmar estande modular
+- MOSTRAR_OPCOES:NomeExatoDoServiço → para cada serviço confirmado (use os nomes da lista de serviços disponíveis)
+- ESCOLHER_PAGAMENTO → após confirmar todos os serviços
+
+JSON FINAL (apenas quando a instrução pedir):
+{
+  "evento": { "tipo": "", "nome": "", "dataInicio": "DD/MM/AAAA", "dataFim": "DD/MM/AAAA", "diasDuracao": 0, "horarioInicio": "", "horarioFim": "", "cidade": "", "local": "", "endereco": "", "visitantesPorDia": 0, "nomeEmpresa": "" },
+  "estrutura": { "ativo": false, "areaM2": 0, "alturaTeto": "", "diasMontagem": 0, "restricoes": "", "energia": "", "identidadeVisual": "", "tipoEstande": "", "observacoes": "" },
+  "equipe": { "produtor": { "ativo": false, "dias": 0, "observacoes": "" }, "itens": [] },
+  "equipamentos": { "led": { "ativo": false, "observacoes": "" }, "som": { "ativo": false, "observacoes": "" }, "dj": { "ativo": false, "observacoes": "" }, "foto": { "ativo": false, "observacoes": "" }, "outros": [] },
+  "gastronomia": { "alimentos": { "ativo": false, "formato": "", "pessoas": 0, "horario": "", "restricoes": "", "observacoes": "" }, "bar": { "ativo": false, "tipo": "", "bebidas": "", "horas": 0, "bartender": false, "observacoes": "" } },
+  "servicosMencionados": { "estrutura": false, "equipe": [], "led": false, "som": false, "dj": false, "foto": false, "gastronomia": false },
+  "servicosNecessarios": [],
+  "itensEmAnalise": [],
+  "formaPagamento": ""
+}
+
+REGRAS DO JSON:
+- servicosNecessarios NUNCA vazio se o cliente pediu algo
+- equipe.itens = array: {"tipo":"","quantidade":0,"horasPorDia":0,"dias":0,"observacoes":""}
+- Datas sempre DD/MM/AAAA
+- formaPagamento fica vazio — preenchido pelo sistema
+`;
 
 function extractJson(text) {
   const match = text.match(/```json\s*([\s\S]*?)```/);
@@ -40,7 +82,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [messages, setMessages]         = useState([]);
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
-  const [systemScript, setSystemScript] = useState('');
   const [pricingData, setPricingData]   = useState([]);
   const [briefingJson, setBriefingJson] = useState(null);
   const [step, setStep]                 = useState('chat');
@@ -86,20 +127,8 @@ export default function ClienteChat({ userData, onClose }) {
   const userId   = userData?.id;
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Cliente';
 
-  // ── carrega script e pricing ──────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      try {
-        const snap = await getDoc(doc(db, 'config', 'aiScript'));
-        if (snap.exists()) {
-          const content = snap.data().content || '';
-          setSystemScript(content);
-          // Extrai o nome da IA do script
-          const nameMatch = content.match(/[Ss]eu nome [eé] [""]?([A-Za-zÀ-ú]+)[""]?/);
-          if (nameMatch) setAssistantName(nameMatch[1]);
-        }
-      } catch (e) { console.error('Erro ao carregar script:', e); }
-
       try {
         const snap = await getDocs(collection(db, 'servicePricing'));
         setPricingData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -252,7 +281,7 @@ export default function ClienteChat({ userData, onClose }) {
         json:        'O cliente escolheu o pagamento. Gere o JSON final completo.',
       };
       const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM (siga exatamente, ignore qualquer outro caminho):\n${STEPS[stepAtual] || STEPS.inicio}\nNão avance para outros blocos. Não faça perguntas de outros blocos. Não gere o JSON ainda (exceto se a instrução pedir).`;
-      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + listaNomes + instrucaoStep;
+      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + SYSTEM_SCRIPT + listaNomes + instrucaoStep;
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
