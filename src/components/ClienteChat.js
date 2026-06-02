@@ -1105,7 +1105,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <button onClick={() => {
-                        sendMessage(`Não preciso de ${msg.nomeServico}`);
+                        sendMessage(`Para ${msg.nomeServico}: não preciso desse serviço`);
                         setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
@@ -1113,8 +1113,8 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       {opcoesCardSelecionadas[msg.id] && (
                         <button onClick={() => {
                           const op = opcoesCardSelecionadas[msg.id];
-                          sendMessage(`Quero: ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
-                          setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
+                          sendMessage(`Para ${msg.nomeServico}: selecionei a opção ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
+                          
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
