@@ -201,6 +201,9 @@ export default function ClienteChat({ userData, onClose }) {
   const sendMessage = async (textoForçado) => {
     const text = (textoForçado || input).trim();
     if (!text || loading) return;
+    // Se tem cards na fila aguardando resposta, não chama a IA
+    // (exceto quando a chamada vem de um card — textoForçado)
+    if (filaRef.current.length > 0 && !textoForçado) return;
     setInput('');
 
     const userMsg = { role: 'user', content: text, id: Date.now() };
@@ -275,7 +278,7 @@ export default function ClienteChat({ userData, onClose }) {
       const textoLimpo = assistantText
         .replace(/\[?{?MOSTRAR_MODELOS}?\]?/g, '')
         .replace(/\[?{?ESCOLHER_PAGAMENTO}?\]?/g, '')
-        .replace(/MOSTRAR_OPCOES:[^\s\n,]*/g, '')
+        .replace(/MOSTRAR_OPCOES:[^\n]*/g, '')
         .trim();
       const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
       setMessages(prev => [...prev, assistantMsg]);
