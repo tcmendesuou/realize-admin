@@ -53,9 +53,34 @@ export default function ClienteChat({ userData, onClose }) {
   const [formaPagamento, setFormaPagamento] = useState(null);
   const [opcoesCards, setOpcoesCards]       = useState([]); // opções do serviço atual
   const [opcoesCardSelecionadas, setOpcoesCardSelecionadas] = useState({}); // msgId → opcao
+  const [filaCards, setFilaCards]   = useState([]); // fila de cards pendentes
+  const filaRef                     = useRef([]);   // ref para acessar fila sem stale closure
   const [servicoCardAtual, setServicoCardAtual] = useState(''); // nome do serviço sendo exibido
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
+
+  // ── Exibe o próximo card da fila ─────────────────────────────────────────
+  const exibirProximoCard = (fila) => {
+    if (!fila || fila.length === 0) return;
+    const proximo = fila[0];
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: '',
+      type: proximo.tipo,
+      nomeServico: proximo.nomeServico || '',
+      opcoes: proximo.opcoes || [],
+      id: proximo.id,
+    }]);
+  };
+
+  const avancarFila = () => {
+    const novaFila = filaRef.current.slice(1);
+    filaRef.current = novaFila;
+    setFilaCards(novaFila);
+    if (novaFila.length > 0) {
+      exibirProximoCard(novaFila);
+    }
+  };
 
   const userId   = userData?.id;
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Cliente';
@@ -202,86 +227,80 @@ export default function ClienteChat({ userData, onClose }) {
       setMessages(prev => [...prev, assistantMsg]);
 
       // Se a IA usou o marcador → injeta card de seleção de modelos
-      const temMarcador = assistantText.includes('MOSTRAR_MODELOS');
-      if (temMarcador) {
-        // Garante que os modelos estão carregados
+      // ── Monta fila de cards a partir dos marcadores ──────────────────────
+      const novosCards = [];
+
+      // MOSTRAR_MODELOS → estande modular
+      if (assistantText.includes('MOSTRAR_MODELOS')) {
         let modelos = modelosEspeciais;
         if (modelos.length === 0) {
           try {
             const snap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
             modelos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             setModelosEspeciais(modelos);
-          } catch (e) { console.error('Erro ao carregar modelos:', e); }
+          } catch (e) { console.error(e); }
         }
         if (modelos.length > 0) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: '',
-            type: 'modelos',
-            id: Date.now() + 2,
-          }]);
+          novosCards.push({ tipo: 'modelos', id: `modelos_${Date.now()}` });
         }
       }
-      
 
-      // Detecta marcadores dinâmicos MOSTRAR_OPCOES:NomeServico
+      // MOSTRAR_OPCOES:X → serviços dinâmicos
       const matchesOpcoes = [...assistantText.matchAll(/MOSTRAR_OPCOES:([^\s\n,]+)/g)];
+      const svSnap = matchesOpcoes.length > 0 ? await getDocs(collection(db, 'supplierServices')) : null;
+      const todosServicos = svSnap ? svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false) : [];
+      const cidadeAtual = briefingJson?.evento?.cidade || '';
+      const cidadeNormAtual = cidadeAtual.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
       for (const match of matchesOpcoes) {
-        const nomeServico = match[1].replace(/_/g, ' ').trim();
-        try {
-          const svSnap = await getDocs(collection(db, 'supplierServices'));
-          const todos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-          const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const cidade = briefingJson?.evento?.cidade || '';
-          const cidadeNorm = cidade.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const nomeServico = decodeURIComponent(match[1].replace(/_/g, ' ')).trim();
+        const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-          const servicos = todos.filter(s => {
-            if (cidadeNorm && s.regiao) {
-              const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-              if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
-            }
-            const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
-          });
-
-          const comOpcoes = await Promise.all(servicos.map(async s => {
-            try {
-              const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-              return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo || 0, diasMontagem: s.diasMontagem || 0, ...d.data() }));
-            } catch { return []; }
-          }));
-          const opcoes = comOpcoes.flat();
-
-          if (opcoes.length > 0) {
-            setMessages(prev => [...prev, {
-              role: 'assistant', content: '', type: 'opcoes_servico',
-              nomeServico, opcoes, id: Date.now() + Math.random(),
-            }]);
-          } else {
-            // Não encontrou — avisa o cliente e cria item em análise
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: `⚠️ Não encontramos **${nomeServico}** cadastrado no sistema. Nosso coordenador vai avaliar e incluir antes da aprovação final.`,
-              id: Date.now() + Math.random(),
-            }]);
-            setBriefingJson(prev => ({
-              ...prev,
-              itensEmAnalise: [...(prev?.itensEmAnalise || []), nomeServico],
-            }));
+        const servicos = todosServicos.filter(s => {
+          if (cidadeNormAtual && s.regiao) {
+            const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (!reg.includes(cidadeNormAtual) && !cidadeNormAtual.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
           }
-        } catch (e) { console.error('Erro ao buscar opções:', e); }
+          const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
+        });
+
+        const comOpcoes = await Promise.all(servicos.map(async s => {
+          try {
+            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+            return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo || 0, diasMontagem: s.diasMontagem || 0, ...d.data() }));
+          } catch { return []; }
+        }));
+        const opcoes = comOpcoes.flat();
+
+        if (opcoes.length > 0) {
+          novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}` });
+        } else {
+          // Não encontrou — avisa imediatamente (não entra na fila)
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `⚠️ Não encontramos **${nomeServico}** cadastrado no sistema. Nosso coordenador vai avaliar e incluir antes da aprovação final.`,
+            id: Date.now() + Math.random(),
+          }]);
+          setBriefingJson(prev => ({ ...prev, itensEmAnalise: [...(prev?.itensEmAnalise || []), nomeServico] }));
+        }
       }
 
-      // Se a IA usou o marcador de pagamento → injeta card com botões de opção
-      const temMarcadorPagamento = assistantText.includes('ESCOLHER_PAGAMENTO');
-      if (temMarcadorPagamento) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: '',
-          type: 'pagamento',
-          id: Date.now() + 3,
-        }]);
+      // ESCOLHER_PAGAMENTO → entra no final da fila
+      if (assistantText.includes('ESCOLHER_PAGAMENTO')) {
+        novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
+      }
+
+      // Adiciona à fila e exibe o primeiro se a fila estava vazia
+      if (novosCards.length > 0) {
+        const filaAtual = filaRef.current;
+        const novaFila = [...filaAtual, ...novosCards];
+        filaRef.current = novaFila;
+        setFilaCards(novaFila);
+        if (filaAtual.length === 0) {
+          exibirProximoCard(novaFila);
+        }
       }
 
       const json = extractJson(assistantText);
@@ -972,7 +991,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   })}
                 </div>
                 {modeloSelecionado && (
-                  <button onClick={() => sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`)} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  <button onClick={() => { sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`); avancarFila(); }} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
                 )}
@@ -997,6 +1016,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       <button onClick={() => {
                         sendMessage(`Não preciso de ${msg.nomeServico}`);
                         setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
+                        avancarFila();
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
                       </button>
@@ -1005,6 +1025,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                           const op = opcoesCardSelecionadas[msg.id];
                           sendMessage(`Quero: ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
                           setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
+                          avancarFila();
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
