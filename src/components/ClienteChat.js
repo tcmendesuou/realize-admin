@@ -422,6 +422,10 @@ export default function ClienteChat({ userData, onClose }) {
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
+      // Avança a fila depois que a IA respondeu
+      if (filaRef.current.length > 0) {
+        setTimeout(() => avancarFila(), 300);
+      }
     }
   };
 
@@ -1077,7 +1081,8 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   })}
                 </div>
                 {modeloSelecionado && (
-                  <button onClick={() => { sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`); avancarFila(); }} style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  <button onClick={() => { sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`); }}
+                    style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
                 )}
@@ -1102,7 +1107,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       <button onClick={() => {
                         sendMessage(`Não preciso de ${msg.nomeServico}`);
                         setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
-                        avancarFila();
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
                       </button>
@@ -1111,7 +1115,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                           const op = opcoesCardSelecionadas[msg.id];
                           sendMessage(`Quero: ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
                           setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
-                          avancarFila();
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
