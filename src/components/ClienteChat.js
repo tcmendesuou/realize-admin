@@ -44,6 +44,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [pricingData, setPricingData]   = useState([]);
   const [briefingJson, setBriefingJson] = useState(null);
   const [step, setStep]                 = useState('chat');
+  const [stepAtual, setStepAtual] = useState('inicio');
   const [submitting, setSubmitting]     = useState(false);
   const [assistantName, setAssistantName] = useState('Realize');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
@@ -162,6 +163,40 @@ export default function ClienteChat({ userData, onClose }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  // ── avança o step baseado na resposta do cliente ─────────────────────────
+  const avancarStep = (texto) => {
+    const t = texto.toLowerCase();
+    setStepAtual(prev => {
+      if (prev === 'inicio')        return 'd1_dados';
+      if (prev === 'd1_dados') {
+        if (t.includes('produtor') || t.includes('sim') || t.includes('não') || t.includes('nao')) return 'd2_produtor';
+        return 'd1_dados';
+      }
+      if (prev === 'd2_produtor')   return 'd3_estrutura';
+      if (prev === 'd3_estrutura') {
+        if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'd4_equipe';
+        return 'd3_detalhes';
+      }
+      if (prev === 'd3_detalhes') {
+        if (t.includes('modular') || t.includes('zero') || t.includes('pronto')) return 'd4_equipe';
+        return 'd3_detalhes';
+      }
+      if (prev === 'd4_equipe') {
+        if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'd5_servicos';
+        return 'd4_detalhes';
+      }
+      if (prev === 'd4_detalhes')   return 'd5_servicos';
+      if (prev === 'd5_servicos')   return 'd6_gastro';
+      if (prev === 'd6_gastro') {
+        if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'pagamento';
+        return 'd6_detalhes';
+      }
+      if (prev === 'd6_detalhes')   return 'pagamento';
+      if (prev === 'pagamento')     return 'json';
+      return prev;
+    });
+  };
+
   // ── enviar mensagem ───────────────────────────────────────────────────────
   const sendMessage = async (textoForçado) => {
     const text = (textoForçado || input).trim();
@@ -172,6 +207,9 @@ export default function ClienteChat({ userData, onClose }) {
     const updated = [...messages, userMsg];
     setMessages(updated);
     setLoading(true);
+
+    // Avança o step baseado na resposta do cliente
+    avancarStep(text);
 
     try {
       const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
@@ -195,7 +233,23 @@ export default function ClienteChat({ userData, onClose }) {
           }
         } catch (e) { console.error(e); }
       }
-      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + listaNomes;
+      const STEPS = {
+        inicio:      'Cumprimente o cliente e faça APENAS a primeira pergunta do bloco D1: tipo do evento.',
+        d1_tipo:     'Registre o tipo do evento. Se o cliente já informou outros dados do D1, registre e pule. Faça APENAS a próxima pergunta não respondida do bloco D1.',
+        d1_dados:    'Continue coletando os dados do bloco D1 que ainda faltam. APENAS 1 pergunta por vez.',
+        d2_produtor: 'Bloco D1 completo. Faça APENAS a pergunta do bloco D2: se o cliente quer um Produtor de Eventos.',
+        d3_estrutura:'Faça APENAS a pergunta do bloco D3: se o cliente precisa de estrutura física.',
+        d3_detalhes: 'O cliente confirmou que precisa de estrutura. Colete os detalhes do bloco D3 um por vez. APENAS 1 pergunta.',
+        d4_equipe:   'Faça APENAS a pergunta do bloco D4: se o cliente precisa de algum profissional.',
+        d4_detalhes: 'O cliente confirmou profissional. Colete quantidade, horas, dias e perfil. APENAS 1 pergunta.',
+        d5_servicos: 'Faça APENAS a pergunta do bloco D5: se o cliente precisa de equipamentos ou atrações.',
+        d6_gastro:   'Faça APENAS a pergunta do bloco D6: se o cliente precisa de alimentação ou bebidas.',
+        d6_detalhes: 'O cliente confirmou gastronomia. Colete os detalhes do bloco D6. APENAS 1 pergunta.',
+        pagamento:   'Todos os blocos estão completos. Escreva um resumo breve e use o marcador ESCOLHER_PAGAMENTO.',
+        json:        'O cliente escolheu o pagamento. Gere o JSON final completo.',
+      };
+      const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM (siga exatamente, ignore qualquer outro caminho):\n${STEPS[stepAtual] || STEPS.inicio}\nNão avance para outros blocos. Não faça perguntas de outros blocos. Não gere o JSON ainda (exceto se a instrução pedir).`;
+      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + systemScript + listaNomes + instrucaoStep;
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
 
