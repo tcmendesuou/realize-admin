@@ -193,37 +193,39 @@ export default function ClienteChat({ userData, onClose }) {
   }, [messages, loading]);
 
   // ── avança o step baseado na resposta do cliente ─────────────────────────
-  const avancarStep = (texto) => {
+  const calcularProximoStep = (stepPrev, texto) => {
     const t = texto.toLowerCase();
-    setStepAtual(prev => {
-      if (prev === 'inicio')        return 'd1_dados';
-      if (prev === 'd1_dados') {
-        if (t.includes('produtor') || t.includes('sim') || t.includes('não') || t.includes('nao')) return 'd2_produtor';
-        return 'd1_dados';
-      }
-      if (prev === 'd2_produtor')   return 'd3_estrutura';
-      if (prev === 'd3_estrutura') {
-        if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'd4_equipe';
-        return 'd3_detalhes';
-      }
-      if (prev === 'd3_detalhes') {
-        if (t.includes('modular') || t.includes('zero') || t.includes('pronto')) return 'd4_equipe';
-        return 'd3_detalhes';
-      }
-      if (prev === 'd4_equipe') {
-        if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'd5_servicos';
-        return 'd4_detalhes';
-      }
-      if (prev === 'd4_detalhes')   return 'd5_servicos';
-      if (prev === 'd5_servicos')   return 'd6_gastro';
-      if (prev === 'd6_gastro') {
-        if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'pagamento';
-        return 'd6_detalhes';
-      }
-      if (prev === 'd6_detalhes')   return 'pagamento';
-      if (prev === 'pagamento')     return 'json';
-      return prev;
-    });
+    if (stepPrev === 'inicio')        return 'd1_dados';
+    if (stepPrev === 'd1_dados') {
+      if (t.includes('produtor') || t.includes('sim') || t.includes('não') || t.includes('nao')) return 'd2_produtor';
+      return 'd1_dados';
+    }
+    if (stepPrev === 'd2_produtor')   return 'd3_estrutura';
+    if (stepPrev === 'd3_estrutura') {
+      if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'd4_equipe';
+      return 'd3_detalhes';
+    }
+    if (stepPrev === 'd3_detalhes') {
+      if (t.includes('modular') || t.includes('zero') || t.includes('pronto')) return 'd4_equipe';
+      return 'd3_detalhes';
+    }
+    if (stepPrev === 'd4_equipe') {
+      if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'd5_servicos';
+      return 'd4_detalhes';
+    }
+    if (stepPrev === 'd4_detalhes')   return 'd5_servicos';
+    if (stepPrev === 'd5_servicos')   return 'd6_gastro';
+    if (stepPrev === 'd6_gastro') {
+      if (t.includes('não') || t.includes('nao') || t.includes('nenhum')) return 'pagamento';
+      return 'd6_detalhes';
+    }
+    if (stepPrev === 'd6_detalhes')   return 'pagamento';
+    if (stepPrev === 'pagamento')     return 'json';
+    return stepPrev;
+  };
+
+  const avancarStep = (texto) => {
+    setStepAtual(prev => calcularProximoStep(prev, texto));
   };
 
   // ── enviar mensagem ───────────────────────────────────────────────────────
@@ -240,7 +242,8 @@ export default function ClienteChat({ userData, onClose }) {
     setMessages(updated);
     setLoading(true);
 
-    // Avança o step baseado na resposta do cliente
+    // Avança o step baseado na resposta do cliente e usa o próximo step no prompt
+    const proximoStep = calcularProximoStep(stepAtual, text);
     avancarStep(text);
 
     try {
@@ -280,7 +283,7 @@ export default function ClienteChat({ userData, onClose }) {
         pagamento:   'Todos os blocos estão completos. Escreva um resumo breve e use o marcador ESCOLHER_PAGAMENTO.',
         json:        'O cliente escolheu o pagamento. Gere o JSON final completo.',
       };
-      const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM (siga exatamente, ignore qualquer outro caminho):\n${STEPS[stepAtual] || STEPS.inicio}\nNão avance para outros blocos. Não faça perguntas de outros blocos. Não gere o JSON ainda (exceto se a instrução pedir).`;
+      const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM (siga exatamente, ignore qualquer outro caminho):\n${STEPS[proximoStep] || STEPS.inicio}\nNão avance para outros blocos. Não faça perguntas de outros blocos. Não gere o JSON ainda (exceto se a instrução pedir).`;
       const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + SYSTEM_SCRIPT + listaNomes + instrucaoStep;
       // Limita o system prompt a 12000 caracteres para evitar erro 400
       const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
@@ -1105,7 +1108,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <button onClick={() => {
-                        sendMessage(`Para ${msg.nomeServico}: não preciso desse serviço`);
+                        sendMessage(`Não preciso de ${msg.nomeServico}`);
                         setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
@@ -1113,8 +1116,8 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       {opcoesCardSelecionadas[msg.id] && (
                         <button onClick={() => {
                           const op = opcoesCardSelecionadas[msg.id];
-                          sendMessage(`Para ${msg.nomeServico}: selecionei a opção ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
-                          
+                          sendMessage(`Quero: ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
+                          setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
