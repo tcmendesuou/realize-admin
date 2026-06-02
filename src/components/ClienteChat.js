@@ -285,8 +285,16 @@ export default function ClienteChat({ userData, onClose }) {
       }
 
       const json = extractJson(assistantText);
+      const jsonCompleto = json && json.evento &&
+        json.evento.dataInicio &&
+        json.evento.cidade &&
+        json.evento.visitantesPorDia > 0 &&
+        (json.servicosNecessarios?.length > 0) &&
+        json.formaPagamento;
       if (json && json.evento) {
-        setBriefingJson(json);
+        setBriefingJson(json); // salva sempre para ter dados parciais
+      }
+      if (jsonCompleto) {
         // Se pediu estande modular, busca modelos disponíveis
         if (json.tipoEstande === 'modular') {
           try {
@@ -298,7 +306,7 @@ export default function ClienteChat({ userData, onClose }) {
             }
           } catch (e) { console.error('Erro ao buscar modelos:', e); }
         }
-      }
+      } // fim jsonCompleto
     } catch (err) {
       console.error('Erro na API:', err);
       setMessages(prev => [...prev, {
