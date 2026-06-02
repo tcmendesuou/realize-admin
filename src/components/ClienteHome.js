@@ -19,6 +19,7 @@ export default function ClienteHome({ userData, onLogout }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chatKey, setChatKey] = useState(0);
+  const [showChat, setShowChat] = useState(false);
   const [aprovando, setAprovando] = useState(false);
   const [tasksPendentesAprov, setTasksPendentesAprov] = useState([]);
   const [aprovandoTask, setAprovandoTask] = useState(false);
