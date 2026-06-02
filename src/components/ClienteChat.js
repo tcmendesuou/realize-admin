@@ -52,7 +52,7 @@ export default function ClienteChat({ userData, onClose }) {
   const [catalogoSummary, setCatalogoSummary] = useState('');
   const [formaPagamento, setFormaPagamento] = useState(null);
   const [opcoesCards, setOpcoesCards]       = useState([]); // opções do serviço atual
-  const [opcaoCardSelecionada, setOpcaoCardSelecionada] = useState(null);
+  const [opcoesCardSelecionadas, setOpcoesCardSelecionadas] = useState({}); // msgId → opcao
   const [servicoCardAtual, setServicoCardAtual] = useState(''); // nome do serviço sendo exibido
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -977,8 +977,8 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(msg.opcoes || []).map(op => (
-                      <div key={op.id} onClick={() => setOpcaoCardSelecionada(op)}
-                        style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${opcaoCardSelecionada?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcaoCardSelecionada?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
+                      <div key={op.id} onClick={() => setOpcoesCardSelecionadas(prev => ({ ...prev, [msg.id]: op }))}
+                        style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${opcoesCardSelecionadas[msg.id]?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcoesCardSelecionadas[msg.id]?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
                           {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
                           {op.valor && <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4', marginTop: 4 }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade || ''}</div>}
@@ -988,16 +988,17 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <button onClick={() => {
                         sendMessage(`Não preciso de ${msg.nomeServico}`);
-                        setOpcaoCardSelecionada(null);
+                        setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
                       </button>
-                      {opcaoCardSelecionada && (
+                      {opcoesCardSelecionadas[msg.id] && (
                         <button onClick={() => {
-                          sendMessage(`Quero: ${opcaoCardSelecionada.nome}${opcaoCardSelecionada.caracteristica ? ' (' + opcaoCardSelecionada.caracteristica + ')' : ''}`);
-                          setOpcaoCardSelecionada(null);
+                          const op = opcoesCardSelecionadas[msg.id];
+                          sendMessage(`Quero: ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
+                          setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                          Confirmar: {opcaoCardSelecionada.nome} →
+                          Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
                       )}
                     </div>
