@@ -220,7 +220,7 @@ export default function ClienteChat({ userData, onClose }) {
       // Verifica condição
       if (p.condicional && !p.condicional(dadosAtuais)) continue;
       // Verifica se já foi respondida
-      if (dadosAtuais[p.campo] !== undefined && dadosAtuais[p.campo] !== null && dadosAtuais[p.campo] !== '' && dadosAtuais[p.campo] !== false) continue;
+      if (dadosAtuais[p.campo] !== undefined && dadosAtuais[p.campo] !== null && dadosAtuais[p.campo] !== '') continue;
       return i;
     }
     return -1; // todas respondidas
@@ -433,11 +433,9 @@ export default function ClienteChat({ userData, onClose }) {
 
       // 4. Avança para próxima pergunta
       // Garante que campos false/null da extração em massa não bloqueiem perguntas
-      const dadosParaVerificar = { ...novosDados };
-      Object.keys(dadosParaVerificar).forEach(k => {
-        if (dadosParaVerificar[k] === null) delete dadosParaVerificar[k];
-      });
-      const proximoIdx = proximaPerguntaIdx(dadosParaVerificar, idxRef.current + 1);
+      console.log('dadosColetados:', JSON.stringify(novosDados));
+      console.log('idxAtual:', idxRef.current, 'pergunta:', PERGUNTAS[idxRef.current]?.id);
+      const proximoIdx = proximaPerguntaIdx(novosDados, idxRef.current + 1);
       idxRef.current = proximoIdx >= 0 ? proximoIdx : PERGUNTAS.length;
       setIdxPergunta(idxRef.current);
 
