@@ -387,7 +387,7 @@ export default function ClienteChat({ userData, onClose }) {
               model: 'claude-sonnet-4-6',
               max_tokens: 400,
               system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
-              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia APENAS os campos de identificação do evento claramente mencionados. Para não mencionados use null.\nResponda APENAS: {"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null}` }],
+              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia APENAS os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS: {"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null}` }],
             }),
           });
           const resAllData = await resAll.json();
