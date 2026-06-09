@@ -3,80 +3,64 @@ import { collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where, 
 import { db } from '../firebase/config';
 
 // ── Script da IA (fixo no código) ────────────────────────────────────────────
-const SYSTEM_SCRIPT = `
-Você é a Realize, assistente virtual da Realize Hub, plataforma especializada em eventos corporativos.
+// ── Lista de perguntas fixas na ordem exata ───────────────────────────────────
+const PERGUNTAS = [
+  // EVENTO
+  { id: 'tipo_evento',    bloco: 'evento',    campo: 'evento.tipo',             texto: 'Para começar: qual o **tipo do evento** que você está planejando? *(corporativo, feira, lançamento, pessoal...)*' },
+  { id: 'nome_evento',    bloco: 'evento',    campo: 'evento.nome',             texto: 'O evento já tem um **nome** definido?' },
+  { id: 'data_inicio',    bloco: 'evento',    campo: 'evento.dataInicio',       texto: 'Qual a **data de início**? *(DD/MM/AAAA)*' },
+  { id: 'data_fim',       bloco: 'evento',    campo: 'evento.dataFim',          texto: 'Qual a **data de término**? *(se for 1 dia, repita a mesma data)*' },
+  { id: 'horario',        bloco: 'evento',    campo: 'evento.horario',          texto: 'Qual o **horário de início e término**? *(ex: 18h às 22h)*' },
+  { id: 'local',          bloco: 'evento',    campo: 'evento.local',            texto: 'Qual a **cidade e o local** do evento? *(se já definido, me passe o endereço completo)*' },
+  { id: 'visitantes',     bloco: 'evento',    campo: 'evento.visitantesPorDia', texto: 'Quantas **pessoas** participarão por dia?' },
+  { id: 'empresa',        bloco: 'evento',    campo: 'evento.nomeEmpresa',      texto: 'Tem nome de **empresa organizadora**?' },
+  // PRODUTOR
+  { id: 'produtor',       bloco: 'produtor',  campo: 'equipe.produtor',         texto: 'Você gostaria de um **Produtor de Eventos** dedicado para coordenar tudo no dia?' },
+  // ESTRUTURA
+  { id: 'tem_estrutura',  bloco: 'estrutura', campo: 'estrutura.ativo',         texto: 'Vai precisar de alguma **estrutura física**? *(estande, palco, tendas, backdrop...)*' },
+  { id: 'tipo_estande',   bloco: 'estrutura', campo: 'estrutura.tipoEstande',   texto: 'Prefere um estande **modular** *(pronto)* ou **personalizado** *(exclusivo, criado do zero)*?', condicional: (d) => d['estrutura.ativo'] === true },
+  { id: 'area_m2',        bloco: 'estrutura', campo: 'estrutura.areaM2',        texto: 'Qual o **tamanho da área** em m²?', condicional: (d) => d['estrutura.ativo'] === true },
+  { id: 'altura_teto',    bloco: 'estrutura', campo: 'estrutura.alturaTeto',    texto: 'Qual a **altura do teto** ou espaço disponível?', condicional: (d) => d['estrutura.ativo'] === true },
+  { id: 'dias_montagem',  bloco: 'estrutura', campo: 'estrutura.diasMontagem',  texto: 'Quantos **dias antes** do evento o local estará disponível para montagem?', condicional: (d) => d['estrutura.ativo'] === true },
+  { id: 'restricoes',     bloco: 'estrutura', campo: 'estrutura.restricoes',    texto: 'O local tem alguma **restrição de acesso**? *(horário, elevador, rampa, peso...)*', condicional: (d) => d['estrutura.ativo'] === true },
+  { id: 'energia',        bloco: 'estrutura', campo: 'estrutura.energia',       texto: 'Vai precisar de **energia elétrica dedicada**?', condicional: (d) => d['estrutura.ativo'] === true },
+  { id: 'identidade',     bloco: 'estrutura', campo: 'estrutura.identidadeVisual', texto: 'Já tem **identidade visual** definida? *(logo, cores, materiais)*', condicional: (d) => d['estrutura.ativo'] === true },
+  // EQUIPE
+  { id: 'tem_equipe',     bloco: 'equipe',    campo: 'equipe.ativo',            texto: 'Vai precisar de algum **profissional** no evento? *(recepcionista, hostess, segurança, limpeza...)*' },
+  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true },
+  { id: 'equipe_qtd',     bloco: 'equipe',    campo: 'equipe.quantidade',       texto: 'Quantos **profissionais** você vai precisar?', condicional: (d) => d['equipe.ativo'] === true },
+  { id: 'equipe_horas',   bloco: 'equipe',    campo: 'equipe.horas',            texto: 'Quantas **horas por dia** eles vão trabalhar?', condicional: (d) => d['equipe.ativo'] === true },
+  { id: 'equipe_dias',    bloco: 'equipe',    campo: 'equipe.dias',             texto: 'Por **quantos dias**?', condicional: (d) => d['equipe.ativo'] === true },
+  { id: 'equipe_perfil',  bloco: 'equipe',    campo: 'equipe.perfil',           texto: 'Tem alguma **preferência específica**? *(vestuário, gênero, idioma, etnia, aparência...)*', condicional: (d) => d['equipe.ativo'] === true },
+  // GASTRONOMIA
+  { id: 'tem_gastro',     bloco: 'gastro',    campo: 'gastronomia.ativo',       texto: 'Vai precisar de **alimentação ou bebidas** no evento?' },
+  { id: 'gastro_formato', bloco: 'gastro',    campo: 'gastronomia.formato',     texto: 'Qual o **formato**? *(coffee break, coquetel, almoço, jantar...)*', condicional: (d) => d['gastronomia.ativo'] === true },
+  { id: 'gastro_pessoas', bloco: 'gastro',    campo: 'gastronomia.pessoas',     texto: 'Quantas **pessoas** serão atendidas?', condicional: (d) => d['gastronomia.ativo'] === true },
+  { id: 'gastro_horario', bloco: 'gastro',    campo: 'gastronomia.horario',     texto: 'Qual o **horário e duração** do serviço?', condicional: (d) => d['gastronomia.ativo'] === true },
+  { id: 'gastro_restric', bloco: 'gastro',    campo: 'gastronomia.restricoes',  texto: 'Tem **restrições alimentares** relevantes? *(vegano, sem glúten, kosher...)*', condicional: (d) => d['gastronomia.ativo'] === true },
+  { id: 'gastro_cozinha', bloco: 'gastro',    campo: 'gastronomia.cozinha',     texto: 'O local tem **cozinha disponível** para o fornecedor?', condicional: (d) => d['gastronomia.ativo'] === true },
+  { id: 'gastro_bar',     bloco: 'gastro',    campo: 'gastronomia.bar',         texto: 'Vai querer um **bar**? *(open bar, drinks, cerveja...)*', condicional: (d) => d['gastronomia.ativo'] === true },
+  // SERVIÇOS
+  { id: 'servicos',       bloco: 'servicos',  campo: 'servicosNecessarios',     texto: 'Vai precisar de algum **equipamento ou atração**? *(painel de LED, som, DJ, fotógrafo, videomaker...)*' },
+];
 
-PERSONALIDADE:
-- Chame o cliente pelo nome durante toda a conversa — o nome está no início do prompt
-- Seja natural, simpática e objetiva
-- Use linguagem informal mas profissional
-- Faça 1 pergunta por vez — nunca mais que isso
-- Se o cliente já respondeu algo → registre e pule
-- Nunca invente perguntas fora das instruções recebidas
-- Nunca pesquise na internet
-- Registre TUDO que o cliente mencionar em observacoes
+// System prompt enxuto — só personalidade e marcadores
+const SYSTEM_SCRIPT = `Você é a Realize, assistente virtual da Realize Hub especializada em eventos corporativos. Seja natural, simpática e objetiva. Use linguagem informal mas profissional.
 
-OBJETIVO:
-Coletar as informações necessárias para montar a proposta do evento seguindo exatamente a instrução recebida. Você não sugere produtos, tamanhos ou opções — isso é feito pelo sistema.
+Sua tarefa é fazer APENAS a pergunta que o sistema vai te passar na instrução. Nada mais. Não invente perguntas adicionais.
 
-PERGUNTAS OBRIGATÓRIAS POR BLOCO:
+Se o cliente responder com mais informações do que foi perguntado, registre tudo e responda de forma natural confirmando o que entendeu.
 
-D1. EVENTO (colete nesta ordem, pulando o que já foi respondido):
-1. Tipo do evento (corporativo, feira, lançamento...)
-2. Nome do evento
-3. Data de início (DD/MM/AAAA)
-4. Data de término
-5. Horário de início e fim
-6. Cidade e local (peça endereço completo)
-7. Número de pessoas por dia
-8. Nome da empresa organizadora
+Se o cliente fizer uma pergunta ou comentário fora do contexto, responda brevemente e volte para a pergunta do sistema.
 
-D2. PRODUTOR:
-- Pergunte se o cliente quer um Produtor de Eventos dedicado
+MARCADORES (escreva exatamente quando indicado pelo sistema):
+- MOSTRAR_MODELOS → quando o sistema pedir para mostrar modelos de estande
+- MOSTRAR_OPCOES:NomeExato → quando o sistema pedir para mostrar opções de serviço
+- ESCOLHER_PAGAMENTO → quando o sistema pedir para mostrar formas de pagamento
 
-D3. ESTRUTURA:
-- Pergunte se precisa de estrutura física
-- Se sim: área m², altura do teto, dias disponíveis antes, restrições de acesso, identidade visual, modular ou personalizado
+JSON FINAL (apenas quando o sistema pedir):
+{"evento":{"tipo":"","nome":"","dataInicio":"DD/MM/AAAA","dataFim":"DD/MM/AAAA","diasDuracao":0,"horarioInicio":"","horarioFim":"","cidade":"","local":"","endereco":"","visitantesPorDia":0,"nomeEmpresa":""},"estrutura":{"ativo":false,"areaM2":0,"alturaTeto":"","diasMontagem":0,"restricoes":"","energia":"","identidadeVisual":"","tipoEstande":"","observacoes":""},"equipe":{"produtor":{"ativo":false,"dias":0,"observacoes":""},"itens":[]},"equipamentos":{"led":{"ativo":false,"observacoes":""},"som":{"ativo":false,"observacoes":""},"dj":{"ativo":false,"observacoes":""},"foto":{"ativo":false,"observacoes":""},"outros":[]},"gastronomia":{"alimentos":{"ativo":false,"formato":"","pessoas":0,"horario":"","restricoes":"","observacoes":""},"bar":{"ativo":false,"tipo":"","bebidas":"","horas":0,"bartender":false,"observacoes":""}},"servicosMencionados":{"estrutura":false,"equipe":[],"led":false,"som":false,"dj":false,"foto":false,"gastronomia":false},"servicosNecessarios":[],"itensEmAnalise":[],"formaPagamento":""}`;
 
-D4. EQUIPE:
-- Pergunte se precisa de algum profissional
-- Se sim: tipo, quantidade, horas/dia, dias, perfil específico (vestuário, etnia, gênero...)
-
-D5. SERVIÇOS:
-- Pergunte se precisa de equipamentos ou atrações (LED, som, DJ, fotógrafo...)
-- Para cada confirmado → escreva MOSTRAR_OPCOES:NomeExato
-
-D6. GASTRONOMIA:
-- Pergunte se precisa de alimentação ou bebidas
-- Se sim: formato, pessoas, horário, restrições, cozinha disponível, bar?
-
-MARCADORES DO SISTEMA (escreva exatamente no texto quando indicado):
-- BLOCO_COMPLETO → quando todas as perguntas obrigatórias do bloco atual estiverem respondidas
-- MOSTRAR_MODELOS → quando cliente confirmar estande modular
-- MOSTRAR_OPCOES:NomeExatoDoServiço → para cada serviço confirmado
-- ESCOLHER_PAGAMENTO → após confirmar todos os serviços
-
-IMPORTANTE: Escreva BLOCO_COMPLETO em linha separada assim que tiver todas as respostas do bloco atual. Não avance para o próximo bloco sem escrever BLOCO_COMPLETO.
-
-JSON FINAL (apenas quando a instrução pedir):
-{
-  "evento": { "tipo": "", "nome": "", "dataInicio": "DD/MM/AAAA", "dataFim": "DD/MM/AAAA", "diasDuracao": 0, "horarioInicio": "", "horarioFim": "", "cidade": "", "local": "", "endereco": "", "visitantesPorDia": 0, "nomeEmpresa": "" },
-  "estrutura": { "ativo": false, "areaM2": 0, "alturaTeto": "", "diasMontagem": 0, "restricoes": "", "energia": "", "identidadeVisual": "", "tipoEstande": "", "observacoes": "" },
-  "equipe": { "produtor": { "ativo": false, "dias": 0, "observacoes": "" }, "itens": [] },
-  "equipamentos": { "led": { "ativo": false, "observacoes": "" }, "som": { "ativo": false, "observacoes": "" }, "dj": { "ativo": false, "observacoes": "" }, "foto": { "ativo": false, "observacoes": "" }, "outros": [] },
-  "gastronomia": { "alimentos": { "ativo": false, "formato": "", "pessoas": 0, "horario": "", "restricoes": "", "observacoes": "" }, "bar": { "ativo": false, "tipo": "", "bebidas": "", "horas": 0, "bartender": false, "observacoes": "" } },
-  "servicosMencionados": { "estrutura": false, "equipe": [], "led": false, "som": false, "dj": false, "foto": false, "gastronomia": false },
-  "servicosNecessarios": [],
-  "itensEmAnalise": [],
-  "formaPagamento": ""
-}
-
-REGRAS DO JSON:
-- servicosNecessarios NUNCA vazio se o cliente pediu algo
-- equipe.itens = array: {"tipo":"","quantidade":0,"horasPorDia":0,"dias":0,"observacoes":""}
-- Datas sempre DD/MM/AAAA
-- formaPagamento fica vazio — preenchido pelo sistema
-`;
 
 function extractJson(text) {
   const match = text.match(/```json\s*([\s\S]*?)```/);
@@ -119,8 +103,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [pricingData, setPricingData]   = useState([]);
   const [briefingJson, setBriefingJson] = useState(null);
   const [step, setStep]                 = useState('chat');
-  const [stepAtual, setStepAtual] = useState('inicio');
-  const stepRef = useRef('inicio'); // ref síncrona do step
   const [submitting, setSubmitting]     = useState(false);
   const [assistantName, setAssistantName] = useState('Realize');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
@@ -128,11 +110,14 @@ export default function ClienteChat({ userData, onClose }) {
   const [carrosselIdx, setCarrosselIdx] = useState({});
   const [catalogoSummary, setCatalogoSummary] = useState('');
   const [formaPagamento, setFormaPagamento] = useState(null);
-  const [opcoesCards, setOpcoesCards]       = useState([]); // opções do serviço atual
-  const [opcoesCardSelecionadas, setOpcoesCardSelecionadas] = useState({}); // msgId → opcao
-  const [filaCards, setFilaCards]   = useState([]); // fila de cards pendentes
-  const filaRef                     = useRef([]);   // ref para acessar fila sem stale closure
-  const [servicoCardAtual, setServicoCardAtual] = useState(''); // nome do serviço sendo exibido
+  const [opcoesCardSelecionadas, setOpcoesCardSelecionadas] = useState({});
+  const [filaCards, setFilaCards]   = useState([]);
+  const filaRef                     = useRef([]);
+
+  // ── Perguntas fixas: controle de índice e dados coletados ────────────────
+  const [idxPergunta, setIdxPergunta] = useState(0);
+  const idxRef = useRef(0);
+  const [dadosColetados, setDadosColetados] = useState({});
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -216,9 +201,10 @@ export default function ClienteChat({ userData, onClose }) {
   // ── mensagem inicial ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!assistantName) return;
+    const primeiraP = PERGUNTAS[0];
     setMessages([{
       role: 'assistant',
-      content: `Olá! Sou a **${assistantName}**, assistente de eventos da Realize Hub. 😊\n\nVou te ajudar a criar a proposta do seu evento. Para começar: **que tipo de evento você está planejando?**\n\n_(Pode ser uma feira, congresso, lançamento de produto, evento corporativo...)_`,
+      content: `Olá, **${userName}**! 😊 Sou a **${assistantName}**, assistente de eventos da Realize Hub.\n\nVou te ajudar a criar a proposta do seu evento. ${primeiraP.texto}`,
       id: 'init',
     }]);
   }, [assistantName]);
@@ -227,226 +213,299 @@ export default function ClienteChat({ userData, onClose }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // ── avança o step baseado na resposta do cliente ─────────────────────────
-  const ORDEM_STEPS = ['inicio', 'd1_dados', 'd2_produtor', 'd3_estrutura', 'd3_detalhes', 'd4_equipe', 'd4_detalhes', 'd5_servicos', 'd6_gastro', 'd6_detalhes', 'pagamento', 'json'];
+  // ── Encontra próxima pergunta não respondida ───────────────────────────────
+  const proximaPerguntaIdx = (dadosAtuais, startIdx) => {
+    for (let i = startIdx; i < PERGUNTAS.length; i++) {
+      const p = PERGUNTAS[i];
+      // Verifica condição
+      if (p.condicional && !p.condicional(dadosAtuais)) continue;
+      // Verifica se já foi respondida
+      if (dadosAtuais[p.campo] !== undefined && dadosAtuais[p.campo] !== null && dadosAtuais[p.campo] !== '') continue;
+      return i;
+    }
+    return -1; // todas respondidas
+  };
 
-  const avancarStep = () => {
-    const atual = stepRef.current;
-    const idx = ORDEM_STEPS.indexOf(atual);
-    const next = idx >= 0 && idx < ORDEM_STEPS.length - 1 ? ORDEM_STEPS[idx + 1] : atual;
-    stepRef.current = next;
-    setStepAtual(next);
-    return next;
+  // ── Interpreta resposta via IA (extração simples) ─────────────────────────
+  const interpretarResposta = async (perguntaId, resposta) => {
+    const extrações = {
+      tipo_evento:    `O cliente disse: "${resposta}". Qual o tipo do evento em 2-4 palavras? Responda APENAS: {"valor":"tipo aqui"}`,
+      nome_evento:    `O cliente disse: "${resposta}". Qual o nome do evento? Se não definido, use null. Responda APENAS: {"valor":"nome ou null"}`,
+      data_inicio:    `O cliente disse: "${resposta}". Extraia a data de início no formato DD/MM/AAAA. Responda APENAS: {"valor":"DD/MM/AAAA"}`,
+      data_fim:       `O cliente disse: "${resposta}". Extraia a data de término no formato DD/MM/AAAA. Responda APENAS: {"valor":"DD/MM/AAAA"}`,
+      horario:        `O cliente disse: "${resposta}". Extraia horário início e fim. Responda APENAS: {"inicio":"HHh","fim":"HHh"}`,
+      local:          `O cliente disse: "${resposta}". Extraia cidade, local e endereço. Responda APENAS: {"cidade":"","local":"","endereco":""}`,
+      visitantes:     `O cliente disse: "${resposta}". Quantas pessoas por dia? Responda APENAS: {"valor":0}`,
+      empresa:        `O cliente disse: "${resposta}". Nome da empresa? Se não informado, null. Responda APENAS: {"valor":"nome ou null"}`,
+      produtor:       `O cliente disse: "${resposta}". Quer produtor de eventos? Responda APENAS: {"valor":true ou false}`,
+      tem_estrutura:  `O cliente disse: "${resposta}". Precisa de estrutura física? Responda APENAS: {"valor":true ou false}`,
+      tipo_estande:   `O cliente disse: "${resposta}". Modular ou personalizado/do zero? Responda APENAS: {"valor":"modular" ou "personalizado"}`,
+      area_m2:        `O cliente disse: "${resposta}". Área em m²? Responda APENAS: {"valor":0}`,
+      altura_teto:    `O cliente disse: "${resposta}". Altura do teto? Responda APENAS: {"valor":"altura"}`,
+      dias_montagem:  `O cliente disse: "${resposta}". Dias antes para montagem? Responda APENAS: {"valor":0}`,
+      restricoes:     `O cliente disse: "${resposta}". Restrições de acesso? Responda APENAS: {"valor":"descrição ou nenhuma"}`,
+      energia:        `O cliente disse: "${resposta}". Precisa de energia dedicada? Responda APENAS: {"valor":"descrição"}`,
+      identidade:     `O cliente disse: "${resposta}". Tem identidade visual? Responda APENAS: {"valor":"descrição ou não definida"}`,
+      tem_equipe:     `O cliente disse: "${resposta}". Precisa de profissional? Responda APENAS: {"valor":true ou false}`,
+      equipe_tipo:    `O cliente disse: "${resposta}". Que tipo de profissional? Responda APENAS: {"valor":"nome"}`,
+      equipe_qtd:     `O cliente disse: "${resposta}". Quantos profissionais? Responda APENAS: {"valor":0}`,
+      equipe_horas:   `O cliente disse: "${resposta}". Horas por dia? Responda APENAS: {"valor":0}`,
+      equipe_dias:    `O cliente disse: "${resposta}". Quantos dias? Responda APENAS: {"valor":0}`,
+      equipe_perfil:  `O cliente disse: "${resposta}". Preferência de perfil? Responda APENAS: {"valor":"descrição ou nenhuma"}`,
+      tem_gastro:     `O cliente disse: "${resposta}". Precisa de gastronomia? Responda APENAS: {"valor":true ou false}`,
+      gastro_formato: `O cliente disse: "${resposta}". Formato da refeição? Responda APENAS: {"valor":"descrição"}`,
+      gastro_pessoas: `O cliente disse: "${resposta}". Quantas pessoas? Responda APENAS: {"valor":0}`,
+      gastro_horario: `O cliente disse: "${resposta}". Horário e duração? Responda APENAS: {"valor":"descrição"}`,
+      gastro_restric: `O cliente disse: "${resposta}". Restrições alimentares? Responda APENAS: {"valor":"descrição ou nenhuma"}`,
+      gastro_cozinha: `O cliente disse: "${resposta}". Tem cozinha? Responda APENAS: {"valor":true ou false}`,
+      gastro_bar:     `O cliente disse: "${resposta}". Quer bar? Responda APENAS: {"valor":true ou false}`,
+      servicos:       `O cliente disse: "${resposta}". Quais serviços ele quer? Liste apenas nomes de serviços confirmados. Responda APENAS: {"itens":["nome1","nome2"]}`,
+    };
+    const prompt = extrações[perguntaId];
+    if (!prompt) return { valor: resposta };
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 150,
+          system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+      return JSON.parse(text.replace(/```json|```/g, '').trim());
+    } catch (e) { return { valor: resposta }; }
+  };
+
+  // ── Constrói resposta natural da IA para a próxima pergunta ───────────────
+  const perguntarProxima = async (proximaP, dadosAtuais, confirmaAnterior = '') => {
+    setLoading(true);
+    try {
+      // Constrói instrução para a IA
+      const instrucao = confirmaAnterior
+        ? `Confirme brevemente a resposta do cliente: "${confirmaAnterior}". Depois faça APENAS esta pergunta de forma natural: "${proximaP.texto}". Não faça nenhuma outra pergunta.`
+        : `Faça APENAS esta pergunta de forma natural e amigável: "${proximaP.texto}". Não faça nenhuma outra pergunta.`;
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 200,
+          system: `${SYSTEM_SCRIPT}\n\nCLIENTE: ${userName}. Chame-o pelo nome.`,
+          messages: [{ role: 'user', content: instrucao }],
+        }),
+      });
+      const data = await res.json();
+      const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+      setMessages(prev => [...prev, { role: 'assistant', content: texto, id: Date.now() }]);
+
+      // Se for pergunta de tipo_estande modular → prepara MOSTRAR_MODELOS
+      if (proximaP.id === 'tipo_estande' && modelosEspeciais.length > 0) {
+        // será tratado depois da resposta do cliente
+      }
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: proximaP.texto, id: Date.now() }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Finaliza briefing e mostra cards de serviços ──────────────────────────
+  const finalizarBriefing = async (dadosFinais) => {
+    const servicos = dadosFinais['servicosNecessarios'] || [];
+    if (servicos.length > 0) {
+      // Monta fila de cards para os serviços
+      const novosCards = [];
+      const svSnap = await getDocs(collection(db, 'supplierServices'));
+      const todosServicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+      const cidadeNorm = (dadosFinais['evento.cidade'] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      for (const nomeServico of servicos) {
+        const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const filtrados = todosServicos.filter(s => {
+          if (cidadeNorm && s.regiao) {
+            const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
+          }
+          const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
+        });
+        const comOpcoes = await Promise.all(filtrados.map(async s => {
+          try {
+            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+            return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo||0, diasMontagem: s.diasMontagem||0, ...d.data() }));
+          } catch { return []; }
+        }));
+        const opcoes = comOpcoes.flat();
+        if (opcoes.length > 0) {
+          novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}` });
+        } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${nomeServico}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() + Math.random() }]);
+        }
+      }
+      // Adiciona pagamento ao final
+      novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
+      filaRef.current = novosCards;
+      setFilaCards(novosCards);
+      if (novosCards.length > 0) exibirProximoCard(novosCards);
+    } else {
+      // Sem serviços → vai direto para pagamento
+      filaRef.current = [{ tipo: 'pagamento', id: `pagamento_${Date.now()}` }];
+      setFilaCards(filaRef.current);
+      exibirProximoCard(filaRef.current);
+    }
   };
 
   // ── enviar mensagem ───────────────────────────────────────────────────────
   const sendMessage = async (textoForçado) => {
     const text = (textoForçado || input).trim();
     if (!text || loading) return;
-    // Se tem cards na fila aguardando resposta, não chama a IA
-    // (exceto quando a chamada vem de um card — textoForçado)
     if (filaRef.current.length > 0 && !textoForçado) return;
     setInput('');
 
     const userMsg = { role: 'user', content: text, id: Date.now() };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
+    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
-    // Avança o step e pega o próximo sincronamente via ref
-    const stepParaPrompt = stepRef.current;
     try {
-      const history = updated.slice(-20).map(m => ({ role: m.role, content: m.content || '' }));
+      const pergAtual = PERGUNTAS[idxRef.current];
+      if (!pergAtual) { setLoading(false); return; }
 
-      const pricingSummary = pricingData.length > 0
-        ? `\n\nTABELA DE PREÇOS (resumo):\n${pricingData.slice(0, 40).map(p =>
-            `- ${p.tipo || ''} | ${p.subServiceId || p.serviceId || ''} | ${p.estado || 'SP'} | ${p.custoHora ? `R$${p.custoHora}/h` : ''} ${p.custoDiaria ? `R$${p.custoDiaria}/dia` : ''}`
-          ).join('\n')}`
-        : '';
+      // 1. Interpreta a resposta do cliente
+      const dados = await interpretarResposta(pergAtual.id, text);
 
-      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      // Garante lista de serviços atualizada a cada mensagem
-      let listaNomes = catalogoSummary;
-      if (!listaNomes) {
-        try {
-          const svSnap = await getDocs(collection(db, 'supplierServices'));
-          const nomes = [...new Set(svSnap.docs.map(d => d.data().serviceName).filter(Boolean))];
-          if (nomes.length > 0) {
-            listaNomes = `\n\nSERVIÇOS DISPONÍVEIS NO SISTEMA (use esses nomes EXATOS nos marcadores MOSTRAR_OPCOES):\n${nomes.map(n => `- ${n}`).join('\n')}`;
-            setCatalogoSummary(listaNomes);
-          }
-        } catch (e) { console.error(e); }
+      // 2. Salva o dado coletado
+      const novosDados = { ...dadosColetados };
+      if (pergAtual.id === 'local' && dados.cidade) {
+        novosDados['evento.cidade']   = dados.cidade;
+        novosDados['evento.local']    = dados.local || text;
+        novosDados['evento.endereco'] = dados.endereco || '';
+      } else if (pergAtual.id === 'horario' && dados.inicio) {
+        novosDados['evento.horarioInicio'] = dados.inicio;
+        novosDados['evento.horarioFim']    = dados.fim || '';
+        novosDados['evento.horario']       = `${dados.inicio} às ${dados.fim}`;
+      } else if (pergAtual.id === 'servicos') {
+        novosDados['servicosNecessarios'] = dados.itens || [];
+      } else if (dados.valor !== undefined) {
+        novosDados[pergAtual.campo] = dados.valor;
+      } else {
+        novosDados[pergAtual.campo] = text;
       }
-      const STEPS = {
-        inicio:      'Cumprimente o cliente e faça APENAS a primeira pergunta do bloco D1: tipo do evento.',
-        d1_tipo:     'Registre o tipo do evento. Se o cliente já informou outros dados do D1, registre e pule. Faça APENAS a próxima pergunta não respondida do bloco D1.',
-        d1_dados:    'Continue coletando os dados do bloco D1 que ainda faltam. APENAS 1 pergunta por vez.',
-        d2_produtor: 'Bloco D1 completo. Faça APENAS a pergunta do bloco D2: se o cliente quer um Produtor de Eventos.',
-        d3_estrutura:'Faça APENAS a pergunta do bloco D3: se o cliente precisa de estrutura física.',
-        d3_detalhes: 'O cliente confirmou que precisa de estrutura. Colete os detalhes do bloco D3 um por vez. APENAS 1 pergunta.',
-        d4_equipe:   'Faça APENAS a pergunta do bloco D4: se o cliente precisa de algum profissional.',
-        d4_detalhes: 'O cliente confirmou profissional. Colete quantidade, horas, dias e perfil. APENAS 1 pergunta.',
-        d5_servicos: 'Faça APENAS a pergunta do bloco D5: se o cliente precisa de equipamentos ou atrações.',
-        d6_gastro:   'Faça APENAS a pergunta do bloco D6: se o cliente precisa de alimentação ou bebidas.',
-        d6_detalhes: 'O cliente confirmou gastronomia. Colete os detalhes do bloco D6. APENAS 1 pergunta.',
-        pagamento:   'Todos os blocos estão completos. Escreva um resumo breve e use o marcador ESCOLHER_PAGAMENTO.',
-        json:        'O cliente escolheu o pagamento. Gere o JSON final completo.',
-      };
-      const instrucaoStep = `\n\n⚡ INSTRUÇÃO DESTA MENSAGEM:\n${STEPS[stepParaPrompt] || STEPS.inicio}\nQuando todas as perguntas do bloco atual estiverem respondidas, escreva BLOCO_COMPLETO em linha separada.`;
-      const basePrompt = `CLIENTE: ${userName}. Chame-o pelo nome durante toda a conversa.\nHOJE É: ${hoje}. Use sempre o ano correto (${new Date().getFullYear()}) ao mencionar datas e eventos.\n\n` + SYSTEM_SCRIPT + listaNomes + instrucaoStep;
-      // Limita o system prompt a 12000 caracteres para evitar erro 400
-      const systemPrompt = basePrompt.length > 12000 ? basePrompt.slice(0, 12000) + '\n\n[catálogo truncado por limite de tamanho]' : basePrompt;
+      setDadosColetados(novosDados);
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: history,
-        }),
-      });
-
-      const data = await response.json();
-
-      const assistantText = (data.content || [])
-        .filter(b => b.type === 'text')
-        .map(b => b.text)
-        .join('\n');
-
-      // Remove o marcador do texto visível (aceita [] ou {})
-      const textoLimpo = assistantText
-        .replace(/\[?{?MOSTRAR_MODELOS}?\]?/g, '')
-        .replace(/\[?{?ESCOLHER_PAGAMENTO}?\]?/g, '')
-        .replace(/MOSTRAR_OPCOES:[^\n]*/g, '')
-        .replace(/BLOCO_COMPLETO/g, '')
-        .trim();
-
-      // Detecta BLOCO_COMPLETO e avança o step
-      if (assistantText.includes('BLOCO_COMPLETO')) {
-        const next = avancarStep('BLOCO_COMPLETO');
-        console.log('Bloco completo! Avançando para:', next);
-      }
-      const assistantMsg = { role: 'assistant', content: textoLimpo, id: Date.now() + 1 };
-      setMessages(prev => [...prev, assistantMsg]);
-
-      // Se a IA usou o marcador → injeta card de seleção de modelos
-      // ── Monta fila de cards a partir dos marcadores ──────────────────────
-      const novosCards = [];
-
-      // MOSTRAR_MODELOS → estande modular
-      if (assistantText.includes('MOSTRAR_MODELOS')) {
-        let modelos = modelosEspeciais;
-        if (modelos.length === 0) {
-          try {
-            const snap = await getDocs(query(collection(db, 'modelosEspeciais'), where('ativo', '==', true)));
-            modelos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setModelosEspeciais(modelos);
-          } catch (e) { console.error(e); }
-        }
-        if (modelos.length > 0) {
-          novosCards.push({ tipo: 'modelos', id: `modelos_${Date.now()}` });
-        }
+      // 3. Se modular → mostrar cards de estande
+      if (pergAtual.id === 'tipo_estande' && (dados.valor || '').toLowerCase() === 'modular' && modelosEspeciais.length > 0) {
+        setLoading(false);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Ótimo! Veja os modelos disponíveis:', id: Date.now() }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: '', type: 'modelos', id: Date.now() + 1 }]);
+        // avança idx
+        const proximoIdx = idxRef.current + 1;
+        idxRef.current = proximoIdx;
+        setIdxPergunta(proximoIdx);
+        return;
       }
 
-      // MOSTRAR_OPCOES:X → serviços dinâmicos
-      const matchesOpcoes = [...assistantText.matchAll(/MOSTRAR_OPCOES:([^\s\n,]+)/g)];
-      const svSnap = matchesOpcoes.length > 0 ? await getDocs(collection(db, 'supplierServices')) : null;
-      const todosServicos = svSnap ? svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false) : [];
-      const cidadeAtual = briefingJson?.evento?.cidade || '';
-      const cidadeNormAtual = cidadeAtual.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      // 4. Avança para próxima pergunta
+      const proximoIdx = proximaPerguntaIdx(novosDados, idxRef.current + 1);
+      idxRef.current = proximoIdx >= 0 ? proximoIdx : PERGUNTAS.length;
+      setIdxPergunta(idxRef.current);
 
-      for (const match of matchesOpcoes) {
-        const nomeServico = decodeURIComponent(match[1].replace(/_/g, ' ')).trim();
-        const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-        const servicos = todosServicos.filter(s => {
-          if (cidadeNormAtual && s.regiao) {
-            const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            if (!reg.includes(cidadeNormAtual) && !cidadeNormAtual.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
-          }
-          const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
-        });
-
-        const comOpcoes = await Promise.all(servicos.map(async s => {
-          try {
-            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-            return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo || 0, diasMontagem: s.diasMontagem || 0, ...d.data() }));
-          } catch { return []; }
-        }));
-        const opcoes = comOpcoes.flat();
-
-        if (opcoes.length > 0) {
-          novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}` });
-        } else {
-          // Não encontrou — avisa imediatamente (não entra na fila)
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `⚠️ Não encontramos **${nomeServico}** cadastrado no sistema. Nosso coordenador vai avaliar e incluir antes da aprovação final.`,
-            id: Date.now() + Math.random(),
-          }]);
-          setBriefingJson(prev => ({ ...prev, itensEmAnalise: [...(prev?.itensEmAnalise || []), nomeServico] }));
-        }
+      // 5. Se acabaram as perguntas → finaliza
+      if (proximoIdx < 0) {
+        setLoading(false);
+        // Monta briefingJson com os dados coletados
+        const json = montarBriefingJson(novosDados);
+        setBriefingJson(json);
+        setMessages(prev => [...prev, { role: 'assistant', content: `Perfeito, ${userName}! Já tenho tudo que preciso. Agora vou mostrar as opções disponíveis para os serviços que você pediu. 🎉`, id: Date.now() }]);
+        await finalizarBriefing(novosDados);
+        return;
       }
 
-      // ESCOLHER_PAGAMENTO → entra no final da fila
-      if (assistantText.includes('ESCOLHER_PAGAMENTO')) {
-        novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
-      }
-
-      // Adiciona à fila e exibe o primeiro se a fila estava vazia
-      if (novosCards.length > 0) {
-        const filaAtual = filaRef.current;
-        const novaFila = [...filaAtual, ...novosCards];
-        filaRef.current = novaFila;
-        setFilaCards(novaFila);
-        if (filaAtual.length === 0) {
-          exibirProximoCard(novaFila);
-        }
-      }
-
-      const json = extractJson(assistantText);
-      const jsonCompleto = json && json.evento &&
-        json.evento.dataInicio &&
-        json.evento.cidade &&
-        json.evento.visitantesPorDia > 0 &&
-        (json.servicosNecessarios?.length > 0) &&
-        json.formaPagamento;
-      if (json && json.evento) {
-        setBriefingJson(json); // salva sempre para ter dados parciais
-      }
-      if (jsonCompleto) {
-        // Se pediu estande modular, busca modelos disponíveis
-        if (json.tipoEstande === 'modular') {
-          try {
-            const tiposSnap = await getDocs(query(collection(db, 'tiposEspeciais'), where('ativo', '==', true)));
-            const tipoEstande = tiposSnap.docs.find(d => d.data().nome?.toLowerCase().includes('modular') || d.data().nome?.toLowerCase().includes('estande'));
-            if (tipoEstande) {
-              const modelosSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('tipoEspecialId', '==', tipoEstande.id), where('ativo', '==', true)));
-              setModelosEspeciais(modelosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-            }
-          } catch (e) { console.error('Erro ao buscar modelos:', e); }
-        }
-      } // fim jsonCompleto
-    } catch (err) {
-      console.error('Erro na API:', err);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Desculpe, tive um problema de conexão. Pode repetir a última mensagem?',
-        id: Date.now() + 2,
-      }]);
+      // 6. Faz a próxima pergunta
+      setLoading(false);
+      const proximaP = PERGUNTAS[proximoIdx];
+      await perguntarProxima(proximaP, novosDados, text);
+    } catch (e) {
+      console.error(e);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Pode repetir?', id: Date.now() }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
-      // Avança a fila depois que a IA respondeu
       if (filaRef.current.length > 0) {
         setTimeout(() => avancarFila(), 300);
       }
     }
   };
+
+  // ── Monta o briefingJson com os dadosColetados ────────────────────────────
+  const montarBriefingJson = (dados) => {
+    const di = dados['evento.dataInicio'] || '';
+    const df = dados['evento.dataFim'] || '';
+    let diasDuracao = 1;
+    if (di && df) {
+      const toISO = s => { const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : s; };
+      const diff = (new Date(toISO(df)) - new Date(toISO(di))) / 86400000;
+      diasDuracao = Math.max(1, diff + 1);
+    }
+    return {
+      evento: {
+        tipo:             dados['evento.tipo'] || '',
+        nome:             dados['evento.nome'] || '',
+        dataInicio:       dados['evento.dataInicio'] || '',
+        dataFim:          dados['evento.dataFim'] || '',
+        diasDuracao,
+        horarioInicio:    dados['evento.horarioInicio'] || '',
+        horarioFim:       dados['evento.horarioFim'] || '',
+        horario:          dados['evento.horario'] || '',
+        cidade:           dados['evento.cidade'] || '',
+        local:            dados['evento.local'] || '',
+        endereco:         dados['evento.endereco'] || '',
+        visitantesPorDia: parseInt(dados['evento.visitantesPorDia']) || 0,
+        nomeEmpresa:      dados['evento.nomeEmpresa'] || '',
+      },
+      estrutura: {
+        ativo:            dados['estrutura.ativo'] === true,
+        areaM2:           parseFloat(dados['estrutura.areaM2']) || 0,
+        alturaTeto:       dados['estrutura.alturaTeto'] || '',
+        diasMontagem:     parseInt(dados['estrutura.diasMontagem']) || 0,
+        restricoes:       dados['estrutura.restricoes'] || '',
+        energia:          dados['estrutura.energia'] || '',
+        identidadeVisual: dados['estrutura.identidadeVisual'] || '',
+        tipoEstande:      dados['estrutura.tipoEstande'] || '',
+        observacoes:      '',
+      },
+      equipe: {
+        produtor: { ativo: dados['equipe.produtor'] === true, dias: 0, observacoes: '' },
+        itens: dados['equipe.ativo'] ? [{
+          tipo:        dados['equipe.tipo'] || '',
+          quantidade:  parseInt(dados['equipe.quantidade']) || 0,
+          horasPorDia: parseFloat(dados['equipe.horas']) || 0,
+          dias:        parseInt(dados['equipe.dias']) || 0,
+          observacoes: dados['equipe.perfil'] || '',
+        }] : [],
+      },
+      gastronomia: {
+        alimentos: {
+          ativo:     dados['gastronomia.ativo'] === true,
+          formato:   dados['gastronomia.formato'] || '',
+          pessoas:   parseInt(dados['gastronomia.pessoas']) || 0,
+          horario:   dados['gastronomia.horario'] || '',
+          restricoes: dados['gastronomia.restricoes'] || '',
+          observacoes: '',
+        },
+        bar: { ativo: dados['gastronomia.bar'] === true, tipo: '', bebidas: '', horas: 0, bartender: false, observacoes: '' },
+      },
+      servicosNecessarios: dados['servicosNecessarios'] || [],
+      itensEmAnalise: [],
+      formaPagamento: '',
+    };
+  };
+
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
