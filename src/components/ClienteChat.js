@@ -376,11 +376,32 @@ export default function ClienteChat({ userData, onClose }) {
       const pergAtual = PERGUNTAS[idxRef.current];
       if (!pergAtual) { setLoading(false); return; }
 
-      // 1. Interpreta a resposta do cliente
-      const dados = await interpretarResposta(pergAtual.id, text);
+      // 1. Se mensagem longa (>80 chars), extrai todos os campos de uma vez
+      let novosDados = { ...dadosColetados };
+      if (text.length > 80) {
+        try {
+          const resAll = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 400,
+              system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
+              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia APENAS os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS: {"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horario":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"estrutura.ativo":null,"estrutura.tipoEstande":null,"estrutura.areaM2":null,"estrutura.alturaTeto":null,"estrutura.diasMontagem":null,"estrutura.restricoes":null,"estrutura.energia":null,"estrutura.identidadeVisual":null,"equipe.ativo":null,"equipe.tipo":null,"equipe.quantidade":null,"equipe.horas":null,"equipe.dias":null,"equipe.perfil":null,"gastronomia.ativo":null,"servicosNecessarios":null}` }],
+            }),
+          });
+          const resAllData = await resAll.json();
+          const resAllText = (resAllData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+          const extraido = JSON.parse(resAllText.replace(/```json|```/g, '').trim());
+          // Aplica só os campos não nulos
+          Object.entries(extraido).forEach(([k, v]) => {
+            if (v !== null && v !== undefined && v !== '') novosDados[k] = v;
+          });
+        } catch (e) { console.error('Erro na extração em massa:', e); }
+      }
 
-      // 2. Salva o dado coletado
-      const novosDados = { ...dadosColetados };
+      // 2. Interpreta a resposta do cliente para a pergunta atual
+      const dados = await interpretarResposta(pergAtual.id, text);
       if (pergAtual.id === 'local' && dados.cidade) {
         novosDados['evento.cidade']   = dados.cidade;
         novosDados['evento.local']    = dados.local || text;
