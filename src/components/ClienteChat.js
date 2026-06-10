@@ -326,6 +326,7 @@ export default function ClienteChat({ userData, onClose }) {
 
       for (const nomeServico of servicos) {
         const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const palavras = nomeNorm.split(/\s+/).filter(p => p.length > 2);
         const filtrados = todosServicos.filter(s => {
           if (cidadeNorm && s.regiao) {
             const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -333,7 +334,9 @@ export default function ClienteChat({ userData, onClose }) {
           }
           const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
+          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || 
+                 pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm) ||
+                 palavras.some(p => sNorm.includes(p) || pNorm.includes(p));
         });
         const comOpcoes = await Promise.all(filtrados.map(async s => {
           try {
@@ -442,6 +445,13 @@ export default function ClienteChat({ userData, onClose }) {
       // 5. Se acabaram as perguntas → finaliza
       if (proximoIdx < 0) {
         setLoading(false);
+        // Adiciona equipe ao servicosNecessarios se não estiver lá
+        if (novosDados['equipe.ativo'] === true && novosDados['equipe.tipo']) {
+          const servicosAtuais = novosDados['servicosNecessarios'] || [];
+          if (!servicosAtuais.some(s => s.toLowerCase().includes(novosDados['equipe.tipo'].toLowerCase()))) {
+            novosDados['servicosNecessarios'] = [...servicosAtuais, novosDados['equipe.tipo']];
+          }
+        }
         // Monta briefingJson com os dados coletados
         const json = montarBriefingJson(novosDados);
         setBriefingJson(json);
