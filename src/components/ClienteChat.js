@@ -27,7 +27,7 @@ const PERGUNTAS = [
   { id: 'identidade',     bloco: 'estrutura', campo: 'estrutura.identidadeVisual', texto: 'Já tem **identidade visual** definida? *(logo, cores, materiais)*', condicional: (d) => d['estrutura.ativo'] === true },
   // EQUIPE
   { id: 'tem_equipe',     bloco: 'equipe',    campo: 'equipe.ativo',            texto: 'Vai precisar de algum **profissional** no evento? *(recepcionista, hostess, segurança, limpeza...)*' },
-  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true },
+  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true, oferecerCatalogo: true },
   { id: 'equipe_qtd',     bloco: 'equipe',    campo: 'equipe.quantidade',       texto: 'Quantos **profissionais** você vai precisar?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_horas',   bloco: 'equipe',    campo: 'equipe.horas',            texto: 'Quantas **horas por dia** eles vão trabalhar?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_dias',    bloco: 'equipe',    campo: 'equipe.dias',             texto: 'Por **quantos dias**?', condicional: (d) => d['equipe.ativo'] === true },
@@ -41,36 +41,133 @@ const PERGUNTAS = [
   { id: 'gastro_cozinha', bloco: 'gastro',    campo: 'gastronomia.cozinha',     texto: 'O local tem **cozinha disponível** para o fornecedor?', condicional: (d) => d['gastronomia.ativo'] === true },
   { id: 'gastro_bar',     bloco: 'gastro',    campo: 'gastronomia.bar',         texto: 'Vai querer um **bar**? *(open bar, drinks, cerveja...)*', condicional: (d) => d['gastronomia.ativo'] === true },
   // SERVIÇOS
-  { id: 'servicos',       bloco: 'servicos',  campo: 'servicosNecessarios',     texto: 'Vai precisar de algum **equipamento ou atração**? *(painel de LED, som, DJ, fotógrafo, videomaker...)*' },
+  { id: 'servicos',       bloco: 'servicos',  campo: 'servicosNecessarios',     texto: 'Vai precisar de algum **equipamento ou atração**? *(painel de LED, som, DJ, fotógrafo, videomaker...)*', oferecerCatalogo: true },
 ];
 
-// System prompt enxuto — só personalidade e marcadores
-const SYSTEM_SCRIPT = `Você é a Realize, assistente virtual da Realize Hub especializada em eventos corporativos. Seja natural, simpática e objetiva. Use linguagem informal mas profissional.
+// ── Helpers: catálogo dinâmico (Firebase) ────────────────────────────────────
+const normalize = (str) => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-Sua tarefa é fazer APENAS a pergunta que o sistema vai te passar na instrução. Nada mais. Não invente perguntas adicionais.
+const servicoNaRegiao = (servico, cidadeNorm) => {
+  if (!cidadeNorm) return true;
+  const reg = normalize(servico.regiao);
+  if (!reg) return true;
+  return reg.includes(cidadeNorm) || cidadeNorm.includes(reg) || reg.includes('todo') || reg.includes('nacional') || reg.includes('brasil');
+};
 
-Se o cliente responder com mais informações do que foi perguntado, registre tudo e responda de forma natural confirmando o que entendeu.
+const campoRespondido = (dados, campo) => {
+  const v = dados[campo];
+  if (v === undefined || v === null) return false;
+  if (v === '') return false;
+  if (typeof v === 'boolean') return true;
+  if (typeof v === 'number') return !Number.isNaN(v);
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+};
 
-Se o cliente fizer uma pergunta ou comentário fora do contexto, responda brevemente e volte para a pergunta do sistema.
-
-MARCADORES (escreva exatamente quando indicado pelo sistema):
-- MOSTRAR_MODELOS → quando o sistema pedir para mostrar modelos de estande
-- MOSTRAR_OPCOES:NomeExato → quando o sistema pedir para mostrar opções de serviço
-- ESCOLHER_PAGAMENTO → quando o sistema pedir para mostrar formas de pagamento
-
-JSON FINAL (apenas quando o sistema pedir):
-{"evento":{"tipo":"","nome":"","dataInicio":"DD/MM/AAAA","dataFim":"DD/MM/AAAA","diasDuracao":0,"horarioInicio":"","horarioFim":"","cidade":"","local":"","endereco":"","visitantesPorDia":0,"nomeEmpresa":""},"estrutura":{"ativo":false,"areaM2":0,"alturaTeto":"","diasMontagem":0,"restricoes":"","energia":"","identidadeVisual":"","tipoEstande":"","observacoes":""},"equipe":{"produtor":{"ativo":false,"dias":0,"observacoes":""},"itens":[]},"equipamentos":{"led":{"ativo":false,"observacoes":""},"som":{"ativo":false,"observacoes":""},"dj":{"ativo":false,"observacoes":""},"foto":{"ativo":false,"observacoes":""},"outros":[]},"gastronomia":{"alimentos":{"ativo":false,"formato":"","pessoas":0,"horario":"","restricoes":"","observacoes":""},"bar":{"ativo":false,"tipo":"","bebidas":"","horas":0,"bartender":false,"observacoes":""}},"servicosMencionados":{"estrutura":false,"equipe":[],"led":false,"som":false,"dj":false,"foto":false,"gastronomia":false},"servicosNecessarios":[],"itensEmAnalise":[],"formaPagamento":""}`;
-
-
-function extractJson(text) {
-  const match = text.match(/```json\s*([\s\S]*?)```/);
-  if (match) {
-    try { return JSON.parse(match[1]); } catch { return null; }
+const proximaPerguntaIdx = (dadosAtuais, startIdx = 0) => {
+  for (let i = startIdx; i < PERGUNTAS.length; i++) {
+    const p = PERGUNTAS[i];
+    if (p.condicional && !p.condicional(dadosAtuais)) continue;
+    if (campoRespondido(dadosAtuais, p.campo)) continue;
+    return i;
   }
-  const m2 = text.match(/\{[\s\S]*"evento"[\s\S]*\}/);
-  if (m2) { try { return JSON.parse(m2[0]); } catch { return null; } }
-  return null;
-}
+  return -1;
+};
+
+const sincronizarDadosInferidos = (dados) => {
+  const d = { ...dados };
+  if (d['equipe.tipo_mencionado'] && !campoRespondido(d, 'equipe.tipo')) {
+    d['equipe.tipo'] = d['equipe.tipo_mencionado'];
+  }
+  if (campoRespondido(d, 'equipe.tipo') && d['equipe.ativo'] !== false) {
+    d['equipe.ativo'] = true;
+  }
+  if (Array.isArray(d.servicos_mencionados) && d.servicos_mencionados.length > 0) {
+    const atual = Array.isArray(d.servicosNecessarios) ? d.servicosNecessarios : [];
+    d.servicosNecessarios = [...new Set([...atual, ...d.servicos_mencionados])];
+  }
+  if (d['evento.horarioInicio'] && !campoRespondido(d, 'evento.horario')) {
+    d['evento.horario'] = d['evento.horarioFim']
+      ? `${d['evento.horarioInicio']} às ${d['evento.horarioFim']}`
+      : d['evento.horarioInicio'];
+  }
+  if (d['evento.cidade'] && !campoRespondido(d, 'evento.local') && d._localMencionado) {
+    d['evento.local'] = d._localMencionado;
+  }
+  return d;
+};
+
+const aplicarExtracaoMassa = (extraido, novosDados) => {
+  const d = { ...novosDados };
+  const campos = [
+    'evento.tipo', 'evento.nome', 'evento.dataInicio', 'evento.dataFim',
+    'evento.horarioInicio', 'evento.horarioFim', 'evento.cidade', 'evento.local',
+    'evento.endereco', 'evento.visitantesPorDia', 'evento.nomeEmpresa',
+    'estrutura.ativo', 'estrutura.tipoEstande', 'estrutura.areaM2', 'estrutura.alturaTeto',
+    'estrutura.diasMontagem', 'estrutura.restricoes', 'estrutura.energia', 'estrutura.identidadeVisual',
+    'equipe.ativo', 'equipe.tipo', 'equipe.quantidade', 'equipe.horas', 'equipe.dias', 'equipe.perfil',
+    'equipe.produtor', 'gastronomia.ativo', 'gastronomia.formato', 'gastronomia.pessoas',
+    'gastronomia.horario', 'gastronomia.restricoes', 'gastronomia.cozinha', 'gastronomia.bar',
+  ];
+  campos.forEach(k => {
+    if (extraido[k] !== null && extraido[k] !== undefined && extraido[k] !== '') {
+      d[k] = extraido[k];
+    }
+  });
+  if (extraido.tem_estrutura !== null && extraido.tem_estrutura !== undefined) d['estrutura.ativo'] = extraido.tem_estrutura;
+  if (extraido.tem_equipe !== null && extraido.tem_equipe !== undefined) d['equipe.ativo'] = extraido.tem_equipe;
+  if (extraido.tem_gastro !== null && extraido.tem_gastro !== undefined) d['gastronomia.ativo'] = extraido.tem_gastro;
+  if (extraido.equipe_tipo_mencionado) d['equipe.tipo_mencionado'] = extraido.equipe_tipo_mencionado;
+  if (extraido.servicos_mencionados?.length > 0) d.servicos_mencionados = extraido.servicos_mencionados;
+  if (extraido.tem_servicos === false) d['servicos.negado'] = true;
+  if (Array.isArray(extraido.servicosNecessarios) && extraido.servicosNecessarios.length > 0) {
+    d.servicosNecessarios = extraido.servicosNecessarios;
+  }
+  return sincronizarDadosInferidos(d);
+};
+
+const buscarServicosNoCatalogo = (termo, todosServicos, cidadeNorm) => {
+  const termoNorm = normalize(termo);
+  if (!termoNorm) return [];
+  return todosServicos.filter(s => {
+    if (s.ativo === false) return false;
+    if (!servicoNaRegiao(s, cidadeNorm)) return false;
+    const svc = normalize(s.serviceName);
+    const parent = normalize(s.serviceParentName);
+    return svc.includes(termoNorm) || termoNorm.includes(svc)
+      || parent.includes(termoNorm) || termoNorm.includes(parent);
+  });
+};
+
+const buscarAlternativasCatalogo = (termo, todosServicos, cidadeNorm) => {
+  const termoNorm = normalize(termo);
+  const tokens = termoNorm.split(/\s+/).filter(t => t.length > 2);
+  if (tokens.length === 0) return [];
+  return todosServicos.filter(s => {
+    if (s.ativo === false) return false;
+    if (!servicoNaRegiao(s, cidadeNorm)) return false;
+    const texto = `${normalize(s.serviceName)} ${normalize(s.serviceParentName)}`;
+    return tokens.some(t => texto.includes(t));
+  });
+};
+
+const mapearParaNomesCatalogo = (termos, todosServicos, cidadeNorm) => {
+  const mapeados = [];
+  const emAnalise = [];
+  termos.forEach(termo => {
+    const matches = buscarServicosNoCatalogo(termo, todosServicos, cidadeNorm);
+    if (matches.length > 0) {
+      mapeados.push(matches[0].serviceName);
+    } else {
+      const alt = buscarAlternativasCatalogo(termo, todosServicos, cidadeNorm);
+      if (alt.length > 0) mapeados.push(alt[0].serviceName);
+      else emAnalise.push(termo);
+    }
+  });
+  return { mapeados: [...new Set(mapeados)], emAnalise: [...new Set(emAnalise)] };
+};
+
+const SCHEMA_EXTRACAO_MASSA = `{"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"estrutura.ativo":null,"estrutura.tipoEstande":null,"estrutura.areaM2":null,"estrutura.alturaTeto":null,"estrutura.diasMontagem":null,"estrutura.restricoes":null,"estrutura.energia":null,"estrutura.identidadeVisual":null,"equipe.ativo":null,"equipe.tipo":null,"equipe.quantidade":null,"equipe.horas":null,"equipe.dias":null,"equipe.perfil":null,"equipe.produtor":null,"gastronomia.ativo":null,"gastronomia.formato":null,"gastronomia.pessoas":null,"gastronomia.horario":null,"gastronomia.restricoes":null,"gastronomia.cozinha":null,"gastronomia.bar":null,"servicosNecessarios":null,"tem_estrutura":null,"tem_equipe":null,"equipe_tipo_mencionado":null,"tem_gastro":null,"tem_servicos":null,"servicos_mencionados":null}`;
 
 // Carrossel de fotos para os cards de estande
 function ModeloCarrossel({ fotos, idx, onPrev, onNext, onDot }) {
@@ -113,11 +210,15 @@ export default function ClienteChat({ userData, onClose }) {
   const [opcoesCardSelecionadas, setOpcoesCardSelecionadas] = useState({});
   const [filaCards, setFilaCards]   = useState([]);
   const filaRef                     = useRef([]);
+  const [todosServicos, setTodosServicos] = useState([]);
+  const todosServicosRef            = useRef([]);
+  const faseRef                     = useRef('coleta'); // coleta | selecao | pagamento
 
   // ── Perguntas fixas: controle de índice e dados coletados ────────────────
   const [idxPergunta, setIdxPergunta] = useState(0);
   const idxRef = useRef(0);
   const [dadosColetados, setDadosColetados] = useState({});
+  const dadosRef                    = useRef({});
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -156,14 +257,13 @@ export default function ClienteChat({ userData, onClose }) {
 
       
 
-      // Carrega lista de nomes dos serviços cadastrados para injetar no prompt
+      // Catálogo dinâmico — lido do Firebase, sem lista fixa no código
       try {
         const svSnap = await getDocs(collection(db, 'supplierServices'));
-        const nomes = [...new Set(svSnap.docs.map(d => d.data().serviceName).filter(Boolean))];
-        if (nomes.length > 0) {
-          setCatalogoSummary(`\n\nSERVIÇOS DISPONÍVEIS NO SISTEMA (use esses nomes EXATOS nos marcadores MOSTRAR_OPCOES):\n${nomes.map(n => `- ${n}`).join('\n')}`);
-        }
-      } catch (e) { console.error('Erro ao carregar nomes dos serviços:', e); }
+        const servicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+        setTodosServicos(servicos);
+        todosServicosRef.current = servicos;
+      } catch (e) { console.error('Erro ao carregar serviços:', e); }
 
       // Carrega modelos de estandes especiais/modulares
       try {
@@ -171,7 +271,7 @@ export default function ClienteChat({ userData, onClose }) {
         const todosModelos = modelosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Filtra por região se já soubermos a cidade do evento
-        const cidadeAtual = briefingJson?.evento?.cidade || '';
+        const cidadeAtual = dadosRef.current['evento.cidade'] || '';
         const modelosFiltrados = cidadeAtual
           ? todosModelos.filter(m => {
               if (!m.regioes || m.regioes.length === 0) return true;
@@ -191,7 +291,6 @@ export default function ClienteChat({ userData, onClose }) {
             const caract = Array.isArray(m.caracteristicas) ? m.caracteristicas.join(', ') : (m.caracteristicas || '');
             return `- ${m.nome || 'Modelo'} | ${m.areaM2 ? m.areaM2 + 'm²' : ''} | Altura: ${m.altura || '?'}m | Inclui: ${caract}${m.descricao ? ' | ' + m.descricao : ''}${m.preco ? ' | R$' + parseFloat(m.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}${m.diasProducao ? ' | Producao: ' + m.diasProducao + ' dias' : ''}`;
           });
-          setCatalogoSummary(''); // catálogo não é mais injetado no prompt
           setModelosEspeciais(modelosFiltrados);
         }
       } catch (e) { console.error('Erro ao carregar modelos especiais:', e); }
@@ -213,17 +312,22 @@ export default function ClienteChat({ userData, onClose }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // ── Encontra próxima pergunta não respondida ───────────────────────────────
-  const proximaPerguntaIdx = (dadosAtuais, startIdx) => {
-    for (let i = startIdx; i < PERGUNTAS.length; i++) {
-      const p = PERGUNTAS[i];
-      // Verifica condição
-      if (p.condicional && !p.condicional(dadosAtuais)) continue;
-      // Verifica se já foi respondida
-      if (dadosAtuais[p.campo] !== undefined && dadosAtuais[p.campo] !== null && dadosAtuais[p.campo] !== '') continue;
-      return i;
-    }
-    return -1; // todas respondidas
+  // ── Busca opções de um serviço no Firebase (subcoleção opcoes) ─────────────
+  const buscarOpcoesServico = async (nomeServico, cidadeNorm) => {
+    const servicos = todosServicosRef.current;
+    const matches = buscarServicosNoCatalogo(nomeServico, servicos, cidadeNorm);
+    const alvos = matches.length > 0 ? matches : buscarAlternativasCatalogo(nomeServico, servicos, cidadeNorm);
+    const comOpcoes = await Promise.all(alvos.map(async s => {
+      try {
+        const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+        return opSnap.docs.map(d => ({
+          id: d.id, supplierId: s.supplierId, serviceName: s.serviceName,
+          serviceParentName: s.serviceParentName, tipoServico: s.tipoServico,
+          diasPreparo: s.diasPreparo || 0, diasMontagem: s.diasMontagem || 0, ...d.data(),
+        }));
+      } catch { return []; }
+    }));
+    return comOpcoes.flat();
   };
 
   // ── Interpreta resposta via IA (extração simples) ─────────────────────────
@@ -280,84 +384,176 @@ export default function ClienteChat({ userData, onClose }) {
     } catch (e) { return { valor: resposta }; }
   };
 
-  // ── Constrói resposta natural da IA para a próxima pergunta ───────────────
-  const perguntarProxima = async (proximaP, dadosAtuais, confirmaAnterior = '') => {
-    setLoading(true);
-    try {
-      // Constrói instrução para a IA
-      const instrucao = confirmaAnterior
-        ? `Confirme brevemente a resposta do cliente: "${confirmaAnterior}". Depois faça APENAS esta pergunta de forma natural: "${proximaP.texto}". Não faça nenhuma outra pergunta.`
-        : `Faça APENAS esta pergunta de forma natural e amigável: "${proximaP.texto}". Não faça nenhuma outra pergunta.`;
-
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 200,
-          system: `${SYSTEM_SCRIPT}\n\nCLIENTE: ${userName}. Chame-o pelo nome.`,
-          messages: [{ role: 'user', content: instrucao }],
-        }),
-      });
-      const data = await res.json();
-      const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
-      setMessages(prev => [...prev, { role: 'assistant', content: texto, id: Date.now() }]);
-
-      // Se for pergunta de tipo_estande modular → prepara MOSTRAR_MODELOS
-      if (proximaP.id === 'tipo_estande' && modelosEspeciais.length > 0) {
-        // será tratado depois da resposta do cliente
-      }
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: proximaP.texto, id: Date.now() }]);
-    } finally {
-      setLoading(false);
-    }
+  // ── Pergunta fixa do script (código conduz, sem IA inventar perguntas) ─────
+  const perguntarProxima = (proximaP, confirmaAnterior = '') => {
+    const intro = confirmaAnterior ? `Entendi, ${userName}! ` : '';
+    const texto = `${intro}${proximaP.texto}`;
+    setMessages(prev => [...prev, { role: 'assistant', content: texto, id: Date.now() }]);
   };
 
-  // ── Finaliza briefing e mostra cards de serviços ──────────────────────────
-  const finalizarBriefing = async (dadosFinais) => {
-    const servicos = dadosFinais['servicosNecessarios'] || [];
-    if (servicos.length > 0) {
-      // Monta fila de cards para os serviços
-      const novosCards = [];
-      const svSnap = await getDocs(collection(db, 'supplierServices'));
-      const todosServicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-      const cidadeNorm = (dadosFinais['evento.cidade'] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // ── Após responder equipe_tipo: oferece opções do Firebase na região ───────
+  const oferecerCardCatalogoSeNecessario = async (pergunta, dadosAtuais) => {
+    if (!pergunta.oferecerCatalogo || pergunta.id !== 'equipe_tipo') return false;
+    const tipo = dadosAtuais['equipe.tipo'];
+    if (!tipo) return false;
+    const chave = `equipe_${normalize(tipo)}`;
+    if (dadosAtuais.selecoesCatalogo?.[chave]) return false;
 
-      for (const nomeServico of servicos) {
-        const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const filtrados = todosServicos.filter(s => {
-          if (cidadeNorm && s.regiao) {
-            const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
-          }
-          const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
-        });
-        const comOpcoes = await Promise.all(filtrados.map(async s => {
-          try {
-            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-            return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo||0, diasMontagem: s.diasMontagem||0, ...d.data() }));
-          } catch { return []; }
-        }));
-        const opcoes = comOpcoes.flat();
-        if (opcoes.length > 0) {
-          novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}` });
-        } else {
-          setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${nomeServico}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() + Math.random() }]);
+    const cidadeNorm = normalize(dadosAtuais['evento.cidade'] || '');
+    const opcoes = await buscarOpcoesServico(tipo, cidadeNorm);
+    if (opcoes.length === 0) {
+      const alt = buscarAlternativasCatalogo(tipo, todosServicosRef.current, cidadeNorm);
+      if (alt.length > 0) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Não encontrei **${tipo}** exatamente assim na sua região, mas temos opções parecidas. Escolha a que melhor atende:`,
+          id: Date.now(),
+        }]);
+        const opcoesAlt = await buscarOpcoesServico(alt[0].serviceName, cidadeNorm);
+        if (opcoesAlt.length > 0) {
+          faseRef.current = 'selecao';
+          filaRef.current = [{ tipo: 'opcoes_servico', nomeServico: alt[0].serviceName, opcoes: opcoesAlt, id: `opcao_${chave}_${Date.now()}`, chaveCatalogo: chave }];
+          setFilaCards(filaRef.current);
+          exibirProximoCard(filaRef.current);
+          return true;
         }
       }
-      // Adiciona pagamento ao final
-      novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
-      filaRef.current = novosCards;
-      setFilaCards(novosCards);
-      if (novosCards.length > 0) exibirProximoCard(novosCards);
-    } else {
-      // Sem serviços → vai direto para pagamento
+      return false;
+    }
+
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `Ótimo! Veja as opções de **${tipo}** disponíveis na sua região:`,
+      id: Date.now(),
+    }]);
+    faseRef.current = 'selecao';
+    filaRef.current = [{ tipo: 'opcoes_servico', nomeServico: tipo, opcoes, id: `opcao_${chave}_${Date.now()}`, chaveCatalogo: chave }];
+    setFilaCards(filaRef.current);
+    exibirProximoCard(filaRef.current);
+    return true;
+  };
+
+  // ── Fase de seleção: cards dinâmicos do Firebase + pagamento ───────────────
+  const iniciarFaseSelecao = async (dadosFinais) => {
+    faseRef.current = 'selecao';
+    const cidadeNorm = normalize(dadosFinais['evento.cidade'] || '');
+    const servicosPedidos = dadosFinais['servicosNecessarios'] || [];
+    const { mapeados, emAnalise } = mapearParaNomesCatalogo(servicosPedidos, todosServicosRef.current, cidadeNorm);
+
+    if (mapeados.length > 0) {
+      dadosFinais.servicosNecessarios = mapeados;
+      dadosRef.current = { ...dadosFinais };
+      setDadosColetados(dadosFinais);
+    }
+    if (emAnalise.length > 0) {
+      dadosFinais.itensEmAnalise = [...new Set([...(dadosFinais.itensEmAnalise || []), ...emAnalise])];
+      emAnalise.forEach(item => {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ **${item}** não está cadastrado na sua região agora. Nosso coordenador vai buscar antes da aprovação final.`,
+          id: Date.now() + Math.random(),
+        }]);
+      });
+    }
+
+    const novosCards = [];
+    for (const nomeServico of mapeados) {
+      const chave = `servico_${normalize(nomeServico)}`;
+      if (dadosFinais.selecoesCatalogo?.[chave]) continue;
+      const opcoes = await buscarOpcoesServico(nomeServico, cidadeNorm);
+      if (opcoes.length > 0) {
+        novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}`, chaveCatalogo: chave });
+      }
+    }
+
+    novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
+    filaRef.current = novosCards;
+    setFilaCards(novosCards);
+    if (novosCards.length > 0) exibirProximoCard(novosCards);
+    else {
+      faseRef.current = 'pagamento';
       filaRef.current = [{ tipo: 'pagamento', id: `pagamento_${Date.now()}` }];
       setFilaCards(filaRef.current);
       exibirProximoCard(filaRef.current);
+    }
+  };
+
+  const registrarSelecaoCard = (card, opcao, negado = false) => {
+    const d = { ...dadosRef.current };
+    d.selecoesCatalogo = { ...(d.selecoesCatalogo || {}) };
+    if (card.chaveCatalogo) {
+      d.selecoesCatalogo[card.chaveCatalogo] = negado ? { negado: true } : opcao;
+    }
+    if (!negado && opcao) {
+      const lista = Array.isArray(d.opcoesSelecionadas) ? d.opcoesSelecionadas : [];
+      d.opcoesSelecionadas = [...lista, { servico: card.nomeServico, ...opcao }];
+      const nomes = Array.isArray(d.servicosNecessarios) ? d.servicosNecessarios : [];
+      if (!nomes.includes(opcao.serviceName || card.nomeServico)) {
+        d.servicosNecessarios = [...nomes, opcao.serviceName || card.nomeServico];
+      }
+    }
+    dadosRef.current = d;
+    setDadosColetados(d);
+  };
+
+  const concluirPagamento = (valorPagamento) => {
+    const json = montarBriefingJson(dadosRef.current);
+    json.formaPagamento = valorPagamento;
+    setBriefingJson(json);
+    faseRef.current = 'pagamento';
+    setStep('review');
+  };
+
+  const continuarAposCard = async () => {
+    if (filaRef.current.length > 0) return;
+    if (faseRef.current === 'selecao' && idxRef.current >= PERGUNTAS.length) {
+      return;
+    }
+    faseRef.current = 'coleta';
+    const proximoIdx = proximaPerguntaIdx(dadosRef.current, 0);
+    if (proximoIdx < 0) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Perfeito, ${userName}! Agora vou mostrar as opções disponíveis na sua região. 🎉`,
+        id: Date.now(),
+      }]);
+      await iniciarFaseSelecao(dadosRef.current);
+      return;
+    }
+    idxRef.current = proximoIdx;
+    setIdxPergunta(proximoIdx);
+    perguntarProxima(PERGUNTAS[proximoIdx]);
+  };
+
+  const processarRespostaCard = async (text) => {
+    const cardAtual = filaRef.current[0];
+    if (!cardAtual) return;
+
+    if (cardAtual.tipo === 'opcoes_servico') {
+      if (text.toLowerCase().includes('não preciso')) {
+        registrarSelecaoCard(cardAtual, null, true);
+      } else {
+        const op = opcoesCardSelecionadas[cardAtual.id];
+        if (op) registrarSelecaoCard(cardAtual, op);
+      }
+      setOpcoesCardSelecionadas(prev => { const n = { ...prev }; delete n[cardAtual.id]; return n; });
+      avancarFila();
+      if (filaRef.current.length === 0) await continuarAposCard();
+      return;
+    }
+
+    if (cardAtual.tipo === 'pagamento') {
+      const mapPag = {
+        '50% na entrada + 50% no final do evento': '50_50',
+        '30, 60 e 90 dias': '30_60_90',
+        'À vista': 'a_vista',
+      };
+      const valor = mapPag[text] || formaPagamento;
+      if (valor) {
+        setFormaPagamento(valor);
+        avancarFila();
+        concluirPagamento(valor);
+      }
     }
   };
 
@@ -373,42 +569,38 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
 
     try {
+      // Cards / pagamento (fase selecao)
+      if (faseRef.current !== 'coleta' && textoForçado && filaRef.current.length > 0) {
+        await processarRespostaCard(text);
+        return;
+      }
+
       const pergAtual = PERGUNTAS[idxRef.current];
       if (!pergAtual) { setLoading(false); return; }
 
-      // 1. Se mensagem longa (>80 chars), extrai todos os campos de uma vez
-      let novosDados = { ...dadosColetados };
-      if (text.length > 80) {
+      let novosDados = { ...dadosRef.current };
+
+      // Extração em massa (textão) — mapeia todos os campos da lista PERGUNTAS
+      if (text.length > 60) {
         try {
           const resAll = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6',
-              max_tokens: 400,
+              max_tokens: 800,
               system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
-              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS:\n{"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"tem_estrutura":null,"tem_equipe":null,"equipe_tipo_mencionado":null,"tem_gastro":null,"tem_servicos":null,"servicos_mencionados":null}\n\nRegras:\n- "tem_estrutura": true se mencionou estande/palco/estrutura, false se negou, null se não mencionou\n- "tem_equipe": true se mencionou recepcionista/segurança/equipe/profissional, false se negou, null se não mencionou\n- "equipe_tipo_mencionado": nome do profissional (ex: "Recepcionista") ou null\n- "tem_gastro": true se mencionou comida/bebida/gastronomia, false se negou, null se não mencionou\n- "tem_servicos": true se mencionou LED/som/DJ/fotógrafo, false se negou, null se não mencionou\n- "servicos_mencionados": array com nomes dos serviços ou null` }],
+              messages: [{ role: 'user', content: `O cliente descreveu o evento:\n"${text}"\n\nExtraia SOMENTE o que foi claramente mencionado. Campos não mencionados = null.\nResponda APENAS:\n${SCHEMA_EXTRACAO_MASSA}\n\nRegras extras:\n- tem_estrutura/tem_equipe/tem_gastro/tem_servicos: true/false/null\n- equipe_tipo_mencionado: ex "Recepcionista"\n- servicos_mencionados: array com nomes citados (LED, som, DJ...)\n- servicosNecessarios: mesmo que servicos_mencionados se houver` }],
             }),
           });
           const resAllData = await resAll.json();
           const resAllText = (resAllData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
           const extraido = JSON.parse(resAllText.replace(/```json|```/g, '').trim());
-          // Aplica campos básicos do evento
-          const camposEvento = ['evento.tipo','evento.nome','evento.dataInicio','evento.dataFim','evento.horarioInicio','evento.horarioFim','evento.cidade','evento.local','evento.endereco','evento.visitantesPorDia','evento.nomeEmpresa'];
-          camposEvento.forEach(k => {
-            if (extraido[k] !== null && extraido[k] !== undefined && extraido[k] !== '') novosDados[k] = extraido[k];
-          });
-          // Aplica flags de ativo
-          if (extraido.tem_estrutura !== null && extraido.tem_estrutura !== undefined) novosDados['estrutura.ativo'] = extraido.tem_estrutura;
-          if (extraido.tem_equipe    !== null && extraido.tem_equipe    !== undefined) novosDados['equipe.ativo']    = extraido.tem_equipe;
-          if (extraido.tem_gastro    !== null && extraido.tem_gastro    !== undefined) novosDados['gastronomia.ativo'] = extraido.tem_gastro;
-          if (extraido.equipe_tipo_mencionado) novosDados['equipe.tipo_mencionado'] = extraido.equipe_tipo_mencionado;
-          if (extraido.servicos_mencionados?.length > 0) novosDados['servicos_mencionados'] = extraido.servicos_mencionados;
-          if (extraido.tem_servicos === false) novosDados['servicos.negado'] = true;
+          novosDados = aplicarExtracaoMassa(extraido, novosDados);
         } catch (e) { console.error('Erro na extração em massa:', e); }
       }
 
-      // 2. Interpreta a resposta do cliente para a pergunta atual
+      // Extração da pergunta atual
       const dados = await interpretarResposta(pergAtual.id, text);
       if (pergAtual.id === 'local' && dados.cidade) {
         novosDados['evento.cidade']   = dados.cidade;
@@ -417,56 +609,55 @@ export default function ClienteChat({ userData, onClose }) {
       } else if (pergAtual.id === 'horario' && dados.inicio) {
         novosDados['evento.horarioInicio'] = dados.inicio;
         novosDados['evento.horarioFim']    = dados.fim || '';
-        novosDados['evento.horario']       = `${dados.inicio} às ${dados.fim}`;
+        novosDados['evento.horario']       = `${dados.inicio} às ${dados.fim || ''}`;
       } else if (pergAtual.id === 'servicos') {
-        novosDados['servicosNecessarios'] = dados.itens || [];
-      } else if (dados.valor !== undefined) {
+        const itens = dados.itens || (Array.isArray(dados.valor) ? dados.valor : []);
+        const cidadeNorm = normalize(novosDados['evento.cidade'] || '');
+        const { mapeados, emAnalise } = mapearParaNomesCatalogo(itens.length ? itens : [text], todosServicosRef.current, cidadeNorm);
+        novosDados['servicosNecessarios'] = mapeados;
+        if (emAnalise.length > 0) novosDados.itensEmAnalise = [...new Set([...(novosDados.itensEmAnalise || []), ...emAnalise])];
+      } else if (dados.valor !== undefined && dados.valor !== null) {
         novosDados[pergAtual.campo] = dados.valor;
-      } else {
+      } else if (!campoRespondido(novosDados, pergAtual.campo)) {
         novosDados[pergAtual.campo] = text;
       }
+
+      novosDados = sincronizarDadosInferidos(novosDados);
+      dadosRef.current = novosDados;
       setDadosColetados(novosDados);
 
-      // 3. Se modular → mostrar cards de estande
-      if (pergAtual.id === 'tipo_estande' && (dados.valor || '').toLowerCase() === 'modular' && modelosEspeciais.length > 0) {
-        setLoading(false);
+      // Estande modular → card (padrão que funciona)
+      if (pergAtual.id === 'tipo_estande' && String(dados.valor || novosDados['estrutura.tipoEstande'] || '').toLowerCase().includes('modular') && modelosEspeciais.length > 0) {
         setMessages(prev => [...prev, { role: 'assistant', content: 'Ótimo! Veja os modelos disponíveis:', id: Date.now() }]);
         setMessages(prev => [...prev, { role: 'assistant', content: '', type: 'modelos', id: Date.now() + 1 }]);
-        // avança idx
-        const proximoIdx = idxRef.current + 1;
-        idxRef.current = proximoIdx;
-        setIdxPergunta(proximoIdx);
+        const proximoIdx = proximaPerguntaIdx(novosDados, idxRef.current + 1);
+        idxRef.current = proximoIdx >= 0 ? proximoIdx : PERGUNTAS.length;
+        setIdxPergunta(idxRef.current);
         return;
       }
 
-      // 4. Avança para próxima pergunta
-      // Garante que campos false/null da extração em massa não bloqueiem perguntas
-      console.log('dadosColetados:', JSON.stringify(novosDados));
-      console.log('idxAtual:', idxRef.current, 'pergunta:', PERGUNTAS[idxRef.current]?.id);
-      const proximoIdx = proximaPerguntaIdx(novosDados, idxRef.current + 1);
+      // Equipe → card dinâmico do Firebase
+      if (pergAtual.id === 'equipe_tipo') {
+        const pausou = await oferecerCardCatalogoSeNecessario(pergAtual, novosDados);
+        if (pausou) return;
+      }
+
+      // Próxima pergunta não respondida (varre desde o início)
+      const proximoIdx = proximaPerguntaIdx(novosDados, 0);
       idxRef.current = proximoIdx >= 0 ? proximoIdx : PERGUNTAS.length;
       setIdxPergunta(idxRef.current);
 
-      // 5. Se acabaram as perguntas → finaliza
       if (proximoIdx < 0) {
-        setLoading(false);
-        // Monta briefingJson com os dados coletados
-        const json = montarBriefingJson(novosDados);
-        setBriefingJson(json);
-        setMessages(prev => [...prev, { role: 'assistant', content: `Perfeito, ${userName}! Já tenho tudo que preciso. Agora vou mostrar as opções disponíveis para os serviços que você pediu. 🎉`, id: Date.now() }]);
-        await finalizarBriefing(novosDados);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Perfeito, ${userName}! Agora vou mostrar as opções disponíveis na sua região. 🎉`,
+          id: Date.now(),
+        }]);
+        await iniciarFaseSelecao(novosDados);
         return;
       }
 
-      // 6. Faz a próxima pergunta ou avança fila
-      setLoading(false);
-      if (filaRef.current.length > 0) {
-        // Tinha card na fila — avança agora que a resposta foi processada
-        avancarFila();
-      } else {
-        const proximaP = PERGUNTAS[proximoIdx];
-        await perguntarProxima(proximaP, novosDados, text);
-      }
+      perguntarProxima(PERGUNTAS[proximoIdx], text);
     } catch (e) {
       console.error(e);
       setMessages(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Pode repetir?', id: Date.now() }]);
@@ -476,7 +667,7 @@ export default function ClienteChat({ userData, onClose }) {
     }
   };
 
-  // ── Monta o briefingJson com os dadosColetados ────────────────────────────
+  // ── Monta o briefingJson com os dadosColetados (após pagamento) ───────────
   const montarBriefingJson = (dados) => {
     const di = dados['evento.dataInicio'] || '';
     const df = dados['evento.dataFim'] || '';
@@ -486,6 +677,14 @@ export default function ClienteChat({ userData, onClose }) {
       const diff = (new Date(toISO(df)) - new Date(toISO(di))) / 86400000;
       diasDuracao = Math.max(1, diff + 1);
     }
+    const modelo = modeloSelecionado ? {
+      id: modeloSelecionado.id,
+      nome: modeloSelecionado.nome,
+      areaM2: modeloSelecionado.areaM2,
+      precoBase: modeloSelecionado.precoBase,
+      diasProducao: modeloSelecionado.diasProducao,
+    } : null;
+
     return {
       evento: {
         tipo:             dados['evento.tipo'] || '',
@@ -513,9 +712,12 @@ export default function ClienteChat({ userData, onClose }) {
         tipoEstande:      dados['estrutura.tipoEstande'] || '',
         observacoes:      '',
       },
+      tipoEstande: (dados['estrutura.tipoEstande'] || '').toLowerCase().includes('modular') ? 'modular'
+        : (dados['estrutura.tipoEstande'] || '').toLowerCase().includes('personal') ? 'personalizado' : '',
+      modeloEstande: modelo,
       equipe: {
         produtor: { ativo: dados['equipe.produtor'] === true, dias: 0, observacoes: '' },
-        itens: dados['equipe.ativo'] ? [{
+        itens: dados['equipe.ativo'] === true ? [{
           tipo:        dados['equipe.tipo'] || '',
           quantidade:  parseInt(dados['equipe.quantidade']) || 0,
           horasPorDia: parseFloat(dados['equipe.horas']) || 0,
@@ -525,18 +727,21 @@ export default function ClienteChat({ userData, onClose }) {
       },
       gastronomia: {
         alimentos: {
-          ativo:     dados['gastronomia.ativo'] === true,
-          formato:   dados['gastronomia.formato'] || '',
-          pessoas:   parseInt(dados['gastronomia.pessoas']) || 0,
-          horario:   dados['gastronomia.horario'] || '',
+          ativo:      dados['gastronomia.ativo'] === true,
+          formato:    dados['gastronomia.formato'] || '',
+          pessoas:    parseInt(dados['gastronomia.pessoas']) || 0,
+          horario:    dados['gastronomia.horario'] || '',
           restricoes: dados['gastronomia.restricoes'] || '',
+          cozinha:    dados['gastronomia.cozinha'] === true,
           observacoes: '',
         },
         bar: { ativo: dados['gastronomia.bar'] === true, tipo: '', bebidas: '', horas: 0, bartender: false, observacoes: '' },
       },
       servicosNecessarios: dados['servicosNecessarios'] || [],
-      itensEmAnalise: [],
-      formaPagamento: '',
+      opcoesSelecionadas:  dados['opcoesSelecionadas'] || [],
+      selecoesCatalogo:    dados['selecoesCatalogo'] || {},
+      itensEmAnalise:      dados['itensEmAnalise'] || [],
+      formaPagamento:      dados.formaPagamento || formaPagamento || '',
     };
   };
 
@@ -1056,19 +1261,33 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
           </Section>
           <Section title="Equipe Operacional">
             <Grid2>
-              {eq.recepcionistas?.quantidade > 0 && <Field label="Recepcionistas" value={`${eq.recepcionistas.quantidade} × ${eq.recepcionistas.horasPorDia}h/dia`} />}
-              {eq.seguranca?.quantidade > 0 && <Field label="Segurança" value={`${eq.seguranca.quantidade} × ${eq.seguranca.horasPorDia}h/dia`} />}
-              {eq.limpeza?.quantidade > 0 && <Field label="Limpeza" value={`${eq.limpeza.quantidade} × ${eq.limpeza.horasPorDia}h/dia`} />}
-              {eq.garcons?.quantidade > 0 && <Field label="Garçons" value={`${eq.garcons.quantidade} × ${eq.garcons.horasPorDia}h/dia`} />}
-              {eq.dj?.quantidade > 0 && <Field label="DJ" value={`${eq.dj.quantidade} × ${eq.dj.horasPorDia}h/dia`} />}
-              {eq.fotografo?.quantidade > 0 && <Field label="Fotógrafo" value={`${eq.fotografo.quantidade} × ${eq.fotografo.horasPorDia}h/dia`} />}
-              {eq.operadorTecnico?.quantidade > 0 && <Field label="Op. Técnico" value={`${eq.operadorTecnico.quantidade} × ${eq.operadorTecnico.horasPorDia}h/dia`} />}
-              {/* Renderiza qualquer outro item da equipe dinamicamente */}
-              {Object.entries(eq).filter(([k]) => !['recepcionistas','seguranca','limpeza','garcons','dj','fotografo','operadorTecnico'].includes(k)).map(([k, v]) =>
-                v?.quantidade > 0 ? <Field key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} value={`${v.quantidade} × ${v.horasPorDia}h/dia`} /> : null
-              )}
+              {eq.produtor?.ativo && <Field label="Produtor de eventos" value="Sim" />}
+              {(eq.itens || []).map((item, i) => (
+                <Field key={i} label={item.tipo || 'Profissional'}
+                  value={`${item.quantidade || '?'} × ${item.horasPorDia || '?'}h/dia${item.dias ? ` · ${item.dias} dia(s)` : ''}${item.observacoes ? ` · ${item.observacoes}` : ''}`} />
+              ))}
             </Grid2>
           </Section>
+          {briefingJson.opcoesSelecionadas?.length > 0 && (
+            <Section title="Opções selecionadas">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {briefingJson.opcoesSelecionadas.map((op, i) => (
+                  <div key={i} style={{ fontSize: 13, color: '#E8F4FF' }}>
+                    <strong>{op.servico || op.serviceName}</strong>: {op.nome}{op.valor ? ` — R$ ${parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+          {briefingJson.itensEmAnalise?.length > 0 && (
+            <Section title="Itens em análise">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {briefingJson.itensEmAnalise.map((s, i) => (
+                  <span key={i} style={{ padding: '5px 12px', borderRadius: 20, background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.2)', color: '#ffb800', fontSize: 12 }}>{s}</span>
+                ))}
+              </div>
+            </Section>
+          )}
           {/* Serviços identificados */}
           {briefingJson.servicosNecessarios?.length > 0 && (
             <Section title="Serviços identificados">
@@ -1193,7 +1412,22 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                   })}
                 </div>
                 {modeloSelecionado && (
-                  <button onClick={() => { sendMessage(`Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`); }}
+                  <button onClick={async () => {
+                    const d = { ...dadosRef.current, 'estrutura.modeloId': modeloSelecionado.id };
+                    if (modeloSelecionado.areaM2 && !campoRespondido(d, 'estrutura.areaM2')) d['estrutura.areaM2'] = modeloSelecionado.areaM2;
+                    dadosRef.current = d;
+                    setDadosColetados(d);
+                    setMessages(prev => [...prev, { role: 'user', content: `Quero o ${modeloSelecionado.nome} (${modeloSelecionado.areaM2}m²)`, id: Date.now() }]);
+                    const proximoIdx = proximaPerguntaIdx(d, 0);
+                    idxRef.current = proximoIdx >= 0 ? proximoIdx : PERGUNTAS.length;
+                    setIdxPergunta(idxRef.current);
+                    if (proximoIdx < 0) {
+                      setMessages(prev => [...prev, { role: 'assistant', content: `Perfeito, ${userName}! Agora vou mostrar as opções disponíveis na sua região. 🎉`, id: Date.now() }]);
+                      await iniciarFaseSelecao(d);
+                    } else {
+                      perguntarProxima(PERGUNTAS[proximoIdx]);
+                    }
+                  }}
                     style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     Confirmar: {modeloSelecionado.nome} →
                   </button>
