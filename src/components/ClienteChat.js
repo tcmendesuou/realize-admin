@@ -103,7 +103,7 @@ const aplicarExtracaoMassa = (extraido, novosDados) => {
     'evento.tipo', 'evento.nome', 'evento.dataInicio', 'evento.dataFim',
     'evento.horarioInicio', 'evento.horarioFim', 'evento.cidade', 'evento.local',
     'evento.endereco', 'evento.visitantesPorDia', 'evento.nomeEmpresa',
-    'estrutura.ativo', 'estrutura.tipoEstande', 'estrutura.areaM2', 'estrutura.alturaTeto',
+    'estrutura.ativo', 'estrutura.areaM2', 'estrutura.alturaTeto',
     'estrutura.diasMontagem', 'estrutura.restricoes', 'estrutura.energia', 'estrutura.identidadeVisual',
     'equipe.ativo', 'equipe.tipo', 'equipe.quantidade', 'equipe.horas', 'equipe.dias', 'equipe.perfil',
     'equipe.produtor', 'gastronomia.ativo', 'gastronomia.formato', 'gastronomia.pessoas',
@@ -457,12 +457,6 @@ export default function ClienteChat({ userData, onClose }) {
     }
 
     const novosCards = [];
-
-    // Se estande modular → adiciona card de modelos no início da fila
-    const tipoEstande = (dadosFinais['estrutura.tipoEstande'] || '').toLowerCase();
-    if (tipoEstande.includes('modular') && modelosEspeciais.length > 0 && !dadosFinais.modeloEstandeEscolhido) {
-      novosCards.push({ tipo: 'modelos', id: `modelos_${Date.now()}` });
-    }
     for (const nomeServico of mapeados) {
       const chave = `servico_${normalize(nomeServico)}`;
       if (dadosFinais.selecoesCatalogo?.[chave]) continue;
@@ -1419,7 +1413,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                 </div>
                 {modeloSelecionado && (
                   <button onClick={async () => {
-                    const d = { ...dadosRef.current, 'estrutura.modeloId': modeloSelecionado.id, modeloEstandeEscolhido: modeloSelecionado };
+                    const d = { ...dadosRef.current, 'estrutura.modeloId': modeloSelecionado.id };
                     if (modeloSelecionado.areaM2 && !campoRespondido(d, 'estrutura.areaM2')) d['estrutura.areaM2'] = modeloSelecionado.areaM2;
                     dadosRef.current = d;
                     setDadosColetados(d);
