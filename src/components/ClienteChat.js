@@ -145,13 +145,16 @@ export default function ClienteChat({ userData, onClose }) {
     } else {
       // Fila esvaziou — se ainda tem perguntas, faz a próxima
       const proxIdx = idxRef.current;
-      if (proxIdx < PERGUNTAS.length) {
+      if (proxIdx >= 0 && proxIdx < PERGUNTAS.length) {
         const proximaP = PERGUNTAS[proxIdx];
         if (proximaP) {
-          setDadosColetados(prev => {
-            perguntarProxima(proximaP, prev, '');
-            return prev;
-          });
+          // Usa setTimeout para garantir que o state foi atualizado
+          setTimeout(() => {
+            setDadosColetados(prev => {
+              perguntarProxima(proximaP, prev, '');
+              return prev;
+            });
+          }, 200);
         }
       }
     }
@@ -302,6 +305,27 @@ export default function ClienteChat({ userData, onClose }) {
 
   // ── Constrói resposta natural da IA para a próxima pergunta ───────────────
   const perguntarProxima = async (proximaP, dadosAtuais, confirmaAnterior = '') => {
+    // Se for equipe_tipo_confirma → mostra card primeiro, depois faz a pergunta
+    if (proximaP.id === 'equipe_tipo_confirma') {
+      const tipoMencionado = dadosAtuais['equipe.tipo_mencionado'];
+      if (tipoMencionado) {
+        try {
+          const opcoes = await buscarOpcoesServico(tipoMencionado, dadosAtuais['evento.cidade'] || '');
+          if (opcoes.length > 0) {
+            const novoCard = { tipo: 'opcoes_servico', nomeServico: tipoMencionado, opcoes, id: `opcao_${tipoMencionado}_${Date.now()}` };
+            const filaAtual = [...filaRef.current, novoCard];
+            filaRef.current = filaAtual;
+            setFilaCards(filaAtual);
+            if (filaAtual.length === 1) exibirProximoCard(filaAtual);
+            // Não faz a pergunta agora — avancarFila fará quando o card for respondido
+            return;
+          } else {
+            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${tipoMencionado}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() }]);
+          }
+        } catch (e) { console.error(e); }
+      }
+    }
+
     setLoading(true);
     try {
       // Constrói instrução para a IA
@@ -323,11 +347,6 @@ export default function ClienteChat({ userData, onClose }) {
       const data = await res.json();
       const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
       setMessages(prev => [...prev, { role: 'assistant', content: texto, id: Date.now() }]);
-
-      // Se for pergunta de tipo_estande modular → prepara MOSTRAR_MODELOS
-      if (proximaP.id === 'tipo_estande' && modelosEspeciais.length > 0) {
-        // será tratado depois da resposta do cliente
-      }
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: proximaP.texto, id: Date.now() }]);
     } finally {
