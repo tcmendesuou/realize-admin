@@ -11,17 +11,53 @@ const ESTADOS = [
   'Sao Paulo - Capital', 'Sao Paulo - Interior', 'Sergipe', 'Tocantins',
 ];
 
-// ── Form Operação / Entretenimento / Gastronomia (hora/homem) ─────────────
-function OperacaoForm({ subService, editData, onSave, onCancel, color = '#059669' }) {
-  const [form, setForm] = useState(editData || { estado: 'Sao Paulo - Capital', custoHora: '', observacoes: '', ativo: true });
+const UNIDADES = [
+  { id: 'por_hora',    label: 'Por hora',    ex: 'Recepcionista, DJ, Fotógrafo' },
+  { id: 'por_dia',     label: 'Por dia',     ex: 'LED, Estrutura, Equipamentos' },
+  { id: 'por_evento',  label: 'Por evento',  ex: 'Serviços com valor fixo' },
+  { id: 'por_pessoa',  label: 'Por pessoa',  ex: 'Buffet, Coffee break' },
+  { id: 'por_m2',      label: 'Por m²',      ex: 'Estandes, áreas' },
+];
+
+// Calcula exemplo de cobrança conforme unidade
+const calcExemplo = (precoBase, unidade) => {
+  const v = parseFloat(precoBase) || 0;
+  if (v <= 0) return null;
+  switch (unidade) {
+    case 'por_hora':   return { formula: `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}/h × 8h/dia × 2 dias × 2 pessoas`, total: v * 8 * 2 * 2 };
+    case 'por_dia':    return { formula: `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}/dia × 3 dias × 1 unidade`, total: v * 3 * 1 };
+    case 'por_evento': return { formula: `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}/evento × 1 evento`, total: v };
+    case 'por_pessoa': return { formula: `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}/pessoa × 60 pessoas`, total: v * 60 };
+    case 'por_m2':     return { formula: `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}/m² × 9 m²`, total: v * 9 };
+    default: return null;
+  }
+};
+
+// ── Formulário unificado ──────────────────────────────────────────────────────
+function PriceForm({ subService, editData, onSave, onCancel, color = '#059669' }) {
+  const [form, setForm] = useState(editData || {
+    estado: 'Sao Paulo - Capital',
+    precoBase: '',
+    unidade: 'por_hora',
+    observacoes: '',
+    ativo: true,
+  });
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.custoHora) { alert('Informe o custo por hora'); return; }
+    if (!form.precoBase) { alert('Informe o preço base'); return; }
     setSaving(true);
     try {
-      const data = { ...form, tipo: subService.tipo || 'operacao', subServiceId: subService.id, serviceId: subService.parentId, subServiceName: subService.name, updatedAt: new Date() };
+      const data = {
+        ...form,
+        precoBase: parseFloat(form.precoBase),
+        tipo: subService.tipo || 'operacao',
+        subServiceId: subService.id,
+        serviceId: subService.parentId,
+        subServiceName: subService.name,
+        updatedAt: new Date(),
+      };
       if (editData?.id) await updateDoc(doc(db, 'servicePricing', editData.id), data);
       else await addDoc(collection(db, 'servicePricing'), { ...data, createdAt: new Date() });
       onSave();
@@ -31,114 +67,73 @@ function OperacaoForm({ subService, editData, onSave, onCancel, color = '#059669
 
   const inp = { padding: '9px 12px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box', outline: 'none', background: 'white' };
   const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
+  const exemplo = calcExemplo(form.precoBase, form.unidade);
+  const unidadeLabel = UNIDADES.find(u => u.id === form.unidade)?.label || '';
 
   return (
-    <div style={{ background: '#f0fff9', borderRadius: 10, border: `1px solid ${color}44`, padding: 18, marginBottom: 10 }}>
+    <div style={{ background: `${color}0d`, borderRadius: 10, border: `1px solid ${color}44`, padding: 18, marginBottom: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 14, letterSpacing: 0.5, textTransform: 'uppercase' }}>
         {editData ? 'Editar' : 'Nova'} tabela — {subService.name}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-        <div>
-          <label style={lbl}>Estado / Regiao *</label>
-          <select value={form.estado} onChange={e => setF('estado', e.target.value)} style={inp}>
-            {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={lbl}>Custo por hora (R$) *</label>
-          <input type="number" min="0" step="0.01" value={form.custoHora} onChange={e => setF('custoHora', e.target.value)} style={inp} placeholder="Ex: 35,00" />
-        </div>
-      </div>
-      {form.custoHora > 0 && (
-        <div style={{ background: `${color}12`, borderRadius: 8, padding: '10px 14px', marginBottom: 12, border: `1px solid ${color}33` }}>
-          <div style={{ fontSize: 11, color, marginBottom: 3 }}>Exemplo de calculo automatico pela IA:</div>
-          <div style={{ fontSize: 13, color: '#1e293b' }}>
-            R$ {parseFloat(form.custoHora).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/h × 8h/dia × 3 dias × 2 pessoas = {' '}
-            <strong style={{ color }}>R$ {(parseFloat(form.custoHora) * 8 * 3 * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-          </div>
-        </div>
-      )}
-      <div style={{ marginBottom: 12 }}>
-        <label style={lbl}>Observacoes</label>
-        <input value={form.observacoes} onChange={e => setF('observacoes', e.target.value)} style={inp} placeholder="Ex: Inclui transporte, uniforme opcional..." />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <input type="checkbox" id="op-active" checked={form.ativo !== false} onChange={e => setF('ativo', e.target.checked)} style={{ width: 14, height: 14, accentColor: color }} />
-        <label htmlFor="op-active" style={{ fontSize: 12, color: '#64748b', cursor: 'pointer' }}>Tabela ativa</label>
-      </div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button onClick={onCancel} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-        <button onClick={handleSave} disabled={saving} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: `linear-gradient(135deg,${color},${color}cc)`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-          {saving ? 'Salvando...' : 'Salvar tabela'}
-        </button>
-      </div>
-    </div>
-  );
-}
 
-// ── Form Estrutura (diária de equipamento) ────────────────────────────────
-function EstruturaForm({ subService, editData, onSave, onCancel }) {
-  const [form, setForm] = useState(editData || { estado: 'Sao Paulo - Capital', custoDiaria: '', custoInstalacao: '', observacoes: '', ativo: true });
-  const [saving, setSaving] = useState(false);
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const handleSave = async () => {
-    if (!form.custoDiaria) { alert('Informe o custo de diaria'); return; }
-    setSaving(true);
-    try {
-      const data = { ...form, tipo: 'estrutura', subServiceId: subService.id, serviceId: subService.parentId, subServiceName: subService.name, updatedAt: new Date() };
-      if (editData?.id) await updateDoc(doc(db, 'servicePricing', editData.id), data);
-      else await addDoc(collection(db, 'servicePricing'), { ...data, createdAt: new Date() });
-      onSave();
-    } catch (e) { console.error(e); alert('Erro ao salvar.'); }
-    finally { setSaving(false); }
-  };
-
-  const inp = { padding: '9px 12px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', width: '100%', boxSizing: 'border-box', outline: 'none', background: 'white' };
-  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
-
-  return (
-    <div style={{ background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe', padding: 18, marginBottom: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#0080FF', marginBottom: 14, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-        {editData ? 'Editar' : 'Nova'} tabela — {subService.name}
-      </div>
+      {/* Estado + Preço + Unidade */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={lbl}>Estado / Regiao *</label>
+          <label style={lbl}>Estado / Região *</label>
           <select value={form.estado} onChange={e => setF('estado', e.target.value)} style={inp}>
             {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
         <div>
-          <label style={lbl}>Custo de diaria (R$) *</label>
-          <input type="number" min="0" step="0.01" value={form.custoDiaria} onChange={e => setF('custoDiaria', e.target.value)} style={inp} placeholder="Ex: 1200,00" />
+          <label style={lbl}>Preço base (R$) *</label>
+          <input type="number" min="0" step="0.01" value={form.precoBase}
+            onChange={e => setF('precoBase', e.target.value)}
+            style={inp} placeholder="Ex: 50,00" />
         </div>
         <div>
-          <label style={lbl}>Custo de instalacao (R$)</label>
-          <input type="number" min="0" step="0.01" value={form.custoInstalacao} onChange={e => setF('custoInstalacao', e.target.value)} style={inp} placeholder="Ex: 500,00" />
+          <label style={lbl}>Unidade de cobrança</label>
+          <select value={form.unidade} onChange={e => setF('unidade', e.target.value)} style={inp}>
+            {UNIDADES.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+          </select>
+          <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+            {UNIDADES.find(u => u.id === form.unidade)?.ex}
+          </p>
         </div>
       </div>
-      {parseFloat(form.custoDiaria) > 0 && (
-        <div style={{ background: 'rgba(0,128,255,0.06)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, border: '1px solid rgba(0,128,255,0.2)' }}>
-          <div style={{ fontSize: 11, color: '#0080FF', marginBottom: 3 }}>Exemplo de calculo automatico pela IA:</div>
+
+      {/* Exemplo de cálculo */}
+      {exemplo && (
+        <div style={{ background: `${color}12`, borderRadius: 8, padding: '10px 14px', marginBottom: 12, border: `1px solid ${color}33` }}>
+          <div style={{ fontSize: 11, color, marginBottom: 3 }}>Exemplo de cálculo automático:</div>
           <div style={{ fontSize: 13, color: '#1e293b' }}>
-            R$ {parseFloat(form.custoDiaria).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia × 3 dias × 2 unidades = {' '}
-            <strong style={{ color: '#0080FF' }}>R$ {(parseFloat(form.custoDiaria) * 3 * 2 + (parseFloat(form.custoInstalacao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-            {form.custoInstalacao && parseFloat(form.custoInstalacao) > 0 ? ' (+ instalacao)' : ''}
+            {exemplo.formula} = {' '}
+            <strong style={{ color }}>R$ {exemplo.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+          </div>
+          <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+            O sistema multiplica automaticamente pela quantidade de {unidadeLabel.replace('Por ', '').toLowerCase()} informada no briefing
           </div>
         </div>
       )}
-      <div style={{ marginBottom: 12 }}>
-        <label style={lbl}>Observacoes</label>
-        <input value={form.observacoes} onChange={e => setF('observacoes', e.target.value)} style={inp} placeholder="Ex: Inclui transporte, montagem separada..." />
+
+      {/* Observações + Ativo */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'flex-end', marginBottom: 12 }}>
+        <div>
+          <label style={lbl}>Observações</label>
+          <input value={form.observacoes} onChange={e => setF('observacoes', e.target.value)}
+            style={inp} placeholder="Ex: Inclui transporte, uniforme opcional..." />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8 }}>
+          <input type="checkbox" id="price-ativo" checked={form.ativo !== false}
+            onChange={e => setF('ativo', e.target.checked)}
+            style={{ width: 14, height: 14, accentColor: color }} />
+          <label htmlFor="price-ativo" style={{ fontSize: 12, color: '#64748b', cursor: 'pointer', whiteSpace: 'nowrap' }}>Tabela ativa</label>
+        </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <input type="checkbox" id="est-active" checked={form.ativo !== false} onChange={e => setF('ativo', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#0080FF' }} />
-        <label htmlFor="est-active" style={{ fontSize: 12, color: '#64748b', cursor: 'pointer' }}>Tabela ativa</label>
-      </div>
+
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-        <button onClick={handleSave} disabled={saving} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#0080FF,#0057B3)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+        <button onClick={handleSave} disabled={saving}
+          style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: `linear-gradient(135deg,${color},${color}cc)`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
           {saving ? 'Salvando...' : 'Salvar tabela'}
         </button>
       </div>
@@ -172,18 +167,18 @@ export default function PricingManager() {
   };
 
   const TIPOS = [
-    { id: 'operacao',       label: 'Operacao',      color: '#059669', desc: 'Custo por hora trabalhada' },
-    { id: 'estrutura',      label: 'Estrutura',      color: '#0080FF', desc: 'Custo por diaria de equipamento' },
-    { id: 'entretenimento', label: 'Entretenimento', color: '#FFA726', desc: 'Custo por hora trabalhada' },
-    { id: 'gastronomia',    label: 'Gastronomia',    color: '#66BB6A', desc: 'Custo por hora / pessoa' },
+    { id: 'operacao',       label: 'Operação',       color: '#059669' },
+    { id: 'estrutura',      label: 'Estrutura',       color: '#0080FF' },
+    { id: 'entretenimento', label: 'Entretenimento',  color: '#FFA726' },
+    { id: 'gastronomia',    label: 'Gastronomia',     color: '#66BB6A' },
   ];
 
   const tipoConfig = TIPOS.find(t => t.id === tipoAtivo);
   const tipoColor  = tipoConfig?.color || '#059669';
 
-  const rootServices  = services.filter(s => !s.parentId && s.tipo === tipoAtivo && s.active !== false);
+  const rootServices   = services.filter(s => !s.parentId && s.tipo === tipoAtivo && s.active !== false);
   const getSubServices = (parentId) => services.filter(s => s.parentId === parentId && s.active !== false);
-  const getPricing     = (subId)    => pricing.filter(p => p.subServiceId === subId);
+  const getPricing     = (subId) => pricing.filter(p => p.subServiceId === subId);
 
   const handleDeletePrice = async (id) => {
     if (!window.confirm('Excluir esta tabela?')) return;
@@ -203,17 +198,18 @@ export default function PricingManager() {
 
       {/* Header */}
       <div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Tabela de Precos</h2>
-        <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Custos de referencia por servico e estado — usados pela IA para gerar pre-orcamentos</p>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Tabela de Preços</h2>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
+          Preços de referência por serviço e região — o sistema multiplica automaticamente pela quantidade informada no briefing
+        </p>
       </div>
 
-      {/* Tabs — 4 tipos */}
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {TIPOS.map(t => (
           <button key={t.id} onClick={() => { setTipoAtivo(t.id); setSelectedService(null); setSelectedSub(null); setShowForm(false); }}
             style={{ padding: '10px 20px', borderRadius: 10, border: `1.5px solid ${tipoAtivo === t.id ? t.color : '#e2e8f0'}`, background: tipoAtivo === t.id ? `${t.color}12` : 'white', color: tipoAtivo === t.id ? t.color : '#64748b', fontSize: 13, fontWeight: tipoAtivo === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}>
             {t.label}
-            <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{t.desc}</div>
           </button>
         ))}
       </div>
@@ -223,10 +219,10 @@ export default function PricingManager() {
 
         {/* Painel 1 — Serviços */}
         <div style={panelStyle}>
-          <div style={panelHeader}><div style={panelTitle}>Servico</div></div>
+          <div style={panelHeader}><div style={panelTitle}>Serviço</div></div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
             {rootServices.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>Cadastre servicos em "Servicos" primeiro</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>Cadastre serviços em "Serviços" primeiro</div>
             ) : rootServices.map(s => {
               const sel = selectedService?.id === s.id;
               const hasSubs = getSubServices(s.id).length > 0;
@@ -235,19 +231,13 @@ export default function PricingManager() {
                   setSelectedService(s);
                   setShowForm(false);
                   setEditingPrice(null);
-                  if (!hasSubs) {
-                    setSelectedSub({ ...s, parentId: s.id });
-                  } else {
-                    setSelectedSub(null);
-                  }
+                  if (!hasSubs) setSelectedSub({ ...s, parentId: s.id });
+                  else setSelectedSub(null);
                 }}
                   style={{ ...itemBase, background: sel ? `${tipoColor}12` : 'transparent', borderColor: sel ? tipoColor + '44' : 'transparent', color: sel ? tipoColor : '#1e293b', fontWeight: sel ? 600 : 400 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>{s.name}</span>
-                    {hasSubs
-                      ? <span style={{ fontSize: 10, color: sel ? tipoColor : '#94a3b8' }}>{getSubServices(s.id).length} ›</span>
-                      : <span style={{ fontSize: 10, color: sel ? tipoColor : '#94a3b8' }}>tabela ›</span>
-                    }
+                    <span style={{ fontSize: 10, color: sel ? tipoColor : '#94a3b8' }}>{hasSubs ? `${getSubServices(s.id).length} ›` : 'tabela ›'}</span>
                   </div>
                 </div>
               );
@@ -257,12 +247,12 @@ export default function PricingManager() {
 
         {/* Painel 2 — Sub-serviços */}
         <div style={{ ...panelStyle, opacity: selectedService && getSubServices(selectedService.id).length > 0 ? 1 : 0.3, pointerEvents: selectedService && getSubServices(selectedService.id).length > 0 ? 'auto' : 'none' }}>
-          <div style={panelHeader}><div style={panelTitle}>Sub-servico</div></div>
+          <div style={panelHeader}><div style={panelTitle}>Sub-serviço</div></div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
             {!selectedService ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>Selecione um servico</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>Selecione um serviço</div>
             ) : getSubServices(selectedService.id).length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>Tabela direta no servico</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>Tabela direta no serviço</div>
             ) : getSubServices(selectedService.id).map(sub => {
               const sel = selectedSub?.id === sub.id;
               const count = getPricing(sub.id).length;
@@ -285,9 +275,7 @@ export default function PricingManager() {
         {/* Painel 3 — Tabelas de preço */}
         <div style={{ ...panelStyle, overflow: 'auto' }}>
           <div style={{ ...panelHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={panelTitle}>
-              Tabela de Preco — {tipoAtivo === 'estrutura' ? 'Diaria' : 'Hora/Homem'}
-            </div>
+            <div style={panelTitle}>Tabela de Preço</div>
             {selectedSub && !showForm && (
               <button onClick={() => { setShowForm(true); setEditingPrice(null); }}
                 style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: tipoColor, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -297,19 +285,17 @@ export default function PricingManager() {
           </div>
           <div style={{ flex: 1, padding: 16, overflowY: 'auto' }}>
             {!selectedSub ? (
-              <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Selecione um sub-servico</div>
+              <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Selecione um sub-serviço</div>
             ) : (
               <>
                 {showForm && (
-                  tipoAtivo === 'estrutura' ? (
-                    <EstruturaForm subService={selectedSub} editData={editingPrice}
-                      onSave={() => { setShowForm(false); setEditingPrice(null); loadAll(); }}
-                      onCancel={() => { setShowForm(false); setEditingPrice(null); }} />
-                  ) : (
-                    <OperacaoForm subService={selectedSub} editData={editingPrice} color={tipoColor}
-                      onSave={() => { setShowForm(false); setEditingPrice(null); loadAll(); }}
-                      onCancel={() => { setShowForm(false); setEditingPrice(null); }} />
-                  )
+                  <PriceForm
+                    subService={selectedSub}
+                    editData={editingPrice}
+                    color={tipoColor}
+                    onSave={() => { setShowForm(false); setEditingPrice(null); loadAll(); }}
+                    onCancel={() => { setShowForm(false); setEditingPrice(null); }}
+                  />
                 )}
 
                 {getPricing(selectedSub.id).length === 0 && !showForm ? (
@@ -318,10 +304,11 @@ export default function PricingManager() {
                   </div>
                 ) : getPricing(selectedSub.id).map(p => {
                   if (editingPrice?.id === p.id && showForm) return null;
-                  const isEstrutura = p.tipo === 'estrutura';
                   const cor = TIPOS.find(t => t.id === p.tipo)?.color || tipoColor;
-                  const valor = isEstrutura ? parseFloat(p.custoDiaria) : parseFloat(p.custoHora);
-                  const label = isEstrutura ? '/dia' : '/hora';
+                  const unidadeLabel = UNIDADES.find(u => u.id === p.unidade)?.label;
+                  // Compatibilidade com dados antigos (custoHora / custoDiaria)
+                  const precoExibir = p.precoBase || p.custoHora || p.custoDiaria;
+                  const unidadeExibir = unidadeLabel || (p.custoHora ? 'por hora' : p.custoDiaria ? 'por dia' : '');
 
                   return (
                     <div key={p.id} style={{ background: p.ativo !== false ? 'white' : '#f8f8f8', borderRadius: 10, border: `1px solid ${p.ativo !== false ? '#e2e8f0' : '#f1f5f9'}`, padding: '14px 16px', marginBottom: 10, opacity: p.ativo !== false ? 1 : 0.6 }}>
@@ -329,19 +316,19 @@ export default function PricingManager() {
                         <div>
                           <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{p.estado}</span>
                           {!p.ativo && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 6, background: '#f1f5f9', color: '#94a3b8' }}>Inativo</span>}
+                          {unidadeExibir && (
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{unidadeExibir}</div>
+                          )}
                         </div>
-                        {valor > 0 && (
+                        {precoExibir > 0 && (
                           <div style={{ textAlign: 'right' }}>
-                            <span style={{ fontSize: 16, fontWeight: 700, color: cor }}>R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            <span style={{ fontSize: 11, color: '#94a3b8' }}>{label}</span>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: cor }}>
+                              R$ {parseFloat(precoExibir).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                            {unidadeExibir && <div style={{ fontSize: 10, color: '#94a3b8' }}>{unidadeExibir}</div>}
                           </div>
                         )}
                       </div>
-                      {isEstrutura && p.custoInstalacao && parseFloat(p.custoInstalacao) > 0 && (
-                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-                          Instalacao: <strong>R$ {parseFloat(p.custoInstalacao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-                        </div>
-                      )}
                       {p.observacoes && <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>{p.observacoes}</div>}
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => { setEditingPrice(p); setShowForm(true); }}
