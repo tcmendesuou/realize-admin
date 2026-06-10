@@ -737,17 +737,7 @@ export default function ClienteChat({ userData, onClose }) {
         },
         bar: { ativo: dados['gastronomia.bar'] === true, tipo: '', bebidas: '', horas: 0, bartender: false, observacoes: '' },
       },
-      servicosNecessarios: (() => {
-        const base = dados['servicosNecessarios'] || [];
-        // Garante que equipe.tipo está nos servicosNecessarios
-        if (dados['equipe.ativo'] === true && dados['equipe.tipo']) {
-          const tipo = dados['equipe.tipo'];
-          if (!base.some(s => normalize(s) === normalize(tipo) || normalize(s).includes(normalize(tipo)))) {
-            return [...base, tipo];
-          }
-        }
-        return base;
-      })(),
+      servicosNecessarios: dados['servicosNecessarios'] || [],
       opcoesSelecionadas:  dados['opcoesSelecionadas'] || [],
       selecoesCatalogo:    dados['selecoesCatalogo'] || {},
       itensEmAnalise:      dados['itensEmAnalise'] || [],
