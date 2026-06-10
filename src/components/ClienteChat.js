@@ -141,6 +141,17 @@ export default function ClienteChat({ userData, onClose }) {
     setFilaCards(novaFila);
     if (novaFila.length > 0) {
       exibirProximoCard(novaFila);
+    } else {
+      // Fila esvaziou → faz a próxima pergunta
+      const proxIdx = idxRef.current;
+      if (proxIdx >= 0 && proxIdx < PERGUNTAS.length) {
+        setTimeout(() => {
+          setDadosColetados(prev => {
+            perguntarProxima(PERGUNTAS[proxIdx], prev, '');
+            return prev;
+          });
+        }, 200);
+      }
     }
   };
 
@@ -450,10 +461,13 @@ export default function ClienteChat({ userData, onClose }) {
         return;
       }
 
-      // 6. Faz a próxima pergunta
+      // 6. Faz a próxima pergunta (só se não tiver cards na fila)
       setLoading(false);
-      const proximaP = PERGUNTAS[proximoIdx];
-      await perguntarProxima(proximaP, novosDados, text);
+      if (filaRef.current.length === 0) {
+        const proximaP = PERGUNTAS[proximoIdx];
+        await perguntarProxima(proximaP, novosDados, text);
+      }
+      // Se tem cards na fila, avancarFila vai chamar perguntarProxima quando esvaziar
     } catch (e) {
       console.error(e);
       setMessages(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Pode repetir?', id: Date.now() }]);
