@@ -141,17 +141,6 @@ export default function ClienteChat({ userData, onClose }) {
     setFilaCards(novaFila);
     if (novaFila.length > 0) {
       exibirProximoCard(novaFila);
-    } else {
-      // Fila esvaziou → faz a próxima pergunta
-      const proxIdx = idxRef.current;
-      if (proxIdx >= 0 && proxIdx < PERGUNTAS.length) {
-        setTimeout(() => {
-          setDadosColetados(prev => {
-            perguntarProxima(PERGUNTAS[proxIdx], prev, '');
-            return prev;
-          });
-        }, 200);
-      }
     }
   };
 
@@ -461,22 +450,21 @@ export default function ClienteChat({ userData, onClose }) {
         return;
       }
 
-      // 6. Faz a próxima pergunta (só se não tiver cards na fila)
+      // 6. Faz a próxima pergunta ou avança fila
       setLoading(false);
-      if (filaRef.current.length === 0) {
+      if (filaRef.current.length > 0) {
+        // Tinha card na fila — avança agora que a resposta foi processada
+        avancarFila();
+      } else {
         const proximaP = PERGUNTAS[proximoIdx];
         await perguntarProxima(proximaP, novosDados, text);
       }
-      // Se tem cards na fila, avancarFila vai chamar perguntarProxima quando esvaziar
     } catch (e) {
       console.error(e);
       setMessages(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Pode repetir?', id: Date.now() }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
-      if (filaRef.current.length > 0) {
-        setTimeout(() => avancarFila(), 300);
-      }
     }
   };
 
@@ -1223,7 +1211,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       <button onClick={() => {
                         sendMessage(`Para ${msg.nomeServico}: não preciso desse serviço`);
                         setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
-                        avancarFila();
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
                       </button>
@@ -1231,7 +1218,6 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                         <button onClick={() => {
                           const op = opcoesCardSelecionadas[msg.id];
                           sendMessage(`Para ${msg.nomeServico}: selecionei a opção ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
-                          avancarFila();
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
