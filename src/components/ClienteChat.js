@@ -27,7 +27,8 @@ const PERGUNTAS = [
   { id: 'identidade',     bloco: 'estrutura', campo: 'estrutura.identidadeVisual', texto: 'Já tem **identidade visual** definida? *(logo, cores, materiais)*', condicional: (d) => d['estrutura.ativo'] === true },
   // EQUIPE
   { id: 'tem_equipe',     bloco: 'equipe',    campo: 'equipe.ativo',            texto: 'Vai precisar de algum **profissional** no evento? *(recepcionista, hostess, segurança, limpeza...)*' },
-  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true },
+  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true && !d['equipe.tipo_mencionado'] },
+  { id: 'equipe_tipo_confirma', bloco: 'equipe', campo: 'equipe.tipo',         texto: (d) => `Entendido! Você mencionou **${d['equipe.tipo_mencionado']}**. Vou mostrar as opções disponíveis. Vai precisar de mais algum tipo de profissional?`, condicional: (d) => d['equipe.ativo'] === true && !!d['equipe.tipo_mencionado'] && !d['equipe.tipo'] },
   { id: 'equipe_qtd',     bloco: 'equipe',    campo: 'equipe.quantidade',       texto: 'Quantos **profissionais** você vai precisar?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_horas',   bloco: 'equipe',    campo: 'equipe.horas',            texto: 'Quantas **horas por dia** eles vão trabalhar?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_dias',    bloco: 'equipe',    campo: 'equipe.dias',             texto: 'Por **quantos dias**?', condicional: (d) => d['equipe.ativo'] === true },
@@ -226,6 +227,7 @@ export default function ClienteChat({ userData, onClose }) {
       if (p.id === 'tem_equipe'    && dadosAtuais['equipe.ativo'] !== undefined) continue;
       if (p.id === 'tem_gastro'    && dadosAtuais['gastronomia.ativo'] !== undefined) continue;
       if (p.id === 'servicos'      && dadosAtuais['servicos.negado'] === true) continue;
+      if (p.id === 'equipe_tipo_confirma' && dadosAtuais['equipe.tipo']) continue;
       return i;
     }
     return -1; // todas respondidas
@@ -253,6 +255,7 @@ export default function ClienteChat({ userData, onClose }) {
       identidade:     `O cliente disse: "${resposta}". Tem identidade visual? Responda APENAS: {"valor":"descrição ou não definida"}`,
       tem_equipe:     `O cliente disse: "${resposta}". Precisa de profissional? Responda APENAS: {"valor":true ou false}`,
       equipe_tipo:    `O cliente disse: "${resposta}". Que tipo de profissional? Responda APENAS: {"valor":"nome"}`,
+      equipe_tipo_confirma: `O cliente disse: "${resposta}". Precisa de mais algum profissional além do já mencionado? Se sim qual? Responda APENAS: {"valor":true ou false, "tipo":"nome se sim ou null"}`,
       equipe_qtd:     `O cliente disse: "${resposta}". Quantos profissionais? Responda APENAS: {"valor":0}`,
       equipe_horas:   `O cliente disse: "${resposta}". Horas por dia? Responda APENAS: {"valor":0}`,
       equipe_dias:    `O cliente disse: "${resposta}". Quantos dias? Responda APENAS: {"valor":0}`,
@@ -290,9 +293,10 @@ export default function ClienteChat({ userData, onClose }) {
     setLoading(true);
     try {
       // Constrói instrução para a IA
+      const textoP = typeof proximaP.texto === 'function' ? proximaP.texto(dadosAtuais) : proximaP.texto;
       const instrucao = confirmaAnterior
-        ? `Confirme brevemente a resposta do cliente: "${confirmaAnterior}". Depois faça APENAS esta pergunta de forma natural: "${proximaP.texto}". Não faça nenhuma outra pergunta.`
-        : `Faça APENAS esta pergunta de forma natural e amigável: "${proximaP.texto}". Não faça nenhuma outra pergunta.`;
+        ? `Confirme brevemente a resposta do cliente: "${confirmaAnterior}". Depois faça APENAS esta pergunta de forma natural: "${textoP}". Não faça nenhuma outra pergunta.`
+        : `Faça APENAS esta pergunta de forma natural e amigável: "${textoP}". Não faça nenhuma outra pergunta.`;
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -395,7 +399,7 @@ export default function ClienteChat({ userData, onClose }) {
               model: 'claude-sonnet-4-6',
               max_tokens: 500,
               system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
-              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS:\n{"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"tem_estrutura":null,"tem_equipe":null,"tem_gastro":null,"tem_servicos":null}\n\nRegras:\n- "tem_estrutura": true se mencionou estande/palco/estrutura, false se negou, null se não mencionou\n- "tem_equipe": true se mencionou recepcionista/segurança/equipe, false se negou, null se não mencionou\n- "tem_gastro": true se mencionou comida/bebida/gastronomia, false se negou, null se não mencionou\n- "tem_servicos": true se mencionou LED/som/DJ/fotógrafo, false se negou, null se não mencionou` }],
+              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS:\n{"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"tem_estrutura":null,"tem_equipe":null,"equipe_tipo_mencionado":null,"tem_gastro":null,"tem_servicos":null,"servicos_mencionados":null}\n\nRegras:\n- "tem_estrutura": true se mencionou estande/palco/estrutura, false se negou, null se não mencionou\n- "tem_equipe": true se mencionou recepcionista/segurança/equipe/profissional, false se negou, null se não mencionou\n- "equipe_tipo_mencionado": nome do profissional mencionado (ex: "Recepcionista", "Segurança") ou null\n- "tem_gastro": true se mencionou comida/bebida/gastronomia, false se negou, null se não mencionou\n- "tem_servicos": true se mencionou LED/som/DJ/fotógrafo, false se negou, null se não mencionou\n- "servicos_mencionados": array com nomes dos serviços mencionados ou null` }],
             }),
           });
           const resAllData = await resAll.json();
@@ -409,6 +413,8 @@ export default function ClienteChat({ userData, onClose }) {
           // Aplica apenas o flag de ativo para estrutura/equipe/gastro — sem preencher detalhes
           if (extraido.tem_estrutura !== null) novosDados['estrutura.ativo'] = extraido.tem_estrutura;
           if (extraido.tem_equipe !== null)    novosDados['equipe.ativo']    = extraido.tem_equipe;
+          if (extraido.equipe_tipo_mencionado)  novosDados['equipe.tipo_mencionado'] = extraido.equipe_tipo_mencionado;
+          if (extraido.servicos_mencionados?.length > 0) novosDados['servicos_mencionados'] = extraido.servicos_mencionados;
           if (extraido.tem_gastro !== null)    novosDados['gastronomia.ativo'] = extraido.tem_gastro;
           // se negou serviços, marca para pular
           if (extraido.tem_servicos === false) novosDados['servicos.negado'] = true;
@@ -426,7 +432,19 @@ export default function ClienteChat({ userData, onClose }) {
         novosDados['evento.horarioFim']    = dados.fim || '';
         novosDados['evento.horario']       = `${dados.inicio} às ${dados.fim}`;
       } else if (pergAtual.id === 'servicos') {
-        novosDados['servicosNecessarios'] = dados.itens || [];
+        // Combina serviços da resposta com os mencionados na extração em massa
+        const itensMencionados = novosDados['servicos_mencionados'] || [];
+        const itensResposta = dados.itens || [];
+        const todoItens = [...new Set([...itensMencionados, ...itensResposta])];
+        novosDados['servicosNecessarios'] = todoItens;
+      } else if (pergAtual.id === 'equipe_tipo_confirma') {
+        // Usa o tipo mencionado e adiciona aos servicosNecessarios
+        const tipoMencionado = novosDados['equipe.tipo_mencionado'];
+        novosDados['equipe.tipo'] = tipoMencionado;
+        const servicosAtuais = novosDados['servicosNecessarios'] || [];
+        if (!servicosAtuais.some(s => s.toLowerCase().includes(tipoMencionado.toLowerCase()))) {
+          novosDados['servicosNecessarios'] = [...servicosAtuais, tipoMencionado];
+        }
       } else if (dados.valor !== undefined) {
         novosDados[pergAtual.campo] = dados.valor;
       } else {
