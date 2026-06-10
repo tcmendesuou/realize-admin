@@ -145,16 +145,13 @@ export default function ClienteChat({ userData, onClose }) {
     } else {
       // Fila esvaziou — se ainda tem perguntas, faz a próxima
       const proxIdx = idxRef.current;
-      if (proxIdx >= 0 && proxIdx < PERGUNTAS.length) {
+      if (proxIdx < PERGUNTAS.length) {
         const proximaP = PERGUNTAS[proxIdx];
         if (proximaP) {
-          // Usa setTimeout para garantir que o state foi atualizado
-          setTimeout(() => {
-            setDadosColetados(prev => {
-              perguntarProxima(proximaP, prev, '');
-              return prev;
-            });
-          }, 200);
+          setDadosColetados(prev => {
+            perguntarProxima(proximaP, prev, '');
+            return prev;
+          });
         }
       }
     }
@@ -305,8 +302,8 @@ export default function ClienteChat({ userData, onClose }) {
 
   // ── Constrói resposta natural da IA para a próxima pergunta ───────────────
   const perguntarProxima = async (proximaP, dadosAtuais, confirmaAnterior = '') => {
-    // Se for equipe_tipo_confirma → mostra card primeiro, depois faz a pergunta
-    if (proximaP.id === 'equipe_tipo_confirma') {
+    // Se for equipe_tipo_confirma e tipo ainda não foi definido → mostra card primeiro
+    if (proximaP.id === 'equipe_tipo_confirma' && !dadosAtuais['equipe.tipo']) {
       const tipoMencionado = dadosAtuais['equipe.tipo_mencionado'];
       if (tipoMencionado) {
         try {
@@ -317,13 +314,13 @@ export default function ClienteChat({ userData, onClose }) {
             filaRef.current = filaAtual;
             setFilaCards(filaAtual);
             if (filaAtual.length === 1) exibirProximoCard(filaAtual);
-            // Não faz a pergunta agora — avancarFila fará quando o card for respondido
-            return;
+            return; // aguarda cliente responder o card
           } else {
             setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${tipoMencionado}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() }]);
           }
         } catch (e) { console.error(e); }
       }
+      // Se não encontrou opcoes ou não tem tipo → cai no fluxo normal abaixo
     }
 
     setLoading(true);
@@ -347,6 +344,11 @@ export default function ClienteChat({ userData, onClose }) {
       const data = await res.json();
       const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
       setMessages(prev => [...prev, { role: 'assistant', content: texto, id: Date.now() }]);
+
+      // Se for pergunta de tipo_estande modular → prepara MOSTRAR_MODELOS
+      if (proximaP.id === 'tipo_estande' && modelosEspeciais.length > 0) {
+        // será tratado depois da resposta do cliente
+      }
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: proximaP.texto, id: Date.now() }]);
     } finally {
