@@ -457,6 +457,12 @@ export default function ClienteChat({ userData, onClose }) {
     }
 
     const novosCards = [];
+
+    // Se estande modular → adiciona card de modelos no início da fila
+    const tipoEstande = (dadosFinais['estrutura.tipoEstande'] || '').toLowerCase();
+    if (tipoEstande.includes('modular') && modelosEspeciais.length > 0 && !dadosFinais.modeloEstandeEscolhido) {
+      novosCards.push({ tipo: 'modelos', id: `modelos_${Date.now()}` });
+    }
     for (const nomeServico of mapeados) {
       const chave = `servico_${normalize(nomeServico)}`;
       if (dadosFinais.selecoesCatalogo?.[chave]) continue;
@@ -1413,7 +1419,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                 </div>
                 {modeloSelecionado && (
                   <button onClick={async () => {
-                    const d = { ...dadosRef.current, 'estrutura.modeloId': modeloSelecionado.id };
+                    const d = { ...dadosRef.current, 'estrutura.modeloId': modeloSelecionado.id, modeloEstandeEscolhido: modeloSelecionado };
                     if (modeloSelecionado.areaM2 && !campoRespondido(d, 'estrutura.areaM2')) d['estrutura.areaM2'] = modeloSelecionado.areaM2;
                     dadosRef.current = d;
                     setDadosColetados(d);
