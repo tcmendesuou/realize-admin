@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+6import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where, runTransaction, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -27,8 +27,7 @@ const PERGUNTAS = [
   { id: 'identidade',     bloco: 'estrutura', campo: 'estrutura.identidadeVisual', texto: 'Já tem **identidade visual** definida? *(logo, cores, materiais)*', condicional: (d) => d['estrutura.ativo'] === true },
   // EQUIPE
   { id: 'tem_equipe',     bloco: 'equipe',    campo: 'equipe.ativo',            texto: 'Vai precisar de algum **profissional** no evento? *(recepcionista, hostess, segurança, limpeza...)*' },
-  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true && !d['equipe.tipo_mencionado'] },
-  { id: 'equipe_tipo_confirma', bloco: 'equipe', campo: 'equipe.tipo',         texto: (d) => `Entendido! Você mencionou **${d['equipe.tipo_mencionado']}**. Vou mostrar as opções disponíveis. Vai precisar de mais algum tipo de profissional?`, condicional: (d) => d['equipe.ativo'] === true && !!d['equipe.tipo_mencionado'] && !d['equipe.tipo'] },
+  { id: 'equipe_tipo',    bloco: 'equipe',    campo: 'equipe.tipo',             texto: 'Que tipo de **profissional** você precisa?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_qtd',     bloco: 'equipe',    campo: 'equipe.quantidade',       texto: 'Quantos **profissionais** você vai precisar?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_horas',   bloco: 'equipe',    campo: 'equipe.horas',            texto: 'Quantas **horas por dia** eles vão trabalhar?', condicional: (d) => d['equipe.ativo'] === true },
   { id: 'equipe_dias',    bloco: 'equipe',    campo: 'equipe.dias',             texto: 'Por **quantos dias**?', condicional: (d) => d['equipe.ativo'] === true },
@@ -142,18 +141,6 @@ export default function ClienteChat({ userData, onClose }) {
     setFilaCards(novaFila);
     if (novaFila.length > 0) {
       exibirProximoCard(novaFila);
-    } else {
-      // Fila esvaziou — se ainda tem perguntas, faz a próxima
-      const proxIdx = idxRef.current;
-      if (proxIdx < PERGUNTAS.length) {
-        const proximaP = PERGUNTAS[proxIdx];
-        if (proximaP) {
-          setDadosColetados(prev => {
-            perguntarProxima(proximaP, prev, '');
-            return prev;
-          });
-        }
-      }
     }
   };
 
@@ -234,12 +221,6 @@ export default function ClienteChat({ userData, onClose }) {
       if (p.condicional && !p.condicional(dadosAtuais)) continue;
       // Verifica se já foi respondida
       if (dadosAtuais[p.campo] !== undefined && dadosAtuais[p.campo] !== null && dadosAtuais[p.campo] !== '') continue;
-      // Pula perguntas de flag quando já extraído em massa
-      if (p.id === 'tem_estrutura' && dadosAtuais['estrutura.ativo'] !== undefined) continue;
-      if (p.id === 'tem_equipe'    && dadosAtuais['equipe.ativo'] !== undefined) continue;
-      if (p.id === 'tem_gastro'    && dadosAtuais['gastronomia.ativo'] !== undefined) continue;
-      if (p.id === 'servicos'      && dadosAtuais['servicos.negado'] === true) continue;
-      if (p.id === 'equipe_tipo_confirma' && dadosAtuais['equipe.tipo']) continue;
       return i;
     }
     return -1; // todas respondidas
@@ -267,7 +248,6 @@ export default function ClienteChat({ userData, onClose }) {
       identidade:     `O cliente disse: "${resposta}". Tem identidade visual? Responda APENAS: {"valor":"descrição ou não definida"}`,
       tem_equipe:     `O cliente disse: "${resposta}". Precisa de profissional? Responda APENAS: {"valor":true ou false}`,
       equipe_tipo:    `O cliente disse: "${resposta}". Que tipo de profissional? Responda APENAS: {"valor":"nome"}`,
-      equipe_tipo_confirma: `O cliente disse: "${resposta}". Precisa de mais algum profissional além do já mencionado? Se sim qual? Responda APENAS: {"valor":true ou false, "tipo":"nome se sim ou null"}`,
       equipe_qtd:     `O cliente disse: "${resposta}". Quantos profissionais? Responda APENAS: {"valor":0}`,
       equipe_horas:   `O cliente disse: "${resposta}". Horas por dia? Responda APENAS: {"valor":0}`,
       equipe_dias:    `O cliente disse: "${resposta}". Quantos dias? Responda APENAS: {"valor":0}`,
@@ -302,34 +282,12 @@ export default function ClienteChat({ userData, onClose }) {
 
   // ── Constrói resposta natural da IA para a próxima pergunta ───────────────
   const perguntarProxima = async (proximaP, dadosAtuais, confirmaAnterior = '') => {
-    // Se for equipe_tipo_confirma e tipo ainda não foi definido → mostra card primeiro
-    if (proximaP.id === 'equipe_tipo_confirma' && !dadosAtuais['equipe.tipo']) {
-      const tipoMencionado = dadosAtuais['equipe.tipo_mencionado'];
-      if (tipoMencionado) {
-        try {
-          const opcoes = await buscarOpcoesServico(tipoMencionado, dadosAtuais['evento.cidade'] || '');
-          if (opcoes.length > 0) {
-            const novoCard = { tipo: 'opcoes_servico', nomeServico: tipoMencionado, opcoes, id: `opcao_${tipoMencionado}_${Date.now()}` };
-            const filaAtual = [...filaRef.current, novoCard];
-            filaRef.current = filaAtual;
-            setFilaCards(filaAtual);
-            if (filaAtual.length === 1) exibirProximoCard(filaAtual);
-            return; // aguarda cliente responder o card
-          } else {
-            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${tipoMencionado}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() }]);
-          }
-        } catch (e) { console.error(e); }
-      }
-      // Se não encontrou opcoes ou não tem tipo → cai no fluxo normal abaixo
-    }
-
     setLoading(true);
     try {
       // Constrói instrução para a IA
-      const textoP = typeof proximaP.texto === 'function' ? proximaP.texto(dadosAtuais) : proximaP.texto;
       const instrucao = confirmaAnterior
-        ? `Confirme brevemente a resposta do cliente: "${confirmaAnterior}". Depois faça APENAS esta pergunta de forma natural: "${textoP}". Não faça nenhuma outra pergunta.`
-        : `Faça APENAS esta pergunta de forma natural e amigável: "${textoP}". Não faça nenhuma outra pergunta.`;
+        ? `Confirme brevemente a resposta do cliente: "${confirmaAnterior}". Depois faça APENAS esta pergunta de forma natural: "${proximaP.texto}". Não faça nenhuma outra pergunta.`
+        : `Faça APENAS esta pergunta de forma natural e amigável: "${proximaP.texto}". Não faça nenhuma outra pergunta.`;
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -356,52 +314,47 @@ export default function ClienteChat({ userData, onClose }) {
     }
   };
 
-  // ── Busca opções de um serviço no Firestore ──────────────────────────────
-  const buscarOpcoesServico = async (nomeServico, cidade) => {
-    const svSnap = await getDocs(collection(db, 'supplierServices'));
-    const todosServicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-    const cidadeNorm = (cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const palavras = nomeNorm.split(/\s+/).filter(p => p.length > 2);
-    const filtrados = todosServicos.filter(s => {
-      if (cidadeNorm && s.regiao) {
-        const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
-      }
-      const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) ||
-             pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm) ||
-             palavras.some(p => sNorm.includes(p) || pNorm.includes(p));
-    });
-    const comOpcoes = await Promise.all(filtrados.map(async s => {
-      try {
-        const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-        return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo||0, diasMontagem: s.diasMontagem||0, ...d.data() }));
-      } catch { return []; }
-    }));
-    return comOpcoes.flat();
-  };
-
   // ── Finaliza briefing e mostra cards de serviços ──────────────────────────
   const finalizarBriefing = async (dadosFinais) => {
     const servicos = dadosFinais['servicosNecessarios'] || [];
     if (servicos.length > 0) {
+      // Monta fila de cards para os serviços
       const novosCards = [];
-      const cidade = dadosFinais['evento.cidade'] || '';
+      const svSnap = await getDocs(collection(db, 'supplierServices'));
+      const todosServicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+      const cidadeNorm = (dadosFinais['evento.cidade'] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
       for (const nomeServico of servicos) {
-        const opcoes = await buscarOpcoesServico(nomeServico, cidade);
+        const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const filtrados = todosServicos.filter(s => {
+          if (cidadeNorm && s.regiao) {
+            const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
+          }
+          const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
+        });
+        const comOpcoes = await Promise.all(filtrados.map(async s => {
+          try {
+            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+            return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo||0, diasMontagem: s.diasMontagem||0, ...d.data() }));
+          } catch { return []; }
+        }));
+        const opcoes = comOpcoes.flat();
         if (opcoes.length > 0) {
           novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}` });
         } else {
           setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${nomeServico}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() + Math.random() }]);
         }
       }
+      // Adiciona pagamento ao final
       novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
       filaRef.current = novosCards;
       setFilaCards(novosCards);
       if (novosCards.length > 0) exibirProximoCard(novosCards);
     } else {
+      // Sem serviços → vai direto para pagamento
       filaRef.current = [{ tipo: 'pagamento', id: `pagamento_${Date.now()}` }];
       setFilaCards(filaRef.current);
       exibirProximoCard(filaRef.current);
@@ -432,27 +385,18 @@ export default function ClienteChat({ userData, onClose }) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6',
-              max_tokens: 500,
+              max_tokens: 400,
               system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
-              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS:\n{"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"tem_estrutura":null,"tem_equipe":null,"equipe_tipo_mencionado":null,"tem_gastro":null,"tem_servicos":null,"servicos_mencionados":null}\n\nRegras:\n- "tem_estrutura": true se mencionou estande/palco/estrutura, false se negou, null se não mencionou\n- "tem_equipe": true se mencionou recepcionista/segurança/equipe/profissional, false se negou, null se não mencionou\n- "equipe_tipo_mencionado": nome do profissional mencionado (ex: "Recepcionista", "Segurança") ou null\n- "tem_gastro": true se mencionou comida/bebida/gastronomia, false se negou, null se não mencionou\n- "tem_servicos": true se mencionou LED/som/DJ/fotógrafo, false se negou, null se não mencionou\n- "servicos_mencionados": array com nomes dos serviços mencionados ou null` }],
+              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia APENAS os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS: {"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null}` }],
             }),
           });
           const resAllData = await resAll.json();
           const resAllText = (resAllData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
           const extraido = JSON.parse(resAllText.replace(/```json|```/g, '').trim());
-          // Aplica campos básicos do evento
-          const camposEvento = ['evento.tipo','evento.nome','evento.dataInicio','evento.dataFim','evento.horarioInicio','evento.horarioFim','evento.cidade','evento.local','evento.endereco','evento.visitantesPorDia','evento.nomeEmpresa'];
-          camposEvento.forEach(k => {
-            if (extraido[k] !== null && extraido[k] !== undefined && extraido[k] !== '') novosDados[k] = extraido[k];
+          // Aplica só os campos não nulos
+          Object.entries(extraido).forEach(([k, v]) => {
+            if (v !== null && v !== undefined && v !== '') novosDados[k] = v;
           });
-          // Aplica apenas o flag de ativo para estrutura/equipe/gastro — sem preencher detalhes
-          if (extraido.tem_estrutura !== null) novosDados['estrutura.ativo'] = extraido.tem_estrutura;
-          if (extraido.tem_equipe !== null)    novosDados['equipe.ativo']    = extraido.tem_equipe;
-          if (extraido.equipe_tipo_mencionado)  novosDados['equipe.tipo_mencionado'] = extraido.equipe_tipo_mencionado;
-          if (extraido.servicos_mencionados?.length > 0) novosDados['servicos_mencionados'] = extraido.servicos_mencionados;
-          if (extraido.tem_gastro !== null)    novosDados['gastronomia.ativo'] = extraido.tem_gastro;
-          // se negou serviços, marca para pular
-          if (extraido.tem_servicos === false) novosDados['servicos.negado'] = true;
         } catch (e) { console.error('Erro na extração em massa:', e); }
       }
 
@@ -467,42 +411,7 @@ export default function ClienteChat({ userData, onClose }) {
         novosDados['evento.horarioFim']    = dados.fim || '';
         novosDados['evento.horario']       = `${dados.inicio} às ${dados.fim}`;
       } else if (pergAtual.id === 'servicos') {
-        // Combina serviços da resposta com os mencionados na extração em massa
-        const itensMencionados = novosDados['servicos_mencionados'] || [];
-        const itensResposta = dados.itens || [];
-        const todoItens = [...new Set([...itensMencionados, ...itensResposta])];
-        novosDados['servicosNecessarios'] = todoItens;
-      } else if (pergAtual.id === 'equipe_tipo_confirma') {
-        // Usa o tipo mencionado e adiciona aos servicosNecessarios
-        const tipoMencionado = novosDados['equipe.tipo_mencionado'];
-        novosDados['equipe.tipo'] = tipoMencionado;
-        const servicosAtuais = novosDados['servicosNecessarios'] || [];
-        if (!servicosAtuais.some(s => s.toLowerCase().includes(tipoMencionado.toLowerCase()))) {
-          novosDados['servicosNecessarios'] = [...servicosAtuais, tipoMencionado];
-        }
-        setDadosColetados(novosDados);
-        // Mostra card do profissional imediatamente
-        setLoading(true);
-        try {
-          const opcoes = await buscarOpcoesServico(tipoMencionado, novosDados['evento.cidade'] || '');
-          if (opcoes.length > 0) {
-            const cardId = `opcao_${tipoMencionado}_${Date.now()}`;
-            const novoCard = { tipo: 'opcoes_servico', nomeServico: tipoMencionado, opcoes, id: cardId };
-            const filaAtual = [...filaRef.current, novoCard];
-            filaRef.current = filaAtual;
-            setFilaCards(filaAtual);
-            if (filaRef.current.length === 1) exibirProximoCard(filaAtual);
-          } else {
-            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${tipoMencionado}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() }]);
-          }
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
-        // Avança o idx mas NÃO faz a próxima pergunta agora
-        // A próxima pergunta acontece quando o cliente responder o card via avancarFila
-        const proximoIdxEquipe = proximaPerguntaIdx(novosDados, idxRef.current + 1);
-        idxRef.current = proximoIdxEquipe >= 0 ? proximoIdxEquipe : PERGUNTAS.length;
-        setIdxPergunta(idxRef.current);
-        return;
+        novosDados['servicosNecessarios'] = dados.itens || [];
       } else if (dados.valor !== undefined) {
         novosDados[pergAtual.campo] = dados.valor;
       } else {
@@ -533,13 +442,6 @@ export default function ClienteChat({ userData, onClose }) {
       // 5. Se acabaram as perguntas → finaliza
       if (proximoIdx < 0) {
         setLoading(false);
-        // Adiciona equipe ao servicosNecessarios se não estiver lá
-        if (novosDados['equipe.ativo'] === true && novosDados['equipe.tipo']) {
-          const servicosAtuais = novosDados['servicosNecessarios'] || [];
-          if (!servicosAtuais.some(s => s.toLowerCase().includes(novosDados['equipe.tipo'].toLowerCase()))) {
-            novosDados['servicosNecessarios'] = [...servicosAtuais, novosDados['equipe.tipo']];
-          }
-        }
         // Monta briefingJson com os dados coletados
         const json = montarBriefingJson(novosDados);
         setBriefingJson(json);
@@ -558,6 +460,9 @@ export default function ClienteChat({ userData, onClose }) {
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
+      if (filaRef.current.length > 0) {
+        setTimeout(() => avancarFila(), 300);
+      }
     }
   };
 
@@ -1304,6 +1209,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                       <button onClick={() => {
                         sendMessage(`Para ${msg.nomeServico}: não preciso desse serviço`);
                         setOpcoesCardSelecionadas(prev => { const n = {...prev}; delete n[msg.id]; return n; });
+                        avancarFila();
                       }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Não preciso
                       </button>
