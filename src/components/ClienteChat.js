@@ -221,6 +221,11 @@ export default function ClienteChat({ userData, onClose }) {
       if (p.condicional && !p.condicional(dadosAtuais)) continue;
       // Verifica se já foi respondida
       if (dadosAtuais[p.campo] !== undefined && dadosAtuais[p.campo] !== null && dadosAtuais[p.campo] !== '') continue;
+      // Pula perguntas de flag quando já extraído em massa
+      if (p.id === 'tem_estrutura' && dadosAtuais['estrutura.ativo'] !== undefined) continue;
+      if (p.id === 'tem_equipe'    && dadosAtuais['equipe.ativo'] !== undefined) continue;
+      if (p.id === 'tem_gastro'    && dadosAtuais['gastronomia.ativo'] !== undefined) continue;
+      if (p.id === 'servicos'      && dadosAtuais['servicos.negado'] === true) continue;
       return i;
     }
     return -1; // todas respondidas
@@ -388,18 +393,25 @@ export default function ClienteChat({ userData, onClose }) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6',
-              max_tokens: 400,
+              max_tokens: 500,
               system: 'Responda APENAS com JSON válido. Sem texto, sem markdown.',
-              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia APENAS os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS: {"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null}` }],
+              messages: [{ role: 'user', content: `O cliente descreveu o evento: "${text}"\n\nExtraia os campos claramente mencionados. Para não mencionados use null.\nResponda APENAS:\n{"evento.tipo":null,"evento.nome":null,"evento.dataInicio":null,"evento.dataFim":null,"evento.horarioInicio":null,"evento.horarioFim":null,"evento.cidade":null,"evento.local":null,"evento.endereco":null,"evento.visitantesPorDia":null,"evento.nomeEmpresa":null,"tem_estrutura":null,"tem_equipe":null,"tem_gastro":null,"tem_servicos":null}\n\nRegras:\n- "tem_estrutura": true se mencionou estande/palco/estrutura, false se negou, null se não mencionou\n- "tem_equipe": true se mencionou recepcionista/segurança/equipe, false se negou, null se não mencionou\n- "tem_gastro": true se mencionou comida/bebida/gastronomia, false se negou, null se não mencionou\n- "tem_servicos": true se mencionou LED/som/DJ/fotógrafo, false se negou, null se não mencionou` }],
             }),
           });
           const resAllData = await resAll.json();
           const resAllText = (resAllData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
           const extraido = JSON.parse(resAllText.replace(/```json|```/g, '').trim());
-          // Aplica só os campos não nulos
-          Object.entries(extraido).forEach(([k, v]) => {
-            if (v !== null && v !== undefined && v !== '') novosDados[k] = v;
+          // Aplica campos básicos do evento
+          const camposEvento = ['evento.tipo','evento.nome','evento.dataInicio','evento.dataFim','evento.horarioInicio','evento.horarioFim','evento.cidade','evento.local','evento.endereco','evento.visitantesPorDia','evento.nomeEmpresa'];
+          camposEvento.forEach(k => {
+            if (extraido[k] !== null && extraido[k] !== undefined && extraido[k] !== '') novosDados[k] = extraido[k];
           });
+          // Aplica apenas o flag de ativo para estrutura/equipe/gastro — sem preencher detalhes
+          if (extraido.tem_estrutura !== null) novosDados['estrutura.ativo'] = extraido.tem_estrutura;
+          if (extraido.tem_equipe !== null)    novosDados['equipe.ativo']    = extraido.tem_equipe;
+          if (extraido.tem_gastro !== null)    novosDados['gastronomia.ativo'] = extraido.tem_gastro;
+          // se negou serviços, marca para pular
+          if (extraido.tem_servicos === false) novosDados['servicos.negado'] = true;
         } catch (e) { console.error('Erro na extração em massa:', e); }
       }
 
