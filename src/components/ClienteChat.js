@@ -1,4 +1,4 @@
-6import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, addDoc, updateDoc, serverTimestamp, query, where, runTransaction, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -1217,7 +1217,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                         <button onClick={() => {
                           const op = opcoesCardSelecionadas[msg.id];
                           sendMessage(`Para ${msg.nomeServico}: selecionei a opção ${op.nome}${op.caracteristica ? ' (' + op.caracteristica + ')' : ''}`);
-                          
+                          avancarFila();
                         }} style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                           Confirmar: {opcoesCardSelecionadas[msg.id].nome} →
                         </button>
