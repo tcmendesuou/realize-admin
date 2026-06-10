@@ -323,50 +323,52 @@ export default function ClienteChat({ userData, onClose }) {
     }
   };
 
+  // ── Busca opções de um serviço no Firestore ──────────────────────────────
+  const buscarOpcoesServico = async (nomeServico, cidade) => {
+    const svSnap = await getDocs(collection(db, 'supplierServices'));
+    const todosServicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+    const cidadeNorm = (cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const palavras = nomeNorm.split(/\s+/).filter(p => p.length > 2);
+    const filtrados = todosServicos.filter(s => {
+      if (cidadeNorm && s.regiao) {
+        const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
+      }
+      const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) ||
+             pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm) ||
+             palavras.some(p => sNorm.includes(p) || pNorm.includes(p));
+    });
+    const comOpcoes = await Promise.all(filtrados.map(async s => {
+      try {
+        const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+        return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo||0, diasMontagem: s.diasMontagem||0, ...d.data() }));
+      } catch { return []; }
+    }));
+    return comOpcoes.flat();
+  };
+
   // ── Finaliza briefing e mostra cards de serviços ──────────────────────────
   const finalizarBriefing = async (dadosFinais) => {
     const servicos = dadosFinais['servicosNecessarios'] || [];
     if (servicos.length > 0) {
-      // Monta fila de cards para os serviços
       const novosCards = [];
-      const svSnap = await getDocs(collection(db, 'supplierServices'));
-      const todosServicos = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-      const cidadeNorm = (dadosFinais['evento.cidade'] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
+      const cidade = dadosFinais['evento.cidade'] || '';
       for (const nomeServico of servicos) {
-        const nomeNorm = nomeServico.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const palavras = nomeNorm.split(/\s+/).filter(p => p.length > 2);
-        const filtrados = todosServicos.filter(s => {
-          if (cidadeNorm && s.regiao) {
-            const reg = (s.regiao||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            if (!reg.includes(cidadeNorm) && !cidadeNorm.includes(reg) && !reg.includes('todo') && !reg.includes('nacional')) return false;
-          }
-          const sNorm = (s.serviceName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const pNorm = (s.serviceParentName||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return sNorm.includes(nomeNorm) || nomeNorm.includes(sNorm) || 
-                 pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm) ||
-                 palavras.some(p => sNorm.includes(p) || pNorm.includes(p));
-        });
-        const comOpcoes = await Promise.all(filtrados.map(async s => {
-          try {
-            const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-            return opSnap.docs.map(d => ({ id: d.id, supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, diasPreparo: s.diasPreparo||0, diasMontagem: s.diasMontagem||0, ...d.data() }));
-          } catch { return []; }
-        }));
-        const opcoes = comOpcoes.flat();
+        const opcoes = await buscarOpcoesServico(nomeServico, cidade);
         if (opcoes.length > 0) {
           novosCards.push({ tipo: 'opcoes_servico', nomeServico, opcoes, id: `opcao_${nomeServico}_${Date.now()}` });
         } else {
           setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${nomeServico}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() + Math.random() }]);
         }
       }
-      // Adiciona pagamento ao final
       novosCards.push({ tipo: 'pagamento', id: `pagamento_${Date.now()}` });
       filaRef.current = novosCards;
       setFilaCards(novosCards);
       if (novosCards.length > 0) exibirProximoCard(novosCards);
     } else {
-      // Sem serviços → vai direto para pagamento
       filaRef.current = [{ tipo: 'pagamento', id: `pagamento_${Date.now()}` }];
       setFilaCards(filaRef.current);
       exibirProximoCard(filaRef.current);
@@ -445,6 +447,31 @@ export default function ClienteChat({ userData, onClose }) {
         if (!servicosAtuais.some(s => s.toLowerCase().includes(tipoMencionado.toLowerCase()))) {
           novosDados['servicosNecessarios'] = [...servicosAtuais, tipoMencionado];
         }
+        setDadosColetados(novosDados);
+        // Mostra card do profissional imediatamente
+        setLoading(true);
+        try {
+          const opcoes = await buscarOpcoesServico(tipoMencionado, novosDados['evento.cidade'] || '');
+          if (opcoes.length > 0) {
+            const cardId = `opcao_${tipoMencionado}_${Date.now()}`;
+            const novoCard = { tipo: 'opcoes_servico', nomeServico: tipoMencionado, opcoes, id: cardId };
+            const filaAtual = [...filaRef.current, novoCard];
+            filaRef.current = filaAtual;
+            setFilaCards(filaAtual);
+            if (filaRef.current.length === 1) exibirProximoCard(filaAtual);
+          } else {
+            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Não encontramos **${tipoMencionado}** disponível na sua região. Nosso coordenador vai buscar e incluir antes da aprovação final.`, id: Date.now() }]);
+          }
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
+        // Avança o idx e continua o fluxo
+        const proximoIdxEquipe = proximaPerguntaIdx(novosDados, idxRef.current + 1);
+        idxRef.current = proximoIdxEquipe >= 0 ? proximoIdxEquipe : PERGUNTAS.length;
+        setIdxPergunta(idxRef.current);
+        if (proximoIdxEquipe >= 0) {
+          await perguntarProxima(PERGUNTAS[proximoIdxEquipe], novosDados, text);
+        }
+        return;
       } else if (dados.valor !== undefined) {
         novosDados[pergAtual.campo] = dados.valor;
       } else {
