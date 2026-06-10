@@ -142,6 +142,18 @@ export default function ClienteChat({ userData, onClose }) {
     setFilaCards(novaFila);
     if (novaFila.length > 0) {
       exibirProximoCard(novaFila);
+    } else {
+      // Fila esvaziou — se ainda tem perguntas, faz a próxima
+      const proxIdx = idxRef.current;
+      if (proxIdx < PERGUNTAS.length) {
+        const proximaP = PERGUNTAS[proxIdx];
+        if (proximaP) {
+          setDadosColetados(prev => {
+            perguntarProxima(proximaP, prev, '');
+            return prev;
+          });
+        }
+      }
     }
   };
 
@@ -464,13 +476,11 @@ export default function ClienteChat({ userData, onClose }) {
           }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
-        // Avança o idx e continua o fluxo
+        // Avança o idx mas NÃO faz a próxima pergunta agora
+        // A próxima pergunta acontece quando o cliente responder o card via avancarFila
         const proximoIdxEquipe = proximaPerguntaIdx(novosDados, idxRef.current + 1);
         idxRef.current = proximoIdxEquipe >= 0 ? proximoIdxEquipe : PERGUNTAS.length;
         setIdxPergunta(idxRef.current);
-        if (proximoIdxEquipe >= 0) {
-          await perguntarProxima(PERGUNTAS[proximoIdxEquipe], novosDados, text);
-        }
         return;
       } else if (dados.valor !== undefined) {
         novosDados[pergAtual.campo] = dados.valor;
@@ -527,9 +537,6 @@ export default function ClienteChat({ userData, onClose }) {
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
-      if (filaRef.current.length > 0) {
-        setTimeout(() => avancarFila(), 300);
-      }
     }
   };
 
