@@ -307,12 +307,63 @@ const APROVACOES_CONFIG = [
   { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço ao cliente (ex: estande montado, estrutura pronta)', cor: '#667eea' },
 ];
 
+const UNIDADES = [
+  { id: 'hora',    label: 'por hora' },
+  { id: 'dia',     label: 'por dia' },
+  { id: 'evento',  label: 'por evento' },
+  { id: 'pessoa',  label: 'por pessoa' },
+  { id: 'm2',      label: 'por m²' },
+];
+
 function SubServiceForm({ parentId, editData, onSave, onCancel }) {
   const [form, setForm] = useState(editData || {
     name: '', description: '', active: true,
     preAprovacao: false, aprovacaoExecucao: false,   });
   const [saving, setSaving] = useState(false);
+  const [opcoes, setOpcoes]           = useState([]);
+  const [loadingOpcoes, setLoadingOpcoes] = useState(false);
+  const [novaOpcao, setNovaOpcao]     = useState({ nome: '', valor: '', unidade: 'hora' });
+  const [savingOpcao, setSavingOpcao] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // Carrega opções existentes ao editar
+  useEffect(() => {
+    if (!editData?.id) return;
+    setLoadingOpcoes(true);
+    getDocs(collection(db, 'services', editData.id, 'opcoes'))
+      .then(snap => setOpcoes(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(console.error)
+      .finally(() => setLoadingOpcoes(false));
+  }, [editData?.id]);
+
+  const handleAddOpcao = async () => {
+    if (!novaOpcao.nome.trim() || !novaOpcao.valor) { alert('Preencha nome e valor da opcao'); return; }
+    if (!editData?.id) { alert('Salve o sub-servico antes de adicionar opcoes'); return; }
+    setSavingOpcao(true);
+    try {
+      const ref = await addDoc(collection(db, 'services', editData.id, 'opcoes'), {
+        nome: novaOpcao.nome.trim(),
+        valor: parseFloat(novaOpcao.valor),
+        unidade: novaOpcao.unidade,
+        ativo: true,
+        createdAt: new Date(),
+      });
+      setOpcoes(p => [...p, { id: ref.id, nome: novaOpcao.nome.trim(), valor: parseFloat(novaOpcao.valor), unidade: novaOpcao.unidade, ativo: true }]);
+      setNovaOpcao({ nome: '', valor: '', unidade: 'hora' });
+    } catch (e) { console.error(e); alert('Erro ao salvar opcao.'); }
+    finally { setSavingOpcao(false); }
+  };
+
+  const handleToggleOpcao = async (op) => {
+    await updateDoc(doc(db, 'services', editData.id, 'opcoes', op.id), { ativo: !op.ativo });
+    setOpcoes(p => p.map(o => o.id === op.id ? { ...o, ativo: !o.ativo } : o));
+  };
+
+  const handleDeleteOpcao = async (op) => {
+    if (!window.confirm(`Excluir opcao "${op.nome}"?`)) return;
+    await deleteDoc(doc(db, 'services', editData.id, 'opcoes', op.id));
+    setOpcoes(p => p.filter(o => o.id !== op.id));
+  };
 
   const handleSave = async () => {
     if (!form.name.trim()) { alert('Nome obrigatorio'); return; }
@@ -371,12 +422,127 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
         ))}
       </div>
 
+      {/* Opções de preço */}
+      <div style={{ background: 'white', borderRadius: 8, border: '1px solid #e2e8f0', padding: 12, marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 10 }}>
+          Opcoes de Preco
+        </div>
+        {!editData?.id && (
+          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', marginBottom: 8 }}>
+            Salve o sub-servico primeiro para adicionar opcoes.
+          </div>
+        )}
+        {editData?.id && (
+          <>
+            {/* Lista de opções existentes */}
+            {loadingOpcoes ? (
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>Carregando...</div>
+            ) : opcoes.length === 0 ? (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>Nenhuma opcao cadastrada.</div>
+            ) : (
+              <div style={{ marginBottom: 10 }}>
+                {opcoes.map(op => (
+                  <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid #f1f5f9', opacity: op.ativo ? 1 : 0.5 }}>
+                    <div style={{ flex: 1, fontSize: 12, color: '#1e293b', fontWeight: 500 }}>{op.nome}</div>
+                    <div style={{ fontSize: 12, color: '#667eea', fontWeight: 600 }}>
+                      R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                      {UNIDADES.find(u => u.id === op.unidade)?.label || op.unidade}
+                    </div>
+                    <button onClick={() => handleToggleOpcao(op)}
+                      style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: `1px solid ${op.ativo ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: op.ativo ? '#d97706' : '#16a34a', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                      {op.ativo ? '⏸' : '▶'}
+                    </button>
+                    <button onClick={() => handleDeleteOpcao(op)}
+                      style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #fecaca', background: 'none', color: '#ef4444', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Formulário nova opção */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6, alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 3 }}>Nome da opcao</label>
+                <input value={novaOpcao.nome} onChange={e => setNovaOpcao(p => ({ ...p, nome: e.target.value }))}
+                  style={{ ...inp, fontSize: 11, padding: '5px 8px' }} placeholder="Ex: Standard" />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 3 }}>Valor (R$)</label>
+                <input type="number" value={novaOpcao.valor} onChange={e => setNovaOpcao(p => ({ ...p, valor: e.target.value }))}
+                  style={{ ...inp, fontSize: 11, padding: '5px 8px' }} placeholder="0,00" />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 3 }}>Unidade</label>
+                <select value={novaOpcao.unidade} onChange={e => setNovaOpcao(p => ({ ...p, unidade: e.target.value }))}
+                  style={{ ...inp, fontSize: 11, padding: '5px 8px' }}>
+                  {UNIDADES.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                </select>
+              </div>
+              <button onClick={handleAddOpcao} disabled={savingOpcao}
+                style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#667eea', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>
+                {savingOpcao ? '...' : '+ Add'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
         <button onClick={handleSave} disabled={saving} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
           {saving ? 'Salvando...' : 'Salvar'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Painel de opções (somente leitura, painel direito) ────────────────────────
+function OpcoesPanel({ subId, color }) {
+  const [opcoes, setOpcoes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!subId) return;
+    setLoading(true);
+    getDocs(collection(db, 'services', subId, 'opcoes'))
+      .then(snap => setOpcoes(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [subId]);
+
+  return (
+    <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16, marginTop: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+        Opcoes de Preco
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 12, color: '#94a3b8' }}>Carregando...</div>
+      ) : opcoes.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+          Nenhuma opcao cadastrada. Clique em "Editar sub-servico" para adicionar.
+        </div>
+      ) : (
+        <div>
+          {opcoes.filter(o => o.ativo !== false).map(op => (
+            <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#1e293b' }}>{op.nome}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color }}>
+                R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: 10, color: '#94a3b8', background: '#f1f5f9', padding: '2px 7px', borderRadius: 10 }}>
+                {UNIDADES.find(u => u.id === op.unidade)?.label || op.unidade}
+              </div>
+            </div>
+          ))}
+          {opcoes.filter(o => o.ativo === false).length > 0 && (
+            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6, fontStyle: 'italic' }}>
+              + {opcoes.filter(o => o.ativo === false).length} opcao(oes) inativa(s)
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -765,6 +931,9 @@ export default function ServiceManager() {
                     Nenhuma aprovação configurada. Clique em "Editar sub-serviço" para configurar.
                   </div>
                 )}
+
+                {/* Opções de preço */}
+                <OpcoesPanel subId={selSub.id} color={color} />
               </div>
             )}
           </div>
