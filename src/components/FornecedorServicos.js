@@ -16,8 +16,8 @@ const REGIOES = [
 ];
 
 const OPCAO_VAZIA = {
-  nome: '', caracteristica: '', observacoes: '',
-  diasPreparo: '', diasMontagem: '', tempoExecucao: '',
+  opcaoCatalogoId: '', nome: '', caracteristica: '', observacoes: '',
+  diasPreparo: '', diasMontagem: '',
   quantidade: '', regiao: 'São Paulo - Capital', ativo: true,
 };
 
@@ -42,6 +42,8 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const [opcaoForm, setOpcaoForm]         = useState(OPCAO_VAZIA);
   const [editandoOpcaoId, setEditandoOpcaoId] = useState(null);
   const [showOpcaoForm, setShowOpcaoForm] = useState(false);
+  const [opcoesCatalogo, setOpcoesCatalogo] = useState([]);     // opções do catálogo admin
+  const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const setO = (k, v) => setOpcaoForm(p => ({ ...p, [k]: v }));
 
   const resetOpcaoForm = () => {
@@ -81,7 +83,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const subsDoaCat       = selCategoria ? catalogo.filter(s => s.parentId === selCategoria && s.active !== false) : [];
   const jaTemServico     = (subId) => servicos.some(s => s.serviceId === subId);
 
-  const handleSelectSub = (sub) => {
+  const handleSelectSub = async (sub) => {
     setSelSub(sub);
     const existing = servicos.find(s => s.serviceId === sub.id);
     if (existing) {
@@ -93,6 +95,13 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     }
     setOpcoesMemoria([]);
     resetOpcaoForm();
+    // Busca opções do catálogo para este sub-serviço
+    setLoadingCatalogo(true);
+    try {
+      const snap = await getDocs(collection(db, 'services', sub.id, 'opcoes'));
+      setOpcoesCatalogo(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false));
+    } catch (e) { console.error('Erro ao buscar opções do catálogo:', e); setOpcoesCatalogo([]); }
+    finally { setLoadingCatalogo(false); }
   };
 
   // ── Opções ───────────────────────────────────────────────────────────────────
@@ -100,18 +109,15 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     if (!opcaoForm.nome) { alert('Informe o nome da opção'); return; }
     if (editandoOpcaoId) {
       if (editando?.id) {
-        // Edita opção já salva no Firestore
         const { _tempId, ...opData } = opcaoForm;
         updateDoc(doc(db, 'supplierServices', editando.id, 'opcoes', editandoOpcaoId), {
           ...opData, updatedAt: serverTimestamp(),
         }).then(() => loadOpcoes(editando.id));
       } else {
-        // Edita opção em memória
         setOpcoesMemoria(prev => prev.map(o => o._tempId === editandoOpcaoId ? { ...o, ...opcaoForm } : o));
       }
     } else {
       if (editando?.id) {
-        // Serviço já existe → salva direto
         addDoc(collection(db, 'supplierServices', editando.id, 'opcoes'), {
           ...opcaoForm,
           diasPreparo: opcaoForm.diasPreparo ? parseInt(opcaoForm.diasPreparo) : 0,
@@ -119,7 +125,6 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
           createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         }).then(() => loadOpcoes(editando.id));
       } else {
-        // Serviço novo → guarda em memória
         setOpcoesMemoria(prev => [...prev, { ...opcaoForm, _tempId: Date.now().toString() }]);
       }
     }
@@ -128,9 +133,10 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
 
   const handleEditarOpcao = (op) => {
     setOpcaoForm({
+      opcaoCatalogoId: op.opcaoCatalogoId || '',
       nome: op.nome || '', caracteristica: op.caracteristica || '', observacoes: op.observacoes || '',
       diasPreparo: op.diasPreparo || '', diasMontagem: op.diasMontagem || '',
-      tempoExecucao: op.tempoExecucao || '', quantidade: op.quantidade || '',
+      quantidade: op.quantidade || '',
       regiao: op.regiao || 'São Paulo - Capital', ativo: op.ativo !== false,
     });
     setEditandoOpcaoId(op.id || op._tempId);
@@ -337,125 +343,115 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
 
                     {/* Aviso */}
                     <div style={{ background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.15)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#7BAFD4', lineHeight: 1.6 }}>
-                      💡 Cada opção representa uma variação do serviço *(ex: tamanhos, configurações, capacidades)*. O valor é definido pela Realize Hub com base na tabela de preços.
+                      💡 Ative as opções do catálogo que você oferece e preencha seus dados operacionais.
                     </div>
 
-                    {/* Lista de opções */}
+                    {/* Opções do catálogo */}
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>Opções cadastradas</div>
-                          <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 2 }}>Adicione pelo menos uma opção para salvar o serviço</div>
-                        </div>
-                        <button onClick={() => { resetOpcaoForm(); setShowOpcaoForm(true); }}
-                          style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>
-                          + Adicionar opção
-                        </button>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF', marginBottom: 10 }}>
+                        Opções disponíveis no catálogo
                       </div>
 
-                      {/* Lista */}
-                      {todasOpcoes.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '20px', color: 'rgba(123,175,212,0.3)', fontSize: 12, border: '1px dashed rgba(0,180,255,0.1)', borderRadius: 8 }}>
-                          Nenhuma opção cadastrada ainda
+                      {loadingCatalogo ? (
+                        <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.4)', padding: 12 }}>Carregando opções...</div>
+                      ) : opcoesCatalogo.length === 0 ? (
+                        <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.3)', padding: '16px', textAlign: 'center', border: '1px dashed rgba(0,180,255,0.1)', borderRadius: 8 }}>
+                          Nenhuma opção cadastrada no catálogo para este sub-serviço.<br />
+                          <span style={{ fontSize: 11 }}>Peça ao admin para cadastrar opções no ServiceManager.</span>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-                          {todasOpcoes.map((op, i) => (
-                            <div key={op.id || op._tempId || i} style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</span>
-                                  {op._tempId && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,167,38,0.15)', color: '#FFA726' }}>não salvo</span>}
-                                  {op.ativo === false && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>inativo</span>}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {opcoesCatalogo.map(opCat => {
+                            const jaAtivada = todasOpcoes.find(o => o.opcaoCatalogoId === opCat.id);
+                            const editandoEsta = editandoOpcaoId && opcaoForm.opcaoCatalogoId === opCat.id;
+                            return (
+                              <div key={opCat.id} style={{ background: jaAtivada ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${jaAtivada ? 'rgba(0,229,196,0.2)' : 'rgba(0,180,255,0.08)'}`, borderRadius: 10, padding: '12px 14px' }}>
+
+                                {/* Cabeçalho da opção do catálogo */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editandoEsta ? 12 : 0 }}>
+                                  <div>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: jaAtivada ? '#00E5C4' : '#7BAFD4' }}>{opCat.nome}</span>
+                                    <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)', marginLeft: 8 }}>
+                                      R$ {Number(opCat.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {opCat.unidade}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 5 }}>
+                                    {jaAtivada && !editandoEsta && (
+                                      <button onClick={() => handleEditarOpcao({ ...jaAtivada })}
+                                        style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                    )}
+                                    {jaAtivada && !editandoEsta && (
+                                      <button onClick={() => handleExcluirOpcao(jaAtivada)}
+                                        style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Remover</button>
+                                    )}
+                                    {!jaAtivada && !editandoEsta && (
+                                      <button onClick={() => {
+                                        setOpcaoForm({ ...OPCAO_VAZIA, opcaoCatalogoId: opCat.id, nome: opCat.nome });
+                                        setEditandoOpcaoId(null);
+                                        setShowOpcaoForm(opCat.id);
+                                      }}
+                                        style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>+ Ativar</button>
+                                    )}
+                                  </div>
                                 </div>
-                                {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 2 }}>{op.caracteristica}</div>}
-                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                  {op.diasPreparo > 0 && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📦 {op.diasPreparo}d preparo</span>}
-                                  {op.diasMontagem > 0 && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>🔧 {op.diasMontagem}d montagem</span>}
-                                  {op.regiao && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📍 {op.regiao}</span>}
-                                  {op.quantidade && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📊 {op.quantidade}</span>}
-                                </div>
-                                {op.observacoes && <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 3 }}>{op.observacoes}</div>}
-                              </div>
-                              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                                <button onClick={() => handleEditarOpcao(op)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
-                                <button onClick={() => handleExcluirOpcao(op)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
 
-                      {/* Formulário de nova/editar opção */}
-                      {showOpcaoForm && (
-                        <div style={{ background: 'rgba(10,22,38,0.7)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 10, padding: 16, marginTop: 8 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#7BAFD4', marginBottom: 12 }}>
-                            {editandoOpcaoId ? 'Editar opção' : 'Nova opção'}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {/* Dados operacionais já salvos */}
+                                {jaAtivada && !editandoEsta && (
+                                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
+                                    {jaAtivada.caracteristica && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.6)' }}>✦ {jaAtivada.caracteristica}</span>}
+                                    {jaAtivada.diasPreparo > 0 && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📦 {jaAtivada.diasPreparo}d preparo</span>}
+                                    {jaAtivada.diasMontagem > 0 && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>🔧 {jaAtivada.diasMontagem}d montagem</span>}
+                                    {jaAtivada.regiao && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📍 {jaAtivada.regiao}</span>}
+                                    {jaAtivada.quantidade && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📊 {jaAtivada.quantidade}</span>}
+                                  </div>
+                                )}
 
-                            {/* Nome + Característica */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                              <div>
-                                <label style={lbl}>Nome *</label>
-                                <input value={opcaoForm.nome} onChange={e => setO('nome', e.target.value)} style={inp} placeholder="Ex: Padrão, Premium, 4x2m..." />
+                                {/* Formulário inline ao ativar/editar */}
+                                {(showOpcaoForm === opCat.id || editandoEsta) && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(0,180,255,0.1)' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                      <div>
+                                        <label style={lbl}>Característica</label>
+                                        <input value={opcaoForm.caracteristica} onChange={e => setO('caracteristica', e.target.value)} style={inp} placeholder="Ex: Full HD, 4x2m..." />
+                                      </div>
+                                      <div>
+                                        <label style={lbl}>Quantidade disponível</label>
+                                        <input value={opcaoForm.quantidade} onChange={e => setO('quantidade', e.target.value)} style={inp} placeholder="Ex: 3 unid." />
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                                      <div>
+                                        <label style={lbl}>Dias de preparo</label>
+                                        <input type="number" min="0" value={opcaoForm.diasPreparo} onChange={e => setO('diasPreparo', e.target.value)} style={inp} placeholder="Ex: 10" />
+                                      </div>
+                                      <div>
+                                        <label style={lbl}>Dias de montagem</label>
+                                        <input type="number" min="0" value={opcaoForm.diasMontagem} onChange={e => setO('diasMontagem', e.target.value)} style={inp} placeholder="Ex: 2" />
+                                      </div>
+                                      <div>
+                                        <label style={lbl}>Região de atendimento</label>
+                                        <select value={opcaoForm.regiao} onChange={e => setO('regiao', e.target.value)} style={{ ...inp, background: 'rgba(10,22,38,0.8)' }}>
+                                          {REGIOES.map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label style={lbl}>Observações</label>
+                                      <input value={opcaoForm.observacoes} onChange={e => setO('observacoes', e.target.value)} style={inp} placeholder="Detalhes adicionais..." />
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                      <button onClick={() => { resetOpcaoForm(); setShowOpcaoForm(false); }}
+                                        style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                                      <button onClick={handleAddOpcao}
+                                        style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                        {editandoOpcaoId ? 'Atualizar' : 'Confirmar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <label style={lbl}>Característica</label>
-                                <input value={opcaoForm.caracteristica} onChange={e => setO('caracteristica', e.target.value)} style={inp} placeholder="Ex: Full HD, Pixel pitch 3mm..." />
-                              </div>
-                            </div>
-
-                            {/* Dias + Tempo + Quantidade */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
-                              <div>
-                                <label style={lbl}>Dias de preparo</label>
-                                <input type="number" min="0" value={opcaoForm.diasPreparo} onChange={e => setO('diasPreparo', e.target.value)} style={inp} placeholder="Ex: 10" />
-                                <p style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 3 }}>Produção</p>
-                              </div>
-                              <div>
-                                <label style={lbl}>Dias de montagem</label>
-                                <input type="number" min="0" value={opcaoForm.diasMontagem} onChange={e => setO('diasMontagem', e.target.value)} style={inp} placeholder="Ex: 2" />
-                                <p style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)', marginTop: 3 }}>No local</p>
-                              </div>
-                              <div>
-                                <label style={lbl}>Tempo de execução</label>
-                                <input value={opcaoForm.tempoExecucao} onChange={e => setO('tempoExecucao', e.target.value)} style={inp} placeholder="Ex: 6 dias" />
-                              </div>
-                              <div>
-                                <label style={lbl}>Quantidade disponível</label>
-                                <input value={opcaoForm.quantidade} onChange={e => setO('quantidade', e.target.value)} style={inp} placeholder="Ex: 3 unid." />
-                              </div>
-                            </div>
-
-                            {/* Região + Ativo */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'flex-end' }}>
-                              <div>
-                                <label style={lbl}>Região de atendimento</label>
-                                <select value={opcaoForm.regiao} onChange={e => setO('regiao', e.target.value)} style={{ ...inp, background: 'rgba(10,22,38,0.8)' }}>
-                                  {REGIOES.map(r => <option key={r} value={r}>{r}</option>)}
-                                </select>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8 }}>
-                                <input type="checkbox" id="op-ativo" checked={opcaoForm.ativo !== false} onChange={e => setO('ativo', e.target.checked)} style={{ width: 15, height: 15, accentColor: '#00E5C4' }} />
-                                <label htmlFor="op-ativo" style={{ fontSize: 13, color: '#7BAFD4', cursor: 'pointer', whiteSpace: 'nowrap' }}>Opção ativa</label>
-                              </div>
-                            </div>
-
-                            {/* Observações */}
-                            <div>
-                              <label style={lbl}>Observações</label>
-                              <input value={opcaoForm.observacoes} onChange={e => setO('observacoes', e.target.value)} style={inp} placeholder="Detalhes adicionais desta opção..." />
-                            </div>
-
-                            {/* Botões */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                              <button onClick={resetOpcaoForm} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                              <button onClick={handleAddOpcao} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                {editandoOpcaoId ? 'Atualizar' : 'Adicionar'}
-                              </button>
-                            </div>
-                          </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
