@@ -83,8 +83,11 @@ export default function FinanceiroManager() {
   };
 
   const somarFornecedores = (b) => {
-    // Usa subtotal dos fornecedores (sem fee e impostos)
+    // 1. Usa subtotal ja calculado se existir
     if (b.orcamentoFinal?.subtotalFornecedores) return b.orcamentoFinal.subtotalFornecedores;
+    // 2. Soma supplierJobs confirmados (nova estrutura)
+    const jobs = supplierJobs.filter(j => j.budgetId === b.id && j.status === 'confirmed');
+    if (jobs.length > 0) return jobs.reduce((acc, j) => acc + (parseFloat(j.preco) || 0), 0);
     return 0;
   };
 

@@ -320,30 +320,10 @@ export default function ClienteChat({ userData, onClose }) {
     const comOpcoes = await Promise.all(alvos.map(async s => {
       try {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-        return await Promise.all(opSnap.docs.map(async d => {
-          const opForn = d.data();
-          let valorCatalogo = null;
-          let unidadeCatalogo = null;
-          // Enriquece com valor/unidade do catalogo (uso interno - nao exibido ao cliente)
-          if (opForn.opcaoCatalogoId && s.serviceId) {
-            try {
-              const catSnap = await getDocs(collection(db, 'services', s.serviceId, 'opcoes'));
-              const opCat = catSnap.docs.find(cd => cd.id === opForn.opcaoCatalogoId);
-              if (opCat) {
-                valorCatalogo   = opCat.data().valor   ?? null;
-                unidadeCatalogo = opCat.data().unidade ?? null;
-              }
-            } catch { /* ignora erro pontual */ }
-          }
-          return {
-            id: d.id, supplierId: s.supplierId, serviceName: s.serviceName,
-            serviceParentName: s.serviceParentName, tipoServico: s.tipoServico,
-            diasPreparo: opForn.diasPreparo || 0, diasMontagem: opForn.diasMontagem || 0,
-            ...opForn,
-            // valor e unidade vem do catalogo (uso interno no supplierJob)
-            valor:   valorCatalogo,
-            unidade: unidadeCatalogo,
-          };
+        return opSnap.docs.map(d => ({
+          id: d.id, supplierId: s.supplierId, serviceName: s.serviceName,
+          serviceParentName: s.serviceParentName, tipoServico: s.tipoServico,
+          diasPreparo: s.diasPreparo || 0, diasMontagem: s.diasMontagem || 0, ...d.data(),
         }));
       } catch { return []; }
     }));
@@ -915,8 +895,18 @@ export default function ClienteChat({ userData, onClose }) {
             serviceName: sv.serviceName,
             serviceParentName: sv.serviceParentName || '',
             tipoServico: sv.tipoServico || '',
-            preco: sv.preco || 0,
-            unidade: sv.unidade || '',
+            // Pega preco/unidade da opcao selecionada pelo cliente (nova estrutura)
+            // Fallback para sv.preco caso nao haja selecao (compatibilidade)
+            ...((() => {
+              const opcSel = (briefingJson.opcoesSelecionadas || []).find(o =>
+                (o.serviceName || '').toLowerCase() === (sv.serviceName || '').toLowerCase()
+              );
+              return {
+                preco:   opcSel?.valor   ?? sv.preco   ?? 0,
+                unidade: opcSel?.unidade ?? sv.unidade ?? '',
+                opcaoCatalogoId: opcSel?.opcaoCatalogoId || '',
+              };
+            })()),
             diasPreparo: sv.diasPreparo || 0,
             diasMontagem: sv.diasMontagem || 0,
             stage: 'proposta',
@@ -1465,6 +1455,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                         style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${opcoesCardSelecionadas[msg.id]?.id === op.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: opcoesCardSelecionadas[msg.id]?.id === op.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
                           {op.caracteristica && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>{op.caracteristica}</div>}
+                          {op.valor && <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4', marginTop: 4 }}>R$ {parseFloat(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {op.unidade || ''}</div>}
                         </div>
                       ))}
                     </div>
