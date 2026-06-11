@@ -669,48 +669,49 @@ export default function ServiceManager() {
                 )}
                 {subsDaCateg.map(sub => (
                   <div key={sub.id}>
-                    {editingSub?.id === sub.id ? (
-                      <div style={{ padding: 12, background: '#f8faff', borderBottom: '1px solid #e2e8f0' }}>
-                        <SubServiceForm parentId={selCategoria} editData={editingSub}
-                          onSave={() => { setEditingSub(null); setSelSub(sub); loadServices(); }}
-                          onCancel={() => setEditingSub(null)} />
-                      </div>
-                    ) : (
-                      <div onClick={() => { setSelSub(sub); setEditingSub(null); setShowSubForm(null); }}
-                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: selSub?.id === sub.id ? `${color}08` : 'none', borderLeft: `3px solid ${selSub?.id === sub.id ? color : 'transparent'}`, opacity: sub.active !== false ? 1 : 0.5, transition: 'all 0.15s' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: selSub?.id === sub.id ? 600 : 400, color: selSub?.id === sub.id ? color : '#1e293b' }}>{sub.name}</div>
-                            {sub.description && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{sub.description}</div>}
-                            {(sub.preAprovacao || sub.aprovacaoExecucao) && (
-                              <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
-                                {sub.preAprovacao      && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(123,175,212,0.15)', color: '#7BAFD4' }}>Pré</span>}
-                                {sub.aprovacaoExecucao && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>Exec</span>}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: 3, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => { setEditingSub(sub); setSelSub(null); setShowSubForm(null); }}
-                              style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✎</button>
-                            <button onClick={() => toggleActive(sub)}
-                              style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: `1px solid ${sub.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: sub.active !== false ? '#d97706' : '#16a34a', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                              {sub.active !== false ? '⏸' : '▶'}
-                            </button>
-                            <button onClick={async () => { if (window.confirm(`Excluir "${sub.name}"?`)) { await deleteDoc(doc(db, 'services', sub.id)); if (selSub?.id === sub.id) setSelSub(null); loadServices(); } }}
-                              style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #fecaca', background: 'none', color: '#ef4444', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✕</button>
-                          </div>
+                    <div onClick={() => { setSelSub(sub); setEditingSub(null); setShowSubForm(null); }}
+                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: selSub?.id === sub.id ? `${color}08` : editingSub?.id === sub.id ? '#f8faff' : 'none', borderLeft: `3px solid ${selSub?.id === sub.id || editingSub?.id === sub.id ? color : 'transparent'}`, opacity: sub.active !== false ? 1 : 0.5, transition: 'all 0.15s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: selSub?.id === sub.id ? 600 : 400, color: selSub?.id === sub.id ? color : '#1e293b' }}>{sub.name}</div>
+                          {sub.description && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{sub.description}</div>}
+                          {(sub.preAprovacao || sub.aprovacaoExecucao) && (
+                            <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
+                              {sub.preAprovacao      && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(123,175,212,0.15)', color: '#7BAFD4' }}>Pré</span>}
+                              {sub.aprovacaoExecucao && <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(102,126,234,0.15)', color: '#667eea' }}>Exec</span>}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => { setEditingSub(sub); setSelSub(null); setShowSubForm(null); }}
+                            style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✎</button>
+                          <button onClick={() => toggleActive(sub)}
+                            style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: `1px solid ${sub.active !== false ? '#fde68a' : '#bbf7d0'}`, background: 'none', color: sub.active !== false ? '#d97706' : '#16a34a', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            {sub.active !== false ? '⏸' : '▶'}
+                          </button>
+                          <button onClick={async () => { if (window.confirm(`Excluir "${sub.name}"?`)) { await deleteDoc(doc(db, 'services', sub.id)); if (selSub?.id === sub.id) setSelSub(null); loadServices(); } }}
+                            style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, border: '1px solid #fecaca', background: 'none', color: '#ef4444', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>✕</button>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </>
             )}
           </div>
 
-          {/* Painel direito — detalhes do sub-serviço */}
+          {/* Painel direito — detalhes do sub-serviço ou formulário de edição */}
           <div style={{ flex: 1, overflowY: 'auto', background: '#fafbff', padding: 20 }}>
-            {!selSub ? (
+            {editingSub ? (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>
+                  Editar sub-serviço
+                </div>
+                <SubServiceForm parentId={selCategoria} editData={editingSub}
+                  onSave={() => { setEditingSub(null); loadServices(); }}
+                  onCancel={() => setEditingSub(null)} color={color} />
+              </div>
+            ) : !selSub ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
                 Selecione um sub-serviço para ver os detalhes
               </div>
