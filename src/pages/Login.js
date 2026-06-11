@@ -365,7 +365,7 @@ function Login() {
                 </button>
               </form>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+              <div style={{ display: 'none' }}>
                 <a href="/cliente/cadastro" style={{ display: 'block', width: '100%', padding: '13px', borderRadius: 10, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.05)', color: '#00E5C4', fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 500, letterSpacing: 1, textAlign: 'center', textDecoration: 'none', transition: 'all 0.2s', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,196,0.1)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,229,196,0.05)'}>
