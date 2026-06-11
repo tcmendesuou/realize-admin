@@ -837,6 +837,15 @@ export default function ClienteChat({ userData, onClose }) {
           const svcName = normalize(s.serviceName);
           const parentName = normalize(s.serviceParentName);
 
+          // Bloqueia estande pelo tipo escolhido pelo cliente
+          const tipoEstande = normalize(briefingJson.tipoEstande || '');
+          const ehEstande = svcName.includes('estande') || parentName.includes('estande');
+          if (ehEstande) {
+            if (tipoEstande === 'modular' && parentName.includes('personalizado')) return false;
+            if (tipoEstande === 'personalizado' && parentName.includes('modular')) return false;
+            if (!tipoEstande) return false; // sem tipo definido, nao cria job de estande
+          }
+
           // 1. Match exato pelo nome do serviço
           if (servicosNecessarios.some(sn => normalize(sn) === svcName)) return true;
           // 2. Match exato pela categoria pai
