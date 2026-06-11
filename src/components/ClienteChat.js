@@ -1492,7 +1492,7 @@ Equipe: ${JSON.stringify(briefingJson.equipe || {})}`;
                         key={op.valor}
                         onClick={() => {
                           setFormaPagamento(op.valor);
-                          sendMessage(op.label);
+                          sendMessage(`Forma de pagamento: ${op.label}`);
                         }}
                         style={{
                           padding: '12px 16px',
