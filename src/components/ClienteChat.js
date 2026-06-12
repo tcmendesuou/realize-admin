@@ -147,39 +147,20 @@ const StepLocal = ({ onConfirm }) => {
 };
 
 const StepData = ({ onConfirm }) => {
-  const [dia, setDia]   = useState('');
-  const [mes, setMes]   = useState('');
-  const [ano, setAno]   = useState('');
-  useEffect(() => { setDia(''); setMes(''); setAno(''); }, []);
-  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const valido = dia && mes && ano && ano.length === 4;
+  const [val, setVal] = useState('');
+  useEffect(() => { setVal(''); }, []);
   const confirmar = () => {
-    const d = dia.padStart(2,'0');
-    const m = mes.padStart(2,'0');
-    const iso = `${ano}-${m}-${d}`;
-    onConfirm(iso, `${d}/${m}/${ano}`);
+    if (!val) return;
+    const [ano, mes, dia] = val.split('-');
+    onConfirm(val, `${dia}/${mes}/${ano}`);
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr', gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Dia</div>
-          <Inp type="number" value={dia} onChange={e => setDia(e.target.value)} placeholder="Ex: 15" min="1" max="31" />
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Mês</div>
-          <select value={mes} onChange={e => setMes(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(10,22,38,0.9)', color: mes ? '#E8F4FF' : 'rgba(123,175,212,0.5)', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none' }}>
-            <option value="">Mês</option>
-            {meses.map((m, i) => <option key={i} value={String(i+1).padStart(2,'0')}>{m}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Ano</div>
-          <Inp type="number" value={ano} onChange={e => setAno(e.target.value)} placeholder="2026" min="2024" />
-        </div>
+      <input type="date" value={val} onChange={e => setVal(e.target.value)}
+        style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }} />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Btn variant="solid" half disabled={!val} onClick={confirmar}>Continuar →</Btn>
       </div>
-      <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!valido} onClick={confirmar}>Continuar →</Btn></div>
     </div>
   );
 };
