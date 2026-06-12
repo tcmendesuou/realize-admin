@@ -89,7 +89,6 @@ const StepInput = ({ botText, placeholder, type, min, onConfirm, confirmLabel = 
   const [val, setVal] = useState('');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <BotMsg>{botText}</BotMsg>
       <Inp type={type} value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder} min={min}
         onKeyDown={e => { if (e.key === 'Enter' && (val || optional)) onConfirm(val); }} />
       <Btn variant="solid" disabled={!val && !optional} onClick={() => onConfirm(val)}>{confirmLabel}</Btn>
@@ -101,7 +100,6 @@ const StepTextarea = ({ botText, placeholder, onConfirm, optional = false }) => 
   const [val, setVal] = useState('');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <BotMsg>{botText}</BotMsg>
       <textarea value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder}
         style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 80, boxSizing: 'border-box', outline: 'none' }} />
       <Btn variant="solid" disabled={!val && !optional} onClick={() => onConfirm(val)}>
@@ -116,7 +114,6 @@ const StepHorario = ({ onConfirm }) => {
   const [fim, setFim]       = useState('');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <BotMsg>Qual o **horário** do evento?</BotMsg>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Início</div><Inp type="time" value={inicio} onChange={e => setInicio(e.target.value)} /></div>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Término</div><Inp type="time" value={fim} onChange={e => setFim(e.target.value)} /></div>
@@ -131,7 +128,6 @@ const StepLocal = ({ onConfirm }) => {
   const [local, setLocal]   = useState('');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <BotMsg>Qual a **cidade e o local** do evento?</BotMsg>
       <Inp value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Cidade" />
       <Inp value={local}  onChange={e => setLocal(e.target.value)}  placeholder="Local / endereço (se já definido)" />
       <Btn variant="solid" disabled={!cidade} onClick={() => onConfirm(cidade, local)}>Continuar →</Btn>
@@ -176,13 +172,17 @@ const StepData = ({ onConfirm }) => {
   );
 };
 
-const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
+const StepEquipeDetalhes = ({ equipe, onConfirm, addBot }) => {
   const [idx, setIdx]     = useState(0);
   const [qtd, setQtd]     = useState('');
   const [horas, setHoras] = useState('');
   const [dias, setDias]   = useState('');
   const [obs, setObs]     = useState('');
   const [detalhes, setDetalhes] = useState({});
+
+  useEffect(() => {
+    if (equipe[idx]) addBot(`Detalhes para **${equipe[idx].serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}:`);
+  }, [idx]);
 
   const servAtual = equipe[idx];
   if (!servAtual) { onConfirm(detalhes); return null; }
@@ -200,7 +200,6 @@ const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <BotMsg>{`Detalhes para **${servAtual.serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}:`}</BotMsg>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Quantos?</div><Inp type="number" value={qtd} onChange={e => setQtd(e.target.value)} placeholder="Ex: 2" min="1" /></div>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Horas/dia</div><Inp type="number" value={horas} onChange={e => setHoras(e.target.value)} placeholder="Ex: 8" min="1" /></div>
@@ -214,9 +213,14 @@ const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
   );
 };
 
-const StepOpcoes = ({ servicos, tipo, onConfirm }) => {
+const StepOpcoes = ({ servicos, tipo, onConfirm, addBot }) => {
   const [idx, setIdx]       = useState(0);
   const [selecionados, setSel] = useState([]);
+
+  useEffect(() => {
+    if (servicos[idx]) addBot(`Opções disponíveis para **${servicos[idx].serviceName}**${servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:`);
+  }, [idx]);
+
   const servAtual = servicos[idx];
   if (!servAtual) { onConfirm(selecionados); return null; }
 
@@ -260,7 +264,6 @@ const StepMultiSelect = ({ botText, servicos, loading, onConfirm, onSkip }) => {
   const [sel, setSel] = useState({});
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <BotMsg>{botText}</BotMsg>
       {loading ? <div style={{ color: '#7BAFD4', fontSize: 12, textAlign: 'center', padding: 12 }}>Carregando...</div>
         : servicos.map(s => <CheckBtn key={s.id} checked={!!sel[s.id]} onClick={() => setSel(p => ({ ...p, [s.id]: !p[s.id] }))}>{s.serviceName}</CheckBtn>)}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -598,7 +601,6 @@ export default function ClienteChat({ userData, onClose }) {
   const renderStep = () => {
     if (step === 'stand_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>{`Olá, **${userName}**! 😊 Sou a Realize, assistente de eventos da Realize Hub.\n\nVou te ajudar a criar a proposta do seu evento. Seu evento precisa de **Stand**?`}</BotMsg>
         <Btn onClick={() => { addUser('Sim'); set('temStand', true); ir('stand_tipo'); }}>Sim</Btn>
         <Btn onClick={() => { addUser('Não'); set('temStand', false); ir('evento_empresa', 'Sem problemas! Vamos para os dados do evento.'); }}>Não</Btn>
       </div>
@@ -606,7 +608,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_tipo') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Prefere um Stand **Modular** *(pronto e padronizado)* ou **Personalizado** *(exclusivo, criado do zero)*?</BotMsg>
         <Btn onClick={() => { addUser('Modular'); set('tipoEstande', 'modular'); ir('stand_modelos'); }}>Modular</Btn>
         <Btn onClick={() => { addUser('Personalizado'); set('tipoEstande', 'personalizado'); ir('stand_personalizado_sabe'); }}>Personalizado</Btn>
       </div>
@@ -614,7 +615,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_modelos') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <BotMsg>Confira os modelos disponíveis e escolha o que combina com seu evento:</BotMsg>
         {modelosEspeciais.length === 0
           ? <div style={{ fontSize: 12, color: '#7BAFD4', textAlign: 'center', padding: 16 }}>Nenhum modelo disponível no momento.</div>
           : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -664,7 +664,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_personalizado_sabe') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Você já sabe como gostaria do seu stand?</BotMsg>
         <Btn onClick={() => { addUser('Sim, já tenho ideia'); ir('stand_personalizado_descricao'); }}>Sim, já tenho ideia</Btn>
         <Btn onClick={() => { addUser('Não, preciso de ajuda'); set('standDescricao', 'Cliente solicitou atendimento para desenvolver stand personalizado.'); ir('stand_area', 'Sem problemas! Um atendente entrará em contato para ajudá-lo. Vamos continuar com os dados.'); }}>Não, preciso de ajuda</Btn>
       </div>
@@ -682,7 +681,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_personalizado_upload') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <BotMsg>Quer enviar imagens de referência? *(opcional)*</BotMsg>
         <input ref={standInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => handleUpload(e.target.files, 'standImagensUrls', setUploadingStand)} />
         <button onClick={() => standInputRef.current.click()} disabled={uploadingStand}
           style={{ padding: '10px 14px', borderRadius: 10, border: '1px dashed rgba(0,180,255,0.3)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
@@ -711,7 +709,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_restricao') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Tem alguma **restrição de acesso** no local? *(altura de caminhões, horário, etc.)*</BotMsg>
         <Btn onClick={() => ir('stand_restricao_desc')}>Sim, tem restrição</Btn>
         <Btn onClick={() => { addUser('Sem restrições'); set('restricoes', ''); ir('stand_identidade'); }}>Não, sem restrições</Btn>
       </div>
@@ -724,7 +721,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_identidade') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Já tem **identidade visual** definida para o evento?</BotMsg>
         <Btn onClick={() => { addUser('Sim, já tenho'); set('identidadeVisual', true); ir('stand_identidade_upload'); }}>Sim, já tenho</Btn>
         <Btn onClick={() => { addUser('Não ainda'); set('identidadeVisual', false); ir('evento_empresa'); }}>Não ainda</Btn>
       </div>
@@ -732,7 +728,6 @@ export default function ClienteChat({ userData, onClose }) {
 
     if (step === 'stand_identidade_upload') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <BotMsg>Envie as artes/arquivos da identidade visual:</BotMsg>
         <input ref={identInputRef} type="file" accept="image/*,.pdf,.ai,.eps" multiple style={{ display: 'none' }} onChange={e => handleUpload(e.target.files, 'identidadeImagensUrls', setUploadingIdent)} />
         <button onClick={() => identInputRef.current.click()} disabled={uploadingIdent}
           style={{ padding: '12px 14px', borderRadius: 10, border: '1px dashed rgba(0,229,196,0.3)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
@@ -754,7 +749,6 @@ export default function ClienteChat({ userData, onClose }) {
       const tipos = ['Feira / Exposição', 'Congresso / Conferência', 'Lançamento de Produto', 'Evento Corporativo', 'Show / Entretenimento', 'Outro'];
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <BotMsg>Qual o **tipo do evento**?</BotMsg>
           {tipos.map(t => <Btn key={t} onClick={() => { set('tipoEvento', t); addUser(t); ir('evento_nome'); }}>{t}</Btn>)}
         </div>
       );
@@ -789,7 +783,6 @@ export default function ClienteChat({ userData, onClose }) {
     // ── PRODUTOR ────────────────────────────────────────────────────────────
     if (step === 'produtor_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Gostaria de um **Produtor de Eventos** dedicado para coordenar tudo no dia?</BotMsg>
         <Btn onClick={() => { addUser('Sim'); set('temProdutor', true); ir('estrutura_pergunta', 'Ótimo! Um Produtor Executivo será alocado.'); }}>Sim</Btn>
         <Btn onClick={() => { addUser('Não'); set('temProdutor', false); ir('estrutura_pergunta'); }}>Não</Btn>
       </div>
@@ -798,7 +791,6 @@ export default function ClienteChat({ userData, onClose }) {
     // ── ESTRUTURA ───────────────────────────────────────────────────────────
     if (step === 'estrutura_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Vai precisar de alguma **estrutura física**? *(palco, tendas, backdrop, iluminação...)*</BotMsg>
         <Btn onClick={async () => { addUser('Sim'); await carregarTipo('estrutura', setListaEstrutura); ir('estrutura_selecao'); }}>Sim</Btn>
         <Btn onClick={() => { addUser('Não'); ir('equipe_pergunta'); }}>Não</Btn>
       </div>
@@ -811,14 +803,13 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     if (step === 'estrutura_opcoes') return (
-      <StepOpcoes servicos={listaEstrutura} tipo="estrutura"
+      <StepOpcoes servicos={listaEstrutura} tipo="estrutura" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
         onConfirm={sels => { set('estruturaSelecionada', sels); ir('equipe_pergunta'); }} />
     );
 
     // ── EQUIPE ──────────────────────────────────────────────────────────────
     if (step === 'equipe_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Vai precisar de algum **profissional** no evento? *(recepcionista, segurança, DJ...)*</BotMsg>
         <Btn onClick={async () => { addUser('Sim'); await carregarTipo('operacao', setListaEquipe); ir('equipe_selecao'); }}>Sim</Btn>
         <Btn onClick={() => { addUser('Não'); ir('gastro_pergunta'); }}>Não</Btn>
       </div>
@@ -831,19 +822,18 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     if (step === 'equipe_opcoes') return (
-      <StepOpcoes servicos={listaEquipe} tipo="operacao"
+      <StepOpcoes servicos={listaEquipe} tipo="operacao" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
         onConfirm={sels => { set('equipeSelecionada', sels); ir('equipe_detalhes'); }} />
     );
 
     if (step === 'equipe_detalhes') return (
-      <StepEquipeDetalhes equipe={dados.equipeSelecionada}
+      <StepEquipeDetalhes equipe={dados.equipeSelecionada} addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
         onConfirm={detalhes => { set('equipeDetalhes', detalhes); ir('gastro_pergunta'); }} />
     );
 
     // ── GASTRONOMIA ─────────────────────────────────────────────────────────
     if (step === 'gastro_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Vai precisar de **alimentação ou bebidas**?</BotMsg>
         <Btn onClick={async () => { addUser('Sim'); await carregarTipo('gastronomia', setListaGastro); ir('gastro_selecao'); }}>Sim</Btn>
         <Btn onClick={() => { addUser('Não'); ir('servicos_pergunta'); }}>Não</Btn>
       </div>
@@ -856,14 +846,13 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     if (step === 'gastro_opcoes') return (
-      <StepOpcoes servicos={listaGastro} tipo="gastronomia"
+      <StepOpcoes servicos={listaGastro} tipo="gastronomia" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
         onConfirm={sels => { set('gastronomeSelecionada', sels); ir('servicos_pergunta'); }} />
     );
 
     // ── SERVIÇOS / ENTRETENIMENTO ────────────────────────────────────────────
     if (step === 'servicos_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <BotMsg>Vai precisar de algum **equipamento ou atração**? *(som, iluminação, DJ, fotografia...)*</BotMsg>
         <Btn onClick={async () => { addUser('Sim'); await carregarTipo('entretenimento', setListaServicos); ir('servicos_selecao'); }}>Sim</Btn>
         <Btn onClick={() => { addUser('Não'); ir('info_extra'); }}>Não</Btn>
       </div>
@@ -876,7 +865,7 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     if (step === 'servicos_opcoes') return (
-      <StepOpcoes servicos={listaServicos} tipo="entretenimento"
+      <StepOpcoes servicos={listaServicos} tipo="entretenimento" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
         onConfirm={sels => { set('servicosSelecionados', sels); ir('info_extra'); }} />
     );
 
@@ -896,7 +885,6 @@ export default function ClienteChat({ userData, onClose }) {
       ];
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <BotMsg>Última etapa! Como prefere a **forma de pagamento**?</BotMsg>
           {opcoes.map(op => <Btn key={op.valor} onClick={() => { set('formaPagamento', op.valor); addUser(op.label); ir('revisao'); }}>{op.label}</Btn>)}
         </div>
       );
@@ -908,7 +896,6 @@ export default function ClienteChat({ userData, onClose }) {
       const labelPag = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <BotMsg>Perfeito! Aqui está o resumo do seu pedido. Confirma?</BotMsg>
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {dados.tipoEstande && <Row label="Stand" value={dados.tipoEstande === 'modular' ? `Modular — ${modeloSelecionado?.nome || ''}` : `Personalizado`} />}
             <Row label="Empresa" value={dados.nomeEmpresa} />
