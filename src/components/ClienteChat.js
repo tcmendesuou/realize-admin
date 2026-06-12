@@ -111,20 +111,28 @@ const StepTextarea = ({ botText, placeholder, onConfirm, optional = false }) => 
   );
 };
 
+const HORARIOS = ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];
+
 const StepHorario = ({ onConfirm }) => {
   const [inicio, setInicio] = useState('');
   const [fim, setFim]       = useState('');
-  const timeStyle = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' };
+  const selStyle = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(10,22,38,0.95)', color: '#E8F4FF', fontSize: 14, fontFamily: 'Outfit, sans-serif', outline: 'none', cursor: 'pointer' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Início</div>
-          <input type="time" value={inicio} onChange={e => setInicio(e.target.value)} style={timeStyle} />
+          <select value={inicio} onChange={e => setInicio(e.target.value)} style={selStyle}>
+            <option value="">--</option>
+            {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
+          </select>
         </div>
         <div>
           <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Término</div>
-          <input type="time" value={fim} onChange={e => setFim(e.target.value)} style={timeStyle} />
+          <select value={fim} onChange={e => setFim(e.target.value)} style={selStyle}>
+            <option value="">--</option>
+            {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
+          </select>
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center' }}>
