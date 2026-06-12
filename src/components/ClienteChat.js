@@ -730,7 +730,7 @@ export default function ClienteChat({ userData, onClose }) {
         <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!modeloSelecionado} onClick={() => { addUser(`Modelo: ${modeloSelecionado.nome}`); ir('stand_area'); }}>
           {modeloSelecionado ? `Confirmar: ${modeloSelecionado.nome} →` : 'Selecione um modelo'}
         </Btn></div>
-
+      </div>
     );
 
     if (step === 'stand_personalizado_sabe') return (
