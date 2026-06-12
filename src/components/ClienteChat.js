@@ -191,10 +191,15 @@ const StepEquipeDetalhes = ({ equipe, onConfirm, addBot }) => {
   const [dias, setDias]   = useState('');
   const [obs, setObs]     = useState('');
   const [detalhes, setDetalhes] = useState({});
+  const jaAdicionouRef    = useRef({});
 
   useEffect(() => {
-    if (equipe[idx]) addBot(`Detalhes para **${equipe[idx].serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}:`);
-  }, [idx]);
+    const serv = equipe && equipe[idx];
+    if (serv && serv.serviceName && !jaAdicionouRef.current[idx]) {
+      jaAdicionouRef.current[idx] = true;
+      addBot(`Detalhes para **${serv.serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}:`);
+    }
+  }, [idx, equipe]);
 
   const servAtual = equipe[idx];
   if (!servAtual) { onConfirm(detalhes); return null; }
@@ -228,10 +233,15 @@ const StepEquipeDetalhes = ({ equipe, onConfirm, addBot }) => {
 const StepOpcoes = ({ servicos, tipo, onConfirm, addBot }) => {
   const [idx, setIdx]       = useState(0);
   const [selecionados, setSel] = useState([]);
+  const jaAdicionouRef      = useRef({});
 
   useEffect(() => {
-    if (servicos[idx]) addBot(`Opções disponíveis para **${servicos[idx].serviceName}**${servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:`);
-  }, [idx]);
+    const serv = servicos && servicos[idx];
+    if (serv && serv.serviceName && !jaAdicionouRef.current[idx]) {
+      jaAdicionouRef.current[idx] = true;
+      addBot(`Opções disponíveis para **${serv.serviceName}**${servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:`);
+    }
+  }, [idx, servicos]);
 
   const servAtual = servicos[idx];
   if (!servAtual) { onConfirm(selecionados); return null; }
