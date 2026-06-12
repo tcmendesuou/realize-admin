@@ -290,6 +290,33 @@ const StepMultiSelect = ({ botText, servicos, loading, onConfirm, onSkip }) => {
   );
 };
 
+const StepDias = ({ onConfirm, dataInicio }) => {
+  const [dias, setDias] = useState('1');
+  const confirmar = () => {
+    if (!dataInicio) return;
+    const d = new Date(dataInicio + 'T12:00:00');
+    d.setDate(d.getDate() + parseInt(dias) - 1);
+    const iso = d.toISOString().split('T')[0];
+    onConfirm(iso, parseInt(dias) === 1 ? '1 dia' : `${dias} dias`);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {['1','2','3','4','5','6','7'].map(d => (
+          <button key={d} onClick={() => setDias(d)}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${dias === d ? 'rgba(0,229,196,0.5)' : 'rgba(0,180,255,0.2)'}`, background: dias === d ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)', color: dias === d ? '#00E5C4' : '#7BAFD4', fontSize: 13, fontWeight: dias === d ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
+            {d}
+          </button>
+        ))}
+      </div>
+      <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(123,175,212,0.5)', fontFamily: 'Outfit, sans-serif' }}>dias</div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Btn variant="solid" half onClick={confirmar}>Continuar →</Btn>
+      </div>
+    </div>
+  );
+};
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function ClienteChat({ userData, onClose }) {
   const userName      = userData?.name || userData?.displayName || 'Cliente';
@@ -753,14 +780,13 @@ export default function ClienteChat({ userData, onClose }) {
         onConfirm={val => { set('nomeEmpresa', val); addUser(val || 'Sem empresa'); ir('evento_tipo'); }} />
     );
 
-    if (step === 'evento_tipo') {
-      const tipos = ['Feira / Exposição', 'Congresso / Conferência', 'Lançamento de Produto', 'Evento Corporativo', 'Show / Entretenimento', 'Outro'];
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {tipos.map(t => <Btn key={t} onClick={() => { set('tipoEvento', t); addUser(t); ir('evento_nome'); }}>{t}</Btn>)}
-        </div>
-      );
-    }
+    if (step === 'evento_tipo') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {['Feira / Exposição', 'Congresso / Conferência', 'Lançamento de Produto', 'Evento Corporativo', 'Show / Entretenimento', 'Outro'].map(t => (
+          <Btn key={t} onClick={() => { set('tipoEvento', t); addUser(t); ir('evento_nome'); }}>{t}</Btn>
+        ))}
+      </div>
+    );
 
     if (step === 'evento_nome') return (
       <StepInput botText="O evento já tem um **nome** definido?" placeholder="Nome do evento (ou deixe em branco)" optional
@@ -771,33 +797,9 @@ export default function ClienteChat({ userData, onClose }) {
       <StepData onConfirm={(val, label) => { set('dataInicio', val); addUser(label); ir('evento_data_fim'); }} />
     );
 
-    if (step === 'evento_data_fim') {
-      const [dias, setDias] = useState('1');
-      const calcDataFim = () => {
-        if (!dados.dataInicio || !dias) return;
-        const d = new Date(dados.dataInicio + 'T12:00:00');
-        d.setDate(d.getDate() + parseInt(dias) - 1);
-        const iso = d.toISOString().split('T')[0];
-        const label = parseInt(dias) === 1 ? '1 dia' : `${dias} dias`;
-        set('dataFim', iso); addUser(label); ir('evento_horario');
-      };
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            {['1','2','3','4','5','6','7'].map(d => (
-              <button key={d} onClick={() => setDias(d)}
-                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${dias === d ? 'rgba(0,229,196,0.5)' : 'rgba(0,180,255,0.2)'}`, background: dias === d ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)', color: dias === d ? '#00E5C4' : '#7BAFD4', fontSize: 13, fontWeight: dias === d ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
-                {d}
-              </button>
-            ))}
-          </div>
-          <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(123,175,212,0.5)', fontFamily: 'Outfit, sans-serif' }}>dias</div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Btn variant="solid" half onClick={calcDataFim}>Continuar →</Btn>
-          </div>
-        </div>
-      );
-    }
+    if (step === 'evento_data_fim') return (
+      <StepDias onConfirm={(iso, label) => { set('dataFim', iso); addUser(label); ir('evento_horario'); }} dataInicio={dados.dataInicio} />
+    );
 
     if (step === 'evento_horario') return (
       <StepHorario onConfirm={(inicio, fim) => { set('horarioInicio', inicio); set('horarioFim', fim); addUser(`${inicio} às ${fim}`); ir('evento_local'); }} />
@@ -909,23 +911,20 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     // ── PAGAMENTO ───────────────────────────────────────────────────────────
-    if (step === 'pagamento') {
-      const opcoes = [
-        { label: '50% na entrada + 50% no final do evento', valor: '50_50' },
-        { label: '30, 60 e 90 dias',                        valor: '30_60_90' },
-        { label: 'À vista',                                  valor: 'a_vista' },
-      ];
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {opcoes.map(op => <Btn key={op.valor} onClick={() => { set('formaPagamento', op.valor); addUser(op.label); ir('revisao'); }}>{op.label}</Btn>)}
-        </div>
-      );
-    }
+    if (step === 'pagamento') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[
+          { label: '50% na entrada + 50% no final do evento', valor: '50_50' },
+          { label: '30, 60 e 90 dias', valor: '30_60_90' },
+          { label: 'À vista', valor: 'a_vista' },
+        ].map(op => <Btn key={op.valor} onClick={() => { set('formaPagamento', op.valor); addUser(op.label); ir('revisao'); }}>{op.label}</Btn>)}
+      </div>
+    );
 
     // ── REVISÃO ─────────────────────────────────────────────────────────────
-    if (step === 'revisao') {
-      const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
-      const labelPag = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
+    if (step === 'revisao') { /* eslint-disable-next-line */
+      const _todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
+      const _labelPag = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -937,9 +936,9 @@ export default function ClienteChat({ userData, onClose }) {
             <Row label="Local"   value={`${dados.cidade}${dados.local ? ` — ${dados.local}` : ''}`} />
             <Row label="Pessoas" value={`${dados.visitantesPorDia}/dia`} />
             {dados.temProdutor && <Row label="Produtor" value="Sim" />}
-            {todas.length > 0 && <Row label="Serviços" value={todas.map(s => `${s.serviceName}${s.opcaoNome ? ` (${s.opcaoNome})` : ''}`).join(' · ')} />}
+            {_todas.length > 0 && <Row label="Serviços" value={_todas.map(s => `${s.serviceName}${s.opcaoNome ? ` (${s.opcaoNome})` : ''}`).join(' · ')} />}
             {dados.infoExtra && <Row label="Obs" value={dados.infoExtra} />}
-            <Row label="Pagamento" value={labelPag[dados.formaPagamento] || dados.formaPagamento} />
+            <Row label="Pagamento" value={_labelPag[dados.formaPagamento] || dados.formaPagamento} />
           </div>
           <Btn variant="solid" disabled={submitting} onClick={handleConfirm}>
             {submitting ? 'Enviando...' : 'Confirmar e Enviar Proposta →'}
