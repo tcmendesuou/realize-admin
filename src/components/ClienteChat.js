@@ -40,7 +40,7 @@ const UserMsg = ({ children }) => (
   </div>
 );
 
-const Btn = ({ onClick, children, variant = 'outline', disabled }) => (
+const Btn = ({ onClick, children, variant = 'outline', disabled, half = false }) => (
   <button onClick={onClick} disabled={disabled} style={{
     padding: '10px 16px', borderRadius: 10,
     border: variant === 'solid' ? 'none' : '1px solid rgba(0,180,255,0.25)',
@@ -48,7 +48,8 @@ const Btn = ({ onClick, children, variant = 'outline', disabled }) => (
     color: variant === 'solid' ? 'white' : '#7BAFD4',
     fontSize: 13, fontWeight: variant === 'solid' ? 700 : 500,
     cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif',
-    width: '100%', textAlign: 'left', opacity: disabled ? 0.5 : 1, transition: 'all 0.15s',
+    width: half ? '50%' : '100%', textAlign: half ? 'center' : 'left',
+    opacity: disabled ? 0.5 : 1, transition: 'all 0.15s', display: 'block',
   }}>{children}</button>
 );
 
@@ -87,6 +88,8 @@ const Row = ({ label, value }) => value ? (
 // ── Step components (isolados para evitar useState em render) ─────────────────
 const StepInput = ({ botText, placeholder, type, min, onConfirm, confirmLabel = 'Continuar →', optional = false }) => {
   const [val, setVal] = useState('');
+  // Garante que o input começa vazio a cada montagem
+  useEffect(() => { setVal(''); }, []);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Inp type={type} value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder} min={min}
@@ -98,6 +101,7 @@ const StepInput = ({ botText, placeholder, type, min, onConfirm, confirmLabel = 
 
 const StepTextarea = ({ botText, placeholder, onConfirm, optional = false }) => {
   const [val, setVal] = useState('');
+  useEffect(() => { setVal(''); }, []);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <textarea value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder}
@@ -139,6 +143,7 @@ const StepData = ({ onConfirm }) => {
   const [dia, setDia]   = useState('');
   const [mes, setMes]   = useState('');
   const [ano, setAno]   = useState('');
+  useEffect(() => { setDia(''); setMes(''); setAno(''); }, []);
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const valido = dia && mes && ano && ano.length === 4;
   const confirmar = () => {
@@ -271,7 +276,7 @@ const StepMultiSelect = ({ botText, servicos, loading, onConfirm, onSkip }) => {
           const escolhidos = servicos.filter(s => sel[s.id]);
           if (escolhidos.length > 0) onConfirm(escolhidos);
           else onSkip();
-        }} style={{ width: '50%' }}>Confirmar →</Btn>
+        }} half>Confirmar →</Btn>
       </div>
       <Btn onClick={onSkip}>Não preciso</Btn>
     </div>
@@ -939,7 +944,9 @@ export default function ClienteChat({ userData, onClose }) {
         {historico.map((msg, i) =>
           msg.role === 'bot' ? <BotMsg key={i}>{msg.text}</BotMsg> : <UserMsg key={i}>{msg.text}</UserMsg>
         )}
-        {renderStep()}
+        <div key={step}>
+          {renderStep()}
+        </div>
         <div ref={bottomRef} />
       </div>
     </Overlay>
