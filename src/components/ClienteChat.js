@@ -290,6 +290,38 @@ const StepMultiSelect = ({ botText, servicos, loading, onConfirm, onSkip }) => {
   );
 };
 
+const LABEL_PAG = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
+
+const StepRevisao = ({ dados, modeloSelecionado, submitting, onConfirm, onReset }) => {
+  const todas = [
+    ...dados.estruturaSelecionada,
+    ...dados.equipeSelecionada,
+    ...dados.gastronomeSelecionada,
+    ...dados.servicosSelecionados,
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {dados.tipoEstande && <Row label="Stand" value={dados.tipoEstande === 'modular' ? `Modular — ${modeloSelecionado?.nome || ''}` : 'Personalizado'} />}
+        <Row label="Empresa"   value={dados.nomeEmpresa} />
+        <Row label="Evento"    value={`${dados.tipoEvento}${dados.nomeEvento ? ` — ${dados.nomeEvento}` : ''}`} />
+        <Row label="Data"      value={`${dados.dataInicio ? new Date(dados.dataInicio + 'T12:00:00').toLocaleDateString('pt-BR') : ''} → ${dados.dataFim ? new Date(dados.dataFim + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`} />
+        <Row label="Horário"   value={`${dados.horarioInicio} às ${dados.horarioFim}`} />
+        <Row label="Local"     value={`${dados.cidade}${dados.local ? ` — ${dados.local}` : ''}`} />
+        <Row label="Pessoas"   value={`${dados.visitantesPorDia}/dia`} />
+        {dados.temProdutor && <Row label="Produtor" value="Sim" />}
+        {todas.length > 0 && <Row label="Serviços" value={todas.map(s => `${s.serviceName}${s.opcaoNome ? ` (${s.opcaoNome})` : ''}`).join(' · ')} />}
+        {dados.infoExtra && <Row label="Obs" value={dados.infoExtra} />}
+        <Row label="Pagamento" value={LABEL_PAG[dados.formaPagamento] || dados.formaPagamento} />
+      </div>
+      <Btn variant="solid" disabled={submitting} onClick={onConfirm}>
+        {submitting ? 'Enviando...' : 'Confirmar e Enviar Proposta →'}
+      </Btn>
+      <Btn onClick={onReset}>Recomeçar do início</Btn>
+    </div>
+  );
+};
+
 const StepDias = ({ onConfirm, dataInicio }) => {
   const [dias, setDias] = useState('1');
   const confirmar = () => {
@@ -922,31 +954,15 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     // ── REVISÃO ─────────────────────────────────────────────────────────────
-    if (step === 'revisao') { /* eslint-disable-next-line */
-      const _todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
-      const _labelPag = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {dados.tipoEstande && <Row label="Stand" value={dados.tipoEstande === 'modular' ? `Modular — ${modeloSelecionado?.nome || ''}` : `Personalizado`} />}
-            <Row label="Empresa" value={dados.nomeEmpresa} />
-            <Row label="Evento"  value={`${dados.tipoEvento}${dados.nomeEvento ? ` — ${dados.nomeEvento}` : ''}`} />
-            <Row label="Data"    value={`${dados.dataInicio ? new Date(dados.dataInicio + 'T12:00:00').toLocaleDateString('pt-BR') : ''} → ${dados.dataFim ? new Date(dados.dataFim + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`} />
-            <Row label="Horário" value={`${dados.horarioInicio} às ${dados.horarioFim}`} />
-            <Row label="Local"   value={`${dados.cidade}${dados.local ? ` — ${dados.local}` : ''}`} />
-            <Row label="Pessoas" value={`${dados.visitantesPorDia}/dia`} />
-            {dados.temProdutor && <Row label="Produtor" value="Sim" />}
-            {_todas.length > 0 && <Row label="Serviços" value={_todas.map(s => `${s.serviceName}${s.opcaoNome ? ` (${s.opcaoNome})` : ''}`).join(' · ')} />}
-            {dados.infoExtra && <Row label="Obs" value={dados.infoExtra} />}
-            <Row label="Pagamento" value={_labelPag[dados.formaPagamento] || dados.formaPagamento} />
-          </div>
-          <Btn variant="solid" disabled={submitting} onClick={handleConfirm}>
-            {submitting ? 'Enviando...' : 'Confirmar e Enviar Proposta →'}
-          </Btn>
-          <Btn onClick={() => ir('stand_pergunta')}>Recomeçar do início</Btn>
-        </div>
-      );
-    }
+    if (step === 'revisao') return (
+      <StepRevisao
+        dados={dados}
+        modeloSelecionado={modeloSelecionado}
+        submitting={submitting}
+        onConfirm={handleConfirm}
+        onReset={() => ir('stand_pergunta')}
+      />
+    );
 
     // ── ENVIADO ─────────────────────────────────────────────────────────────
     if (step === 'sent') return (
