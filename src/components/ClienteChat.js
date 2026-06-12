@@ -94,7 +94,7 @@ const StepInput = ({ botText, placeholder, type, min, onConfirm, confirmLabel = 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Inp type={type} value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder} min={min}
         onKeyDown={e => { if (e.key === 'Enter' && (val || optional)) onConfirm(val); }} />
-      <Btn variant="solid" disabled={!val && !optional} onClick={() => onConfirm(val)}>{confirmLabel}</Btn>
+      <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!val && !optional} onClick={() => onConfirm(val)}>{confirmLabel}</Btn></div>
     </div>
   );
 };
@@ -106,9 +106,7 @@ const StepTextarea = ({ botText, placeholder, onConfirm, optional = false }) => 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <textarea value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder}
         style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 80, boxSizing: 'border-box', outline: 'none' }} />
-      <Btn variant="solid" disabled={!val && !optional} onClick={() => onConfirm(val)}>
-        {optional && !val ? 'Nada a acrescentar →' : 'Continuar →'}
-      </Btn>
+      <div style={{ display:'flex', justifyContent:'center' }}><Btn variant="solid" half disabled={!val && !optional} onClick={() => onConfirm(val)}>{optional && !val ? 'Nada a acrescentar →' : 'Continuar →'}</Btn></div>
     </div>
   );
 };
@@ -116,13 +114,22 @@ const StepTextarea = ({ botText, placeholder, onConfirm, optional = false }) => 
 const StepHorario = ({ onConfirm }) => {
   const [inicio, setInicio] = useState('');
   const [fim, setFim]       = useState('');
+  const timeStyle = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' };
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Início</div><Inp type="time" value={inicio} onChange={e => setInicio(e.target.value)} /></div>
-        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Término</div><Inp type="time" value={fim} onChange={e => setFim(e.target.value)} /></div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Início</div>
+          <input type="time" value={inicio} onChange={e => setInicio(e.target.value)} style={timeStyle} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Término</div>
+          <input type="time" value={fim} onChange={e => setFim(e.target.value)} style={timeStyle} />
+        </div>
       </div>
-      <Btn variant="solid" disabled={!inicio || !fim} onClick={() => onConfirm(inicio, fim)}>Continuar →</Btn>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Btn variant="solid" half disabled={!inicio || !fim} onClick={() => onConfirm(inicio, fim)}>Continuar →</Btn>
+      </div>
     </div>
   );
 };
@@ -134,7 +141,7 @@ const StepLocal = ({ onConfirm }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Inp value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Cidade" />
       <Inp value={local}  onChange={e => setLocal(e.target.value)}  placeholder="Local / endereço (se já definido)" />
-      <Btn variant="solid" disabled={!cidade} onClick={() => onConfirm(cidade, local)}>Continuar →</Btn>
+      <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!cidade} onClick={() => onConfirm(cidade, local)}>Continuar →</Btn></div>
     </div>
   );
 };
@@ -172,7 +179,7 @@ const StepData = ({ onConfirm }) => {
           <Inp type="number" value={ano} onChange={e => setAno(e.target.value)} placeholder="2026" min="2024" />
         </div>
       </div>
-      <Btn variant="solid" disabled={!valido} onClick={confirmar}>Continuar →</Btn>
+      <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!valido} onClick={confirmar}>Continuar →</Btn></div>
     </div>
   );
 };
@@ -339,7 +346,7 @@ export default function ClienteChat({ userData, onClose }) {
     evento_tipo:                'Qual o **tipo do evento**?',
     evento_nome:                'O evento já tem um **nome** definido?',
     evento_data_inicio:         'Qual a **data de início** do evento?',
-    evento_data_fim:            'Qual a **data de término**? *(se for 1 dia, selecione a mesma data)*',
+    evento_data_fim:            'Quantos **dias** vai durar o evento?',
     evento_horario:             'Qual o **horário** do evento?',
     evento_local:               'Qual a **cidade e o local** do evento?',
     evento_visitantes:          '**Quantas pessoas** participarão por dia?',
@@ -661,10 +668,10 @@ export default function ClienteChat({ userData, onClose }) {
                 );
               })}
             </div>}
-        <Btn variant="solid" disabled={!modeloSelecionado} onClick={() => { addUser(`Modelo: ${modeloSelecionado.nome}`); ir('stand_area'); }}>
+        <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!modeloSelecionado} onClick={() => { addUser(`Modelo: ${modeloSelecionado.nome}`); ir('stand_area'); }}>
           {modeloSelecionado ? `Confirmar: ${modeloSelecionado.nome} →` : 'Selecione um modelo'}
-        </Btn>
-      </div>
+        </Btn></div>
+
     );
 
     if (step === 'stand_personalizado_sabe') return (
@@ -691,9 +698,7 @@ export default function ClienteChat({ userData, onClose }) {
           style={{ padding: '10px 14px', borderRadius: 10, border: '1px dashed rgba(0,180,255,0.3)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
           {uploadingStand ? 'Enviando...' : dados.standImagensUrls.length > 0 ? `${dados.standImagensUrls.length} imagem(ns) — Adicionar mais` : '+ Enviar imagens de referência'}
         </button>
-        <Btn variant="solid" onClick={() => ir('stand_area')}>
-          {dados.standImagensUrls.length > 0 ? 'Continuar →' : 'Pular →'}
-        </Btn>
+        <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half onClick={() => ir('stand_area')}>{dados.standImagensUrls.length > 0 ? 'Continuar →' : 'Pular →'}</Btn></div>
       </div>
     );
 
@@ -738,9 +743,7 @@ export default function ClienteChat({ userData, onClose }) {
           style={{ padding: '12px 14px', borderRadius: 10, border: '1px dashed rgba(0,229,196,0.3)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
           {uploadingIdent ? 'Enviando...' : dados.identidadeImagensUrls.length > 0 ? `${dados.identidadeImagensUrls.length} arquivo(s) — Adicionar mais` : '+ Selecionar arquivos'}
         </button>
-        <Btn variant="solid" onClick={() => ir('evento_empresa', 'Artes recebidas! Agora os dados do evento.')}>
-          {dados.identidadeImagensUrls.length > 0 ? 'Continuar →' : 'Pular por enquanto →'}
-        </Btn>
+        <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half onClick={() => ir('evento_empresa', 'Artes recebidas! Agora os dados do evento.')}>{dados.identidadeImagensUrls.length > 0 ? 'Continuar →' : 'Pular por enquanto →'}</Btn></div>
       </div>
     );
 
@@ -768,9 +771,33 @@ export default function ClienteChat({ userData, onClose }) {
       <StepData onConfirm={(val, label) => { set('dataInicio', val); addUser(label); ir('evento_data_fim'); }} />
     );
 
-    if (step === 'evento_data_fim') return (
-      <StepData onConfirm={(val, label) => { set('dataFim', val); addUser(label); ir('evento_horario'); }} />
-    );
+    if (step === 'evento_data_fim') {
+      const [dias, setDias] = useState('1');
+      const calcDataFim = () => {
+        if (!dados.dataInicio || !dias) return;
+        const d = new Date(dados.dataInicio + 'T12:00:00');
+        d.setDate(d.getDate() + parseInt(dias) - 1);
+        const iso = d.toISOString().split('T')[0];
+        const label = parseInt(dias) === 1 ? '1 dia' : `${dias} dias`;
+        set('dataFim', iso); addUser(label); ir('evento_horario');
+      };
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {['1','2','3','4','5','6','7'].map(d => (
+              <button key={d} onClick={() => setDias(d)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${dias === d ? 'rgba(0,229,196,0.5)' : 'rgba(0,180,255,0.2)'}`, background: dias === d ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)', color: dias === d ? '#00E5C4' : '#7BAFD4', fontSize: 13, fontWeight: dias === d ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
+                {d}
+              </button>
+            ))}
+          </div>
+          <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(123,175,212,0.5)', fontFamily: 'Outfit, sans-serif' }}>dias</div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <Btn variant="solid" half onClick={calcDataFim}>Continuar →</Btn>
+          </div>
+        </div>
+      );
+    }
 
     if (step === 'evento_horario') return (
       <StepHorario onConfirm={(inicio, fim) => { set('horarioInicio', inicio); set('horarioFim', fim); addUser(`${inicio} às ${fim}`); ir('evento_local'); }} />
