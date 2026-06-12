@@ -841,7 +841,9 @@ export default function ClienteChat({ userData, onClose }) {
           const tipoEstande = normalize(briefingJson.tipoEstande || '');
           const ehEstande = svcName.includes('estande') || parentName.includes('estande');
           if (ehEstande) {
-            if (tipoEstande === 'modular' && parentName.includes('personalizado')) return false;
+            // Modular: bloqueia qualquer supplierService de estande (job criado via modeloEspecial)
+            if (tipoEstande === 'modular') return false;
+            // Personalizado: bloqueia modular
             if (tipoEstande === 'personalizado' && parentName.includes('modular')) return false;
             if (!tipoEstande) return false; // sem tipo definido, nao cria job de estande
           }
@@ -927,9 +929,7 @@ export default function ClienteChat({ userData, onClose }) {
 
         // Cria supplierJob para estande modular se cliente escolheu um modelo
         const modeloEscolhido = modeloSelecionado || briefingJson.modeloEstande;
-        const pedidoModular = (briefingJson.servicosNecessarios || []).some(sn =>
-          (sn || '').toLowerCase().includes('modular') || (sn || '').toLowerCase().includes('estande')
-        );
+        const pedidoModular = briefingJson.tipoEstande === 'modular';
         if (pedidoModular && modeloEscolhido) {
           try {
             const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
