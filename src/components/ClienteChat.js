@@ -139,12 +139,49 @@ const StepLocal = ({ onConfirm }) => {
   );
 };
 
+const StepData = ({ onConfirm }) => {
+  const [dia, setDia]   = useState('');
+  const [mes, setMes]   = useState('');
+  const [ano, setAno]   = useState('');
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const valido = dia && mes && ano && ano.length === 4;
+  const confirmar = () => {
+    const d = dia.padStart(2,'0');
+    const m = mes.padStart(2,'0');
+    const iso = `${ano}-${m}-${d}`;
+    onConfirm(iso, `${d}/${m}/${ano}`);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Dia</div>
+          <Inp type="number" value={dia} onChange={e => setDia(e.target.value)} placeholder="Ex: 15" min="1" max="31" />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Mês</div>
+          <select value={mes} onChange={e => setMes(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(10,22,38,0.9)', color: mes ? '#E8F4FF' : 'rgba(123,175,212,0.5)', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none' }}>
+            <option value="">Mês</option>
+            {meses.map((m, i) => <option key={i} value={String(i+1).padStart(2,'0')}>{m}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Ano</div>
+          <Inp type="number" value={ano} onChange={e => setAno(e.target.value)} placeholder="2026" min="2024" />
+        </div>
+      </div>
+      <Btn variant="solid" disabled={!valido} onClick={confirmar}>Continuar →</Btn>
+    </div>
+  );
+};
+
 const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
-  const [idx, setIdx]   = useState(0);
-  const [qtd, setQtd]   = useState('');
+  const [idx, setIdx]     = useState(0);
+  const [qtd, setQtd]     = useState('');
   const [horas, setHoras] = useState('');
-  const [dias, setDias] = useState('');
-  const [obs, setObs]   = useState('');
+  const [dias, setDias]   = useState('');
+  const [obs, setObs]     = useState('');
   const [detalhes, setDetalhes] = useState({});
 
   const servAtual = equipe[idx];
@@ -153,20 +190,26 @@ const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
   const avancar = () => {
     const novo = { ...detalhes, [servAtual.serviceName]: { quantidade: qtd, horasPorDia: horas, dias, observacoes: obs } };
     setDetalhes(novo);
-    if (idx + 1 < equipe.length) { setIdx(i => i + 1); setQtd(''); setHoras(''); setDias(''); setObs(''); }
-    else onConfirm(novo);
+    if (idx + 1 < equipe.length) {
+      setIdx(i => i + 1);
+      setQtd(''); setHoras(''); setDias(''); setObs('');
+    } else onConfirm(novo);
   };
+
+  const temUmCampo = qtd || horas || dias;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <BotMsg>Detalhes para **{servAtual.serviceName}** ({idx + 1}/{equipe.length}):</BotMsg>
+      <BotMsg>{`Detalhes para **${servAtual.serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}:`}</BotMsg>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Quantos?</div><Inp type="number" value={qtd} onChange={e => setQtd(e.target.value)} placeholder="Ex: 2" min="1" /></div>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Horas/dia</div><Inp type="number" value={horas} onChange={e => setHoras(e.target.value)} placeholder="Ex: 8" min="1" /></div>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Dias</div><Inp type="number" value={dias} onChange={e => setDias(e.target.value)} placeholder="Ex: 3" min="1" /></div>
       </div>
       <Inp value={obs} onChange={e => setObs(e.target.value)} placeholder="Preferência específica (opcional)" />
-      <Btn variant="solid" disabled={!qtd || !horas || !dias} onClick={avancar}>Continuar →</Btn>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Btn variant="solid" disabled={!temUmCampo} onClick={avancar} style={{ width: '50%' }}>Continuar →</Btn>
+      </div>
     </div>
   );
 };
@@ -220,11 +263,13 @@ const StepMultiSelect = ({ botText, servicos, loading, onConfirm, onSkip }) => {
       <BotMsg>{botText}</BotMsg>
       {loading ? <div style={{ color: '#7BAFD4', fontSize: 12, textAlign: 'center', padding: 12 }}>Carregando...</div>
         : servicos.map(s => <CheckBtn key={s.id} checked={!!sel[s.id]} onClick={() => setSel(p => ({ ...p, [s.id]: !p[s.id] }))}>{s.serviceName}</CheckBtn>)}
-      <Btn variant="solid" onClick={() => {
-        const escolhidos = servicos.filter(s => sel[s.id]);
-        if (escolhidos.length > 0) onConfirm(escolhidos);
-        else onSkip();
-      }}>Confirmar →</Btn>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Btn variant="solid" onClick={() => {
+          const escolhidos = servicos.filter(s => sel[s.id]);
+          if (escolhidos.length > 0) onConfirm(escolhidos);
+          else onSkip();
+        }} style={{ width: '50%' }}>Confirmar →</Btn>
+      </div>
       <Btn onClick={onSkip}>Não preciso</Btn>
     </div>
   );
@@ -267,7 +312,51 @@ export default function ClienteChat({ userData, onClose }) {
   const identInputRef = useRef();
   const bottomRef     = useRef();
 
-  useEffect(() => { setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50); }, [step, historico]);
+  // Ao entrar em cada step, adiciona a pergunta do bot no histórico
+  const perguntasDoStep = {
+    stand_pergunta:             `Olá, **${userName}**! 😊 Sou a Realize, assistente de eventos da Realize Hub.\n\nVou te ajudar a criar a proposta do seu evento. Seu evento precisa de **Stand**?`,
+    stand_tipo:                 'Prefere um Stand **Modular** *(pronto e padronizado)* ou **Personalizado** *(exclusivo, criado do zero)*?',
+    stand_modelos:              'Confira os modelos disponíveis e escolha o que combina com seu evento:',
+    stand_personalizado_sabe:   'Você já sabe como gostaria do seu stand?',
+    stand_personalizado_descricao: 'Descreva como você imagina o seu stand e, se quiser, envie imagens de referência:',
+    stand_personalizado_upload: 'Quer enviar imagens de referência? *(opcional)*',
+    stand_area:                 'Qual o **tamanho da área** do stand em m²?',
+    stand_teto:                 'Qual a **altura do teto** no local do evento?',
+    stand_montagem:             '**Quantos dias antes** do evento o local estará disponível para montagem?',
+    stand_restricao:            'Tem alguma **restrição de acesso** no local? *(altura de caminhões, horário, etc.)*',
+    stand_restricao_desc:       'Descreva as restrições:',
+    stand_identidade:           'Já tem **identidade visual** definida para o evento?',
+    stand_identidade_upload:    'Envie as artes/arquivos da identidade visual:',
+    evento_empresa:             'Agora os dados do evento! Tem nome de **empresa organizadora**?',
+    evento_tipo:                'Qual o **tipo do evento**?',
+    evento_nome:                'O evento já tem um **nome** definido?',
+    evento_data_inicio:         'Qual a **data de início** do evento?',
+    evento_data_fim:            'Qual a **data de término**? *(se for 1 dia, selecione a mesma data)*',
+    evento_horario:             'Qual o **horário** do evento?',
+    evento_local:               'Qual a **cidade e o local** do evento?',
+    evento_visitantes:          '**Quantas pessoas** participarão por dia?',
+    produtor_pergunta:          'Gostaria de um **Produtor de Eventos** dedicado para coordenar tudo no dia?',
+    estrutura_pergunta:         'Vai precisar de alguma **estrutura física**? *(palco, tendas, backdrop, iluminação...)*',
+    estrutura_selecao:          'Selecione os itens de **estrutura** que você precisa:',
+    equipe_pergunta:            'Vai precisar de algum **profissional** no evento? *(recepcionista, segurança, DJ...)*',
+    equipe_selecao:             'Selecione os **profissionais** que você precisa:',
+    gastro_pergunta:            'Vai precisar de **alimentação ou bebidas**?',
+    gastro_selecao:             'Selecione os serviços de **gastronomia**:',
+    servicos_pergunta:          'Vai precisar de algum **equipamento ou atração**? *(som, iluminação, DJ, fotografia...)*',
+    servicos_selecao:           'Selecione os **equipamentos e atrações**:',
+    info_extra:                 'Falta alguma informação ou pedido especial que queira acrescentar?',
+    pagamento:                  'Última etapa! Como prefere a **forma de pagamento**?',
+  };
+
+  const stepAnteriorRef = useRef(null);
+  useEffect(() => {
+    if (step !== stepAnteriorRef.current) {
+      const pergunta = perguntasDoStep[step];
+      if (pergunta) setHistorico(p => [...p, { role: 'bot', text: pergunta }]);
+      stepAnteriorRef.current = step;
+    }
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 80);
+  }, [step]);
 
   useEffect(() => {
     getDocs(collection(db, 'modelosEspeciais'))
@@ -275,12 +364,26 @@ export default function ClienteChat({ userData, onClose }) {
       .catch(console.error);
   }, []);
 
+  // Palavras que nunca devem aparecer na seleção de estrutura/equipe
+  const BLOQUEADOS_ESTRUTURA = ['estande', 'stand', 'desenvolvimento'];
+  const BLOQUEADOS_EQUIPE    = ['produtor'];
+
   const carregarTipo = async (tipo, setter) => {
     setLoadingOpcoes(true);
     try {
       const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', tipo)));
       const servs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-      const comOpcoes = await Promise.all(servs.map(async s => {
+
+      // Aplica filtros por tipo
+      const bloqueados = tipo === 'estrutura' ? BLOQUEADOS_ESTRUTURA
+                       : tipo === 'operacao'  ? BLOQUEADOS_EQUIPE
+                       : [];
+      const filtrados = servs.filter(s => {
+        const nome = normalize(s.serviceName || '') + ' ' + normalize(s.serviceParentName || '');
+        return !bloqueados.some(b => nome.includes(b));
+      });
+
+      const comOpcoes = await Promise.all(filtrados.map(async s => {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
         const opcoes = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
         return { ...s, opcoes };
@@ -663,13 +766,11 @@ export default function ClienteChat({ userData, onClose }) {
     );
 
     if (step === 'evento_data_inicio') return (
-      <StepInput botText="Qual a **data de início** do evento?" type="date"
-        onConfirm={val => { set('dataInicio', val); addUser(new Date(val + 'T12:00:00').toLocaleDateString('pt-BR')); ir('evento_data_fim'); }} />
+      <StepData onConfirm={(val, label) => { set('dataInicio', val); addUser(label); ir('evento_data_fim'); }} />
     );
 
     if (step === 'evento_data_fim') return (
-      <StepInput botText="Qual a **data de término**? *(se for 1 dia, selecione a mesma data)*" type="date"
-        onConfirm={val => { set('dataFim', val); addUser(new Date(val + 'T12:00:00').toLocaleDateString('pt-BR')); ir('evento_horario'); }} />
+      <StepData onConfirm={(val, label) => { set('dataFim', val); addUser(label); ir('evento_horario'); }} />
     );
 
     if (step === 'evento_horario') return (
