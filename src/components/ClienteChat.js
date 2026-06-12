@@ -7,9 +7,9 @@ import { db, storage } from '../firebase/config';
 const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 const Overlay = ({ children, onClose }) => (
-  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
     onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div style={{ width: '100%', maxWidth: 560, maxHeight: '92vh', background: 'linear-gradient(160deg,#0A1626 0%,#0D1F35 100%)', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', background: 'linear-gradient(160deg,#0A1626 0%,#0D1F35 100%)', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}>
       {children}
     </div>
   </div>
@@ -267,7 +267,7 @@ export default function ClienteChat({ userData, onClose }) {
   const identInputRef = useRef();
   const bottomRef     = useRef();
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [step]);
+  useEffect(() => { setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50); }, [step, historico]);
 
   useEffect(() => {
     getDocs(collection(db, 'modelosEspeciais'))
@@ -519,18 +519,35 @@ export default function ClienteChat({ userData, onClose }) {
                 const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
                 return (
                   <div key={m.id} onClick={() => setModeloSelecionado(m)}
-                    style={{ borderRadius: 10, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden' }}>
-                    <div style={{ height: 120, background: 'rgba(0,128,255,0.08)' }}>
+                    style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
+                    {/* Fotos */}
+                    <div style={{ height: 140, background: 'rgba(0,128,255,0.08)', position: 'relative' }}>
                       {fotos.length > 0
                         ? <ModeloCarrossel fotos={fotos} idx={carrosselIdx[m.id] || 0}
                             onPrev={() => setCarrosselIdx(p => ({ ...p, [m.id]: ((p[m.id]||0) - 1 + fotos.length) % fotos.length }))}
                             onNext={() => setCarrosselIdx(p => ({ ...p, [m.id]: ((p[m.id]||0) + 1) % fotos.length }))}
                             onDot={i => setCarrosselIdx(p => ({ ...p, [m.id]: i }))} />
                         : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', fontSize: 11 }}>Sem foto</div>}
+                      {modeloSelecionado?.id === m.id && <div style={{ position: 'absolute', top: 8, right: 8, background: '#00E5C4', color: '#0A1626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, fontFamily: 'Outfit, sans-serif' }}>✓ Selecionado</div>}
                     </div>
-                    <div style={{ padding: '8px 10px' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>{m.nome}</div>
-                      {m.areaM2 && <div style={{ fontSize: 10, color: '#00E5C4', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>{m.areaM2}m²</div>}
+                    {/* Infos completas */}
+                    <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>{m.nome}</div>
+                      {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', lineHeight: 1.4, fontFamily: 'Outfit, sans-serif' }}>{m.descricao}</div>}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
+                        {m.areaM2 && <span style={{ fontSize: 10, background: 'rgba(0,229,196,0.1)', color: '#00E5C4', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>📐 {m.areaM2}m²</span>}
+                        {m.altura && <span style={{ fontSize: 10, background: 'rgba(0,180,255,0.1)', color: '#7BAFD4', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>↕ {m.altura}m alt.</span>}
+                        {m.diasProducao > 0 && <span style={{ fontSize: 10, background: 'rgba(255,167,38,0.1)', color: '#FFA726', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>⏱ {m.diasProducao}d produção</span>}
+                        {m.precoBase > 0 && <span style={{ fontSize: 10, background: 'rgba(102,187,106,0.1)', color: '#66BB6A', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                      </div>
+                      {m.caracteristicas?.length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.6)', fontFamily: 'Outfit, sans-serif', marginBottom: 3 }}>INCLUSO:</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 10, color: '#7BAFD4', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 6, fontFamily: 'Outfit, sans-serif' }}>{c}</span>)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -830,7 +847,7 @@ export default function ClienteChat({ userData, onClose }) {
   return (
     <Overlay onClose={onClose}>
       <Header assistantName={assistantName} onClose={onClose} />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 32px', scrollBehavior: 'smooth' }}>
         {historico.map((msg, i) =>
           msg.role === 'bot' ? <BotMsg key={i}>{msg.text}</BotMsg> : <UserMsg key={i}>{msg.text}</UserMsg>
         )}
