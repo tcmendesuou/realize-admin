@@ -6,72 +6,118 @@ import { db, storage } from '../firebase/config';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-const Overlay = ({ children, onClose }) => (
-  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
-    onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', background: 'linear-gradient(160deg,#0A1626 0%,#0D1F35 100%)', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}>
-      {children}
+// ── Etapas da barra de progresso ──────────────────────────────────────────────
+const ETAPAS = ['Stand', 'Evento', 'Serviços', 'Extras', 'Pagamento'];
+const STEP_ETAPA = {
+  stand_pergunta: 0, stand_tipo: 0, stand_modelos: 0, stand_personalizado_sabe: 0,
+  stand_personalizado_descricao: 0, stand_personalizado_upload: 0, stand_area: 0,
+  stand_teto: 0, stand_montagem: 0, stand_restricao: 0, stand_restricao_desc: 0,
+  stand_identidade: 0, stand_identidade_upload: 0,
+  evento_empresa: 1, evento_tipo: 1, evento_nome: 1, evento_data_inicio: 1,
+  evento_data_fim: 1, evento_horario: 1, evento_local: 1, evento_visitantes: 1,
+  produtor_pergunta: 2, estrutura_pergunta: 2, estrutura_selecao: 2, estrutura_opcoes: 2,
+  equipe_pergunta: 2, equipe_selecao: 2, equipe_opcoes: 2, equipe_detalhes: 2,
+  gastro_pergunta: 2, gastro_selecao: 2, gastro_opcoes: 2,
+  servicos_pergunta: 2, servicos_selecao: 2, servicos_opcoes: 2,
+  info_extra: 3, pagamento: 4, revisao: 4, sent: 4,
+};
+
+// ── Barra de progresso ────────────────────────────────────────────────────────
+const ProgressBar = ({ step }) => {
+  const etapaAtual = STEP_ETAPA[step] ?? 0;
+  return (
+    <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+        {ETAPAS.map((label, i) => (
+          <React.Fragment key={i}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: i < etapaAtual ? 'linear-gradient(135deg,#00E5C4,#0080FF)'
+                          : i === etapaAtual ? 'linear-gradient(135deg,#00E5C4,#0080FF)'
+                          : 'rgba(255,255,255,0.07)',
+                border: i === etapaAtual ? '2px solid #00E5C4' : '2px solid transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, color: i <= etapaAtual ? 'white' : 'rgba(123,175,212,0.4)',
+                fontFamily: 'Outfit, sans-serif', transition: 'all 0.3s', boxShadow: i === etapaAtual ? '0 0 12px rgba(0,229,196,0.4)' : 'none',
+              }}>
+                {i < etapaAtual ? '✓' : i + 1}
+              </div>
+              <span style={{ fontSize: 9, color: i === etapaAtual ? '#00E5C4' : 'rgba(123,175,212,0.4)', fontFamily: 'Outfit, sans-serif', fontWeight: i === etapaAtual ? 700 : 400, whiteSpace: 'nowrap' }}>{label}</span>
+            </div>
+            {i < ETAPAS.length - 1 && (
+              <div style={{ flex: 1, height: 2, background: i < etapaAtual ? 'linear-gradient(90deg,#00E5C4,#0080FF)' : 'rgba(255,255,255,0.07)', borderRadius: 2, marginBottom: 18, transition: 'all 0.3s' }} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
     </div>
-  </div>
+  );
+};
+
+// ── Componentes base ──────────────────────────────────────────────────────────
+const Pergunta = ({ children }) => (
+  <div style={{ fontSize: 22, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif', lineHeight: 1.4, marginBottom: 28, textAlign: 'center' }}
+    dangerouslySetInnerHTML={{ __html: (typeof children === 'string' ? children : '').replace(/\*\*(.*?)\*\*/g, '<strong style="color:#00E5C4">$1</strong>').replace(/\n/g, '<br/>') }} />
 );
 
-const Header = ({ assistantName, onClose }) => (
-  <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(0,180,255,0.1)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'white', fontFamily: 'Outfit, sans-serif' }}>R</div>
-    <div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>{assistantName || 'Realize'}</div>
-      <div style={{ fontSize: 10, color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>Assistente de eventos Realize Hub</div>
-    </div>
-    <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#7BAFD4', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
-  </div>
-);
-
-const BotMsg = ({ children }) => (
-  <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'white', flexShrink: 0, fontFamily: 'Outfit, sans-serif' }}>R</div>
-    <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: '#E8F4FF', lineHeight: 1.6, fontFamily: 'Outfit, sans-serif', maxWidth: '85%' }}
-      dangerouslySetInnerHTML={{ __html: (typeof children === 'string' ? children : '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') }} />
-  </div>
-);
-
-const UserMsg = ({ children }) => (
-  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-    <div style={{ background: 'linear-gradient(135deg,#0080FF,#0060CC)', borderRadius: '14px 4px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'white', maxWidth: '80%', fontFamily: 'Outfit, sans-serif', lineHeight: 1.5 }}>{children}</div>
-  </div>
-);
-
-const Btn = ({ onClick, children, variant = 'outline', disabled, half = false }) => (
-  <button onClick={onClick} disabled={disabled} style={{
-    padding: '10px 16px', borderRadius: 10,
-    border: variant === 'solid' ? 'none' : '1px solid rgba(0,180,255,0.25)',
-    background: variant === 'solid' ? 'linear-gradient(135deg,#00E5C4,#0080FF)' : 'rgba(255,255,255,0.04)',
-    color: variant === 'solid' ? 'white' : '#7BAFD4',
-    fontSize: 13, fontWeight: variant === 'solid' ? 700 : 500,
-    cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif',
-    width: half ? '50%' : '100%', textAlign: half ? 'center' : 'left',
-    opacity: disabled ? 0.5 : 1, transition: 'all 0.15s', display: 'block',
-  }}>{children}</button>
-);
-
-const Inp = ({ value, onChange, placeholder, type = 'text', min, onKeyDown }) => (
-  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} min={min}
-    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
-);
-
-const CheckBtn = ({ checked, onClick, children }) => (
-  <button onClick={onClick}
-    style={{ padding: '10px 16px', borderRadius: 10, border: `1px solid ${checked ? 'rgba(0,229,196,0.5)' : 'rgba(0,180,255,0.2)'}`, background: checked ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)', color: checked ? '#00E5C4' : '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-    <span style={{ fontSize: 16 }}>{checked ? '☑' : '☐'}</span> {children}
+const OpcaoBtn = ({ onClick, children, selected }) => (
+  <button onClick={onClick} style={{
+    width: '100%', padding: '14px 20px', borderRadius: 12, textAlign: 'left', cursor: 'pointer',
+    fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 500, transition: 'all 0.15s',
+    border: `1.5px solid ${selected ? '#00E5C4' : 'rgba(0,180,255,0.2)'}`,
+    background: selected ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)',
+    color: selected ? '#00E5C4' : '#7BAFD4',
+    display: 'flex', alignItems: 'center', gap: 12,
+  }}>
+    <span style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selected ? '#00E5C4' : 'rgba(0,180,255,0.3)'}`, background: selected ? '#00E5C4' : 'none', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {selected && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0A1626' }} />}
+    </span>
+    {children}
   </button>
+);
+
+const CheckOpcao = ({ checked, onClick, children }) => (
+  <button onClick={onClick} style={{
+    width: '100%', padding: '14px 20px', borderRadius: 12, textAlign: 'left', cursor: 'pointer',
+    fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 500, transition: 'all 0.15s',
+    border: `1.5px solid ${checked ? '#00E5C4' : 'rgba(0,180,255,0.2)'}`,
+    background: checked ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)',
+    color: checked ? '#00E5C4' : '#7BAFD4',
+    display: 'flex', alignItems: 'center', gap: 12,
+  }}>
+    <span style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${checked ? '#00E5C4' : 'rgba(0,180,255,0.3)'}`, background: checked ? '#00E5C4' : 'none', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#0A1626', fontWeight: 700 }}>
+      {checked && '✓'}
+    </span>
+    {children}
+  </button>
+);
+
+const BtnAvancar = ({ onClick, disabled, children = 'Continuar →', submitting }) => (
+  <button onClick={onClick} disabled={disabled || submitting} style={{
+    padding: '14px 40px', borderRadius: 12, border: 'none',
+    background: disabled ? 'rgba(255,255,255,0.07)' : 'linear-gradient(135deg,#00E5C4,#0080FF)',
+    color: disabled ? 'rgba(123,175,212,0.4)' : 'white',
+    fontSize: 15, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'Outfit, sans-serif', transition: 'all 0.2s',
+    boxShadow: disabled ? 'none' : '0 4px 20px rgba(0,229,196,0.25)',
+  }}>{submitting ? 'Enviando...' : children}</button>
+);
+
+const Inp = ({ value, onChange, placeholder, type = 'text', min, max, onKeyDown, autoFocus }) => (
+  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} min={min} max={max} autoFocus={autoFocus}
+    style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border 0.2s' }}
+    onFocus={e => e.target.style.borderColor = 'rgba(0,229,196,0.5)'}
+    onBlur={e => e.target.style.borderColor = 'rgba(0,180,255,0.25)'} />
 );
 
 const ModeloCarrossel = ({ fotos, idx, onPrev, onNext, onDot }) => (
   <div style={{ position: 'relative', height: '100%' }}>
     <img src={fotos[idx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     {fotos.length > 1 && <>
-      <button onClick={e => { e.stopPropagation(); onPrev(); }} style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>‹</button>
-      <button onClick={e => { e.stopPropagation(); onNext(); }} style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>›</button>
-      <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 }}>
+      <button onClick={e => { e.stopPropagation(); onPrev(); }} style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.6)', border: 'none', color: 'white', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', fontSize: 14 }}>‹</button>
+      <button onClick={e => { e.stopPropagation(); onNext(); }} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.6)', border: 'none', color: 'white', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', fontSize: 14 }}>›</button>
+      <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5 }}>
         {fotos.map((_, i) => <div key={i} onClick={e => { e.stopPropagation(); onDot(i); }} style={{ width: 6, height: 6, borderRadius: '50%', background: i === idx ? 'white' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />)}
       </div>
     </>}
@@ -79,228 +125,102 @@ const ModeloCarrossel = ({ fotos, idx, onPrev, onNext, onDot }) => (
 );
 
 const Row = ({ label, value }) => value ? (
-  <div style={{ display: 'flex', gap: 8 }}>
-    <span style={{ fontSize: 11, fontWeight: 700, color: '#7BAFD4', minWidth: 90, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 }}>{label}</span>
-    <span style={{ fontSize: 12, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif', flex: 1, lineHeight: 1.5 }}>{value}</span>
+  <div style={{ display: 'flex', gap: 10 }}>
+    <span style={{ fontSize: 11, fontWeight: 700, color: '#7BAFD4', minWidth: 90, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 2 }}>{label}</span>
+    <span style={{ fontSize: 13, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif', flex: 1, lineHeight: 1.5 }}>{value}</span>
   </div>
 ) : null;
 
-// ── Step components (isolados para evitar useState em render) ─────────────────
-const StepInput = ({ botText, placeholder, type, min, onConfirm, confirmLabel = 'Continuar →', optional = false }) => {
-  const [val, setVal] = useState('');
-  // Garante que o input começa vazio a cada montagem
-  useEffect(() => { setVal(''); }, []);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Inp type={type} value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder} min={min}
-        onKeyDown={e => { if (e.key === 'Enter' && (val || optional)) onConfirm(val); }} />
-      <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!val && !optional} onClick={() => onConfirm(val)}>{confirmLabel}</Btn></div>
-    </div>
-  );
-};
+const HORARIOS = ['06:00','06:30','07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30','23:00','23:30'];
 
-const StepTextarea = ({ botText, placeholder, onConfirm, optional = false }) => {
-  const [val, setVal] = useState('');
-  useEffect(() => { setVal(''); }, []);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <textarea value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder}
-        style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 13, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 80, boxSizing: 'border-box', outline: 'none' }} />
-      <div style={{ display:'flex', justifyContent:'center' }}><Btn variant="solid" half disabled={!val && !optional} onClick={() => onConfirm(val)}>{optional && !val ? 'Nada a acrescentar →' : 'Continuar →'}</Btn></div>
-    </div>
-  );
-};
-
-const HORARIOS = ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];
-
-const StepHorario = ({ onConfirm }) => {
-  const [inicio, setInicio] = useState('');
-  const [fim, setFim]       = useState('');
-  const selStyle = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(10,22,38,0.95)', color: '#E8F4FF', fontSize: 14, fontFamily: 'Outfit, sans-serif', outline: 'none', cursor: 'pointer' };
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Início</div>
-          <select value={inicio} onChange={e => setInicio(e.target.value)} style={selStyle}>
-            <option value="">--</option>
-            {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Término</div>
-          <select value={fim} onChange={e => setFim(e.target.value)} style={selStyle}>
-            <option value="">--</option>
-            {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
-          </select>
-        </div>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Btn variant="solid" half disabled={!inicio || !fim} onClick={() => onConfirm(inicio, fim)}>Continuar →</Btn>
-      </div>
-    </div>
-  );
-};
-
-const StepLocal = ({ onConfirm }) => {
-  const [cidade, setCidade] = useState('');
-  const [local, setLocal]   = useState('');
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Inp value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Cidade" />
-      <Inp value={local}  onChange={e => setLocal(e.target.value)}  placeholder="Local / endereço (se já definido)" />
-      <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!cidade} onClick={() => onConfirm(cidade, local)}>Continuar →</Btn></div>
-    </div>
-  );
-};
-
-const StepData = ({ onConfirm }) => {
-  const [val, setVal] = useState('');
-  useEffect(() => { setVal(''); }, []);
-  const confirmar = () => {
-    if (!val) return;
-    const [ano, mes, dia] = val.split('-');
-    onConfirm(val, `${dia}/${mes}/${ano}`);
-  };
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <input type="date" value={val} onChange={e => setVal(e.target.value)}
-        style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }} />
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Btn variant="solid" half disabled={!val} onClick={confirmar}>Continuar →</Btn>
-      </div>
-    </div>
-  );
-};
-
-const StepEquipeDetalhes = ({ equipe, onConfirm, addBot }) => {
+// ── Componentes de step isolados ──────────────────────────────────────────────
+const StepOpcoes = ({ servicos, onConfirm }) => {
   const [idx, setIdx]     = useState(0);
-  const [qtd, setQtd]     = useState('');
-  const [horas, setHoras] = useState('');
-  const [dias, setDias]   = useState('');
-  const [obs, setObs]     = useState('');
-  const [detalhes, setDetalhes] = useState({});
-  const jaAdicionouRef    = useRef({});
+  const [sels, setSels]   = useState([]);
+  const iniciouRef        = useRef(false);
+  const servAtual         = servicos[idx];
+  if (!servAtual) { onConfirm(sels); return null; }
 
-  useEffect(() => {
-    const serv = equipe && equipe[idx];
-    if (serv && serv.serviceName && !jaAdicionouRef.current[idx]) {
-      jaAdicionouRef.current[idx] = true;
-      addBot(`Detalhes para **${serv.serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}:`);
-    }
-  }, [idx, equipe]);
-
-  const servAtual = equipe[idx];
-  if (!servAtual) { onConfirm(detalhes); return null; }
-
-  const avancar = () => {
-    const novo = { ...detalhes, [servAtual.serviceName]: { quantidade: qtd, horasPorDia: horas, dias, observacoes: obs } };
-    setDetalhes(novo);
-    if (idx + 1 < equipe.length) {
-      setIdx(i => i + 1);
-      setQtd(''); setHoras(''); setDias(''); setObs('');
-    } else onConfirm(novo);
-  };
-
-  const temUmCampo = qtd || horas || dias;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Quantos?</div><Inp type="number" value={qtd} onChange={e => setQtd(e.target.value)} placeholder="Ex: 2" min="1" /></div>
-        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Horas/dia</div><Inp type="number" value={horas} onChange={e => setHoras(e.target.value)} placeholder="Ex: 8" min="1" /></div>
-        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Dias</div><Inp type="number" value={dias} onChange={e => setDias(e.target.value)} placeholder="Ex: 3" min="1" /></div>
-      </div>
-      <Inp value={obs} onChange={e => setObs(e.target.value)} placeholder="Preferência específica (opcional)" />
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Btn variant="solid" disabled={!temUmCampo} onClick={avancar} style={{ width: '50%' }}>Continuar →</Btn>
-      </div>
-    </div>
-  );
-};
-
-const StepOpcoes = ({ servicos, tipo, onConfirm, addBot }) => {
-  const [idx, setIdx]       = useState(0);
-  const [selecionados, setSel] = useState([]);
-  const jaAdicionouRef      = useRef({});
-
-  useEffect(() => {
-    const serv = servicos && servicos[idx];
-    if (serv && serv.serviceName && !jaAdicionouRef.current[idx]) {
-      jaAdicionouRef.current[idx] = true;
-      addBot(`Opções disponíveis para **${serv.serviceName}**${servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:`);
-    }
-  }, [idx, servicos]);
-
-  const servAtual = servicos[idx];
-  if (!servAtual) { onConfirm(selecionados); return null; }
-
-  const avancar = (opcaoEscolhida) => {
-    if (opcaoEscolhida) {
-      setSel(p => [...p, {
-        supplierId: servAtual.supplierId, supplierName: servAtual.supplierName || '',
-        serviceName: servAtual.serviceName, serviceParentName: servAtual.serviceParentName || '',
-        tipoServico: servAtual.tipoServico, id: servAtual.id,
-        opcaoCatalogoId: opcaoEscolhida.id || '',
-        opcaoNome: opcaoEscolhida.nome || '',
-        valor: opcaoEscolhida.valor || 0, unidade: opcaoEscolhida.unidade || '',
-        diasPreparo: servAtual.diasPreparo || 0, diasMontagem: servAtual.diasMontagem || 0,
-      }]);
-    }
-    if (idx + 1 < servicos.length) setIdx(i => i + 1);
-    else onConfirm(opcaoEscolhida ? [...selecionados, {
+  const avancar = (op) => {
+    const novo = op ? [...sels, {
       supplierId: servAtual.supplierId, supplierName: servAtual.supplierName || '',
       serviceName: servAtual.serviceName, serviceParentName: servAtual.serviceParentName || '',
       tipoServico: servAtual.tipoServico, id: servAtual.id,
-      opcaoCatalogoId: opcaoEscolhida.id || '', opcaoNome: opcaoEscolhida.nome || '',
-      valor: opcaoEscolhida.valor || 0, unidade: opcaoEscolhida.unidade || '',
+      opcaoCatalogoId: op.id || '', opcaoNome: op.nome || '',
+      valor: op.valor || 0, unidade: op.unidade || '',
       diasPreparo: servAtual.diasPreparo || 0, diasMontagem: servAtual.diasMontagem || 0,
-    }] : selecionados);
+    }] : sels;
+    if (idx + 1 < servicos.length) { setSels(novo); setIdx(i => i + 1); }
+    else onConfirm(novo);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <BotMsg>Opções disponíveis para **{servAtual.serviceName}** ({idx + 1}/{servicos.length}):</BotMsg>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+      <Pergunta>Opções para **{servAtual.serviceName}**{servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:</Pergunta>
       {servAtual.opcoes.map(op => (
-        <Btn key={op.id} onClick={() => avancar(op)}>
-          {op.nome}{op.caracteristica ? ` — ${op.caracteristica}` : ''}
-        </Btn>
+        <OpcaoBtn key={op.id} onClick={() => avancar(op)}>
+          <span>{op.nome}{op.caracteristica ? ` — ${op.caracteristica}` : ''}</span>
+        </OpcaoBtn>
       ))}
-      <Btn onClick={() => avancar(null)}>Não preciso de {servAtual.serviceName}</Btn>
+      <OpcaoBtn onClick={() => avancar(null)}>Não preciso de {servAtual.serviceName}</OpcaoBtn>
     </div>
   );
 };
 
-const StepMultiSelect = ({ botText, servicos, loading, onConfirm, onSkip }) => {
+const StepMultiSelect = ({ servicos, loading, onConfirm, onSkip }) => {
   const [sel, setSel] = useState({});
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {loading ? <div style={{ color: '#7BAFD4', fontSize: 12, textAlign: 'center', padding: 12 }}>Carregando...</div>
-        : servicos.map(s => <CheckBtn key={s.id} checked={!!sel[s.id]} onClick={() => setSel(p => ({ ...p, [s.id]: !p[s.id] }))}>{s.serviceName}</CheckBtn>)}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Btn variant="solid" onClick={() => {
-          const escolhidos = servicos.filter(s => sel[s.id]);
-          if (escolhidos.length > 0) onConfirm(escolhidos);
-          else onSkip();
-        }} half>Confirmar →</Btn>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+      {loading
+        ? <div style={{ color: '#7BAFD4', fontSize: 14, textAlign: 'center', padding: 20 }}>Carregando...</div>
+        : servicos.map(s => <CheckOpcao key={s.id} checked={!!sel[s.id]} onClick={() => setSel(p => ({ ...p, [s.id]: !p[s.id] }))}>{s.serviceName}</CheckOpcao>)
+      }
+      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+        <button onClick={onSkip} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Não preciso</button>
+        <BtnAvancar onClick={() => { const e = servicos.filter(s => sel[s.id]); e.length > 0 ? onConfirm(e) : onSkip(); }}>Confirmar →</BtnAvancar>
       </div>
-      <Btn onClick={onSkip}>Não preciso</Btn>
     </div>
   );
 };
 
-const LABEL_PAG = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
+const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
+  const [idx, setIdx]   = useState(0);
+  const [qtd, setQtd]   = useState('');
+  const [horas, setHoras] = useState('');
+  const [diasD, setDiasD] = useState('');
+  const [obs, setObs]   = useState('');
+  const [det, setDet]   = useState({});
+  const serv = equipe[idx];
+  if (!serv) { onConfirm(det); return null; }
+  const avancar = () => {
+    const novo = { ...det, [serv.serviceName]: { quantidade: qtd, horasPorDia: horas, dias: diasD, observacoes: obs } };
+    setDet(novo);
+    if (idx + 1 < equipe.length) { setIdx(i => i + 1); setQtd(''); setHoras(''); setDiasD(''); setObs(''); }
+    else onConfirm(novo);
+  };
+  const selStyle = { width: '100%', padding: '14px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none' };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <Pergunta>Detalhes para **{serv.serviceName}**{equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}</Pergunta>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Quantos?</div><Inp type="number" value={qtd} onChange={e => setQtd(e.target.value)} placeholder="2" min="1" /></div>
+        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Horas/dia</div><Inp type="number" value={horas} onChange={e => setHoras(e.target.value)} placeholder="8" min="1" /></div>
+        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Dias</div><Inp type="number" value={diasD} onChange={e => setDiasD(e.target.value)} placeholder="3" min="1" /></div>
+      </div>
+      <Inp value={obs} onChange={e => setObs(e.target.value)} placeholder="Preferência específica (opcional)" />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={avancar} disabled={!qtd && !horas && !diasD} />
+      </div>
+    </div>
+  );
+};
 
 const StepRevisao = ({ dados, modeloSelecionado, submitting, onConfirm, onReset }) => {
-  const todas = [
-    ...dados.estruturaSelecionada,
-    ...dados.equipeSelecionada,
-    ...dados.gastronomeSelecionada,
-    ...dados.servicosSelecionados,
-  ];
+  const LABEL_PAG = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
+  const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)', borderRadius: 14, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {dados.tipoEstande && <Row label="Stand" value={dados.tipoEstande === 'modular' ? `Modular — ${modeloSelecionado?.nome || ''}` : 'Personalizado'} />}
         <Row label="Empresa"   value={dados.nomeEmpresa} />
         <Row label="Evento"    value={`${dados.tipoEvento}${dados.nomeEvento ? ` — ${dados.nomeEvento}` : ''}`} />
@@ -313,36 +233,111 @@ const StepRevisao = ({ dados, modeloSelecionado, submitting, onConfirm, onReset 
         {dados.infoExtra && <Row label="Obs" value={dados.infoExtra} />}
         <Row label="Pagamento" value={LABEL_PAG[dados.formaPagamento] || dados.formaPagamento} />
       </div>
-      <Btn variant="solid" disabled={submitting} onClick={onConfirm}>
-        {submitting ? 'Enviando...' : 'Confirmar e Enviar Proposta →'}
-      </Btn>
-      <Btn onClick={onReset}>Recomeçar do início</Btn>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={onConfirm} submitting={submitting}>{submitting ? 'Enviando...' : 'Confirmar e Enviar →'}</BtnAvancar>
+      </div>
+      <button onClick={onReset} style={{ background: 'none', border: 'none', color: 'rgba(123,175,212,0.5)', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textDecoration: 'underline', textAlign: 'center', marginTop: 4 }}>Recomeçar do início</button>
     </div>
   );
 };
 
-const StepDias = ({ onConfirm, dataInicio }) => {
-  const [dias, setDias] = useState('1');
-  const confirmar = () => {
-    if (!dataInicio) return;
-    const d = new Date(dataInicio + 'T12:00:00');
-    d.setDate(d.getDate() + parseInt(dias) - 1);
-    const iso = d.toISOString().split('T')[0];
-    onConfirm(iso, parseInt(dias) === 1 ? '1 dia' : `${dias} dias`);
-  };
+
+// ── Componentes para steps com estado local ───────────────────────────────────
+const StepInputSimples = ({ placeholder, type, min, onConfirm, optional, autoFocus }) => {
+  const [val, setVal] = useState('');
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <Inp type={type||'text'} value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder} min={min} autoFocus={autoFocus}
+        onKeyDown={e => { if (e.key === 'Enter' && (val || optional)) onConfirm(val); }} />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={() => onConfirm(val)} disabled={!val && !optional}>{optional && !val ? 'Pular →' : 'Continuar →'}</BtnAvancar>
+      </div>
+    </div>
+  );
+};
+
+const StepTextareaSimples = ({ placeholder, optional, onConfirm }) => {
+  const [val, setVal] = useState('');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <textarea value={val} onChange={e => setVal(e.target.value)} placeholder={placeholder}
+        style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 100, boxSizing: 'border-box', outline: 'none' }} />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={() => onConfirm(val)} disabled={!val && !optional}>{optional && !val ? 'Nada a acrescentar →' : 'Continuar →'}</BtnAvancar>
+      </div>
+    </div>
+  );
+};
+
+const StepHorarioInline = ({ onConfirm }) => {
+  const [inicio, setInicio] = useState('');
+  const [fim, setFim]       = useState('');
+  const selStyle = { width: '100%', padding: '14px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(10,22,38,0.95)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', outline: 'none', cursor: 'pointer' };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Início</div>
+          <select value={inicio} onChange={e => setInicio(e.target.value)} style={selStyle}>
+            <option value="">--</option>{HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
+          </select></div>
+        <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Término</div>
+          <select value={fim} onChange={e => setFim(e.target.value)} style={selStyle}>
+            <option value="">--</option>{HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
+          </select></div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={() => onConfirm(inicio, fim)} disabled={!inicio || !fim} />
+      </div>
+    </div>
+  );
+};
+
+const StepLocalInline = ({ onConfirm }) => {
+  const [cidade, setCidade] = useState('');
+  const [local, setLocal]   = useState('');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      <Inp value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Cidade" autoFocus />
+      <Inp value={local}  onChange={e => setLocal(e.target.value)}  placeholder="Local / endereço (opcional)" />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={() => onConfirm(cidade, local)} disabled={!cidade} />
+      </div>
+    </div>
+  );
+};
+
+const StepDiasInline = ({ dataInicio, onConfirm }) => {
+  const [dias, setDias] = useState('1');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <div style={{ display: 'flex', gap: 8 }}>
         {['1','2','3','4','5','6','7'].map(d => (
           <button key={d} onClick={() => setDias(d)}
-            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${dias === d ? 'rgba(0,229,196,0.5)' : 'rgba(0,180,255,0.2)'}`, background: dias === d ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)', color: dias === d ? '#00E5C4' : '#7BAFD4', fontSize: 13, fontWeight: dias === d ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
+            style={{ flex: 1, padding: '14px 0', borderRadius: 12, border: `1.5px solid ${dias === d ? '#00E5C4' : 'rgba(0,180,255,0.2)'}`, background: dias === d ? 'rgba(0,229,196,0.08)' : 'rgba(255,255,255,0.03)', color: dias === d ? '#00E5C4' : '#7BAFD4', fontSize: 16, fontWeight: dias === d ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center', transition: 'all 0.15s' }}>
             {d}
           </button>
         ))}
       </div>
-      <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(123,175,212,0.5)', fontFamily: 'Outfit, sans-serif' }}>dias</div>
+      <div style={{ textAlign: 'center', fontSize: 12, color: 'rgba(123,175,212,0.5)', fontFamily: 'Outfit, sans-serif' }}>dias</div>
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Btn variant="solid" half onClick={confirmar}>Continuar →</Btn>
+        <BtnAvancar onClick={() => {
+          const d = new Date(dataInicio + 'T12:00:00');
+          d.setDate(d.getDate() + parseInt(dias) - 1);
+          onConfirm(d.toISOString().split('T')[0]);
+        }} />
+      </div>
+    </div>
+  );
+};
+
+const StepDescricaoInline = ({ onConfirm }) => {
+  const [desc, setDesc] = useState('');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+      <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Ex: Stand em L, balcão de atendimento, iluminação LED azul..."
+        style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 100, boxSizing: 'border-box', outline: 'none' }} />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={() => onConfirm(desc)} disabled={!desc.trim()} />
       </div>
     </div>
   );
@@ -350,14 +345,14 @@ const StepDias = ({ onConfirm, dataInicio }) => {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function ClienteChat({ userData, onClose }) {
-  const userName      = userData?.name || userData?.displayName || 'Cliente';
-  const userId        = userData?.uid  || userData?.id || '';
-  const assistantName = 'Chat com a Realize';
+  const userName = userData?.name || userData?.displayName || 'Cliente';
+  const userId   = userData?.uid  || userData?.id || '';
 
-  const [step, setStep]           = useState('stand_pergunta');
-  const [historico, setHistorico] = useState([]);
+  const [step, setStep]         = useState('stand_pergunta');
+  const [historico, setHistorico] = useState([]); // { step, resposta } — para voltar
   const [submitting, setSubmitting] = useState(false);
   const [loadingOpcoes, setLoadingOpcoes] = useState(false);
+  const [animDir, setAnimDir]   = useState('in'); // 'in' | 'out'
 
   const [dados, setDados] = useState({
     temStand: null, tipoEstande: null, standDescricao: '', standImagensUrls: [],
@@ -373,7 +368,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
   const [carrosselIdx,      setCarrosselIdx]      = useState({});
 
-  // Listas de serviços carregados
   const [listaEstrutura, setListaEstrutura] = useState([]);
   const [listaEquipe,    setListaEquipe]    = useState([]);
   const [listaGastro,    setListaGastro]    = useState([]);
@@ -383,53 +377,6 @@ export default function ClienteChat({ userData, onClose }) {
   const [uploadingIdent, setUploadingIdent] = useState(false);
   const standInputRef = useRef();
   const identInputRef = useRef();
-  const bottomRef     = useRef();
-
-  // Ao entrar em cada step, adiciona a pergunta do bot no histórico
-  const perguntasDoStep = {
-    stand_pergunta:             `Olá, **${userName}**! 😊 Sou a Realize, assistente de eventos da Realize Hub.\n\nVou te ajudar a criar a proposta do seu evento. Seu evento precisa de **Stand**?`,
-    stand_tipo:                 'Prefere um Stand **Modular** *(pronto e padronizado)* ou **Personalizado** *(exclusivo, criado do zero)*?',
-    stand_modelos:              'Confira os modelos disponíveis e escolha o que combina com seu evento:',
-    stand_personalizado_sabe:   'Você já sabe como gostaria do seu stand?',
-    stand_personalizado_descricao: 'Descreva como você imagina o seu stand e, se quiser, envie imagens de referência:',
-    stand_personalizado_upload: 'Quer enviar imagens de referência? *(opcional)*',
-    stand_area:                 'Qual o **tamanho da área** do stand em m²?',
-    stand_teto:                 'Qual a **altura do teto** no local do evento?',
-    stand_montagem:             '**Quantos dias antes** do evento o local estará disponível para montagem?',
-    stand_restricao:            'Tem alguma **restrição de acesso** no local? *(altura de caminhões, horário, etc.)*',
-    stand_restricao_desc:       'Descreva as restrições:',
-    stand_identidade:           'Já tem **identidade visual** definida para o evento?',
-    stand_identidade_upload:    'Envie as artes/arquivos da identidade visual:',
-    evento_empresa:             'Agora os dados do evento! Tem nome de **empresa organizadora**?',
-    evento_tipo:                'Qual o **tipo do evento**?',
-    evento_nome:                'O evento já tem um **nome** definido?',
-    evento_data_inicio:         'Qual a **data de início** do evento?',
-    evento_data_fim:            'Quantos **dias** vai durar o evento?',
-    evento_horario:             'Qual o **horário** do evento?',
-    evento_local:               'Qual a **cidade e o local** do evento?',
-    evento_visitantes:          '**Quantas pessoas** participarão por dia?',
-    produtor_pergunta:          'Gostaria de um **Produtor de Eventos** dedicado para coordenar tudo no dia?',
-    estrutura_pergunta:         'Vai precisar de alguma **estrutura física**? *(palco, tendas, backdrop, iluminação...)*',
-    estrutura_selecao:          'Selecione os itens de **estrutura** que você precisa:',
-    equipe_pergunta:            'Vai precisar de algum **profissional** no evento? *(recepcionista, segurança, DJ...)*',
-    equipe_selecao:             'Selecione os **profissionais** que você precisa:',
-    gastro_pergunta:            'Vai precisar de **alimentação ou bebidas**?',
-    gastro_selecao:             'Selecione os serviços de **gastronomia**:',
-    servicos_pergunta:          'Vai precisar de algum **equipamento ou atração**? *(som, iluminação, DJ, fotografia...)*',
-    servicos_selecao:           'Selecione os **equipamentos e atrações**:',
-    info_extra:                 'Falta alguma informação ou pedido especial que queira acrescentar?',
-    pagamento:                  'Última etapa! Como prefere a **forma de pagamento**?',
-  };
-
-  const stepAnteriorRef = useRef(null);
-  useEffect(() => {
-    if (step !== stepAnteriorRef.current) {
-      const pergunta = perguntasDoStep[step];
-      if (pergunta) setHistorico(p => [...p, { role: 'bot', text: pergunta }]);
-      stepAnteriorRef.current = step;
-    }
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 80);
-  }, [step]);
 
   useEffect(() => {
     getDocs(collection(db, 'modelosEspeciais'))
@@ -437,7 +384,6 @@ export default function ClienteChat({ userData, onClose }) {
       .catch(console.error);
   }, []);
 
-  // Palavras que nunca devem aparecer na seleção de estrutura/equipe
   const BLOQUEADOS_ESTRUTURA = ['estande', 'stand', 'desenvolvimento'];
   const BLOQUEADOS_EQUIPE    = ['produtor'];
 
@@ -446,33 +392,36 @@ export default function ClienteChat({ userData, onClose }) {
     try {
       const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', tipo)));
       const servs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-
-      // Aplica filtros por tipo
-      const bloqueados = tipo === 'estrutura' ? BLOQUEADOS_ESTRUTURA
-                       : tipo === 'operacao'  ? BLOQUEADOS_EQUIPE
-                       : [];
+      const bloqueados = tipo === 'estrutura' ? BLOQUEADOS_ESTRUTURA : tipo === 'operacao' ? BLOQUEADOS_EQUIPE : [];
       const filtrados = servs.filter(s => {
         const nome = normalize(s.serviceName || '') + ' ' + normalize(s.serviceParentName || '');
         return !bloqueados.some(b => nome.includes(b));
       });
-
       const comOpcoes = await Promise.all(filtrados.map(async s => {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-        const opcoes = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
-        return { ...s, opcoes };
+        return { ...s, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
       }));
       setter(comOpcoes.filter(s => s.opcoes.length > 0));
     } catch (e) { console.error(e); setter([]); }
     finally { setLoadingOpcoes(false); }
   };
 
-  const set = (key, val) => setDados(p => ({ ...p, [key]: typeof val === 'function' ? val(p[key]) : val }));
-  const addBot  = text => setHistorico(p => [...p, { role: 'bot',  text }]);
-  const addUser = text => setHistorico(p => [...p, { role: 'user', text }]);
+  const set  = (key, val) => setDados(p => ({ ...p, [key]: typeof val === 'function' ? val(p[key]) : val }));
 
-  const ir = (nextStep, botText) => {
-    if (botText) addBot(botText);
+  // Navegação com histórico para voltar
+  const ir = (nextStep, dadosExtra) => {
+    if (dadosExtra) setDados(p => ({ ...p, ...dadosExtra }));
+    setAnimDir('in');
+    setHistorico(p => [...p, step]);
     setStep(nextStep);
+  };
+
+  const voltar = () => {
+    if (historico.length === 0) return;
+    setAnimDir('out');
+    const prev = historico[historico.length - 1];
+    setHistorico(p => p.slice(0, -1));
+    setStep(prev);
   };
 
   const handleUpload = async (files, campo, setUploading) => {
@@ -486,7 +435,6 @@ export default function ClienteChat({ userData, onClose }) {
         urls.push(await getDownloadURL(r));
       }
       set(campo, urls);
-      addUser(`${urls.length} imagem(ns) enviada(s)`);
     } catch (e) { console.error(e); alert('Erro ao enviar imagens.'); }
     finally { setUploading(false); }
   };
@@ -494,43 +442,14 @@ export default function ClienteChat({ userData, onClose }) {
   const montarBriefingJson = () => {
     const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
     return {
-      evento: {
-        tipo: dados.tipoEvento, nome: dados.nomeEvento,
-        dataInicio: dados.dataInicio, dataFim: dados.dataFim,
-        horario: `${dados.horarioInicio} às ${dados.horarioFim}`,
-        horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim,
-        cidade: dados.cidade, local: dados.local, endereco: dados.local,
-        visitantesPorDia: parseInt(dados.visitantesPorDia) || 0,
-        nomeEmpresa: dados.nomeEmpresa, diasDuracao: 1,
-      },
-      estrutura: {
-        ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '',
-        areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto,
-        diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes,
-        identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao',
-        identidadeImagensUrls: dados.identidadeImagensUrls,
-        standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls, observacoes: '',
-      },
-      tipoEstande: dados.tipoEstande || '',
-      modeloEstande: modeloSelecionado || null,
-      equipe: {
-        produtor: { ativo: dados.temProdutor === true, dias: 0, observacoes: '' },
-        itens: dados.equipeSelecionada.map(s => ({
-          tipo: s.serviceName,
-          quantidade:  parseInt(dados.equipeDetalhes[s.serviceName]?.quantidade) || 1,
-          horasPorDia: parseFloat(dados.equipeDetalhes[s.serviceName]?.horasPorDia) || 0,
-          dias:        parseInt(dados.equipeDetalhes[s.serviceName]?.dias) || 0,
-          observacoes: dados.equipeDetalhes[s.serviceName]?.observacoes || '',
-        })),
-      },
-      gastronomia: {
-        alimentos: { ativo: dados.gastronomeSelecionada.length > 0, formato: dados.gastronomeSelecionada.map(s => s.serviceName).join(', '), pessoas: parseInt(dados.visitantesPorDia) || 0, restricoes: '', cozinha: false, observacoes: '' },
-        bar: { ativo: false },
-      },
+      evento: { tipo: dados.tipoEvento, nome: dados.nomeEvento, dataInicio: dados.dataInicio, dataFim: dados.dataFim, horario: `${dados.horarioInicio} às ${dados.horarioFim}`, horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim, cidade: dados.cidade, local: dados.local, endereco: dados.local, visitantesPorDia: parseInt(dados.visitantesPorDia) || 0, nomeEmpresa: dados.nomeEmpresa, diasDuracao: 1 },
+      estrutura: { ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '', areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto, diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes, identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao', identidadeImagensUrls: dados.identidadeImagensUrls, standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls, observacoes: '' },
+      tipoEstande: dados.tipoEstande || '', modeloEstande: modeloSelecionado || null,
+      equipe: { produtor: { ativo: dados.temProdutor === true, dias: 0, observacoes: '' }, itens: dados.equipeSelecionada.map(s => ({ tipo: s.serviceName, quantidade: parseInt(dados.equipeDetalhes[s.serviceName]?.quantidade) || 1, horasPorDia: parseFloat(dados.equipeDetalhes[s.serviceName]?.horasPorDia) || 0, dias: parseInt(dados.equipeDetalhes[s.serviceName]?.dias) || 0, observacoes: dados.equipeDetalhes[s.serviceName]?.observacoes || '' })) },
+      gastronomia: { alimentos: { ativo: dados.gastronomeSelecionada.length > 0, formato: dados.gastronomeSelecionada.map(s => s.serviceName).join(', '), pessoas: parseInt(dados.visitantesPorDia) || 0, restricoes: '', cozinha: false, observacoes: '' }, bar: { ativo: false } },
       servicosNecessarios: todas.map(s => s.serviceName),
       opcoesSelecionadas: todas.map(s => ({ supplierId: s.supplierId, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, opcaoCatalogoId: s.opcaoCatalogoId || '', nome: s.opcaoNome || '', valor: s.valor || null, unidade: s.unidade || '' })),
-      selecoesCatalogo: {}, itensEmAnalise: [],
-      infoExtra: dados.infoExtra, formaPagamento: dados.formaPagamento,
+      selecoesCatalogo: {}, itensEmAnalise: [], infoExtra: dados.infoExtra, formaPagamento: dados.formaPagamento,
     };
   };
 
@@ -563,11 +482,9 @@ export default function ClienteChat({ userData, onClose }) {
 
       const budgetRef = await addDoc(collection(db, 'budgets'), {
         clientUserId: userId, clientName: userName,
-        eventName: bj.evento?.nome || bj.evento?.tipo || 'Novo Evento',
-        eventTypeName: bj.evento?.tipo || '',
+        eventName: bj.evento?.nome || bj.evento?.tipo || 'Novo Evento', eventTypeName: bj.evento?.tipo || '',
         startDate: bj.evento?.dataInicio || '', endDate: bj.evento?.dataFim || '',
-        location: bj.evento?.local || bj.evento?.cidade || '',
-        guestCount: bj.evento?.visitantesPorDia || 0,
+        location: bj.evento?.local || bj.evento?.cidade || '', guestCount: bj.evento?.visitantesPorDia || 0,
         status: 'analyzing', workspaceStage: 'Propostas', isMae: true, numeroPedido,
         briefingData: { ...bj, formaPagamento: dados.formaPagamento },
         financeiro: { formaPagamento: dados.formaPagamento },
@@ -581,8 +498,8 @@ export default function ClienteChat({ userData, onClose }) {
         for (const sel of todas) {
           const key = `${sel.supplierId}__${sel.serviceName}`;
           if (vistos.has(key)) continue; vistos.add(key);
-          const isEstande = normalize(sel.serviceName).includes('estande') || normalize(sel.serviceParentName || '').includes('estande');
-          if (isEstande && dados.tipoEstande === 'modular') continue;
+          const isEst = normalize(sel.serviceName).includes('estande') || normalize(sel.serviceParentName || '').includes('estande');
+          if (isEst && dados.tipoEstande === 'modular') continue;
           await addDoc(collection(db, 'supplierJobs'), {
             supplierId: sel.supplierId, supplierName: sel.supplierName || '', budgetId: budgetRef.id,
             eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '',
@@ -597,399 +514,431 @@ export default function ClienteChat({ userData, onClose }) {
             stage: 'proposta', status: 'draft', createdAt: serverTimestamp(),
           });
         }
-
         if (dados.temProdutor) {
-          const prodSnap = await getDocs(collection(db, 'supplierServices'));
-          const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => normalize(s.serviceName).includes('produtor') && s.ativo !== false);
-          for (const ps of prods) {
-            await addDoc(collection(db, 'supplierJobs'), {
-              supplierId: ps.supplierId, budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento',
-              clientName: userName, eventDate: bj.evento?.dataInicio || '',
-              serviceName: ps.serviceName, serviceParentName: ps.serviceParentName || '',
-              tipoServico: ps.tipoServico || 'operacao', preco: 0, unidade: '',
-              stage: 'proposta', status: 'draft', createdAt: serverTimestamp(),
-            });
+          const ps = await getDocs(collection(db, 'supplierServices'));
+          for (const p of ps.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => normalize(s.serviceName).includes('produtor') && s.ativo !== false)) {
+            await addDoc(collection(db, 'supplierJobs'), { supplierId: p.supplierId, budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', clientName: userName, eventDate: bj.evento?.dataInicio || '', serviceName: p.serviceName, serviceParentName: p.serviceParentName || '', tipoServico: p.tipoServico || 'operacao', preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
           }
         }
-
         if (dados.tipoEstande === 'modular' && modeloSelecionado) {
-          const tiposSnap = await getDocs(collection(db, 'tiposEspeciais'));
-          const todosTipos = tiposSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const tipoDoModelo = todosTipos.find(t => t.id === modeloSelecionado.tipoEspecialId || t.nome?.toLowerCase().includes('modular') || t.nome?.toLowerCase().includes('estande'));
-          for (const forn of (tipoDoModelo?.fornecedoresAutorizados || [])) {
-            await addDoc(collection(db, 'supplierJobs'), {
-              supplierId: forn.id, supplierName: forn.nome || '', budgetId: budgetRef.id,
-              eventName: bj.evento?.nome || 'Novo Evento', clientName: userName, eventDate: bj.evento?.dataInicio || '',
-              serviceName: modeloSelecionado.nome, serviceParentName: tipoDoModelo?.nome || 'Estande Modular',
-              tipoServico: 'estrutura', modeloEspecialId: modeloSelecionado.id,
-              preco: modeloSelecionado.precoBase || 0, unidade: 'por evento',
-              diasPreparo: modeloSelecionado.diasProducao || 0, diasMontagem: 0,
-              stage: 'proposta', status: 'draft', createdAt: serverTimestamp(),
-            });
+          const ts = await getDocs(collection(db, 'tiposEspeciais'));
+          const tm = ts.docs.map(d => ({ id: d.id, ...d.data() })).find(t => t.id === modeloSelecionado.tipoEspecialId || t.nome?.toLowerCase().includes('modular'));
+          for (const f of (tm?.fornecedoresAutorizados || [])) {
+            await addDoc(collection(db, 'supplierJobs'), { supplierId: f.id, supplierName: f.nome || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', clientName: userName, eventDate: bj.evento?.dataInicio || '', serviceName: modeloSelecionado.nome, serviceParentName: tm?.nome || 'Estande Modular', tipoServico: 'estrutura', modeloEspecialId: modeloSelecionado.id, preco: modeloSelecionado.precoBase || 0, unidade: 'por evento', diasPreparo: modeloSelecionado.diasProducao || 0, diasMontagem: 0, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
           }
         }
-
         if (dados.tipoEstande === 'personalizado') {
-          await addDoc(collection(db, 'supplierJobs'), {
-            supplierId: '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', clientName: userName,
-            serviceName: 'Desenvolvimento de Stand', serviceParentName: 'Estandes Personalizados', tipoServico: 'estrutura',
-            observacoes: dados.standDescricao || 'Cliente solicitou atendimento para desenvolver stand personalizado.',
-            standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '',
-            stage: 'proposta', status: 'draft', createdAt: serverTimestamp(),
-          });
+          await addDoc(collection(db, 'supplierJobs'), { supplierId: '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', clientName: userName, serviceName: 'Desenvolvimento de Stand', serviceParentName: 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente solicitou atendimento.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
         }
       } catch (e) { console.error('Erro supplierJobs:', e); }
 
       try {
-        const svSnap = await getDocs(collection(db, 'supplierServices'));
-        const svAll  = svSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
-        const servicosResumidos = svAll.filter(s => s.diasPreparo > 0 || s.diasMontagem > 0).map(s => `${s.serviceName}:preparo=${s.diasPreparo||0}d,montagem=${s.diasMontagem||0}d`).join(';');
         const hoje = new Date().toISOString().split('T')[0];
-        const cronRes = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, system: 'Responda APENAS com JSON válido e compacto. Sem texto, sem markdown, sem backticks.', messages: [{ role: 'user', content: `Monte cronograma de produção para evento corporativo. Responda APENAS JSON compacto.\nEvento:${bj.evento?.nome||bj.evento?.tipo},data:${bj.evento?.dataInicio},cidade:${bj.evento?.cidade}\nServiços:${(bj.servicosNecessarios||[]).join(',')}\nTempos:${servicosResumidos||'padrão'}\nHoje:${hoje}\nJSON:{"prazoInviavel":false,"etapas":[{"id":"e1","n":"nome","d":"desc","r":"coordenador","di":"YYYY-MM-DD","de":"YYYY-MM-DD","da":30,"s":"pendente","t":"administrativo","atrasado":false}]}` }] }) });
-        const cronData = await cronRes.json();
-        const cronText = (cronData.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-        const cronJson = JSON.parse(cronText.replace(/```json|```/g, '').trim());
-        if (cronJson?.etapas?.length > 0) {
-          const etapas = cronJson.etapas.map(e => ({ id: e.id||e.n, nome: e.n||e.nome, descricao: e.d||e.descricao||'', responsavel: e.r||'coordenador', dataInicio: e.di||'', dataEntrega: e.de||'', diasAntes: e.da??0, dependencias: e.dep||[], status: e.s||'pendente', tipo: e.t||'administrativo' }));
-          await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: { etapas, prazoInviavel: cronJson.prazoInviavel || false } });
-        }
+        const cronRes = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, system: 'Responda APENAS com JSON válido e compacto.', messages: [{ role: 'user', content: `Monte cronograma. Responda APENAS JSON:\nEvento:${bj.evento?.nome||bj.evento?.tipo},data:${bj.evento?.dataInicio},cidade:${bj.evento?.cidade}\nServiços:${(bj.servicosNecessarios||[]).join(',')}\nHoje:${hoje}\nJSON:{"prazoInviavel":false,"etapas":[{"id":"e1","n":"nome","d":"desc","r":"coordenador","di":"YYYY-MM-DD","de":"YYYY-MM-DD","da":30,"s":"pendente","t":"administrativo","atrasado":false}]}` }] }) });
+        const cd = await cronRes.json();
+        const ct = (cd.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+        const cj = JSON.parse(ct.replace(/```json|```/g, '').trim());
+        if (cj?.etapas?.length > 0) await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: { etapas: cj.etapas.map(e => ({ id: e.id||e.n, nome: e.n||e.nome, descricao: e.d||'', responsavel: e.r||'coordenador', dataInicio: e.di||'', dataEntrega: e.de||'', diasAntes: e.da??0, dependencias: e.dep||[], status: e.s||'pendente', tipo: e.t||'administrativo' })), prazoInviavel: cj.prazoInviavel||false } });
       } catch (e) { console.error('Erro cronograma:', e); }
 
       try {
-        const descRes = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system: 'Especialista em eventos. Português brasileiro, tom profissional. Sem markdown.', messages: [{ role: 'user', content: `Escreva UM parágrafo curto (máx 3 linhas) descrevendo o evento para equipe interna.\nEvento: ${bj.evento?.nome||bj.evento?.tipo}\nData: ${bj.evento?.dataInicio} a ${bj.evento?.dataFim}\nLocal: ${bj.evento?.local||bj.evento?.cidade}\nVisitantes: ${bj.evento?.visitantesPorDia}\nServiços: ${(bj.servicosNecessarios||[]).join(', ')}` }] }) });
-        const descData = await descRes.json();
-        const descText = (descData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
-        if (descText) await updateDoc(doc(db, 'budgets', budgetRef.id), { descricaoBriefing: descText });
+        const dr = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system: 'Especialista em eventos. PT-BR. Sem markdown.', messages: [{ role: 'user', content: `Parágrafo curto (max 3 linhas) descrevendo o evento.\nEvento:${bj.evento?.nome||bj.evento?.tipo}\nData:${bj.evento?.dataInicio} a ${bj.evento?.dataFim}\nLocal:${bj.evento?.local||bj.evento?.cidade}\nVisitantes:${bj.evento?.visitantesPorDia}\nServiços:${(bj.servicosNecessarios||[]).join(', ')}` }] }) });
+        const dd = await dr.json();
+        const dt = (dd.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+        if (dt) await updateDoc(doc(db, 'budgets', budgetRef.id), { descricaoBriefing: dt });
       } catch (e) { console.error('Erro descrição:', e); }
 
       setStep('sent');
-    } catch (err) { console.error('Erro ao salvar:', err); alert('Erro ao enviar. Tente novamente.'); }
+    } catch (err) { console.error(err); alert('Erro ao enviar. Tente novamente.'); }
     finally { setSubmitting(false); }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  const renderStep = () => {
+  // ── Render de cada step ───────────────────────────────────────────────────
+  const renderConteudo = () => {
+    // ── STAND ────────────────────────────────────────────────────────────────
     if (step === 'stand_pergunta') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={() => { addUser('Sim'); set('temStand', true); ir('stand_tipo'); }}>Sim</Btn>
-        <Btn onClick={() => { addUser('Não'); set('temStand', false); ir('evento_empresa', 'Sem problemas! Vamos para os dados do evento.'); }}>Não</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Olá, **{userName}**! 😊\n\nSeu evento precisa de **Stand**?</Pergunta>
+        <OpcaoBtn onClick={() => ir('stand_tipo', { temStand: true })}>Sim</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('evento_empresa', { temStand: false })}>Não</OpcaoBtn>
       </div>
     );
 
     if (step === 'stand_tipo') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={() => { addUser('Modular'); set('tipoEstande', 'modular'); ir('stand_modelos'); }}>Modular</Btn>
-        <Btn onClick={() => { addUser('Personalizado'); set('tipoEstande', 'personalizado'); ir('stand_personalizado_sabe'); }}>Personalizado</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Qual o tipo de Stand?</Pergunta>
+        <OpcaoBtn onClick={() => ir('stand_modelos', { tipoEstande: 'modular' })}>🏗 Modular — pronto e padronizado</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('stand_personalizado_sabe', { tipoEstande: 'personalizado' })}>✏️ Personalizado — exclusivo, criado do zero</OpcaoBtn>
       </div>
     );
 
     if (step === 'stand_modelos') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Escolha o **modelo** do seu Stand:</Pergunta>
         {modelosEspeciais.length === 0
-          ? <div style={{ fontSize: 12, color: '#7BAFD4', textAlign: 'center', padding: 16 }}>Nenhum modelo disponível no momento.</div>
-          : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          ? <div style={{ color: '#7BAFD4', textAlign: 'center', padding: 20 }}>Nenhum modelo disponível.</div>
+          : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {modelosEspeciais.map(m => {
                 const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
                 return (
                   <div key={m.id} onClick={() => setModeloSelecionado(m)}
                     style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}>
-                    {/* Fotos */}
-                    <div style={{ height: 140, background: 'rgba(0,128,255,0.08)', position: 'relative' }}>
-                      {fotos.length > 0
-                        ? <ModeloCarrossel fotos={fotos} idx={carrosselIdx[m.id] || 0}
-                            onPrev={() => setCarrosselIdx(p => ({ ...p, [m.id]: ((p[m.id]||0) - 1 + fotos.length) % fotos.length }))}
-                            onNext={() => setCarrosselIdx(p => ({ ...p, [m.id]: ((p[m.id]||0) + 1) % fotos.length }))}
-                            onDot={i => setCarrosselIdx(p => ({ ...p, [m.id]: i }))} />
-                        : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', fontSize: 11 }}>Sem foto</div>}
-                      {modeloSelecionado?.id === m.id && <div style={{ position: 'absolute', top: 8, right: 8, background: '#00E5C4', color: '#0A1626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, fontFamily: 'Outfit, sans-serif' }}>✓ Selecionado</div>}
+                    <div style={{ height: 130, background: 'rgba(0,128,255,0.08)', position: 'relative' }}>
+                      {fotos.length > 0 ? <ModeloCarrossel fotos={fotos} idx={carrosselIdx[m.id]||0} onPrev={() => setCarrosselIdx(p => ({ ...p, [m.id]: ((p[m.id]||0)-1+fotos.length)%fotos.length }))} onNext={() => setCarrosselIdx(p => ({ ...p, [m.id]: ((p[m.id]||0)+1)%fotos.length }))} onDot={i => setCarrosselIdx(p => ({ ...p, [m.id]: i }))} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', fontSize: 11 }}>Sem foto</div>}
+                      {modeloSelecionado?.id === m.id && <div style={{ position: 'absolute', top: 8, right: 8, background: '#00E5C4', color: '#0A1626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, fontFamily: 'Outfit, sans-serif' }}>✓</div>}
                     </div>
-                    {/* Infos completas */}
-                    <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ padding: '10px 12px' }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>{m.nome}</div>
-                      {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', lineHeight: 1.4, fontFamily: 'Outfit, sans-serif' }}>{m.descricao}</div>}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
-                        {m.areaM2 && <span style={{ fontSize: 10, background: 'rgba(0,229,196,0.1)', color: '#00E5C4', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>📐 {m.areaM2}m²</span>}
-                        {m.altura && <span style={{ fontSize: 10, background: 'rgba(0,180,255,0.1)', color: '#7BAFD4', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>↕ {m.altura}m alt.</span>}
-                        {m.diasProducao > 0 && <span style={{ fontSize: 10, background: 'rgba(255,167,38,0.1)', color: '#FFA726', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>⏱ {m.diasProducao}d produção</span>}
-                        {m.precoBase > 0 && <span style={{ fontSize: 10, background: 'rgba(102,187,106,0.1)', color: '#66BB6A', padding: '2px 7px', borderRadius: 8, fontFamily: 'Outfit, sans-serif' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                      {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 3 }}>{m.descricao}</div>}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                        {m.areaM2 && <span style={{ fontSize: 10, background: 'rgba(0,229,196,0.1)', color: '#00E5C4', padding: '2px 6px', borderRadius: 6, fontFamily: 'Outfit, sans-serif' }}>📐 {m.areaM2}m²</span>}
+                        {m.altura && <span style={{ fontSize: 10, background: 'rgba(0,180,255,0.1)', color: '#7BAFD4', padding: '2px 6px', borderRadius: 6, fontFamily: 'Outfit, sans-serif' }}>↕ {m.altura}m</span>}
+                        {m.diasProducao > 0 && <span style={{ fontSize: 10, background: 'rgba(255,167,38,0.1)', color: '#FFA726', padding: '2px 6px', borderRadius: 6, fontFamily: 'Outfit, sans-serif' }}>⏱ {m.diasProducao}d</span>}
+                        {m.precoBase > 0 && <span style={{ fontSize: 10, background: 'rgba(102,187,106,0.1)', color: '#66BB6A', padding: '2px 6px', borderRadius: 6, fontFamily: 'Outfit, sans-serif' }}>R$ {m.precoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
                       </div>
-                      {m.caracteristicas?.length > 0 && (
-                        <div style={{ marginTop: 4 }}>
-                          <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.6)', fontFamily: 'Outfit, sans-serif', marginBottom: 3 }}>INCLUSO:</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 10, color: '#7BAFD4', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 6, fontFamily: 'Outfit, sans-serif' }}>{c}</span>)}
-                          </div>
-                        </div>
-                      )}
+                      {m.caracteristicas?.length > 0 && <div style={{ marginTop: 6 }}>{m.caracteristicas.map((c, i) => <span key={i} style={{ fontSize: 10, color: '#7BAFD4', background: 'rgba(255,255,255,0.05)', padding: '2px 5px', borderRadius: 5, marginRight: 4, fontFamily: 'Outfit, sans-serif', display: 'inline-block', marginTop: 2 }}>{c}</span>)}</div>}
                     </div>
                   </div>
                 );
               })}
             </div>}
-        <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half disabled={!modeloSelecionado} onClick={() => { addUser(`Modelo: ${modeloSelecionado.nome}`); ir('stand_area'); }}>
-          {modeloSelecionado ? `Confirmar: ${modeloSelecionado.nome} →` : 'Selecione um modelo'}
-        </Btn></div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <BtnAvancar onClick={() => ir('stand_area')} disabled={!modeloSelecionado}>
+            {modeloSelecionado ? `${modeloSelecionado.nome} →` : 'Selecione um modelo'}
+          </BtnAvancar>
+        </div>
       </div>
     );
 
     if (step === 'stand_personalizado_sabe') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={() => { addUser('Sim, já tenho ideia'); ir('stand_personalizado_descricao'); }}>Sim, já tenho ideia</Btn>
-        <Btn onClick={() => { addUser('Não, preciso de ajuda'); set('standDescricao', 'Cliente solicitou atendimento para desenvolver stand personalizado.'); ir('stand_area', 'Sem problemas! Um atendente entrará em contato para ajudá-lo. Vamos continuar com os dados.'); }}>Não, preciso de ajuda</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Você já sabe como gostaria do seu stand?</Pergunta>
+        <OpcaoBtn onClick={() => ir('stand_personalizado_descricao')}>Sim, já tenho ideia</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('stand_area', { standDescricao: 'Cliente solicitou atendimento para desenvolver stand personalizado.' })}>Não, preciso de ajuda</OpcaoBtn>
       </div>
     );
 
     if (step === 'stand_personalizado_descricao') return (
-      <StepTextarea botText="Descreva como você imagina o seu stand e, se quiser, envie imagens de referência:"
-        placeholder="Ex: Stand em L, com balcão, iluminação LED azul, parede com logo..."
-        onConfirm={val => {
-          set('standDescricao', val); addUser(val);
-          // Upload opcional
-          ir('stand_personalizado_upload');
-        }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Descreva como você imagina o seu **stand**:</Pergunta>
+        <StepDescricaoInline onConfirm={desc => { set('standDescricao', desc); ir('stand_personalizado_upload'); }} />
+      </div>
     );
 
     if (step === 'stand_personalizado_upload') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Quer enviar **imagens de referência**? *(opcional)*</Pergunta>
         <input ref={standInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => handleUpload(e.target.files, 'standImagensUrls', setUploadingStand)} />
         <button onClick={() => standInputRef.current.click()} disabled={uploadingStand}
-          style={{ padding: '10px 14px', borderRadius: 10, border: '1px dashed rgba(0,180,255,0.3)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
-          {uploadingStand ? 'Enviando...' : dados.standImagensUrls.length > 0 ? `${dados.standImagensUrls.length} imagem(ns) — Adicionar mais` : '+ Enviar imagens de referência'}
+          style={{ padding: '16px', borderRadius: 12, border: '1.5px dashed rgba(0,180,255,0.3)', background: 'none', color: '#7BAFD4', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
+          {uploadingStand ? 'Enviando...' : dados.standImagensUrls.length > 0 ? `✓ ${dados.standImagensUrls.length} imagem(ns) — Adicionar mais` : '+ Selecionar imagens'}
         </button>
-        <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half onClick={() => ir('stand_area')}>{dados.standImagensUrls.length > 0 ? 'Continuar →' : 'Pular →'}</Btn></div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <button onClick={() => ir('stand_area')} style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Pular</button>
+          <BtnAvancar onClick={() => ir('stand_area')}>{dados.standImagensUrls.length > 0 ? 'Continuar →' : 'Pular →'}</BtnAvancar>
+        </div>
       </div>
     );
 
     if (step === 'stand_area') return (
-      <StepInput botText="Qual o **tamanho da área** do stand em m²?" type="number" placeholder="Ex: 36" min="1"
-        onConfirm={val => { set('areaM2', val); addUser(`${val} m²`); ir('stand_teto'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Qual o **tamanho da área** do stand em m²?</Pergunta>
+        <StepInputSimples type="number" placeholder="Ex: 36" min="1" autoFocus onConfirm={val => ir('stand_teto', { areaM2: val })} />
+      </div>
     );
 
     if (step === 'stand_teto') return (
-      <StepInput botText="Qual a **altura do teto** no local do evento?" placeholder="Ex: 3m, 4,5m..."
-        onConfirm={val => { set('alturaTeto', val); addUser(val); ir('stand_montagem'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Qual a **altura do teto** no local do evento?</Pergunta>
+        <StepInputSimples placeholder="Ex: 3m, 4,5m..." autoFocus onConfirm={val => ir('stand_montagem', { alturaTeto: val })} />
+      </div>
     );
 
     if (step === 'stand_montagem') return (
-      <StepInput botText="**Quantos dias antes** do evento o local estará disponível para montagem?" type="number" placeholder="Ex: 2" min="0"
-        onConfirm={val => { set('diasMontagem', val); addUser(`${val} dia(s)`); ir('stand_restricao'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>**Quantos dias antes** o local estará disponível para montagem?</Pergunta>
+        <StepInputSimples type="number" placeholder="Ex: 2" min="0" autoFocus onConfirm={val => ir('stand_restricao', { diasMontagem: val })} />
+      </div>
     );
 
     if (step === 'stand_restricao') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={() => ir('stand_restricao_desc')}>Sim, tem restrição</Btn>
-        <Btn onClick={() => { addUser('Sem restrições'); set('restricoes', ''); ir('stand_identidade'); }}>Não, sem restrições</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Tem alguma **restrição de acesso** no local?</Pergunta>
+        <OpcaoBtn onClick={() => ir('stand_restricao_desc')}>Sim, tem restrição</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('stand_identidade', { restricoes: '' })}>Não, sem restrições</OpcaoBtn>
       </div>
     );
 
     if (step === 'stand_restricao_desc') return (
-      <StepInput botText="Descreva as restrições:" placeholder="Ex: altura máx. 3m, acesso somente de manhã..."
-        onConfirm={val => { set('restricoes', val); addUser(val); ir('stand_identidade'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Descreva as **restrições**:</Pergunta>
+        <StepInputSimples placeholder="Ex: altura máx. 3m, acesso somente de manhã..." autoFocus onConfirm={val => ir('stand_identidade', { restricoes: val })} />
+      </div>
     );
 
     if (step === 'stand_identidade') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={() => { addUser('Sim, já tenho'); set('identidadeVisual', true); ir('stand_identidade_upload'); }}>Sim, já tenho</Btn>
-        <Btn onClick={() => { addUser('Não ainda'); set('identidadeVisual', false); ir('evento_empresa'); }}>Não ainda</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Já tem **identidade visual** definida?</Pergunta>
+        <OpcaoBtn onClick={() => ir('stand_identidade_upload', { identidadeVisual: true })}>Sim, já tenho</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('evento_empresa', { identidadeVisual: false })}>Não ainda</OpcaoBtn>
       </div>
     );
 
     if (step === 'stand_identidade_upload') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Envie os **arquivos** da identidade visual:</Pergunta>
         <input ref={identInputRef} type="file" accept="image/*,.pdf,.ai,.eps" multiple style={{ display: 'none' }} onChange={e => handleUpload(e.target.files, 'identidadeImagensUrls', setUploadingIdent)} />
         <button onClick={() => identInputRef.current.click()} disabled={uploadingIdent}
-          style={{ padding: '12px 14px', borderRadius: 10, border: '1px dashed rgba(0,229,196,0.3)', background: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
-          {uploadingIdent ? 'Enviando...' : dados.identidadeImagensUrls.length > 0 ? `${dados.identidadeImagensUrls.length} arquivo(s) — Adicionar mais` : '+ Selecionar arquivos'}
+          style={{ padding: '16px', borderRadius: 12, border: '1.5px dashed rgba(0,229,196,0.3)', background: 'none', color: '#7BAFD4', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
+          {uploadingIdent ? 'Enviando...' : dados.identidadeImagensUrls.length > 0 ? `✓ ${dados.identidadeImagensUrls.length} arquivo(s) — Adicionar mais` : '+ Selecionar arquivos'}
         </button>
-        <div style={{ display:"flex", justifyContent:"center" }}><Btn variant="solid" half onClick={() => ir('evento_empresa', 'Artes recebidas! Agora os dados do evento.')}>{dados.identidadeImagensUrls.length > 0 ? 'Continuar →' : 'Pular por enquanto →'}</Btn></div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <BtnAvancar onClick={() => ir('evento_empresa')}>{dados.identidadeImagensUrls.length > 0 ? 'Continuar →' : 'Pular por agora →'}</BtnAvancar>
+        </div>
       </div>
     );
 
-    // ── EVENTO ──────────────────────────────────────────────────────────────
+    // ── EVENTO ───────────────────────────────────────────────────────────────
     if (step === 'evento_empresa') return (
-      <StepInput botText="Agora os dados do evento! Tem nome de **empresa organizadora**?" placeholder="Nome da empresa (ou deixe em branco)" optional
-        onConfirm={val => { set('nomeEmpresa', val); addUser(val || 'Sem empresa'); ir('evento_tipo'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Qual o nome da **empresa organizadora**?</Pergunta>
+        <StepInputSimples placeholder="Nome da empresa (ou deixe em branco)" autoFocus optional onConfirm={val => ir('evento_tipo', { nomeEmpresa: val })} />
+      </div>
     );
 
     if (step === 'evento_tipo') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {['Feira / Exposição', 'Congresso / Conferência', 'Lançamento de Produto', 'Evento Corporativo', 'Show / Entretenimento', 'Outro'].map(t => (
-          <Btn key={t} onClick={() => { set('tipoEvento', t); addUser(t); ir('evento_nome'); }}>{t}</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+        <Pergunta>Qual o **tipo** do evento?</Pergunta>
+        {['Feira / Exposição','Congresso / Conferência','Lançamento de Produto','Evento Corporativo','Show / Entretenimento','Outro'].map(t => (
+          <OpcaoBtn key={t} onClick={() => ir('evento_nome', { tipoEvento: t })} selected={dados.tipoEvento === t}>{t}</OpcaoBtn>
         ))}
       </div>
     );
 
     if (step === 'evento_nome') return (
-      <StepInput botText="O evento já tem um **nome** definido?" placeholder="Nome do evento (ou deixe em branco)" optional
-        onConfirm={val => { set('nomeEvento', val); addUser(val || 'Sem nome ainda'); ir('evento_data_inicio'); }} />
-    );
-
-    if (step === 'evento_data_inicio') return (
-      <StepData onConfirm={(val, label) => { set('dataInicio', val); addUser(label); ir('evento_data_fim'); }} />
-    );
-
-    if (step === 'evento_data_fim') return (
-      <StepDias onConfirm={(iso, label) => { set('dataFim', iso); addUser(label); ir('evento_horario'); }} dataInicio={dados.dataInicio} />
-    );
-
-    if (step === 'evento_horario') return (
-      <StepHorario onConfirm={(inicio, fim) => { set('horarioInicio', inicio); set('horarioFim', fim); addUser(`${inicio} às ${fim}`); ir('evento_local'); }} />
-    );
-
-    if (step === 'evento_local') return (
-      <StepLocal onConfirm={(cidade, local) => { set('cidade', cidade); set('local', local); addUser(`${cidade}${local ? ` — ${local}` : ''}`); ir('evento_visitantes'); }} />
-    );
-
-    if (step === 'evento_visitantes') return (
-      <StepInput botText="**Quantas pessoas** participarão por dia?" type="number" placeholder="Ex: 500" min="1"
-        onConfirm={val => { set('visitantesPorDia', val); addUser(`${val} pessoas/dia`); ir('produtor_pergunta'); }} />
-    );
-
-    // ── PRODUTOR ────────────────────────────────────────────────────────────
-    if (step === 'produtor_pergunta') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={() => { addUser('Sim'); set('temProdutor', true); ir('estrutura_pergunta', 'Ótimo! Um Produtor Executivo será alocado.'); }}>Sim</Btn>
-        <Btn onClick={() => { addUser('Não'); set('temProdutor', false); ir('estrutura_pergunta'); }}>Não</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>O evento já tem um **nome**?</Pergunta>
+        <StepInputSimples placeholder="Nome do evento (ou deixe em branco)" autoFocus optional onConfirm={val => ir('evento_data_inicio', { nomeEvento: val })} />
       </div>
     );
 
-    // ── ESTRUTURA ───────────────────────────────────────────────────────────
+    if (step === 'evento_data_inicio') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Qual a **data de início** do evento?</Pergunta>
+        <input type="date" defaultValue="" onChange={e => set('dataInicio', e.target.value)}
+          style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }} />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <BtnAvancar onClick={() => ir('evento_data_fim')} disabled={!dados.dataInicio} />
+        </div>
+      </div>
+    );
+
+    if (step === 'evento_data_fim') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>**Quantos dias** vai durar o evento?</Pergunta>
+        <StepDiasInline dataInicio={dados.dataInicio} onConfirm={dataFim => ir('evento_horario', { dataFim })} />
+      </div>
+    );
+
+    if (step === 'evento_horario') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Qual o **horário** do evento?</Pergunta>
+        <StepHorarioInline onConfirm={(inicio, fim) => ir('evento_local', { horarioInicio: inicio, horarioFim: fim })} />
+      </div>
+    );
+
+    if (step === 'evento_local') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Qual a **cidade e o local** do evento?</Pergunta>
+        <StepLocalInline onConfirm={(cidade, local) => ir('evento_visitantes', { cidade, local })} />
+      </div>
+    );
+
+    if (step === 'evento_visitantes') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>**Quantas pessoas** participarão por dia?</Pergunta>
+        <StepInputSimples type="number" placeholder="Ex: 500" min="1" autoFocus onConfirm={val => ir('produtor_pergunta', { visitantesPorDia: val })} />
+      </div>
+    );
+
+    // ── PRODUTOR ─────────────────────────────────────────────────────────────
+    if (step === 'produtor_pergunta') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Gostaria de um **Produtor de Eventos** dedicado?</Pergunta>
+        <OpcaoBtn onClick={() => ir('estrutura_pergunta', { temProdutor: true })}>Sim, quero um produtor</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('estrutura_pergunta', { temProdutor: false })}>Não preciso</OpcaoBtn>
+      </div>
+    );
+
+    // ── ESTRUTURA ────────────────────────────────────────────────────────────
     if (step === 'estrutura_pergunta') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={async () => { addUser('Sim'); await carregarTipo('estrutura', setListaEstrutura); ir('estrutura_selecao'); }}>Sim</Btn>
-        <Btn onClick={() => { addUser('Não'); ir('equipe_pergunta'); }}>Não</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Vai precisar de **estrutura física**?\n*(palco, tendas, backdrop, iluminação...)*</Pergunta>
+        <OpcaoBtn onClick={async () => { await carregarTipo('estrutura', setListaEstrutura); ir('estrutura_selecao'); }}>Sim</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('equipe_pergunta')}>Não</OpcaoBtn>
       </div>
     );
 
     if (step === 'estrutura_selecao') return (
-      <StepMultiSelect botText="Selecione os itens de **estrutura** que você precisa:" servicos={listaEstrutura} loading={loadingOpcoes}
-        onConfirm={escolhidos => { addUser(escolhidos.map(s => s.serviceName).join(', ')); setListaEstrutura(escolhidos); ir('estrutura_opcoes'); }}
-        onSkip={() => { addUser('Não preciso de estrutura'); ir('equipe_pergunta'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Selecione os itens de **estrutura**:</Pergunta>
+        <StepMultiSelect servicos={listaEstrutura} loading={loadingOpcoes}
+          onConfirm={e => { setListaEstrutura(e); ir('estrutura_opcoes'); }}
+          onSkip={() => ir('equipe_pergunta')} />
+      </div>
     );
 
     if (step === 'estrutura_opcoes') return (
-      <StepOpcoes servicos={listaEstrutura} tipo="estrutura" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
-        onConfirm={sels => { set('estruturaSelecionada', sels); ir('equipe_pergunta'); }} />
+      <StepOpcoes servicos={listaEstrutura} onConfirm={sels => { set('estruturaSelecionada', sels); ir('equipe_pergunta'); }} />
     );
 
-    // ── EQUIPE ──────────────────────────────────────────────────────────────
+    // ── EQUIPE ───────────────────────────────────────────────────────────────
     if (step === 'equipe_pergunta') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={async () => { addUser('Sim'); await carregarTipo('operacao', setListaEquipe); ir('equipe_selecao'); }}>Sim</Btn>
-        <Btn onClick={() => { addUser('Não'); ir('gastro_pergunta'); }}>Não</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Vai precisar de algum **profissional**?\n*(recepcionista, segurança, DJ...)*</Pergunta>
+        <OpcaoBtn onClick={async () => { await carregarTipo('operacao', setListaEquipe); ir('equipe_selecao'); }}>Sim</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('gastro_pergunta')}>Não</OpcaoBtn>
       </div>
     );
 
     if (step === 'equipe_selecao') return (
-      <StepMultiSelect botText="Selecione os **profissionais** que você precisa:" servicos={listaEquipe} loading={loadingOpcoes}
-        onConfirm={escolhidos => { addUser(escolhidos.map(s => s.serviceName).join(', ')); setListaEquipe(escolhidos); ir('equipe_opcoes'); }}
-        onSkip={() => { addUser('Não preciso de equipe'); ir('gastro_pergunta'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Selecione os **profissionais**:</Pergunta>
+        <StepMultiSelect servicos={listaEquipe} loading={loadingOpcoes}
+          onConfirm={e => { setListaEquipe(e); ir('equipe_opcoes'); }}
+          onSkip={() => ir('gastro_pergunta')} />
+      </div>
     );
 
     if (step === 'equipe_opcoes') return (
-      <StepOpcoes servicos={listaEquipe} tipo="operacao" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
-        onConfirm={sels => { set('equipeSelecionada', sels); ir('equipe_detalhes'); }} />
+      <StepOpcoes servicos={listaEquipe} onConfirm={sels => { set('equipeSelecionada', sels); ir('equipe_detalhes'); }} />
     );
 
     if (step === 'equipe_detalhes') return (
-      <StepEquipeDetalhes equipe={dados.equipeSelecionada} addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
-        onConfirm={detalhes => { set('equipeDetalhes', detalhes); ir('gastro_pergunta'); }} />
+      <StepEquipeDetalhes equipe={dados.equipeSelecionada} onConfirm={det => { set('equipeDetalhes', det); ir('gastro_pergunta'); }} />
     );
 
-    // ── GASTRONOMIA ─────────────────────────────────────────────────────────
+    // ── GASTRONOMIA ──────────────────────────────────────────────────────────
     if (step === 'gastro_pergunta') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={async () => { addUser('Sim'); await carregarTipo('gastronomia', setListaGastro); ir('gastro_selecao'); }}>Sim</Btn>
-        <Btn onClick={() => { addUser('Não'); ir('servicos_pergunta'); }}>Não</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Vai precisar de **alimentação ou bebidas**?</Pergunta>
+        <OpcaoBtn onClick={async () => { await carregarTipo('gastronomia', setListaGastro); ir('gastro_selecao'); }}>Sim</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('servicos_pergunta')}>Não</OpcaoBtn>
       </div>
     );
 
     if (step === 'gastro_selecao') return (
-      <StepMultiSelect botText="Selecione os serviços de **gastronomia**:" servicos={listaGastro} loading={loadingOpcoes}
-        onConfirm={escolhidos => { addUser(escolhidos.map(s => s.serviceName).join(', ')); setListaGastro(escolhidos); ir('gastro_opcoes'); }}
-        onSkip={() => { addUser('Não preciso de gastronomia'); ir('servicos_pergunta'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Selecione os serviços de **gastronomia**:</Pergunta>
+        <StepMultiSelect servicos={listaGastro} loading={loadingOpcoes}
+          onConfirm={e => { setListaGastro(e); ir('gastro_opcoes'); }}
+          onSkip={() => ir('servicos_pergunta')} />
+      </div>
     );
 
     if (step === 'gastro_opcoes') return (
-      <StepOpcoes servicos={listaGastro} tipo="gastronomia" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
-        onConfirm={sels => { set('gastronomeSelecionada', sels); ir('servicos_pergunta'); }} />
+      <StepOpcoes servicos={listaGastro} onConfirm={sels => { set('gastronomeSelecionada', sels); ir('servicos_pergunta'); }} />
     );
 
-    // ── SERVIÇOS / ENTRETENIMENTO ────────────────────────────────────────────
+    // ── SERVIÇOS ─────────────────────────────────────────────────────────────
     if (step === 'servicos_pergunta') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Btn onClick={async () => { addUser('Sim'); await carregarTipo('entretenimento', setListaServicos); ir('servicos_selecao'); }}>Sim</Btn>
-        <Btn onClick={() => { addUser('Não'); ir('info_extra'); }}>Não</Btn>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Vai precisar de **equipamentos ou atrações**?\n*(som, iluminação, fotografia...)*</Pergunta>
+        <OpcaoBtn onClick={async () => { await carregarTipo('entretenimento', setListaServicos); ir('servicos_selecao'); }}>Sim</OpcaoBtn>
+        <OpcaoBtn onClick={() => ir('info_extra')}>Não</OpcaoBtn>
       </div>
     );
 
     if (step === 'servicos_selecao') return (
-      <StepMultiSelect botText="Selecione os **equipamentos e atrações**:" servicos={listaServicos} loading={loadingOpcoes}
-        onConfirm={escolhidos => { addUser(escolhidos.map(s => s.serviceName).join(', ')); setListaServicos(escolhidos); ir('servicos_opcoes'); }}
-        onSkip={() => { addUser('Não preciso'); ir('info_extra'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Selecione os **equipamentos e atrações**:</Pergunta>
+        <StepMultiSelect servicos={listaServicos} loading={loadingOpcoes}
+          onConfirm={e => { setListaServicos(e); ir('servicos_opcoes'); }}
+          onSkip={() => ir('info_extra')} />
+      </div>
     );
 
     if (step === 'servicos_opcoes') return (
-      <StepOpcoes servicos={listaServicos} tipo="entretenimento" addBot={text => setHistorico(p => [...p, { role: 'bot', text }])}
-        onConfirm={sels => { set('servicosSelecionados', sels); ir('info_extra'); }} />
+      <StepOpcoes servicos={listaServicos} onConfirm={sels => { set('servicosSelecionados', sels); ir('info_extra'); }} />
     );
 
-    // ── INFO EXTRA ──────────────────────────────────────────────────────────
+    // ── INFO EXTRA ────────────────────────────────────────────────────────────
     if (step === 'info_extra') return (
-      <StepTextarea botText="Falta alguma informação ou pedido especial que queira acrescentar?" optional
-        placeholder="Ex: acessibilidade, tema específico, restrições de marca..."
-        onConfirm={val => { set('infoExtra', val); if (val.trim()) addUser(val); ir('pagamento'); }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Falta alguma **informação** ou pedido especial?</Pergunta>
+        <StepTextareaSimples placeholder="Ex: acessibilidade, tema específico, restrições de marca..." optional onConfirm={val => ir('pagamento', { infoExtra: val })} />
+      </div>
     );
 
-    // ── PAGAMENTO ───────────────────────────────────────────────────────────
+    // ── PAGAMENTO ────────────────────────────────────────────────────────────
     if (step === 'pagamento') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+        <Pergunta>Como prefere a **forma de pagamento**?</Pergunta>
         {[
           { label: '50% na entrada + 50% no final do evento', valor: '50_50' },
           { label: '30, 60 e 90 dias', valor: '30_60_90' },
           { label: 'À vista', valor: 'a_vista' },
-        ].map(op => <Btn key={op.valor} onClick={() => { set('formaPagamento', op.valor); addUser(op.label); ir('revisao'); }}>{op.label}</Btn>)}
+        ].map(op => (
+          <OpcaoBtn key={op.valor} onClick={() => ir('revisao', { formaPagamento: op.valor })} selected={dados.formaPagamento === op.valor}>{op.label}</OpcaoBtn>
+        ))}
       </div>
     );
 
-    // ── REVISÃO ─────────────────────────────────────────────────────────────
+    // ── REVISÃO ──────────────────────────────────────────────────────────────
     if (step === 'revisao') return (
-      <StepRevisao
-        dados={dados}
-        modeloSelecionado={modeloSelecionado}
-        submitting={submitting}
-        onConfirm={handleConfirm}
-        onReset={() => ir('stand_pergunta')}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+        <Pergunta>Tudo certo! Confira o **resumo**:</Pergunta>
+        <StepRevisao dados={dados} modeloSelecionado={modeloSelecionado} submitting={submitting} onConfirm={handleConfirm} onReset={() => { setHistorico([]); setStep('stand_pergunta'); }} />
+      </div>
     );
 
-    // ── ENVIADO ─────────────────────────────────────────────────────────────
+    // ── ENVIADO ───────────────────────────────────────────────────────────────
     if (step === 'sent') return (
-      <div style={{ textAlign: 'center', padding: '30px 20px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-        <div style={{ fontSize: 48 }}>🎉</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>Proposta enviada com sucesso!</div>
-        <div style={{ fontSize: 13, color: '#7BAFD4', lineHeight: 1.6, fontFamily: 'Outfit, sans-serif' }}>
-          Nossa equipe recebeu seu briefing e em breve um coordenador entrará em contato.
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', padding: '20px 0' }}>
+        <div style={{ fontSize: 60 }}>🎉</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>Proposta enviada!</div>
+        <div style={{ fontSize: 15, color: '#7BAFD4', lineHeight: 1.6, fontFamily: 'Outfit, sans-serif', maxWidth: 380 }}>
+          Nossa equipe recebeu seu briefing. Em breve um coordenador entrará em contato.
         </div>
-        <button onClick={onClose} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Fechar</button>
+        <BtnAvancar onClick={onClose}>Fechar</BtnAvancar>
       </div>
     );
 
     return null;
   };
 
+  // ── Layout tela cheia ─────────────────────────────────────────────────────
+  if (step === 'sent') return (
+    <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(160deg,#0A1626 0%,#0D1F35 100%)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      {renderConteudo()}
+    </div>
+  );
+
   return (
-    <Overlay onClose={onClose}>
-      <Header assistantName={assistantName} onClose={onClose} />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 32px', scrollBehavior: 'smooth' }}>
-        {historico.map((msg, i) =>
-          msg.role === 'bot' ? <BotMsg key={i}>{msg.text}</BotMsg> : <UserMsg key={i}>{msg.text}</UserMsg>
-        )}
-        <div key={step}>
-          {renderStep()}
+    <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(160deg,#0A1626 0%,#0D1F35 100%)', zIndex: 9999, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* Topo: botão voltar + logo */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', flexShrink: 0 }}>
+        <button onClick={historico.length > 0 ? voltar : onClose}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', padding: '6px 10px', borderRadius: 8, transition: 'all 0.15s' }}>
+          ← {historico.length > 0 ? 'Voltar' : 'Sair'}
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'white', fontFamily: 'Outfit, sans-serif' }}>R</div>
+          <span style={{ fontSize: 13, color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>Realize Hub</span>
         </div>
-        <div ref={bottomRef} />
+        <div style={{ width: 60 }} /> {/* spacer */}
       </div>
-    </Overlay>
+
+      {/* Barra de progresso */}
+      <ProgressBar step={step} />
+
+      {/* Conteúdo centralizado com scroll */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 24px 48px' }}>
+        <div style={{ width: '100%', maxWidth: 520 }} key={step}>
+          {renderConteudo()}
+        </div>
+      </div>
+    </div>
   );
 }
