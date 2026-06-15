@@ -312,91 +312,168 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         <div className="cps-body">
 
           {/* ── ABA BRIEFING ── */}
-          {activeTab === 'briefing' && (
+          {activeTab === 'briefing' && (() => {
+            const bd       = project.briefingData || {};
+            const ev2      = bd.evento || {};
+            const est2     = bd.estrutura || {};
+            const equipe2  = bd.equipe || {};
+            const gastro2  = bd.gastronomia?.alimentos || {};
+            const opcoes   = bd.opcoesSelecionadas || [];
+            const labelPag = { '50_50': '50% entrada + 50% final', '30_60_90': '30 / 60 / 90 dias', 'a_vista': 'À vista' };
+
+            const InfoItem = ({ label, value }) => value ? (
+              <div><div className="cps-info-label">{label}</div><div className="cps-info-value">{value}</div></div>
+            ) : null;
+
+            return (
             <>
+              {/* Resumo IA */}
               {project.descricaoBriefing && (
                 <div className="cps-card">
-                  <div className="cps-card-title">Resumo do Evento</div>
+                  <div className="cps-card-title">Sobre o Evento</div>
                   <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
                 </div>
               )}
 
+              {/* EVENTO */}
               <div className="cps-card">
-                <div className="cps-card-title">Dados do Evento</div>
+                <div className="cps-card-title">Evento</div>
                 <div className="cps-grid">
-                  <div>
-                    <div className="cps-info-label">Tipo</div>
-                    <div className="cps-info-value">{ev.tipo || project.eventTypeName || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="cps-info-label">Nome</div>
-                    <div className="cps-info-value">{ev.nome || project.eventName || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="cps-info-label">Data</div>
-                    <div className="cps-info-value">
-                      {formatDateShort(ev.dataInicio || project.startDate)}
-                      {ev.dataFim && ev.dataFim !== ev.dataInicio ? ` até ${formatDateShort(ev.dataFim)}` : ''}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="cps-info-label">Horário</div>
-                    <div className="cps-info-value">{ev.horarioInicio ? `${ev.horarioInicio}${ev.horarioFim ? ` às ${ev.horarioFim}` : ''}` : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="cps-info-label">Local</div>
-                    <div className="cps-info-value">{ev.local || ev.cidade || project.location || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="cps-info-label">Participantes</div>
-                    <div className="cps-info-value">{ev.visitantesPorDia || project.guestCount || '—'}</div>
-                  </div>
-                  {ev.diasDuracao > 0 && (
-                    <div>
-                      <div className="cps-info-label">Duração</div>
-                      <div className="cps-info-value">{ev.diasDuracao} dia(s)</div>
-                    </div>
-                  )}
-                  {project.briefingData?.formaPagamento && (
-                    <div>
-                      <div className="cps-info-label">Forma de Pagamento</div>
-                      <div className="cps-info-value">
-                        {project.briefingData.formaPagamento === '50_50' && '50% entrada + 50% final'}
-                        {project.briefingData.formaPagamento === '30_60_90' && '30 / 60 / 90 dias'}
-                        {project.briefingData.formaPagamento === 'a_vista' && 'À vista'}
-                      </div>
+                  <InfoItem label="Empresa" value={ev2.nomeEmpresa} />
+                  <InfoItem label="Tipo" value={ev2.tipo || project.eventTypeName} />
+                  <InfoItem label="Nome" value={ev2.nome || project.eventName} />
+                  <InfoItem label="Data início" value={formatDateShort(ev2.dataInicio || project.startDate)} />
+                  <InfoItem label="Data término" value={formatDateShort(ev2.dataFim)} />
+                  <InfoItem label="Horário" value={ev2.horarioInicio ? `${ev2.horarioInicio} às ${ev2.horarioFim || ''}` : null} />
+                  <InfoItem label="Cidade" value={ev2.cidade} />
+                  <InfoItem label="Local" value={ev2.local || project.location} />
+                  <InfoItem label="Participantes/dia" value={ev2.visitantesPorDia ? `${ev2.visitantesPorDia} pessoas` : null} />
+                  <InfoItem label="Pagamento" value={labelPag[bd.formaPagamento]} />
+                  {bd.infoExtra && (
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <div className="cps-info-label">Observações adicionais</div>
+                      <div className="cps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{bd.infoExtra}</div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {est && (est.areaM2 > 0 || est.montagem || est.iluminacao || est.som || est.telao || est.mobiliario) && (
+              {/* STAND */}
+              {est2.ativo && (
                 <div className="cps-card">
-                  <div className="cps-card-title">Estrutura</div>
+                  <div className="cps-card-title">Stand</div>
                   <div className="cps-grid">
-                    {est.areaM2 > 0 && (
-                      <div><div className="cps-info-label">Área</div><div className="cps-info-value">{est.areaM2} m²</div></div>
-                    )}
-                    {[['Montagem', est.montagem], ['Iluminação', est.iluminacao], ['Som', est.som], ['Telão', est.telao], ['Mobiliário', est.mobiliario]].map(([label, val]) => (
-                      <div key={label}>
-                        <div className="cps-info-label">{label}</div>
-                        <div className="cps-info-value" style={{ color: val ? '#10b981' : '#94a3b8' }}>{val ? '✓ Sim' : '✗ Não'}</div>
+                    <InfoItem label="Tipo" value={est2.tipoEstande === 'modular' ? 'Modular' : est2.tipoEstande === 'personalizado' ? 'Personalizado' : null} />
+                    {bd.modeloEstande && <InfoItem label="Modelo" value={bd.modeloEstande.nome} />}
+                    <InfoItem label="Área" value={est2.areaM2 > 0 ? `${est2.areaM2} m²` : null} />
+                    <InfoItem label="Altura do teto" value={est2.alturaTeto} />
+                    <InfoItem label="Dias de montagem" value={est2.diasMontagem > 0 ? `${est2.diasMontagem} dias antes` : null} />
+                    <InfoItem label="Restrições" value={est2.restricoes || (est2.restricoes === '' ? 'Sem restrições' : null)} />
+                    <InfoItem label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim' : est2.identidadeVisual === 'nao' ? 'Não definida ainda' : null} />
+                    {est2.standDescricao && (
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <div className="cps-info-label">Descrição do stand</div>
+                        <div className="cps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</div>
                       </div>
-                    ))}
+                    )}
                   </div>
+                  {/* Imagens do stand */}
+                  {est2.standImagensUrls?.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="cps-info-label" style={{ marginBottom: 8 }}>Imagens de referência</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {est2.standImagensUrls.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noreferrer">
+                            <img src={url} alt={`ref ${i+1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Arquivos de identidade visual */}
+                  {est2.identidadeImagensUrls?.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="cps-info-label" style={{ marginBottom: 8 }}>Arquivos de identidade visual</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {est2.identidadeImagensUrls.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0080FF', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, border: '1px solid #e0e8ff', background: '#f0f4ff' }}>
+                            📎 Arquivo {i + 1}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {servicos.length > 0 && (
+              {/* PRODUTOR */}
+              {equipe2.produtor?.ativo && (
                 <div className="cps-card">
-                  <div className="cps-card-title">Serviços Contratados</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {servicos.map((s, i) => <span key={i} className="cps-tag">{s}</span>)}
+                  <div className="cps-card-title">Produtor de Eventos</div>
+                  <div style={{ fontSize: 13, color: '#475569' }}>✓ Cliente solicitou Produtor Executivo dedicado para o evento.</div>
+                </div>
+              )}
+
+              {/* SERVIÇOS SELECIONADOS */}
+              {opcoes.length > 0 && (
+                <div className="cps-card">
+                  <div className="cps-card-title">Serviços Selecionados</div>
+                  {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
+                    const itens = opcoes.filter(o => o.tipoServico === tipo);
+                    if (!itens.length) return null;
+                    const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe', gastronomia: 'Gastronomia', entretenimento: 'Serviços e Entretenimento' }[tipo];
+                    return (
+                      <div key={tipo} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{labelTipo}</div>
+                        {itens.map((op, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, background: '#fafbff' }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
+                              {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                              {/* Detalhes de equipe */}
+                              {equipe2.itens?.find(e => e.tipo === op.serviceName) && (() => {
+                                const det = equipe2.itens.find(e => e.tipo === op.serviceName);
+                                return (
+                                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                    {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                    {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                    {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                    {det.observacoes && ` · ${det.observacoes}`}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {op.valor > 0 && (
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>
+                                  {formatBRL(op.valor)}
+                                </div>
+                                {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* GASTRONOMIA extra info */}
+              {gastro2.ativo && (
+                <div className="cps-card">
+                  <div className="cps-card-title">Gastronomia</div>
+                  <div className="cps-grid">
+                    <InfoItem label="Serviço" value={gastro2.formato} />
+                    <InfoItem label="Pessoas" value={gastro2.pessoas ? `${gastro2.pessoas} pessoas` : null} />
+                    <InfoItem label="Restrições" value={gastro2.restricoes || 'Nenhuma'} />
+                    <InfoItem label="Cozinha no local" value={gastro2.cozinha ? 'Sim' : 'Não'} />
                   </div>
                 </div>
               )}
             </>
-          )}
+            );
+          })()}
 
           {/* ── ABA AÇÃO ── */}
           {activeTab === 'acao' && (
