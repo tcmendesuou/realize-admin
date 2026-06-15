@@ -874,15 +874,48 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
               {/* Estrutura */}
               <div className="ps-card">
-                <div className="ps-card-title">Estrutura</div>
+                <div className="ps-card-title">Estrutura / Stand</div>
                 <div className="ps-info-grid">
-                  {est.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est.areaM2} m²</span></div>}
-                  {[['Montagem', est.montagem], ['Iluminação', est.iluminacao], ['Som', est.som], ['Telão', est.telao], ['Mobiliário', est.mobiliario]].map(([label, val]) => (
-                    <div key={label} className="ps-info-item">
-                      <span className="ps-info-label">{label}</span>
-                      <span className={`ps-bool ${val ? 'ps-bool-yes' : 'ps-bool-no'}`}>{val ? '✓ Sim' : '✗ Não'}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const bd2 = project.briefingData || {};
+                    const est2 = bd2.estrutura || {};
+                    return (<>
+                      {est2.tipoEstande && <div className="ps-info-item"><span className="ps-info-label">Tipo de Stand</span><span className="ps-info-value">{est2.tipoEstande === 'modular' ? 'Modular' : 'Personalizado'}</span></div>}
+                      {bd2.modeloEstande?.nome && <div className="ps-info-item"><span className="ps-info-label">Modelo</span><span className="ps-info-value">{bd2.modeloEstande.nome}</span></div>}
+                      {est2.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est2.areaM2} m²</span></div>}
+                      {est2.alturaTeto && <div className="ps-info-item"><span className="ps-info-label">Altura do teto</span><span className="ps-info-value">{est2.alturaTeto}</span></div>}
+                      {est2.diasMontagem > 0 && <div className="ps-info-item"><span className="ps-info-label">Dias de montagem</span><span className="ps-info-value">{est2.diasMontagem} dias antes</span></div>}
+                      {est2.restricoes && <div className="ps-info-item full"><span className="ps-info-label">Restrições de acesso</span><span className="ps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</span></div>}
+                      {!est2.restricoes && est2.tipoEstande && <div className="ps-info-item"><span className="ps-info-label">Restrições</span><span className="ps-info-value" style={{ color: '#94a3b8' }}>Sem restrições</span></div>}
+                      {est2.identidadeVisual && <div className="ps-info-item"><span className="ps-info-label">Identidade visual</span><span className={`ps-bool ${est2.identidadeVisual === 'sim' ? 'ps-bool-yes' : 'ps-bool-no'}`}>{est2.identidadeVisual === 'sim' ? '✓ Sim, enviada' : '✗ Não definida'}</span></div>}
+                      {est2.standDescricao && <div className="ps-info-item full"><span className="ps-info-label">Descrição do stand</span><span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</span></div>}
+                      {est2.standImagensUrls?.length > 0 && (
+                        <div className="ps-info-item full">
+                          <span className="ps-info-label">Imagens de referência</span>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                            {est2.standImagensUrls.map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noreferrer">
+                                <img src={url} alt={`ref ${i+1}`} style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {est2.identidadeImagensUrls?.length > 0 && (
+                        <div className="ps-info-item full">
+                          <span className="ps-info-label">Arquivos de identidade visual</span>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                            {est2.identidadeImagensUrls.map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0080FF', display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, border: '1px solid #e0e8ff', background: '#f0f4ff' }}>
+                                📎 Arquivo {i+1}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {!est2.tipoEstande && est.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est.areaM2} m²</span></div>}
+                    </>);
+                  })()}
                 </div>
               </div>
 
