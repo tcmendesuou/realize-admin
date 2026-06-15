@@ -919,37 +919,86 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 </div>
               </div>
 
-              {/* Equipe */}
-              <div className="ps-card">
-                <div className="ps-card-title">Equipe Operacional</div>
-                <div className="ps-info-grid">
-                  {Object.entries(equipe).map(([key, val]) => {
-                    if (!val || typeof val !== 'object') return null;
-                    const qtd = val.quantidade || 0;
-                    const hrs = val.horasPorDia || 0;
-                    if (qtd === 0) return null;
-                    return (
-                      <div key={key} className="ps-info-item">
-                        <span className="ps-info-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                        <span className="ps-info-value">{qtd} pessoa(s) × {hrs}h/dia</span>
-                      </div>
-                    );
-                  })}
-                  {Object.values(equipe).every(v => !v?.quantidade) && (
-                    <div className="ps-info-item full"><span className="ps-info-value" style={{ color: '#94a3b8' }}>Nenhuma equipe especificada</span></div>
-                  )}
-                </div>
-              </div>
+              {/* Serviços por categoria */}
+              {(() => {
+                const bd2     = project.briefingData || {};
+                const opcoes  = bd2.opcoesSelecionadas || [];
+                const equipeItens = bd2.equipe?.itens || [];
 
-              {/* Serviços identificados */}
-              {servicos.length > 0 && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Serviços Identificados pela IA</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {servicos.map((s, i) => <span key={i} className="ps-tag">{s}</span>)}
+                const categorias = [
+                  { key: 'operacao',       label: 'Operacional',      color: '#00E5C4' },
+                  { key: 'estrutura',      label: 'Estrutura',        color: '#0080FF' },
+                  { key: 'gastronomia',    label: 'Gastronomia',      color: '#66BB6A' },
+                  { key: 'entretenimento', label: 'Entretenimento',   color: '#FFA726' },
+                ];
+
+                return categorias.map(({ key, label, color }) => {
+                  const itens = opcoes.filter(o => o.tipoServico === key);
+                  if (!itens.length) return null;
+                  return (
+                    <div key={key} className="ps-card">
+                      <div className="ps-card-title" style={{ color }}>{label}</div>
+                      <div className="ps-info-grid">
+                        {itens.map((op, i) => {
+                          const det = equipeItens.find(e => e.tipo === op.serviceName);
+                          return (
+                            <div key={i} className="ps-info-item full" style={{ borderBottom: i < itens.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: 8, marginBottom: 4 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                  <span className="ps-info-label">{op.serviceName}</span>
+                                  {op.nome && <div style={{ fontSize: 12, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                                  {det && (det.quantidade > 0 || det.horasPorDia > 0) && (
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                      {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                      {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                      {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                      {det.observacoes && ` · ${det.observacoes}`}
+                                    </div>
+                                  )}
+                                </div>
+                                {op.valor > 0 && (
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <span className="ps-info-value" style={{ color: '#00E5C4', fontWeight: 700 }}>
+                                      R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                    {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+
+              {/* Informações Finais */}
+              {(() => {
+                const bd2 = project.briefingData || {};
+                if (!bd2.infoExtra && !bd2.formaPagamento) return null;
+                const labelPag = { '50_50': '50% entrada + 50% final', '30_60_90': '30 / 60 / 90 dias', 'a_vista': 'À vista' };
+                return (
+                  <div className="ps-card">
+                    <div className="ps-card-title">Informações Finais</div>
+                    <div className="ps-info-grid">
+                      {bd2.formaPagamento && (
+                        <div className="ps-info-item">
+                          <span className="ps-info-label">Forma de pagamento</span>
+                          <span className="ps-info-value">{labelPag[bd2.formaPagamento] || bd2.formaPagamento}</span>
+                        </div>
+                      )}
+                      {bd2.infoExtra && (
+                        <div className="ps-info-item full">
+                          <span className="ps-info-label">Observações do cliente</span>
+                          <span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{bd2.infoExtra}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Relatório Final */}
               {project.status === 'completed' && project.relatorioFinal && (() => {
