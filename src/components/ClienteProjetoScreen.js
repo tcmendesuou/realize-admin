@@ -370,7 +370,9 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     <InfoItem label="Área" value={est2.areaM2 > 0 ? `${est2.areaM2} m²` : null} />
                     <InfoItem label="Altura do teto" value={est2.alturaTeto} />
                     <InfoItem label="Dias de montagem" value={est2.diasMontagem > 0 ? `${est2.diasMontagem} dias antes` : null} />
-                    <InfoItem label="Restrições" value={est2.restricoes || (est2.restricoes === '' ? 'Sem restrições' : null)} />
+                    {est2.restricoes
+                      ? <div style={{ gridColumn: '1/-1' }}><div className="cps-info-label">Restrições de acesso</div><div className="cps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</div></div>
+                      : est2.tipoEstande && <InfoItem label="Restrições" value="Sem restrições" />}
                     <InfoItem label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim' : est2.identidadeVisual === 'nao' ? 'Não definida ainda' : null} />
                     {est2.standDescricao && (
                       <div style={{ gridColumn: '1/-1' }}>
@@ -416,63 +418,39 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                 </div>
               )}
 
-              {/* SERVIÇOS SELECIONADOS */}
-              {opcoes.length > 0 && (
-                <div className="cps-card">
-                  <div className="cps-card-title">Serviços Selecionados</div>
-                  {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
-                    const itens = opcoes.filter(o => o.tipoServico === tipo);
-                    if (!itens.length) return null;
-                    const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe', gastronomia: 'Gastronomia', entretenimento: 'Serviços e Entretenimento' }[tipo];
-                    return (
-                      <div key={tipo} style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{labelTipo}</div>
-                        {itens.map((op, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, background: '#fafbff' }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
-                              {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
-                              {/* Detalhes de equipe */}
-                              {equipe2.itens?.find(e => e.tipo === op.serviceName) && (() => {
-                                const det = equipe2.itens.find(e => e.tipo === op.serviceName);
-                                return (
-                                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                    {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
-                                    {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
-                                    {det.dias > 0 && ` · ${det.dias} dia(s)`}
-                                    {det.observacoes && ` · ${det.observacoes}`}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                            {op.valor > 0 && (
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>
-                                  {formatBRL(op.valor)}
-                                </div>
-                                {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
+              {/* SERVIÇOS SELECIONADOS — por categoria, sem valores */}
+              {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
+                const itens = opcoes.filter(o => o.tipoServico === tipo);
+                if (!itens.length) return null;
+                const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe Operacional', gastronomia: 'Gastronomia', entretenimento: 'Entretenimento' }[tipo];
+                const corTipo  = { estrutura: '#0080FF', operacao: '#00E5C4', gastronomia: '#66BB6A', entretenimento: '#FFA726' }[tipo];
+                return (
+                  <div key={tipo} className="cps-card">
+                    <div className="cps-card-title" style={{ color: corTipo }}>{labelTipo}</div>
+                    <div className="cps-grid">
+                      {itens.map((op, i) => {
+                        const det = equipe2.itens?.find(e => e.tipo === op.serviceName);
+                        return (
+                          <div key={i} style={{ gridColumn: '1/-1', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, background: '#fafbff' }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
+                            {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                            {det && (det.quantidade > 0 || det.horasPorDia > 0) && (
+                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                {det.observacoes && ` · ${det.observacoes}`}
                               </div>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* GASTRONOMIA extra info */}
-              {gastro2.ativo && (
-                <div className="cps-card">
-                  <div className="cps-card-title">Gastronomia</div>
-                  <div className="cps-grid">
-                    <InfoItem label="Serviço" value={gastro2.formato} />
-                    <InfoItem label="Pessoas" value={gastro2.pessoas ? `${gastro2.pessoas} pessoas` : null} />
-                    <InfoItem label="Restrições" value={gastro2.restricoes || 'Nenhuma'} />
-                    <InfoItem label="Cozinha no local" value={gastro2.cozinha ? 'Sim' : 'Não'} />
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
+
+
             </>
             );
           })()}
