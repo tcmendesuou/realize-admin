@@ -558,7 +558,7 @@ export default function ClienteChat({ userData, onClose }) {
     // ── STAND ────────────────────────────────────────────────────────────────
     if (step === 'stand_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-        <Pergunta>Olá, **{userName}**! 😊\n\nSeu evento precisa de **Stand**?</Pergunta>
+        <Pergunta>{`Olá, **${userName}**! 😊\n\nSeu evento precisa de **Stand**?`}</Pergunta>
         <OpcaoBtn onClick={() => ir('stand_tipo', { temStand: true })}>Sim</OpcaoBtn>
         <OpcaoBtn onClick={() => ir('evento_empresa', { temStand: false })}>Não</OpcaoBtn>
       </div>
