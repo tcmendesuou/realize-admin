@@ -665,12 +665,19 @@ export default function ClienteChat({ userData, onClose }) {
       </div>
     );
 
-    if (step === 'stand_area') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-        <Pergunta>Qual o **tamanho da área** do stand em m²?</Pergunta>
-        <StepInputSimples type="number" placeholder="Ex: 36" min="1" autoFocus onConfirm={val => ir('stand_teto', { areaM2: val })} />
-      </div>
-    );
+    if (step === 'stand_area') {
+      // Modular: área já conhecida pelo modelo — pula direto para teto
+      if (dados.tipoEstande === 'modular') {
+        ir('stand_teto');
+        return null;
+      }
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+          <Pergunta>Qual o **tamanho da área** do stand em m²?</Pergunta>
+          <StepInputSimples type="number" placeholder="Ex: 36" min="1" autoFocus onConfirm={val => ir('stand_teto', { areaM2: val })} />
+        </div>
+      );
+    }
 
     if (step === 'stand_teto') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
@@ -798,7 +805,8 @@ export default function ClienteChat({ userData, onClose }) {
     // ── ESTRUTURA ────────────────────────────────────────────────────────────
     if (step === 'estrutura_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-        <Pergunta>Vai precisar de **estrutura física**?\n*(palco, tendas, backdrop, iluminação...)*</Pergunta>
+        <Pergunta>Vai precisar de **estrutura física**?
+*(palco, tendas, backdrop, iluminação...)*</Pergunta>
         <OpcaoBtn onClick={async () => { await carregarTipo('estrutura', setListaEstrutura); ir('estrutura_selecao'); }}>Sim</OpcaoBtn>
         <OpcaoBtn onClick={() => ir('equipe_pergunta')}>Não</OpcaoBtn>
       </div>
@@ -820,7 +828,8 @@ export default function ClienteChat({ userData, onClose }) {
     // ── EQUIPE ───────────────────────────────────────────────────────────────
     if (step === 'equipe_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-        <Pergunta>Vai precisar de algum **profissional**?\n*(recepcionista, segurança, DJ...)*</Pergunta>
+        <Pergunta>Vai precisar de algum **profissional**?
+*(recepcionista, segurança, DJ...)*</Pergunta>
         <OpcaoBtn onClick={async () => { await carregarTipo('operacao', setListaEquipe); ir('equipe_selecao'); }}>Sim</OpcaoBtn>
         <OpcaoBtn onClick={() => ir('gastro_pergunta')}>Não</OpcaoBtn>
       </div>
@@ -868,7 +877,8 @@ export default function ClienteChat({ userData, onClose }) {
     // ── SERVIÇOS ─────────────────────────────────────────────────────────────
     if (step === 'servicos_pergunta') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-        <Pergunta>Vai precisar de **equipamentos ou atrações**?\n*(som, iluminação, fotografia...)*</Pergunta>
+        <Pergunta>Vai precisar de **equipamentos ou atrações**?
+*(som, iluminação, fotografia...)*</Pergunta>
         <OpcaoBtn onClick={async () => { await carregarTipo('entretenimento', setListaServicos); ir('servicos_selecao'); }}>Sim</OpcaoBtn>
         <OpcaoBtn onClick={() => ir('info_extra')}>Não</OpcaoBtn>
       </div>

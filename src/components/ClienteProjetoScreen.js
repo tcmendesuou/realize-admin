@@ -349,14 +349,16 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                   <InfoItem label="Local" value={ev2.local || project.location} />
                   <InfoItem label="Participantes/dia" value={ev2.visitantesPorDia ? `${ev2.visitantesPorDia} pessoas` : null} />
                   <InfoItem label="Pagamento" value={labelPag[bd.formaPagamento]} />
-                  {bd.infoExtra && (
-                    <div style={{ gridColumn: '1/-1' }}>
-                      <div className="cps-info-label">Observações adicionais</div>
-                      <div className="cps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{bd.infoExtra}</div>
-                    </div>
-                  )}
                 </div>
               </div>
+
+              {/* INFO EXTRA */}
+              {bd.infoExtra && (
+                <div className="cps-card" style={{ borderLeft: '3px solid #667eea' }}>
+                  <div className="cps-card-title">Informações Adicionais</div>
+                  <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, whiteSpace: 'pre-wrap', margin: 0 }}>{bd.infoExtra}</p>
+                </div>
+              )}
 
               {/* STAND */}
               {est2.ativo && (
