@@ -628,7 +628,7 @@ export default function ClienteChat({ userData, onClose }) {
               })}
             </div>}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <BtnAvancar onClick={() => ir('stand_area')} disabled={!modeloSelecionado}>
+          <BtnAvancar onClick={() => ir('stand_teto')} disabled={!modeloSelecionado}>
             {modeloSelecionado ? `${modeloSelecionado.nome} →` : 'Selecione um modelo'}
           </BtnAvancar>
         </div>
@@ -665,19 +665,12 @@ export default function ClienteChat({ userData, onClose }) {
       </div>
     );
 
-    if (step === 'stand_area') {
-      // Modular: área já conhecida pelo modelo — pula direto para teto
-      if (dados.tipoEstande === 'modular') {
-        ir('stand_teto');
-        return null;
-      }
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-          <Pergunta>Qual o **tamanho da área** do stand em m²?</Pergunta>
-          <StepInputSimples type="number" placeholder="Ex: 36" min="1" autoFocus onConfirm={val => ir('stand_teto', { areaM2: val })} />
-        </div>
-      );
-    }
+    if (step === 'stand_area') return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+        <Pergunta>Qual o **tamanho da área** do stand em m²?</Pergunta>
+        <StepInputSimples type="number" placeholder="Ex: 36" min="1" autoFocus onConfirm={val => ir('stand_teto', { areaM2: val })} />
+      </div>
+    );
 
     if (step === 'stand_teto') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
@@ -962,7 +955,10 @@ export default function ClienteChat({ userData, onClose }) {
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'white', fontFamily: 'Outfit, sans-serif' }}>R</div>
           <span style={{ fontSize: 13, color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>Realize Hub</span>
         </div>
-        <div style={{ width: 60 }} /> {/* spacer */}
+        <button onClick={onClose}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', padding: '6px 10px', borderRadius: 8, transition: 'all 0.15s' }}>
+          Fechar ×
+        </button>
       </div>
 
       {/* Barra de progresso */}
