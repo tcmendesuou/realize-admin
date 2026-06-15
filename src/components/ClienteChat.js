@@ -399,7 +399,23 @@ export default function ClienteChat({ userData, onClose }) {
       });
       const comOpcoes = await Promise.all(filtrados.map(async s => {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-        return { ...s, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
+        const opsForn = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+
+        // Enriquece cada opção com valor/unidade do catálogo admin (services/{serviceId}/opcoes)
+        const opsEnriquecidas = await Promise.all(opsForn.map(async opForn => {
+          if (opForn.opcaoCatalogoId && s.serviceId) {
+            try {
+              const catSnap = await getDocs(collection(db, 'services', s.serviceId, 'opcoes'));
+              const opCat = catSnap.docs.find(cd => cd.id === opForn.opcaoCatalogoId);
+              if (opCat) {
+                return { ...opForn, valor: opCat.data().valor ?? 0, unidade: opCat.data().unidade ?? '', nome: opForn.nome || opCat.data().nome || '' };
+              }
+            } catch (e) { console.error('Erro ao buscar opcao catalogo:', e); }
+          }
+          return opForn;
+        }));
+
+        return { ...s, opcoes: opsEnriquecidas };
       }));
       setter(comOpcoes.filter(s => s.opcoes.length > 0));
     } catch (e) { console.error(e); setter([]); }
