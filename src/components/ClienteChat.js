@@ -500,6 +500,8 @@ export default function ClienteChat({ userData, onClose }) {
           if (vistos.has(key)) continue; vistos.add(key);
           const isEst = normalize(sel.serviceName).includes('estande') || normalize(sel.serviceParentName || '').includes('estande');
           if (isEst && dados.tipoEstande === 'modular') continue;
+          // Detalhes de equipe (quantidade, horas, dias, observacoes)
+          const detEquipe = dados.equipeDetalhes[sel.serviceName] || {};
           await addDoc(collection(db, 'supplierJobs'), {
             supplierId: sel.supplierId, supplierName: sel.supplierName || '', budgetId: budgetRef.id,
             eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '',
@@ -508,9 +510,16 @@ export default function ClienteChat({ userData, onClose }) {
             eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '',
             eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0,
             serviceNames: [sel.serviceName], serviceName: sel.serviceName, serviceParentName: sel.serviceParentName || '',
-            tipoServico: sel.tipoServico || '', opcaoCatalogoId: sel.opcaoCatalogoId || '',
+            tipoServico: sel.tipoServico || '',
+            opcaoCatalogoId: sel.opcaoCatalogoId || '',
+            opcaoNome:        sel.opcaoNome       || '',
             preco: sel.valor || 0, unidade: sel.unidade || '',
             diasPreparo: sel.diasPreparo || 0, diasMontagem: sel.diasMontagem || 0,
+            // Detalhes de equipe (preenchidos pelo cliente)
+            quantidade:   detEquipe.quantidade   ? parseInt(detEquipe.quantidade)   : null,
+            horasPorDia:  detEquipe.horasPorDia  ? parseFloat(detEquipe.horasPorDia) : null,
+            diasServico:  detEquipe.dias         ? parseInt(detEquipe.dias)         : null,
+            observacoes:  detEquipe.observacoes  || '',
             stage: 'proposta', status: 'draft', createdAt: serverTimestamp(),
           });
         }

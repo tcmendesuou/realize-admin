@@ -1437,6 +1437,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             <>
                               <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
                                 {sj.opcaoNome && <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(102,126,234,0.15)', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Opção solicitada</div><div style={{ fontSize: 14, fontWeight: 600, color: '#667eea' }}>{sj.opcaoNome}</div></div>}
+                                {(sj.quantidade || sj.horasPorDia || sj.diasServico || sj.observacoes) && <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.1)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 5 }}>Solicitação do cliente</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{sj.quantidade && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.quantidade}</strong> profissional(is)</span>}{sj.horasPorDia && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.horasPorDia}h</strong>/dia</span>}{sj.diasServico && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.diasServico}</strong> dia(s)</span>}{sj.observacoes && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>&#x201c;{sj.observacoes}&#x201d;</span>}</div></div>}
                                 {valorTotal && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div><div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>{sj.unidade || ''}</div></div>}
                                 {sj.eventDate && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Data do evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventDate.split('-').reverse().join('/')}{sj.eventDateFim && sj.eventDateFim !== sj.eventDate ? ` a ${sj.eventDateFim.split('-').reverse().join('/')}` : ''}</div></div>}
                                 {(sj.eventHorarioInicio || ev.horarioInicio) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Horário</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventHorarioInicio || ev.horarioInicio}{(sj.eventHorarioFim || ev.horarioFim) ? ` às ${sj.eventHorarioFim || ev.horarioFim}` : ''}</div></div>}
@@ -1727,6 +1728,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(102,126,234,0.15)' }}>
                                 <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Opção escolhida pelo cliente</div>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: '#667eea' }}>{sj.opcaoNome}</div>
+                              </div>
+                            )}
+                            {/* Detalhes de equipe escolhidos pelo cliente */}
+                            {(sj.quantidade || sj.horasPorDia || sj.diasServico || sj.observacoes) && (
+                              <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.1)' }}>
+                                <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Solicitação do cliente</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                                  {sj.quantidade && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.quantidade}</strong> profissional(is)</span>}
+                                  {sj.horasPorDia && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.horasPorDia}h</strong>/dia</span>}
+                                  {sj.diasServico && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.diasServico}</strong> dia(s)</span>}
+                                  {sj.observacoes && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>"{sj.observacoes}"</span>}
+                                </div>
                               </div>
                             )}
                             {/* Grid de infos numéricas */}
