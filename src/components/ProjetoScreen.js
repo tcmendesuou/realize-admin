@@ -667,299 +667,323 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── VISÃO GERAL (fornecedor) ── */}
           {activeTab === 'info' && isFornecedor && (
             <>
-              {/* Sobre o Evento */}
-              {project.descricaoBriefing && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Sobre o Evento</div>
-                  <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
-                    <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
+              {/* ── BRIEFING COMPARTILHADO (mesmo layout para todos) ── */}
+              {(() => {
+                const bd2      = project.briefingData || {};
+                const ev2      = bd2.evento || {};
+                const est2     = bd2.estrutura || {};
+                const equipe2  = bd2.equipe || {};
+                const opcoes   = bd2.opcoesSelecionadas || [];
+                const labelPag = { '50_50': '50% entrada + 50% final', '30_60_90': '30 / 60 / 90 dias', 'a_vista': 'À vista' };
+                const InfoRow  = ({ label, value, full }) => value ? (
+                  <div className={`ps-info-item${full ? ' full' : ''}`}>
+                    <span className="ps-info-label">{label}</span>
+                    <span className="ps-info-value">{value}</span>
                   </div>
-                </div>
-              )}
-
-              {/* Evento */}
-              <div className="ps-card">
-                <div className="ps-card-title">Evento</div>
-                <div className="ps-info-grid">
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Tipo</span>
-                    <span className="ps-info-value">{ev.tipo || project.eventTypeName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Nome</span>
-                    <span className="ps-info-value">{ev.nome || project.eventName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Data</span>
-                    <span className="ps-info-value">{formatDateShort(ev.dataInicio || project.startDate)}{ev.dataFim && ev.dataFim !== ev.dataInicio ? ` até ${formatDateShort(ev.dataFim)}` : ''}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Horário</span>
-                    <span className="ps-info-value">{ev.horarioInicio ? `${ev.horarioInicio}${ev.horarioFim ? ` às ${ev.horarioFim}` : ''}` : '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Local</span>
-                    <span className="ps-info-value">{ev.local || ev.cidade || project.location || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Participantes</span>
-                    <span className="ps-info-value">{ev.visitantesPorDia || project.guestCount || '—'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Estrutura */}
-              {est && (est.areaM2 > 0 || est.montagem || est.iluminacao || est.som || est.telao || est.mobiliario) && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Estrutura</div>
-                  <div className="ps-info-grid">
-                    {est.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est.areaM2} m²</span></div>}
-                    {[['Montagem', est.montagem], ['Iluminação', est.iluminacao], ['Som', est.som], ['Telão', est.telao], ['Mobiliário', est.mobiliario]].map(([label, val]) => (
-                      <div key={label} className="ps-info-item">
-                        <span className="ps-info-label">{label}</span>
-                        <span className={`ps-bool ${val ? 'ps-bool-yes' : 'ps-bool-no'}`}>{val ? '✓ Sim' : '✗ Não'}</span>
+                ) : null;
+                return (
+                  <>
+                    {/* Resumo IA */}
+                    {project.descricaoBriefing && (
+                      <div className="ps-card">
+                        <div className="ps-card-title">Sobre o Evento</div>
+                        <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
+                          <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
 
-              {/* Equipe Operacional */}
-              {equipe && Object.values(equipe).some(v => v?.quantidade > 0) && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Equipe Operacional</div>
-                  <div className="ps-info-grid">
-                    {Object.entries(equipe).map(([key, val]) => {
-                      if (!val || typeof val !== 'object' || !val.quantidade) return null;
+                    {/* Evento */}
+                    <div className="ps-card">
+                      <div className="ps-card-title">Evento</div>
+                      <div className="ps-info-grid">
+                        <InfoRow label="Empresa"          value={ev2.nomeEmpresa} />
+                        <InfoRow label="Tipo"             value={ev2.tipo || project.eventTypeName} />
+                        <InfoRow label="Nome"             value={ev2.nome || project.eventName} />
+                        <InfoRow label="Data início"      value={formatDateShort(ev2.dataInicio || project.startDate)} />
+                        <InfoRow label="Data término"     value={formatDateShort(ev2.dataFim || project.endDate)} />
+                        <InfoRow label="Horário"          value={ev2.horarioInicio ? `${ev2.horarioInicio} às ${ev2.horarioFim || ''}` : null} />
+                        <InfoRow label="Cidade"           value={ev2.cidade} />
+                        <InfoRow label="Local"            value={ev2.local || project.location} />
+                        <InfoRow label="Participantes/dia" value={ev2.visitantesPorDia ? `${ev2.visitantesPorDia} pessoas` : (project.guestCount ? `${project.guestCount} pessoas` : null)} />
+                        <InfoRow label="Pagamento"        value={labelPag[bd2.formaPagamento]} />
+                        {!isFornecedor && <InfoRow label="Coordenador" value={project.assignedToName} />}
+                      </div>
+                    </div>
+
+                    {/* Informações Adicionais */}
+                    {bd2.infoExtra && (
+                      <div className="ps-card" style={{ borderLeft: '3px solid #667eea' }}>
+                        <div className="ps-card-title">Informações Adicionais</div>
+                        <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{bd2.infoExtra}</p>
+                      </div>
+                    )}
+
+                    {/* Stand */}
+                    {est2.ativo && (
+                      <div className="ps-card">
+                        <div className="ps-card-title">Stand</div>
+                        <div className="ps-info-grid">
+                          <InfoRow label="Tipo"            value={est2.tipoEstande === 'modular' ? 'Modular' : est2.tipoEstande === 'personalizado' ? 'Personalizado' : null} />
+                          {bd2.modeloEstande?.nome && <InfoRow label="Modelo" value={bd2.modeloEstande.nome} />}
+                          <InfoRow label="Área"            value={est2.areaM2 > 0 ? `${est2.areaM2} m²` : null} />
+                          <InfoRow label="Altura do teto"  value={est2.alturaTeto} />
+                          <InfoRow label="Dias de montagem" value={est2.diasMontagem > 0 ? `${est2.diasMontagem} dias antes` : null} />
+                          {est2.restricoes
+                            ? <div className="ps-info-item full"><span className="ps-info-label">Restrições de acesso</span><span className="ps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</span></div>
+                            : est2.tipoEstande && <InfoRow label="Restrições" value="Sem restrições" />}
+                          <InfoRow label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim, enviada' : est2.identidadeVisual === 'nao' ? '✗ Não definida' : null} />
+                          {est2.standDescricao && <div className="ps-info-item full"><span className="ps-info-label">Descrição do stand</span><span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</span></div>}
+                          {est2.standImagensUrls?.length > 0 && (
+                            <div className="ps-info-item full">
+                              <span className="ps-info-label">Imagens de referência</span>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                {est2.standImagensUrls.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                                    <img src={url} alt={`ref ${i+1}`} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {est2.identidadeImagensUrls?.length > 0 && (
+                            <div className="ps-info-item full">
+                              <span className="ps-info-label">Arquivos de identidade visual</span>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                {est2.identidadeImagensUrls.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0080FF', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, border: '1px solid #e0e8ff', background: '#f0f4ff' }}>
+                                    📎 Arquivo {i+1}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Produtor */}
+                    {equipe2.produtor?.ativo && (
+                      <div className="ps-card">
+                        <div className="ps-card-title">Produtor de Eventos</div>
+                        <p style={{ fontSize: 13, color: '#475569', margin: 0 }}>✓ Cliente solicitou Produtor Executivo dedicado para o evento.</p>
+                      </div>
+                    )}
+
+                    {/* Serviços por categoria */}
+                    {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
+                      const itens = opcoes.filter(o => o.tipoServico === tipo);
+                      if (!itens.length) return null;
+                      const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe Operacional', gastronomia: 'Gastronomia', entretenimento: 'Entretenimento' }[tipo];
+                      const corTipo  = { estrutura: '#0080FF', operacao: '#00E5C4', gastronomia: '#66BB6A', entretenimento: '#FFA726' }[tipo];
                       return (
-                        <div key={key} className="ps-info-item">
-                          <span className="ps-info-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                          <span className="ps-info-value">{val.quantidade} pessoa(s) × {val.horasPorDia}h/dia</span>
+                        <div key={tipo} className="ps-card">
+                          <div className="ps-card-title" style={{ color: corTipo }}>{labelTipo}</div>
+                          <div className="ps-info-grid">
+                            {itens.map((op, i) => {
+                              const det = equipe2.itens?.find(e => e.tipo === op.serviceName);
+                              return (
+                                <div key={i} className="ps-info-item full" style={{ borderBottom: i < itens.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: 8, marginBottom: 4 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                      <span className="ps-info-label">{op.serviceName}</span>
+                                      {op.nome && <div style={{ fontSize: 12, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                                      {det && (det.quantidade > 0 || det.horasPorDia > 0 || det.dias > 0) && (
+                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                          {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                          {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                          {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                          {det.observacoes && ` · ${det.observacoes}`}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {op.valor > 0 && !isFornecedor && (
+                                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                        <span className="ps-info-value" style={{ color: '#00E5C4', fontWeight: 700 }}>
+                                          R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                        {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
-                  </div>
-                </div>
-              )}
-
-              {/* Serviços identificados */}
-              {servicos.length > 0 && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Serviços Identificados pela IA</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {servicos.map((s, i) => <span key={i} className="ps-tag">{s}</span>)}
-                  </div>
-                </div>
-              )}
+                  </>
+                );
+              })()}
             </>
           )}
 
-          {/* ── BRIEFING (coordenador) — inclui Cliente, Evento e detalhes do briefing ── */}
+          {/* ── BRIEFING (coordenador) ── */}
           {activeTab === 'briefing' && !isFornecedor && (
             <>
-              {/* Cliente */}
+              {/* Cliente — só coordenador vê */}
               <div className="ps-card">
                 <div className="ps-card-title">Cliente</div>
                 <div className="ps-info-grid">
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Nome</span>
-                    <span className="ps-info-value">{client?.name || project.clientName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Empresa</span>
-                    <span className="ps-info-value">{client?.companyName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Email</span>
-                    <span className="ps-info-value">{client?.email || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Telefone</span>
-                    <span className="ps-info-value">{client?.phone || '—'}</span>
-                  </div>
+                  <div className="ps-info-item"><span className="ps-info-label">Nome</span><span className="ps-info-value">{client?.name || project.clientName || '—'}</span></div>
+                  <div className="ps-info-item"><span className="ps-info-label">Empresa</span><span className="ps-info-value">{client?.companyName || '—'}</span></div>
+                  <div className="ps-info-item"><span className="ps-info-label">Email</span><span className="ps-info-value">{client?.email || '—'}</span></div>
+                  <div className="ps-info-item"><span className="ps-info-label">Telefone</span><span className="ps-info-value">{client?.phone || '—'}</span></div>
+                  <div className="ps-info-item"><span className="ps-info-label">Atribuído em</span><span className="ps-info-value">{formatDate(project.assignedAt)}</span></div>
                 </div>
               </div>
 
-              {/* Evento */}
-              <div className="ps-card">
-                <div className="ps-card-title">Evento</div>
-                <div className="ps-info-grid">
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Tipo</span>
-                    <span className="ps-info-value">{ev.tipo || project.eventTypeName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Nome</span>
-                    <span className="ps-info-value">{ev.nome || project.eventName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Data início</span>
-                    <span className="ps-info-value">{formatDateShort(ev.dataInicio || project.startDate)}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Data fim</span>
-                    <span className="ps-info-value">{formatDateShort(ev.dataFim || project.endDate)}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Duração</span>
-                    <span className="ps-info-value">{ev.diasDuracao ? `${ev.diasDuracao} dia(s)` : '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Visitantes/dia</span>
-                    <span className="ps-info-value">{ev.visitantesPorDia || project.guestCount || '—'}</span>
-                  </div>
-                  <div className="ps-info-item full">
-                    <span className="ps-info-label">Local</span>
-                    <span className="ps-info-value">{ev.local || ev.cidade || project.location || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Coordenador</span>
-                    <span className="ps-info-value">{project.assignedToName || '—'}</span>
-                  </div>
-                  <div className="ps-info-item">
-                    <span className="ps-info-label">Atribuído em</span>
-                    <span className="ps-info-value">{formatDate(project.assignedAt)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sobre o Evento — visível para todos os perfis */}
-              {project.descricaoBriefing && (
-                <div className="ps-card">
-                  <div className="ps-card-title">Sobre o Evento</div>
-                  <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
-                    <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Estrutura */}
-              <div className="ps-card">
-                <div className="ps-card-title">Estrutura / Stand</div>
-                <div className="ps-info-grid">
-                  {(() => {
-                    const bd2 = project.briefingData || {};
-                    const est2 = bd2.estrutura || {};
-                    return (<>
-                      {est2.tipoEstande && <div className="ps-info-item"><span className="ps-info-label">Tipo de Stand</span><span className="ps-info-value">{est2.tipoEstande === 'modular' ? 'Modular' : 'Personalizado'}</span></div>}
-                      {bd2.modeloEstande?.nome && <div className="ps-info-item"><span className="ps-info-label">Modelo</span><span className="ps-info-value">{bd2.modeloEstande.nome}</span></div>}
-                      {est2.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est2.areaM2} m²</span></div>}
-                      {est2.alturaTeto && <div className="ps-info-item"><span className="ps-info-label">Altura do teto</span><span className="ps-info-value">{est2.alturaTeto}</span></div>}
-                      {est2.diasMontagem > 0 && <div className="ps-info-item"><span className="ps-info-label">Dias de montagem</span><span className="ps-info-value">{est2.diasMontagem} dias antes</span></div>}
-                      {est2.restricoes && <div className="ps-info-item full"><span className="ps-info-label">Restrições de acesso</span><span className="ps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</span></div>}
-                      {!est2.restricoes && est2.tipoEstande && <div className="ps-info-item"><span className="ps-info-label">Restrições</span><span className="ps-info-value" style={{ color: '#94a3b8' }}>Sem restrições</span></div>}
-                      {est2.identidadeVisual && <div className="ps-info-item"><span className="ps-info-label">Identidade visual</span><span className={`ps-bool ${est2.identidadeVisual === 'sim' ? 'ps-bool-yes' : 'ps-bool-no'}`}>{est2.identidadeVisual === 'sim' ? '✓ Sim, enviada' : '✗ Não definida'}</span></div>}
-                      {est2.standDescricao && <div className="ps-info-item full"><span className="ps-info-label">Descrição do stand</span><span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</span></div>}
-                      {est2.standImagensUrls?.length > 0 && (
-                        <div className="ps-info-item full">
-                          <span className="ps-info-label">Imagens de referência</span>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                            {est2.standImagensUrls.map((url, i) => (
-                              <a key={i} href={url} target="_blank" rel="noreferrer">
-                                <img src={url} alt={`ref ${i+1}`} style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {est2.identidadeImagensUrls?.length > 0 && (
-                        <div className="ps-info-item full">
-                          <span className="ps-info-label">Arquivos de identidade visual</span>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                            {est2.identidadeImagensUrls.map((url, i) => (
-                              <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0080FF', display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, border: '1px solid #e0e8ff', background: '#f0f4ff' }}>
-                                📎 Arquivo {i+1}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {!est2.tipoEstande && est.areaM2 > 0 && <div className="ps-info-item"><span className="ps-info-label">Área</span><span className="ps-info-value">{est.areaM2} m²</span></div>}
-                    </>);
-                  })()}
-                </div>
-              </div>
-
-              {/* Serviços por categoria */}
+              {/* ── BRIEFING COMPARTILHADO (mesmo layout para todos) ── */}
               {(() => {
-                const bd2     = project.briefingData || {};
-                const opcoes  = bd2.opcoesSelecionadas || [];
-                const equipeItens = bd2.equipe?.itens || [];
+                const bd2      = project.briefingData || {};
+                const ev2      = bd2.evento || {};
+                const est2     = bd2.estrutura || {};
+                const equipe2  = bd2.equipe || {};
+                const opcoes   = bd2.opcoesSelecionadas || [];
+                const labelPag = { '50_50': '50% entrada + 50% final', '30_60_90': '30 / 60 / 90 dias', 'a_vista': 'À vista' };
+                const InfoRow  = ({ label, value, full }) => value ? (
+                  <div className={`ps-info-item${full ? ' full' : ''}`}>
+                    <span className="ps-info-label">{label}</span>
+                    <span className="ps-info-value">{value}</span>
+                  </div>
+                ) : null;
+                return (
+                  <>
+                    {/* Resumo IA */}
+                    {project.descricaoBriefing && (
+                      <div className="ps-card">
+                        <div className="ps-card-title">Sobre o Evento</div>
+                        <div style={{ background: 'rgba(0,229,196,0.04)', border: '1px solid rgba(0,229,196,0.12)', borderRadius: 10, padding: '14px 18px' }}>
+                          <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{project.descricaoBriefing}</p>
+                        </div>
+                      </div>
+                    )}
 
-                const categorias = [
-                  { key: 'operacao',       label: 'Operacional',      color: '#00E5C4' },
-                  { key: 'estrutura',      label: 'Estrutura',        color: '#0080FF' },
-                  { key: 'gastronomia',    label: 'Gastronomia',      color: '#66BB6A' },
-                  { key: 'entretenimento', label: 'Entretenimento',   color: '#FFA726' },
-                ];
-
-                return categorias.map(({ key, label, color }) => {
-                  const itens = opcoes.filter(o => o.tipoServico === key);
-                  if (!itens.length) return null;
-                  return (
-                    <div key={key} className="ps-card">
-                      <div className="ps-card-title" style={{ color }}>{label}</div>
+                    {/* Evento */}
+                    <div className="ps-card">
+                      <div className="ps-card-title">Evento</div>
                       <div className="ps-info-grid">
-                        {itens.map((op, i) => {
-                          const det = equipeItens.find(e => e.tipo === op.serviceName);
-                          return (
-                            <div key={i} className="ps-info-item full" style={{ borderBottom: i < itens.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: 8, marginBottom: 4 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div>
-                                  <span className="ps-info-label">{op.serviceName}</span>
-                                  {op.nome && <div style={{ fontSize: 12, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
-                                  {det && (det.quantidade > 0 || det.horasPorDia > 0) && (
-                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                      {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
-                                      {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
-                                      {det.dias > 0 && ` · ${det.dias} dia(s)`}
-                                      {det.observacoes && ` · ${det.observacoes}`}
-                                    </div>
-                                  )}
-                                </div>
-                                {op.valor > 0 && (
-                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <span className="ps-info-value" style={{ color: '#00E5C4', fontWeight: 700 }}>
-                                      R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </span>
-                                    {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        <InfoRow label="Empresa"          value={ev2.nomeEmpresa} />
+                        <InfoRow label="Tipo"             value={ev2.tipo || project.eventTypeName} />
+                        <InfoRow label="Nome"             value={ev2.nome || project.eventName} />
+                        <InfoRow label="Data início"      value={formatDateShort(ev2.dataInicio || project.startDate)} />
+                        <InfoRow label="Data término"     value={formatDateShort(ev2.dataFim || project.endDate)} />
+                        <InfoRow label="Horário"          value={ev2.horarioInicio ? `${ev2.horarioInicio} às ${ev2.horarioFim || ''}` : null} />
+                        <InfoRow label="Cidade"           value={ev2.cidade} />
+                        <InfoRow label="Local"            value={ev2.local || project.location} />
+                        <InfoRow label="Participantes/dia" value={ev2.visitantesPorDia ? `${ev2.visitantesPorDia} pessoas` : (project.guestCount ? `${project.guestCount} pessoas` : null)} />
+                        <InfoRow label="Pagamento"        value={labelPag[bd2.formaPagamento]} />
+                        {!isFornecedor && <InfoRow label="Coordenador" value={project.assignedToName} />}
                       </div>
                     </div>
-                  );
-                });
-              })()}
 
-              {/* Informações Finais */}
-              {(() => {
-                const bd2 = project.briefingData || {};
-                if (!bd2.infoExtra && !bd2.formaPagamento) return null;
-                const labelPag = { '50_50': '50% entrada + 50% final', '30_60_90': '30 / 60 / 90 dias', 'a_vista': 'À vista' };
-                return (
-                  <div className="ps-card">
-                    <div className="ps-card-title">Informações Finais</div>
-                    <div className="ps-info-grid">
-                      {bd2.formaPagamento && (
-                        <div className="ps-info-item">
-                          <span className="ps-info-label">Forma de pagamento</span>
-                          <span className="ps-info-value">{labelPag[bd2.formaPagamento] || bd2.formaPagamento}</span>
+                    {/* Informações Adicionais */}
+                    {bd2.infoExtra && (
+                      <div className="ps-card" style={{ borderLeft: '3px solid #667eea' }}>
+                        <div className="ps-card-title">Informações Adicionais</div>
+                        <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>{bd2.infoExtra}</p>
+                      </div>
+                    )}
+
+                    {/* Stand */}
+                    {est2.ativo && (
+                      <div className="ps-card">
+                        <div className="ps-card-title">Stand</div>
+                        <div className="ps-info-grid">
+                          <InfoRow label="Tipo"            value={est2.tipoEstande === 'modular' ? 'Modular' : est2.tipoEstande === 'personalizado' ? 'Personalizado' : null} />
+                          {bd2.modeloEstande?.nome && <InfoRow label="Modelo" value={bd2.modeloEstande.nome} />}
+                          <InfoRow label="Área"            value={est2.areaM2 > 0 ? `${est2.areaM2} m²` : null} />
+                          <InfoRow label="Altura do teto"  value={est2.alturaTeto} />
+                          <InfoRow label="Dias de montagem" value={est2.diasMontagem > 0 ? `${est2.diasMontagem} dias antes` : null} />
+                          {est2.restricoes
+                            ? <div className="ps-info-item full"><span className="ps-info-label">Restrições de acesso</span><span className="ps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</span></div>
+                            : est2.tipoEstande && <InfoRow label="Restrições" value="Sem restrições" />}
+                          <InfoRow label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim, enviada' : est2.identidadeVisual === 'nao' ? '✗ Não definida' : null} />
+                          {est2.standDescricao && <div className="ps-info-item full"><span className="ps-info-label">Descrição do stand</span><span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</span></div>}
+                          {est2.standImagensUrls?.length > 0 && (
+                            <div className="ps-info-item full">
+                              <span className="ps-info-label">Imagens de referência</span>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                {est2.standImagensUrls.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                                    <img src={url} alt={`ref ${i+1}`} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {est2.identidadeImagensUrls?.length > 0 && (
+                            <div className="ps-info-item full">
+                              <span className="ps-info-label">Arquivos de identidade visual</span>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                {est2.identidadeImagensUrls.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0080FF', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, border: '1px solid #e0e8ff', background: '#f0f4ff' }}>
+                                    📎 Arquivo {i+1}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {bd2.infoExtra && (
-                        <div className="ps-info-item full">
-                          <span className="ps-info-label">Observações do cliente</span>
-                          <span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{bd2.infoExtra}</span>
+                      </div>
+                    )}
+
+                    {/* Produtor */}
+                    {equipe2.produtor?.ativo && (
+                      <div className="ps-card">
+                        <div className="ps-card-title">Produtor de Eventos</div>
+                        <p style={{ fontSize: 13, color: '#475569', margin: 0 }}>✓ Cliente solicitou Produtor Executivo dedicado para o evento.</p>
+                      </div>
+                    )}
+
+                    {/* Serviços por categoria */}
+                    {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
+                      const itens = opcoes.filter(o => o.tipoServico === tipo);
+                      if (!itens.length) return null;
+                      const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe Operacional', gastronomia: 'Gastronomia', entretenimento: 'Entretenimento' }[tipo];
+                      const corTipo  = { estrutura: '#0080FF', operacao: '#00E5C4', gastronomia: '#66BB6A', entretenimento: '#FFA726' }[tipo];
+                      return (
+                        <div key={tipo} className="ps-card">
+                          <div className="ps-card-title" style={{ color: corTipo }}>{labelTipo}</div>
+                          <div className="ps-info-grid">
+                            {itens.map((op, i) => {
+                              const det = equipe2.itens?.find(e => e.tipo === op.serviceName);
+                              return (
+                                <div key={i} className="ps-info-item full" style={{ borderBottom: i < itens.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: 8, marginBottom: 4 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                      <span className="ps-info-label">{op.serviceName}</span>
+                                      {op.nome && <div style={{ fontSize: 12, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                                      {det && (det.quantidade > 0 || det.horasPorDia > 0 || det.dias > 0) && (
+                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                          {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                          {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                          {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                          {det.observacoes && ` · ${det.observacoes}`}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {op.valor > 0 && !isFornecedor && (
+                                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                        <span className="ps-info-value" style={{ color: '#00E5C4', fontWeight: 700 }}>
+                                          R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                        {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      );
+                    })}
+                  </>
                 );
               })()}
+
 
               {/* Relatório Final */}
               {project.status === 'completed' && project.relatorioFinal && (() => {
