@@ -757,45 +757,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── BRIEFING (coordenador) — inclui Cliente, Evento e detalhes do briefing ── */}
           {activeTab === 'briefing' && !isFornecedor && (
             <>
-              {/* Botão Enviar Cotação */}
-              {isCoord && (() => {
-                const temDraft = supplierJobs.some(j => j.status === 'draft');
-                const enviadoEm = project.cotacaoEnviadaEm;
-                if (!temDraft && enviadoEm) {
-                  const dataEnvio = enviadoEm?.toDate ? enviadoEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-                  return (
-                    <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ fontSize: 16, color: '#66BB6A' }}>✓</span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A' }}>Cotacao Enviada</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{dataEnvio}</div>
-                      </div>
-                    </div>
-                  );
-                }
-                if (temDraft) return (
-                  <div style={{ marginBottom: 20 }}>
-                    {confirmEnvio ? (
-                      <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.25)', borderRadius: 12, padding: '16px 20px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 6 }}>Confirmar envio da cotacao?</div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>Os fornecedores serao notificados e poderao confirmar ou recusar cada servico.</div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <button onClick={handleEnviarCotacao} disabled={enviandoCotacao} style={{ padding: '8px 20px', background: '#00E5C4', border: 'none', borderRadius: 8, color: '#0D1B2A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                            {enviandoCotacao ? 'Enviando...' : 'Confirmar'}
-                          </button>
-                          <button onClick={() => setConfirmEnvio(false)} style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setConfirmEnvio(true)} style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #00E5C4, #0080FF)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', letterSpacing: 0.3 }}>
-                        Enviar Cotacao para Fornecedores
-                      </button>
-                    )}
-                  </div>
-                );
-                return null;
-              })()}
-
               {/* Cliente */}
               <div className="ps-card">
                 <div className="ps-card-title">Cliente</div>
@@ -1634,8 +1595,41 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── TAREFAS ── */}          {/* ── TAREFAS ── */}
           {activeTab === 'tasks' && !isFornecedor && (() => {
             const todosConfirmados = supplierJobs.length > 0 && supplierJobs.every(j => j.status === 'confirmed');
+            const temDraft = supplierJobs.some(j => j.status === 'draft');
+            const enviadoEm = project.cotacaoEnviadaEm;
             return (
             <div className="ps-card">
+              {/* Botão Enviar Cotação — topo das tarefas */}
+              {isCoord && (
+                <div style={{ marginBottom: 20 }}>
+                  {!temDraft && enviadoEm ? (
+                    <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 16, color: '#66BB6A' }}>✓</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A' }}>Cotacao Enviada</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{enviadoEm?.toDate ? enviadoEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                      </div>
+                    </div>
+                  ) : temDraft ? (
+                    confirmEnvio ? (
+                      <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.25)', borderRadius: 12, padding: '16px 20px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 6 }}>Confirmar envio da cotacao?</div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>Os fornecedores serao notificados e poderao confirmar ou recusar cada servico.</div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button onClick={handleEnviarCotacao} disabled={enviandoCotacao} style={{ padding: '8px 20px', background: '#00E5C4', border: 'none', borderRadius: 8, color: '#0D1B2A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            {enviandoCotacao ? 'Enviando...' : 'Confirmar'}
+                          </button>
+                          <button onClick={() => setConfirmEnvio(false)} style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmEnvio(true)} style={{ width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #00E5C4, #0080FF)', border: 'none', borderRadius: 12, color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', letterSpacing: 0.3 }}>
+                        Enviar Cotacao para Fornecedores
+                      </button>
+                    )
+                  ) : null}
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div className="ps-card-title" style={{ margin: 0 }}>Fornecedores e Tarefas</div>
                 <button onClick={() => setShowTaskForm(s => !s)}
