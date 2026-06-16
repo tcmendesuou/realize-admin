@@ -1517,7 +1517,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const _u1 = (sj.unidade || '').toLowerCase();
                       // Busca dados operacionais: primeiro do sj, depois do briefing
                       const _detBriefing = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
-                      const _h1 = parseFloat(sj.horasPorDia || _detBriefing.horasPorDia) || 0;
+                      const _horasEv1 = (() => {
+                        const ini = sj.eventHorarioInicio || project.briefingData?.evento?.horarioInicio;
+                        const fim = sj.eventHorarioFim   || project.briefingData?.evento?.horarioFim;
+                        if (ini && fim) { const [h1,m1]=ini.split(':').map(Number),[h2,m2]=fim.split(':').map(Number); const h=(h2*60+m2-h1*60-m1)/60; return h>0?h:0; }
+                        return 0;
+                      })();
+                      const _h1 = parseFloat(sj.horasPorDia || _detBriefing.horasPorDia) || _horasEv1;
                       const _q1 = parseFloat(sj.quantidade  || _detBriefing.quantidade)  || 1;
                       const _d1 = parseFloat(sj.diasServico || _detBriefing.dias) || diasEvento;
                       const valorTotal = _p1 ? (
@@ -1844,7 +1850,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     const _pv = parseFloat(sj.preco || 0);
                     const _uv = (sj.unidade || '').toLowerCase();
                     const _detV = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
-                    const _hv = parseFloat(sj.horasPorDia || _detV.horasPorDia) || 0;
+                    // Horas: usa do sj/briefing, ou calcula pelo horário do evento
+                    const _horasEvento = (() => {
+                      const ini = sj.eventHorarioInicio || project.briefingData?.evento?.horarioInicio;
+                      const fim = sj.eventHorarioFim   || project.briefingData?.evento?.horarioFim;
+                      if (ini && fim) {
+                        const [h1, m1] = ini.split(':').map(Number);
+                        const [h2, m2] = fim.split(':').map(Number);
+                        const horas = (h2 * 60 + m2 - h1 * 60 - m1) / 60;
+                        return horas > 0 ? horas : 0;
+                      }
+                      return 0;
+                    })();
+                    const _hv = parseFloat(sj.horasPorDia || _detV.horasPorDia) || _horasEvento;
                     const _qv = parseFloat(sj.quantidade  || _detV.quantidade)  || 1;
                     const _dv = parseFloat(sj.diasServico || _detV.dias) || diasEvento;
                     const valorTotal = _pv ? (
@@ -2028,7 +2046,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         const _p4 = parseFloat(sj.preco || 0);
                         const _u4 = (sj.unidade || '').toLowerCase();
                         const _det4 = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
-                        const _h4 = parseFloat(sj.horasPorDia || _det4.horasPorDia) || 0;
+                        const _horasEv4 = (() => {
+                          const ini = sj.eventHorarioInicio || project.briefingData?.evento?.horarioInicio;
+                          const fim = sj.eventHorarioFim   || project.briefingData?.evento?.horarioFim;
+                          if (ini && fim) { const [h1,m1]=ini.split(':').map(Number),[h2,m2]=fim.split(':').map(Number); const h=(h2*60+m2-h1*60-m1)/60; return h>0?h:0; }
+                          return 0;
+                        })();
+                        const _h4 = parseFloat(sj.horasPorDia || _det4.horasPorDia) || _horasEv4;
                         const _q4 = parseFloat(sj.quantidade  || _det4.quantidade)  || 1;
                         const _d4 = parseFloat(sj.diasServico || _det4.dias) || diasEvento2;
                         const valorTotal2 = _p4 ? (
