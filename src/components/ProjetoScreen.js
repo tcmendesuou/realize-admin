@@ -1296,6 +1296,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const toggle = id => setTasksExpandidas(p => ({ ...p, [id]: !isExp(id) }));
 
             const renderTaskForn = (task) => {
+              // Busca o supplierJob correspondente para completar dados que a task pode não ter
+              const sj = supplierJobsMine.find(j => j.id === task.supplierJobId) || {};
               const ePrep    = task.fase === 'preparacao';
               const eExec    = task.fase === 'execucao';
               const corFase  = ePrep ? '#5B8DEF' : eExec ? '#00C896' : '#7BAFD4';
@@ -1334,16 +1336,53 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   {expanded && (
                     <>
                       <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
-                        {task.valor > 0 && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div><div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>R$ {task.preco?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {task.diasEvento}d</div></div>}
+                        {/* Opção escolhida */}
+                        {(task.opcaoNome || sj.opcaoNome) && <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(102,126,234,0.15)', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Opção solicitada</div><div style={{ fontSize: 13, fontWeight: 600, color: '#667eea' }}>{task.opcaoNome || sj.opcaoNome}</div></div>}
+                        {/* Solicitação do cliente */}
+                        {(() => {
+                          const qtd  = task.quantidade  || sj.quantidade;
+                          const hrs  = task.horasPorDia || sj.horasPorDia;
+                          const dias = task.diasServico  || sj.diasServico;
+                          const obs  = task.observacoes  || sj.observacoes;
+                          if (!qtd && !hrs && !dias && !obs) return null;
+                          return <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.1)', gridColumn: '1/-1' }}>
+                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Solicitação do cliente</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                              {qtd  && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{qtd}</strong> profissional(is)</span>}
+                              {hrs  && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{hrs}h</strong>/dia</span>}
+                              {dias && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{dias}</strong> dia(s)</span>}
+                              {obs  && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>"{obs}"</span>}
+                            </div>
+                          </div>;
+                        })()}
+                        {/* Valor */}
+                        {(() => {
+                          const preco  = parseFloat(task.preco || sj.preco || 0);
+                          const unid   = (task.unidade || sj.unidade || '').toLowerCase();
+                          const hrs    = parseFloat(task.horasPorDia || sj.horasPorDia) || 0;
+                          const qtd    = parseFloat(task.quantidade  || sj.quantidade)  || 1;
+                          const diass  = parseFloat(task.diasServico  || sj.diasServico) || (task.diasEvento || 1);
+                          const visit  = parseFloat(task.eventVisitantes || sj.eventVisitantes || ev.visitantesPorDia) || 0;
+                          const horasEv = (() => { const i=sj.eventHorarioInicio||ev.horarioInicio, f=sj.eventHorarioFim||ev.horarioFim; if(i&&f){const[h1,m1]=i.split(':').map(Number),[h2,m2]=f.split(':').map(Number);const h=(h2*60+m2-h1*60-m1)/60;return h>0?h:0;}return 0; })();
+                          const h = hrs || horasEv;
+                          const total = preco ? (unid.includes('hora') ? preco*h*diass*qtd : unid.includes('dia') ? preco*diass*qtd : unid.includes('pessoa') ? preco*visit*diass : preco) : 0;
+                          if (!total) return null;
+                          return <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}>
+                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                            <div style={{ fontSize: 10, color: '#94a3b8' }}>R$ {preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {task.unidade || sj.unidade || 'evento'}</div>
+                          </div>;
+                        })()}
                         {task.dataInicio && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Início</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.dataInicio.split('-').reverse().join('/')}</div></div>}
                         {task.dataEntrega && <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Entrega</div><div style={{ fontSize: 13, fontWeight: 600, color: atrasada ? '#ef4444' : '#1e293b' }}>{task.dataEntrega.split('-').reverse().join('/')}</div></div>}
+                        {(() => { const d = task.diasEvento || sj.eventDiasDuracao; return d > 0 ? <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Duração</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{d} dia(s)</div></div> : null; })()}
+                        {(() => { const ini = sj.eventHorarioInicio || ev.horarioInicio; const fim = sj.eventHorarioFim || ev.horarioFim; return ini ? <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Horário</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ini}{fim ? ` às ${fim}` : ''}</div></div> : null; })()}
+                        {(() => { const local = sj.eventLocal || ev.local || ev.cidade || project.location; return local ? <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Local do evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{local}</div></div> : null; })()}
+                        {(() => { const v = sj.eventVisitantes || ev.visitantesPorDia; return v > 0 ? <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Participantes</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{v} pessoas</div></div> : null; })()}
                         {task.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasPreparo} dias</div></div>}
                         {task.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem} dias</div></div>}
-                        {task.diasEvento > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Duração</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.diasEvento} dia(s)</div></div>}
-                        {(ev.local || ev.cidade || project.location) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Local do evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ev.local || ev.cidade || project.location}</div></div>}
-                        {(ev.horarioInicio || ev.horario) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Horário</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ev.horarioInicio || ev.horario}</div></div>}
-                        {task.descricao && <div style={{ background: 'rgba(123,175,212,0.06)', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1', border: '1px solid rgba(123,175,212,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Especificacao do servico</div><div style={{ fontSize: 12, color: '#475569', lineHeight: 1.6 }}>{task.descricao}</div></div>}
-                        {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observacao</div><div style={{ fontSize: 12, color: '#475569' }}>{task.observacao}</div></div>}
+                        {(() => { const fp = project.financeiro?.formaPagamento || project.briefingData?.formaPagamento; if (!fp) return null; const lp = {'50_50':'50% na entrada + 50% no final do evento','30_60_90':'30, 60 e 90 dias','a_vista':'À vista'}; return <div style={{ background: 'rgba(255,167,38,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(255,167,38,0.2)', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#FFA726', textTransform: 'uppercase', marginBottom: 3, fontWeight: 700 }}>Forma de Pagamento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{lp[fp] || fp}</div></div>; })()}
+                        {task.descricao && <div style={{ background: 'rgba(123,175,212,0.06)', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1', border: '1px solid rgba(123,175,212,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Especificação</div><div style={{ fontSize: 12, color: '#475569', lineHeight: 1.6 }}>{task.descricao}</div></div>}
                       </div>
 
                       {/* Observações do Cliente — mapeadas do briefingData */}
