@@ -1288,7 +1288,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── MINHA TAREFA (fornecedor) ── */}
           {activeTab === 'tasks' && isFornecedor && (() => {
             const myTasks          = projectTasks.filter(t => t.supplierId === userData?.id);
-            const myPendentes      = myTasks.filter(t => t.status !== 'concluido');
+            const myPendentes      = myTasks.filter(t => t.status !== 'concluido').sort((a, b) => (a.fase === 'preparacao' ? -1 : 1) - (b.fase === 'preparacao' ? -1 : 1));
             const myConcluidas     = myTasks.filter(t => t.status === 'concluido');
             const TIPO_COR         = { estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A', administrativo: '#7BAFD4' };
             const hoje2            = new Date(); hoje2.setHours(0,0,0,0);
@@ -1296,28 +1296,38 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const toggle = id => setTasksExpandidas(p => ({ ...p, [id]: !isExp(id) }));
 
             const renderTaskForn = (task) => {
-              const corFase2 = task.fase === 'preparacao' ? '#7BAFD4' : task.fase === 'execucao' ? '#00E5C4' : null;
-              const cor      = corFase2 || TIPO_COR[task.tipoServico] || '#7BAFD4';
+              const ePrep    = task.fase === 'preparacao';
+              const eExec    = task.fase === 'execucao';
+              const corFase  = ePrep ? '#5B8DEF' : eExec ? '#00C896' : '#7BAFD4';
+              const bgFase   = ePrep ? 'rgba(91,141,239,0.08)' : eExec ? 'rgba(0,200,150,0.08)' : 'rgba(123,175,212,0.06)';
+              const borderFase = ePrep ? 'rgba(91,141,239,0.3)' : eExec ? 'rgba(0,200,150,0.3)' : 'rgba(123,175,212,0.2)';
+              const iconFase = ePrep ? '🔧' : eExec ? '▶️' : '📋';
+              const labelFase = ePrep ? 'PREPARAÇÃO' : eExec ? 'EXECUÇÃO' : '';
               const deDate   = task.dataEntrega ? new Date(task.dataEntrega) : null;
               const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
               const expanded = isExp(task.id);
               return (
-                <div key={task.id} style={{ borderRadius: 12, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, background: atrasada ? 'rgba(239,68,68,0.02)' : 'white', overflow: 'hidden', marginBottom: 10 }}>
+                <div key={task.id} style={{ borderRadius: 12, border: `2px solid ${atrasada ? 'rgba(239,68,68,0.4)' : borderFase}`, background: atrasada ? 'rgba(239,68,68,0.02)' : bgFase, overflow: 'hidden', marginBottom: 12 }}>
+                  {/* Faixa de fase */}
+                  {task.fase && (
+                    <div style={{ background: corFase, padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13 }}>{iconFase}</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'white', letterSpacing: 1 }}>{labelFase}</span>
+                      {ePrep && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', marginLeft: 'auto' }}>Envie o material para aprovação antes de executar</span>}
+                    </div>
+                  )}
                   {/* Header clicável */}
-                  <div onClick={() => toggle(task.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: expanded ? '1px solid #f8faff' : 'none' }}>
-                    <span style={{ fontSize: 11, color: '#94a3b8', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: atrasada ? '#ef4444' : cor, flexShrink: 0 }} />
+                  <div onClick={() => toggle(task.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: expanded ? `1px solid ${borderFase}` : 'none' }}>
+                    <span style={{ fontSize: 11, color: corFase, transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</span>
-                        {task.fase && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: task.fase === 'preparacao' ? 'rgba(123,175,212,0.15)' : 'rgba(0,229,196,0.15)', color: task.fase === 'preparacao' ? '#7BAFD4' : '#00E5C4' }}>{task.fase === 'preparacao' ? 'PREPARAÇÃO' : 'EXECUÇÃO'}</span>}
-                      </div>
-                      {task.serviceParentName && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{task.serviceParentName}</span>}
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{task.serviceName}</div>
+                      {task.opcaoNome && <div style={{ fontSize: 11, color: corFase, marginTop: 2, fontWeight: 600 }}>Opção: {task.opcaoNome}</div>}
+                      {task.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{task.serviceParentName}</div>}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                       {atrasada && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>⚠ Atrasada</span>}
                       {task.dataEntrega && !expanded && <span style={{ fontSize: 11, color: '#94a3b8' }}>{task.dataEntrega.split('-').reverse().join('/')}</span>}
-                      {task.valor > 0 && !expanded && <span style={{ fontSize: 12, fontWeight: 700, color: '#00E5C4' }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                      {task.valor > 0 && !expanded && <span style={{ fontSize: 12, fontWeight: 700, color: corFase }}>R$ {task.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
                     </div>
                   </div>
                   {/* Detalhes */}
@@ -1729,7 +1739,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   ) : 0;
                   const expanded = isExpanded(task.id);
                   return (
-                    <div key={task.id} style={{ borderRadius: 10, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 8, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                    {(() => {
+                      const ePrepC  = task.fase === 'preparacao';
+                      const eExecC  = task.fase === 'execucao';
+                      const corFC   = ePrepC ? '#5B8DEF' : eExecC ? '#00C896' : cor;
+                      const bgFC    = ePrepC ? 'rgba(91,141,239,0.06)' : eExecC ? 'rgba(0,200,150,0.06)' : 'white';
+                      const bdFC    = ePrepC ? 'rgba(91,141,239,0.3)' : eExecC ? 'rgba(0,200,150,0.3)' : '#e2e8f0';
+                      return (
+                    <div key={task.id} style={{ borderRadius: 10, border: `2px solid ${atrasada ? 'rgba(239,68,68,0.3)' : bdFC}`, marginBottom: 10, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : bgFC }}>
+                      {task.fase && (
+                        <div style={{ background: corFC, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11 }}>{ePrepC ? '🔧' : '▶️'}</span>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: 'white', letterSpacing: 1 }}>{ePrepC ? 'PREPARAÇÃO' : 'EXECUÇÃO'}</span>
+                          {ePrepC && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.8)', marginLeft: 'auto' }}>Aguardando material do fornecedor</span>}
+                        </div>
+                      )}
                       {/* Header clicável */}
                       <div onClick={() => toggleTask(task.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: expanded ? '1px solid #f8faff' : 'none' }}>
                         <span style={{ fontSize: 11, color: '#94a3b8', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', flexShrink: 0 }}>▶</span>
@@ -1773,6 +1797,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         </div>
                       )}
                     </div>
+                      );
+                    })()}
                   );
                 };
 
