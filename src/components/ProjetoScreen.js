@@ -404,14 +404,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
             const preco = parseFloat(sv.preco || 0);
             const unidade = sv.unidade || 'por dia';
-            const horas   = parseFloat(sv.horasPorDia) || 0;
-            const qtd     = parseFloat(sv.quantidade)  || 1;
-            const diasServ = parseFloat(sv.diasServico) || diasEvento;
+            const _detB1 = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sv.serviceName) || {};
+            const horas   = parseFloat(sv.horasPorDia || _detB1.horasPorDia) || 0;
+            const qtd     = parseFloat(sv.quantidade  || _detB1.quantidade)  || 1;
+            const diasServ = parseFloat(sv.diasServico || _detB1.dias) || diasEvento;
             const u = unidade.toLowerCase();
             const subtotal = u.includes('hora')   ? preco * horas * diasServ * qtd
                            : u.includes('dia')    ? preco * diasServ * qtd
                            : u.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento)
-                           : preco; // por evento
+                           : preco;
             totalOrcamento += subtotal;
             itensOrcamento.push({
               supplierName: sj.confirmedBy || sj.supplierId,
@@ -425,9 +426,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             // Fallback para serviços especiais (ex: estande modular) sem registro em supplierServices
             const preco = parseFloat(sj.preco || 0);
             const unidade = sj.unidade || 'por evento';
-            const horas2   = parseFloat(sj.horasPorDia) || 0;
-            const qtd2     = parseFloat(sj.quantidade)  || 1;
-            const diasServ2 = parseFloat(sj.diasServico) || diasEvento;
+            const _detB2 = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
+            const horas2   = parseFloat(sj.horasPorDia || _detB2.horasPorDia) || 0;
+            const qtd2     = parseFloat(sj.quantidade  || _detB2.quantidade)  || 1;
+            const diasServ2 = parseFloat(sj.diasServico || _detB2.dias) || diasEvento;
             const u2 = unidade.toLowerCase();
             const subtotal = u2.includes('hora')   ? preco * horas2 * diasServ2 * qtd2
                            : u2.includes('dia')    ? preco * diasServ2 * qtd2
@@ -1513,9 +1515,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const diasEvento  = calcDias2();
                       const _p1 = parseFloat(sj.preco || 0);
                       const _u1 = (sj.unidade || '').toLowerCase();
-                      const _h1 = parseFloat(sj.horasPorDia) || 0;
-                      const _q1 = parseFloat(sj.quantidade)  || 1;
-                      const _d1 = parseFloat(sj.diasServico) || diasEvento;
+                      // Busca dados operacionais: primeiro do sj, depois do briefing
+                      const _detBriefing = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
+                      const _h1 = parseFloat(sj.horasPorDia || _detBriefing.horasPorDia) || 0;
+                      const _q1 = parseFloat(sj.quantidade  || _detBriefing.quantidade)  || 1;
+                      const _d1 = parseFloat(sj.diasServico || _detBriefing.dias) || diasEvento;
                       const valorTotal = _p1 ? (
                         _u1.includes('hora')   ? _p1 * _h1 * _d1 * _q1 :
                         _u1.includes('dia')    ? _p1 * _d1 * _q1 :
@@ -1905,14 +1909,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
                                   <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Valor total</div>
                                   <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                  <div style={{ fontSize: 9, color: '#94a3b8' }}>{(() => {
-                                    const p = parseFloat(sj.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                                    const u = (sj.unidade || '').toLowerCase();
-                                    if (u.includes('hora')) return `R$ ${p}/h × ${sj.horasPorDia || 0}h × ${sj.diasServico || diasEvento}d${sj.quantidade > 1 ? ` × ${sj.quantidade}` : ''}`;
-                                    if (u.includes('dia'))  return `R$ ${p}/dia × ${sj.diasServico || diasEvento}d${sj.quantidade > 1 ? ` × ${sj.quantidade}` : ''}`;
-                                    if (u.includes('pessoa')) return `R$ ${p}/pessoa × ${sj.eventVisitantes || ''} pessoas`;
-                                    return `R$ ${p} / ${sj.unidade || 'evento'}`;
-                                  })()}</div>
+                                  <div style={{ fontSize: 9, color: '#94a3b8' }}>R$ {parseFloat(sj.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {sj.unidade ? `/ ${sj.unidade}` : ''}</div>
                                 </div>
                               )}
                               {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
@@ -2013,9 +2010,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         const diasEvento2  = project.briefingData?.evento?.diasDuracao || 1;
                         const _p4 = parseFloat(sj.preco || 0);
                         const _u4 = (sj.unidade || '').toLowerCase();
-                        const _h4 = parseFloat(sj.horasPorDia) || 0;
-                        const _q4 = parseFloat(sj.quantidade)  || 1;
-                        const _d4 = parseFloat(sj.diasServico) || diasEvento2;
+                        const _det4 = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
+                        const _h4 = parseFloat(sj.horasPorDia || _det4.horasPorDia) || 0;
+                        const _q4 = parseFloat(sj.quantidade  || _det4.quantidade)  || 1;
+                        const _d4 = parseFloat(sj.diasServico || _det4.dias) || diasEvento2;
                         const valorTotal2 = _p4 ? (
                           _u4.includes('hora')   ? _p4 * _h4 * _d4 * _q4 :
                           _u4.includes('dia')    ? _p4 * _d4 * _q4 :
