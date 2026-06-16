@@ -394,57 +394,36 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       const diasEvento = calcDiasEvento();
 
       for (const sj of confirmed) {
-        for (const serviceName of (sj.serviceNames || [])) {
-          const svSnap = await getDocs(query(
-            collection(db, 'supplierServices'),
-            where('supplierId', '==', sj.supplierId),
-            where('serviceName', '==', serviceName)
-          ));
-          if (!svSnap.empty) {
-            const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
-            const preco = parseFloat(sv.preco || 0);
-            const unidade = sv.unidade || 'por dia';
-            const _detB1 = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sv.serviceName) || {};
-            const horas   = parseFloat(sv.horasPorDia || _detB1.horasPorDia) || 0;
-            const qtd     = parseFloat(sv.quantidade  || _detB1.quantidade)  || 1;
-            const diasServ = parseFloat(sv.diasServico || _detB1.dias) || diasEvento;
-            const u = unidade.toLowerCase();
-            const subtotal = u.includes('hora')   ? preco * horas * diasServ * qtd
-                           : u.includes('dia')    ? preco * diasServ * qtd
-                           : u.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento) * diasServ
-                           : preco;
-            totalOrcamento += subtotal;
-            itensOrcamento.push({
-              supplierName: sj.confirmedBy || sj.supplierId,
-              serviceName,
-              preco,
-              diasEvento,
-              subtotal,
-              unidade,
-            });
-          } else if (sj.preco) {
-            // Fallback para serviços especiais (ex: estande modular) sem registro em supplierServices
-            const preco = parseFloat(sj.preco || 0);
-            const unidade = sj.unidade || 'por evento';
-            const _detB2 = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
-            const horas2   = parseFloat(sj.horasPorDia || _detB2.horasPorDia) || 0;
-            const qtd2     = parseFloat(sj.quantidade  || _detB2.quantidade)  || 1;
-            const diasServ2 = parseFloat(sj.diasServico || _detB2.dias) || diasEvento;
-            const u2 = unidade.toLowerCase();
-            const subtotal = u2.includes('hora')   ? preco * horas2 * diasServ2 * qtd2
-                           : u2.includes('dia')    ? preco * diasServ2 * qtd2
-                           : u2.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento) * diasServ2
-                           : preco;
-            totalOrcamento += subtotal;
-            itensOrcamento.push({
-              supplierName: sj.supplierName || sj.supplierId,
-              serviceName,
-              preco,
-              diasEvento,
-              subtotal,
-              unidade,
-            });
-          }
+        // Usa preco/unidade/horas diretamente do supplierJob (nova arquitetura)
+        const preco   = parseFloat(sj.preco || 0);
+        const unidade = (sj.unidade || 'por evento').toLowerCase();
+        const _det    = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
+        const horasEvento = (() => {
+          const ini = sj.eventHorarioInicio || project.briefingData?.evento?.horarioInicio;
+          const fim = sj.eventHorarioFim   || project.briefingData?.evento?.horarioFim;
+          if (ini && fim) { const [h1,m1]=ini.split(':').map(Number),[h2,m2]=fim.split(':').map(Number); const h=(h2*60+m2-h1*60-m1)/60; return h>0?h:0; }
+          return 0;
+        })();
+        const horas    = parseFloat(sj.horasPorDia || _det.horasPorDia) || horasEvento;
+        const qtd      = parseFloat(sj.quantidade  || _det.quantidade)  || 1;
+        const diasServ = parseFloat(sj.diasServico || _det.dias) || diasEvento;
+        const visitantes = parseFloat(sj.eventVisitantes || project.guestCount) || 0;
+        const subtotal = unidade.includes('hora')   ? preco * horas * diasServ * qtd
+                       : unidade.includes('dia')    ? preco * diasServ * qtd
+                       : unidade.includes('pessoa') ? preco * visitantes * diasServ
+                       : preco; // por evento
+        if (preco > 0) {
+          totalOrcamento += subtotal;
+          itensOrcamento.push({
+            supplierName: sj.supplierName || sj.confirmedBy || sj.supplierId,
+            serviceName:  sj.serviceName,
+            opcaoNome:    sj.opcaoNome || '',
+            preco,
+            unidade:      sj.unidade || 'por evento',
+            horas, qtd, diasServ,
+            diasEvento,
+            subtotal,
+          });
         }
       }
 

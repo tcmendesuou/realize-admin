@@ -476,8 +476,12 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f2f5' }}>
                       <div>
                         <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{item.serviceName}</div>
+                        {item.opcaoNome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 1 }}>Opção: {item.opcaoNome}</div>}
                         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                          {item.supplierName} · {formatBRL(item.preco)} × {item.diasEvento} dia(s)
+                          {formatBRL(item.preco)} / {item.unidade || 'evento'}
+                          {item.horas > 0 && ` · ${item.horas}h`}
+                          {item.qtd > 1 && ` · ${item.qtd}x`}
+                          {item.diasServ > 1 && ` · ${item.diasServ} dias`}
                         </div>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{formatBRL(item.subtotal)}</div>
