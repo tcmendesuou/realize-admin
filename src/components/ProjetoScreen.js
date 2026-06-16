@@ -380,7 +380,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       const confirmed = supplierJobs.filter(j => j.status === 'confirmed');
       let totalOrcamento = 0;
       const itensOrcamento = [];
-      const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
+      const calcDiasEvento = () => {
+        const ini = project.briefingData?.evento?.dataInicio || project.startDate;
+        const fim = project.briefingData?.evento?.dataFim    || project.endDate;
+        if (ini && fim) {
+          const d1 = new Date(ini + 'T12:00:00');
+          const d2 = new Date(fim + 'T12:00:00');
+          const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+          return diff > 0 ? diff : 1;
+        }
+        return project.briefingData?.evento?.diasDuracao || project.eventDiasDuracao || 1;
+      };
+      const diasEvento = calcDiasEvento();
 
       for (const sj of confirmed) {
         for (const serviceName of (sj.serviceNames || [])) {
@@ -1479,7 +1490,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const isPending   = sj.status === 'pending' || !sj.status;
                       const isConfirmed = sj.status === 'confirmed';
                       const isRejected  = sj.status === 'rejected';
-                      const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
+                      const calcDias2 = () => {
+                        const ini = project.briefingData?.evento?.dataInicio || project.startDate;
+                        const fim = project.briefingData?.evento?.dataFim    || project.endDate;
+                        if (ini && fim) { const d1 = new Date(ini+'T12:00:00'), d2 = new Date(fim+'T12:00:00'); const diff = Math.round((d2-d1)/(1000*60*60*24))+1; return diff > 0 ? diff : 1; }
+                        return project.briefingData?.evento?.diasDuracao || 1;
+                      };
+                      const diasEvento  = calcDias2();
                       const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
                       const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : propostasExpandidas;
                       return (
@@ -1677,7 +1694,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   const cor = corFase || TIPO_COR[task.tipoServico] || '#7BAFD4';
                   const deDate = task.dataEntrega ? new Date(task.dataEntrega) : null;
                   const atrasada = deDate && deDate < hoje2 && task.status !== 'concluido';
-                  const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
+                  const calcDias3 = () => {
+                    const ini = project.briefingData?.evento?.dataInicio || project.startDate;
+                    const fim = project.briefingData?.evento?.dataFim    || project.endDate;
+                    if (ini && fim) { const d1 = new Date(ini+'T12:00:00'), d2 = new Date(fim+'T12:00:00'); const diff = Math.round((d2-d1)/(1000*60*60*24))+1; return diff > 0 ? diff : 1; }
+                    return project.briefingData?.evento?.diasDuracao || 1;
+                  };
+                  const diasEvento = calcDias3();
                   const valorTotal = task.valor || (task.preco ? parseFloat(task.preco) * diasEvento : 0);
                   const expanded = isExpanded(task.id);
                   return (
@@ -1853,7 +1876,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               )}
                               {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
                               {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
-                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dias</div></div>
+                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{(() => { const i = sj.eventDate, f = sj.eventDateFim; if (i && f) { const d = Math.round((new Date(f+'T12:00:00') - new Date(i+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return diasEvento; })()} dias</div></div>
                               {sj.eventVisitantes > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Visitantes/dia</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventVisitantes}</div></div>}
                               {sj.eventCidade && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Cidade</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventCidade}</div></div>}
                               {sj.eventLocal && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventLocal}</div></div>}
