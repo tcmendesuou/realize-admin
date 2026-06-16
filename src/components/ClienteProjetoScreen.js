@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  collection, getDocs, query, where,
+  collection, getDocs, getDoc, query, where,
   updateDoc, doc, addDoc, onSnapshot, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -145,7 +145,15 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
       ));
       const sjs = sjSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const cronograma = project.cronograma?.etapas || [];
-      const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
+
+      // Calcula diasEvento corretamente pelas datas
+      const calcDias = () => {
+        const ini = project.briefingData?.evento?.dataInicio || project.startDate;
+        const fim = project.briefingData?.evento?.dataFim    || project.endDate;
+        if (ini && fim) { const d = Math.round((new Date(fim+'T12:00:00')-new Date(ini+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; }
+        return project.briefingData?.evento?.diasDuracao || 1;
+      };
+      const diasEvento = calcDias();
 
       await Promise.all(sjs.map(async sj => {
         await updateDoc(doc(db, 'supplierJobs', sj.id), { stage: 'aguardando', updatedAt: serverTimestamp() });
@@ -155,22 +163,58 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           (sj.serviceName||'').toLowerCase().includes((e.nome||'').toLowerCase())
         );
 
+        // Busca preAprovacao e aprovacaoExecucao — tenta por opcaoCatalogoId primeiro, depois por nome
         let preAprovacao = false, aprovacaoExecucao = false;
         try {
-          const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', sj.serviceName)));
-          if (!svcSnap.empty) {
-            const svcData = svcSnap.docs[0].data();
-            preAprovacao = !!svcData.preAprovacao;
-            aprovacaoExecucao = !!svcData.aprovacaoExecucao;
-          } else {
-            const modeloSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', sj.serviceName)));
-            if (!modeloSnap.empty) {
-              const md = modeloSnap.docs[0].data();
-              preAprovacao = !!md.preAprovacao;
-              aprovacaoExecucao = !!md.aprovacaoExecucao;
+          // 1. Pelo opcaoCatalogoId (sub-serviço direto)
+          if (sj.opcaoCatalogoId) {
+            const svcSnap = await getDocs(query(collection(db, 'services'), where('__name__', '==', sj.opcaoCatalogoId)));
+            if (!svcSnap.empty) {
+              // é uma opção — busca o pai (sub-serviço) para pegar os toggles
+              const parentId = svcSnap.docs[0].data().parentId;
+              if (parentId) {
+                const parentSnap = await getDoc(doc(db, 'services', parentId));
+                if (parentSnap.exists()) {
+                  preAprovacao      = !!parentSnap.data().preAprovacao;
+                  aprovacaoExecucao = !!parentSnap.data().aprovacaoExecucao;
+                }
+              }
+            }
+          }
+          // 2. Fallback: busca pelo nome do serviço
+          if (!preAprovacao && !aprovacaoExecucao) {
+            const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', sj.serviceName)));
+            if (!svcSnap.empty) {
+              preAprovacao      = !!svcSnap.docs[0].data().preAprovacao;
+              aprovacaoExecucao = !!svcSnap.docs[0].data().aprovacaoExecucao;
+            } else {
+              const modeloSnap = await getDocs(query(collection(db, 'modelosEspeciais'), where('nome', '==', sj.serviceName)));
+              if (!modeloSnap.empty) {
+                preAprovacao      = !!modeloSnap.docs[0].data().preAprovacao;
+                aprovacaoExecucao = !!modeloSnap.docs[0].data().aprovacaoExecucao;
+              }
             }
           }
         } catch (e) { console.error(e); }
+
+        // Calcula valor correto da task
+        const _det    = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
+        const horasEv = (() => {
+          const ini = sj.eventHorarioInicio || project.briefingData?.evento?.horarioInicio;
+          const fim = sj.eventHorarioFim   || project.briefingData?.evento?.horarioFim;
+          if (ini && fim) { const [h1,m1]=ini.split(':').map(Number),[h2,m2]=fim.split(':').map(Number); const h=(h2*60+m2-h1*60-m1)/60; return h>0?h:0; }
+          return 0;
+        })();
+        const horas    = parseFloat(sj.horasPorDia || _det.horasPorDia) || horasEv;
+        const qtd      = parseFloat(sj.quantidade  || _det.quantidade)  || 1;
+        const diasServ = parseFloat(sj.diasServico || _det.dias) || diasEvento;
+        const visitantes = parseFloat(sj.eventVisitantes || project.guestCount) || 0;
+        const preco    = parseFloat(sj.preco || 0);
+        const unidade  = (sj.unidade || '').toLowerCase();
+        const valor    = unidade.includes('hora')   ? preco * horas * diasServ * qtd
+                       : unidade.includes('dia')    ? preco * diasServ * qtd
+                       : unidade.includes('pessoa') ? preco * visitantes * diasServ
+                       : preco;
 
         const taskBase = {
           budgetId:          project.id,
@@ -180,6 +224,8 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           serviceName:       sj.serviceName || '',
           serviceParentName: sj.serviceParentName || '',
           tipoServico:       sj.tipoServico || '',
+          opcaoCatalogoId:   sj.opcaoCatalogoId || '',
+          opcaoNome:         sj.opcaoNome || '',
           nome:              sj.serviceName || '',
           descricao:         etapa?.descricao || '',
           dataInicio:        etapa?.dataInicio || etapa?.di || '',
@@ -188,9 +234,17 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           diasPreparo:       sj.diasPreparo || 0,
           diasMontagem:      sj.diasMontagem || 0,
           diasEvento,
-          valor:             sj.preco ? parseFloat(sj.preco) * diasEvento : 0,
-          preco:             parseFloat(sj.preco || 0),
+          horasPorDia:       horas,
+          quantidade:        qtd,
+          diasServico:       diasServ,
+          eventHorarioInicio: sj.eventHorarioInicio || project.briefingData?.evento?.horarioInicio || '',
+          eventHorarioFim:   sj.eventHorarioFim    || project.briefingData?.evento?.horarioFim    || '',
+          eventLocal:        sj.eventLocal || project.location || '',
+          eventVisitantes:   visitantes,
+          valor,
+          preco,
           unidade:           sj.unidade || '',
+          observacoes:       sj.observacoes || '',
           preAprovacao,
           aprovacaoExecucao,
           createdAt:         serverTimestamp(),
@@ -370,9 +424,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     <InfoItem label="Área" value={est2.areaM2 > 0 ? `${est2.areaM2} m²` : null} />
                     <InfoItem label="Altura do teto" value={est2.alturaTeto} />
                     <InfoItem label="Dias de montagem" value={est2.diasMontagem > 0 ? `${est2.diasMontagem} dias antes` : null} />
-                    {est2.restricoes
-                      ? <div style={{ gridColumn: '1/-1' }}><div className="cps-info-label">Restrições de acesso</div><div className="cps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</div></div>
-                      : est2.tipoEstande && <InfoItem label="Restrições" value="Sem restrições" />}
+                    <InfoItem label="Restrições" value={est2.restricoes || (est2.restricoes === '' ? 'Sem restrições' : null)} />
                     <InfoItem label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim' : est2.identidadeVisual === 'nao' ? 'Não definida ainda' : null} />
                     {est2.standDescricao && (
                       <div style={{ gridColumn: '1/-1' }}>
@@ -418,39 +470,63 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                 </div>
               )}
 
-              {/* SERVIÇOS SELECIONADOS — por categoria, sem valores */}
-              {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
-                const itens = opcoes.filter(o => o.tipoServico === tipo);
-                if (!itens.length) return null;
-                const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe Operacional', gastronomia: 'Gastronomia', entretenimento: 'Entretenimento' }[tipo];
-                const corTipo  = { estrutura: '#0080FF', operacao: '#00E5C4', gastronomia: '#66BB6A', entretenimento: '#FFA726' }[tipo];
-                return (
-                  <div key={tipo} className="cps-card">
-                    <div className="cps-card-title" style={{ color: corTipo }}>{labelTipo}</div>
-                    <div className="cps-grid">
-                      {itens.map((op, i) => {
-                        const det = equipe2.itens?.find(e => e.tipo === op.serviceName);
-                        return (
-                          <div key={i} style={{ gridColumn: '1/-1', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, background: '#fafbff' }}>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
-                            {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
-                            {det && (det.quantidade > 0 || det.horasPorDia > 0) && (
-                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
-                                {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
-                                {det.dias > 0 && ` · ${det.dias} dia(s)`}
-                                {det.observacoes && ` · ${det.observacoes}`}
+              {/* SERVIÇOS SELECIONADOS */}
+              {opcoes.length > 0 && (
+                <div className="cps-card">
+                  <div className="cps-card-title">Serviços Selecionados</div>
+                  {['estrutura', 'operacao', 'gastronomia', 'entretenimento'].map(tipo => {
+                    const itens = opcoes.filter(o => o.tipoServico === tipo);
+                    if (!itens.length) return null;
+                    const labelTipo = { estrutura: 'Estrutura', operacao: 'Equipe', gastronomia: 'Gastronomia', entretenimento: 'Serviços e Entretenimento' }[tipo];
+                    return (
+                      <div key={tipo} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{labelTipo}</div>
+                        {itens.map((op, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, background: '#fafbff' }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
+                              {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                              {/* Detalhes de equipe */}
+                              {equipe2.itens?.find(e => e.tipo === op.serviceName) && (() => {
+                                const det = equipe2.itens.find(e => e.tipo === op.serviceName);
+                                return (
+                                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                    {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                    {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                    {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                    {det.observacoes && ` · ${det.observacoes}`}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {op.valor > 0 && (
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>
+                                  {formatBRL(op.valor)}
+                                </div>
+                                {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
                               </div>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* GASTRONOMIA extra info */}
+              {gastro2.ativo && (
+                <div className="cps-card">
+                  <div className="cps-card-title">Gastronomia</div>
+                  <div className="cps-grid">
+                    <InfoItem label="Serviço" value={gastro2.formato} />
+                    <InfoItem label="Pessoas" value={gastro2.pessoas ? `${gastro2.pessoas} pessoas` : null} />
+                    <InfoItem label="Restrições" value={gastro2.restricoes || 'Nenhuma'} />
+                    <InfoItem label="Cozinha no local" value={gastro2.cozinha ? 'Sim' : 'Não'} />
                   </div>
-                );
-              })}
-
-
+                </div>
+              )}
             </>
             );
           })()}
@@ -459,15 +535,6 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           {activeTab === 'acao' && (
             <>
               {/* Aprovação de orçamento */}
-              {project.status === 'pendingApproval' && orcamento.total <= 0 && (
-                <div className="cps-card" style={{ textAlign: 'center', padding: 40 }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#0080FF' }}>Orçamento em preparação</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6, lineHeight: 1.6 }}>
-                    Nossa equipe está finalizando o orçamento do seu evento.<br/>Em breve você receberá os valores para aprovação.
-                  </div>
-                </div>
-              )}
               {project.status === 'pendingApproval' && orcamento.total > 0 && (
                 <div className="cps-card">
                   <div className="cps-card-title">Orçamento aguardando aprovação</div>
@@ -476,12 +543,8 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f2f5' }}>
                       <div>
                         <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{item.serviceName}</div>
-                        {item.opcaoNome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 1 }}>Opção: {item.opcaoNome}</div>}
                         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                          {formatBRL(item.preco)} / {item.unidade || 'evento'}
-                          {item.horas > 0 && ` · ${item.horas}h`}
-                          {item.qtd > 1 && ` · ${item.qtd}x`}
-                          {item.diasServ > 1 && ` · ${item.diasServ} dias`}
+                          {item.supplierName} · {formatBRL(item.preco)} × {item.diasEvento} dia(s)
                         </div>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{formatBRL(item.subtotal)}</div>

@@ -1719,12 +1719,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   const _ht = parseFloat(task.horasPorDia) || 0;
                   const _qt = parseFloat(task.quantidade)  || 1;
                   const _dt = parseFloat(task.diasServico) || diasEvento;
-                  const valorTotal = task.valor || (_pt ? (
-                    _ut.includes('hora')   ? _pt * _ht * _dt * _qt :
+                  // Recalcula sempre para garantir valor correto mesmo em tasks antigas
+                  const valorTotal = _pt ? (
+                    _ht > 0 && _ut.includes('hora')   ? _pt * _ht * _dt * _qt :
+                    _ut.includes('hora')               ? _pt * _dt * _qt : // fallback sem horas
                     _ut.includes('dia')    ? _pt * _dt * _qt :
-                    _ut.includes('pessoa') ? _pt * (task.eventVisitantes || diasEvento) :
+                    _ut.includes('pessoa') ? _pt * (task.eventVisitantes || diasEvento) * _dt :
                     _pt
-                  ) : 0);
+                  ) : 0;
                   const expanded = isExpanded(task.id);
                   return (
                     <div key={task.id} style={{ borderRadius: 10, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 8, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : 'white' }}>
@@ -1761,6 +1763,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           {task.dataEntrega && <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Entrega</div><div style={{ fontSize: 12, fontWeight: 600, color: atrasada ? '#ef4444' : '#1e293b' }}>{task.dataEntrega.split('-').reverse().join('/')}</div></div>}
                           {task.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasPreparo}d</div></div>}
                           {task.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem}d</div></div>}
+                          {task.opcaoNome && <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(102,126,234,0.15)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Opção</div><div style={{ fontSize: 12, fontWeight: 600, color: '#667eea' }}>{task.opcaoNome}</div></div>}
+                          {(task.quantidade > 0 || task.horasPorDia > 0 || task.diasServico > 0 || task.observacoes) && <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.1)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Solicitação</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{task.quantidade > 0 && <span style={{ fontSize: 11, color: '#1e293b' }}><strong>{task.quantidade}</strong> profissional(is)</span>}{task.horasPorDia > 0 && <span style={{ fontSize: 11, color: '#1e293b' }}><strong>{task.horasPorDia}h</strong>/dia</span>}{task.diasServico > 0 && <span style={{ fontSize: 11, color: '#1e293b' }}><strong>{task.diasServico}</strong> dia(s)</span>}{task.observacoes && <span style={{ fontSize: 11, color: '#475569', fontStyle: 'italic' }}>"{task.observacoes}"</span>}</div></div>}
+                          {task.eventHorarioInicio && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Horário</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.eventHorarioInicio}{task.eventHorarioFim ? ` às ${task.eventHorarioFim}` : ''}</div></div>}
+                          {task.eventLocal && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.eventLocal}</div></div>}
+                          {task.preco > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preço base</div><div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>R$ {parseFloat(task.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {task.unidade || 'evento'}</div></div>}
                           {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs.</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacao}</div></div>}
                           {task.observacaoFornecedor && <div style={{ background: '#f0f9ff', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacaoFornecedor}</div></div>}
                         </div>
