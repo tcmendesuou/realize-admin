@@ -411,7 +411,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const u = unidade.toLowerCase();
             const subtotal = u.includes('hora')   ? preco * horas * diasServ * qtd
                            : u.includes('dia')    ? preco * diasServ * qtd
-                           : u.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento)
+                           : u.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento) * diasServ
                            : preco;
             totalOrcamento += subtotal;
             itensOrcamento.push({
@@ -433,7 +433,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const u2 = unidade.toLowerCase();
             const subtotal = u2.includes('hora')   ? preco * horas2 * diasServ2 * qtd2
                            : u2.includes('dia')    ? preco * diasServ2 * qtd2
-                           : u2.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento)
+                           : u2.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento) * diasServ2
                            : preco;
             totalOrcamento += subtotal;
             itensOrcamento.push({
@@ -1529,7 +1529,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       const valorTotal = _p1 ? (
                         _u1.includes('hora')   ? _p1 * _h1 * _d1 * _q1 :
                         _u1.includes('dia')    ? _p1 * _d1 * _q1 :
-                        _u1.includes('pessoa') ? _p1 * (sj.eventVisitantes || diasEvento) :
+                        _u1.includes('pessoa') ? _p1 * (sj.eventVisitantes || diasEvento) * _d1 :
                         _p1
                       ) : null;
                       const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : propostasExpandidas;
@@ -1868,7 +1868,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     const valorTotal = _pv ? (
                       _uv.includes('hora')   ? _pv * _hv * _dv * _qv :
                       _uv.includes('dia')    ? _pv * _dv * _qv :
-                      _uv.includes('pessoa') ? _pv * (sj.eventVisitantes || diasEvento) :
+                      _uv.includes('pessoa') ? _pv * (sj.eventVisitantes || diasEvento) * _dv :
                       _pv
                     ) : null;
                     const isEditing   = editandoJob === sj.id;
@@ -2058,7 +2058,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         const valorTotal2 = _p4 ? (
                           _u4.includes('hora')   ? _p4 * _h4 * _d4 * _q4 :
                           _u4.includes('dia')    ? _p4 * _d4 * _q4 :
-                          _u4.includes('pessoa') ? _p4 * (sj.eventVisitantes || diasEvento2) :
+                          _u4.includes('pessoa') ? _p4 * (sj.eventVisitantes || diasEvento2) * _d4 :
                           _p4
                         ) : null;
                         return (
