@@ -156,7 +156,7 @@ const StepOpcoes = ({ servicos, onConfirm }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-      <Pergunta>Opções para **{servAtual.serviceName}**{servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:</Pergunta>
+      <Pergunta>{`Opções disponíveis para **${servAtual.serviceName}**${servicos.length > 1 ? ` (${idx + 1}/${servicos.length})` : ''}:`}</Pergunta>
       {servAtual.opcoes.map(op => (
         <OpcaoBtn key={op.id} onClick={() => avancar(op)}>
           <span>{op.nome}{op.caracteristica ? ` — ${op.caracteristica}` : ''}</span>
@@ -201,7 +201,7 @@ const StepEquipeDetalhes = ({ equipe, onConfirm }) => {
   const selStyle = { width: '100%', padding: '14px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-      <Pergunta>Detalhes para **{serv.serviceName}**{equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}</Pergunta>
+      <Pergunta>{`Detalhes para **${serv.serviceName}**${equipe.length > 1 ? ` (${idx + 1}/${equipe.length})` : ''}`}</Pergunta>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Quantos?</div><Inp type="number" value={qtd} onChange={e => setQtd(e.target.value)} placeholder="2" min="1" /></div>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Horas/dia</div><Inp type="number" value={horas} onChange={e => setHoras(e.target.value)} placeholder="8" min="1" /></div>
