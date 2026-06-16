@@ -459,6 +459,15 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           {activeTab === 'acao' && (
             <>
               {/* Aprovação de orçamento */}
+              {project.status === 'pendingApproval' && orcamento.total <= 0 && (
+                <div className="cps-card" style={{ textAlign: 'center', padding: 40 }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#0080FF' }}>Orçamento em preparação</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6, lineHeight: 1.6 }}>
+                    Nossa equipe está finalizando o orçamento do seu evento.<br/>Em breve você receberá os valores para aprovação.
+                  </div>
+                </div>
+              )}
               {project.status === 'pendingApproval' && orcamento.total > 0 && (
                 <div className="cps-card">
                   <div className="cps-card-title">Orçamento aguardando aprovação</div>
