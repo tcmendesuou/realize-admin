@@ -2075,8 +2075,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     </div>
                   )}
                   {project.status === 'pendingApproval' && (
-                    <div style={{ marginTop: 16, padding: 14, background: 'rgba(255,167,38,0.06)', borderRadius: 10, border: '1px solid rgba(255,167,38,0.2)', textAlign: 'center', fontSize: 13, color: '#FFA726', fontWeight: 500 }}>
-                      ⏳ Orçamento enviado — aguardando aprovação do cliente
+                    <div style={{ marginTop: 16, padding: 14, background: 'rgba(255,167,38,0.06)', borderRadius: 10, border: '1px solid rgba(255,167,38,0.2)', textAlign: 'center', fontSize: 13, color: '#FFA726', fontWeight: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <span>⏳ Orçamento enviado — aguardando aprovação do cliente</span>
+                      <button onClick={handleGerarOrcamento} disabled={gerandoOrcamento}
+                        style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        {gerandoOrcamento ? 'Recalculando...' : '↻ Recalcular orçamento'}
+                      </button>
                     </div>
                   )}
                   {project.status === 'approved' && (
