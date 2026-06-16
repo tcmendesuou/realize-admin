@@ -1834,8 +1834,25 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     const nome        = sj.serviceName || (sj.serviceNames || [])[0];
                     const isConfirmed = sj.status === 'confirmed';
                     const isRejected  = sj.status === 'rejected';
-                    const diasEvento  = project.briefingData?.evento?.diasDuracao || 1;
-                    const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
+                    const calcDiasEv = () => {
+                      const ini = project.briefingData?.evento?.dataInicio || project.startDate;
+                      const fim = project.briefingData?.evento?.dataFim    || project.endDate;
+                      if (ini && fim) { const d = Math.round((new Date(fim+'T12:00:00')-new Date(ini+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; }
+                      return project.briefingData?.evento?.diasDuracao || 1;
+                    };
+                    const diasEvento  = calcDiasEv();
+                    const _pv = parseFloat(sj.preco || 0);
+                    const _uv = (sj.unidade || '').toLowerCase();
+                    const _detV = (project.briefingData?.equipe?.itens || []).find(e => e.tipo === sj.serviceName) || {};
+                    const _hv = parseFloat(sj.horasPorDia || _detV.horasPorDia) || 0;
+                    const _qv = parseFloat(sj.quantidade  || _detV.quantidade)  || 1;
+                    const _dv = parseFloat(sj.diasServico || _detV.dias) || diasEvento;
+                    const valorTotal = _pv ? (
+                      _uv.includes('hora')   ? _pv * _hv * _dv * _qv :
+                      _uv.includes('dia')    ? _pv * _dv * _qv :
+                      _uv.includes('pessoa') ? _pv * (sj.eventVisitantes || diasEvento) :
+                      _pv
+                    ) : null;
                     const isEditing   = editandoJob === sj.id;
                     const isTrocando  = trocandoJob === sj.id;
                     return (
