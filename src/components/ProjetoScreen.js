@@ -1738,14 +1738,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     _pt
                   ) : 0;
                   const expanded = isExpanded(task.id);
+                  const ePrepC  = task.fase === 'preparacao';
+                  const eExecC  = task.fase === 'execucao';
+                  const corFC   = ePrepC ? '#5B8DEF' : eExecC ? '#00C896' : cor;
+                  const bgFC    = ePrepC ? 'rgba(91,141,239,0.06)' : eExecC ? 'rgba(0,200,150,0.06)' : 'white';
+                  const bdFC    = ePrepC ? 'rgba(91,141,239,0.3)' : eExecC ? 'rgba(0,200,150,0.3)' : '#e2e8f0';
                   return (
-                    {(() => {
-                      const ePrepC  = task.fase === 'preparacao';
-                      const eExecC  = task.fase === 'execucao';
-                      const corFC   = ePrepC ? '#5B8DEF' : eExecC ? '#00C896' : cor;
-                      const bgFC    = ePrepC ? 'rgba(91,141,239,0.06)' : eExecC ? 'rgba(0,200,150,0.06)' : 'white';
-                      const bdFC    = ePrepC ? 'rgba(91,141,239,0.3)' : eExecC ? 'rgba(0,200,150,0.3)' : '#e2e8f0';
-                      return (
                     <div key={task.id} style={{ borderRadius: 10, border: `2px solid ${atrasada ? 'rgba(239,68,68,0.3)' : bdFC}`, marginBottom: 10, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : bgFC }}>
                       {task.fase && (
                         <div style={{ background: corFC, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1797,8 +1795,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         </div>
                       )}
                     </div>
-                      );
-                    })()}
                   );
                 };
 
