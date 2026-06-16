@@ -404,7 +404,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const sv = { id: svSnap.docs[0].id, ...svSnap.docs[0].data() };
             const preco = parseFloat(sv.preco || 0);
             const unidade = sv.unidade || 'por dia';
-            const subtotal = unidade === 'por evento' ? preco : preco * diasEvento;
+            const horas   = parseFloat(sv.horasPorDia) || 0;
+            const qtd     = parseFloat(sv.quantidade)  || 1;
+            const diasServ = parseFloat(sv.diasServico) || diasEvento;
+            const u = unidade.toLowerCase();
+            const subtotal = u.includes('hora')   ? preco * horas * diasServ * qtd
+                           : u.includes('dia')    ? preco * diasServ * qtd
+                           : u.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento)
+                           : preco; // por evento
             totalOrcamento += subtotal;
             itensOrcamento.push({
               supplierName: sj.confirmedBy || sj.supplierId,
@@ -418,7 +425,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             // Fallback para serviços especiais (ex: estande modular) sem registro em supplierServices
             const preco = parseFloat(sj.preco || 0);
             const unidade = sj.unidade || 'por evento';
-            const subtotal = unidade === 'por evento' ? preco : preco * diasEvento;
+            const horas2   = parseFloat(sj.horasPorDia) || 0;
+            const qtd2     = parseFloat(sj.quantidade)  || 1;
+            const diasServ2 = parseFloat(sj.diasServico) || diasEvento;
+            const u2 = unidade.toLowerCase();
+            const subtotal = u2.includes('hora')   ? preco * horas2 * diasServ2 * qtd2
+                           : u2.includes('dia')    ? preco * diasServ2 * qtd2
+                           : u2.includes('pessoa') ? preco * (parseFloat(project.guestCount) || diasEvento)
+                           : preco;
             totalOrcamento += subtotal;
             itensOrcamento.push({
               supplierName: sj.supplierName || sj.supplierId,
@@ -1497,7 +1511,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         return project.briefingData?.evento?.diasDuracao || 1;
                       };
                       const diasEvento  = calcDias2();
-                      const valorTotal  = sj.preco ? parseFloat(sj.preco) * diasEvento : null;
+                      const _p1 = parseFloat(sj.preco || 0);
+                      const _u1 = (sj.unidade || '').toLowerCase();
+                      const _h1 = parseFloat(sj.horasPorDia) || 0;
+                      const _q1 = parseFloat(sj.quantidade)  || 1;
+                      const _d1 = parseFloat(sj.diasServico) || diasEvento;
+                      const valorTotal = _p1 ? (
+                        _u1.includes('hora')   ? _p1 * _h1 * _d1 * _q1 :
+                        _u1.includes('dia')    ? _p1 * _d1 * _q1 :
+                        _u1.includes('pessoa') ? _p1 * (sj.eventVisitantes || diasEvento) :
+                        _p1
+                      ) : null;
                       const sjExp       = tasksExpandidas[sj.id] !== undefined ? tasksExpandidas[sj.id] : propostasExpandidas;
                       return (
                         <div key={sj.id} style={{ borderRadius: 12, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.3)' : isRejected ? 'rgba(239,68,68,0.3)' : 'rgba(123,175,212,0.35)'}`, background: isConfirmed ? 'rgba(16,185,129,0.04)' : isRejected ? 'rgba(239,68,68,0.04)' : 'rgba(123,175,212,0.06)', overflow: 'hidden', marginBottom: 10 }}>
@@ -1701,7 +1725,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     return project.briefingData?.evento?.diasDuracao || 1;
                   };
                   const diasEvento = calcDias3();
-                  const valorTotal = task.valor || (task.preco ? parseFloat(task.preco) * diasEvento : 0);
+                  const _pt = parseFloat(task.preco || 0);
+                  const _ut = (task.unidade || '').toLowerCase();
+                  const _ht = parseFloat(task.horasPorDia) || 0;
+                  const _qt = parseFloat(task.quantidade)  || 1;
+                  const _dt = parseFloat(task.diasServico) || diasEvento;
+                  const valorTotal = task.valor || (_pt ? (
+                    _ut.includes('hora')   ? _pt * _ht * _dt * _qt :
+                    _ut.includes('dia')    ? _pt * _dt * _qt :
+                    _ut.includes('pessoa') ? _pt * (task.eventVisitantes || diasEvento) :
+                    _pt
+                  ) : 0);
                   const expanded = isExpanded(task.id);
                   return (
                     <div key={task.id} style={{ borderRadius: 10, border: `1px solid ${atrasada ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 8, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : 'white' }}>
@@ -1871,7 +1905,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
                                   <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Valor total</div>
                                   <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                  <div style={{ fontSize: 9, color: '#94a3b8' }}>R$ {parseFloat(sj.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {sj.unidade ? `/ ${sj.unidade}` : `× ${diasEvento}d`}</div>
+                                  <div style={{ fontSize: 9, color: '#94a3b8' }}>{(() => {
+                                    const p = parseFloat(sj.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                                    const u = (sj.unidade || '').toLowerCase();
+                                    if (u.includes('hora')) return `R$ ${p}/h × ${sj.horasPorDia || 0}h × ${sj.diasServico || diasEvento}d${sj.quantidade > 1 ? ` × ${sj.quantidade}` : ''}`;
+                                    if (u.includes('dia'))  return `R$ ${p}/dia × ${sj.diasServico || diasEvento}d${sj.quantidade > 1 ? ` × ${sj.quantidade}` : ''}`;
+                                    if (u.includes('pessoa')) return `R$ ${p}/pessoa × ${sj.eventVisitantes || ''} pessoas`;
+                                    return `R$ ${p} / ${sj.unidade || 'evento'}`;
+                                  })()}</div>
                                 </div>
                               )}
                               {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
@@ -1970,7 +2011,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         const isConfirmed2 = sj.status === 'confirmed';
                         const isRejected2  = sj.status === 'rejected';
                         const diasEvento2  = project.briefingData?.evento?.diasDuracao || 1;
-                        const valorTotal2  = sj.preco ? parseFloat(sj.preco) * diasEvento2 : null;
+                        const _p4 = parseFloat(sj.preco || 0);
+                        const _u4 = (sj.unidade || '').toLowerCase();
+                        const _h4 = parseFloat(sj.horasPorDia) || 0;
+                        const _q4 = parseFloat(sj.quantidade)  || 1;
+                        const _d4 = parseFloat(sj.diasServico) || diasEvento2;
+                        const valorTotal2 = _p4 ? (
+                          _u4.includes('hora')   ? _p4 * _h4 * _d4 * _q4 :
+                          _u4.includes('dia')    ? _p4 * _d4 * _q4 :
+                          _u4.includes('pessoa') ? _p4 * (sj.eventVisitantes || diasEvento2) :
+                          _p4
+                        ) : null;
                         return (
                           <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed2 ? 'rgba(16,185,129,0.2)' : isRejected2 ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed2 ? 'rgba(16,185,129,0.02)' : isRejected2 ? 'rgba(239,68,68,0.02)' : 'white' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #f8faff' }}>
