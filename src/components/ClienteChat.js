@@ -344,9 +344,10 @@ const StepDescricaoInline = ({ onConfirm }) => {
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export default function ClienteChat({ userData, onClose }) {
+export default function ClienteChat({ userData, onClose, tenant }) {
   const userName = userData?.name || userData?.displayName || 'Cliente';
   const userId   = userData?.uid  || userData?.id || '';
+  const tenantId = tenant?.id || userData?.tenantId || null;
 
   const [step, setStep]         = useState('stand_pergunta');
   const [historico, setHistorico] = useState([]); // { step, resposta } — para voltar
@@ -380,7 +381,14 @@ export default function ClienteChat({ userData, onClose }) {
 
   useEffect(() => {
     getDocs(collection(db, 'modelosEspeciais'))
-      .then(snap => setModelosEspeciais(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.ativo !== false)))
+      .then(snap => {
+        const todos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.ativo !== false);
+        // Filtra por tenant: exclusiveTenants vazio = público, senão só o tenant atual vê
+        const filtrados = tenantId
+          ? todos.filter(m => !m.exclusiveTenants?.length || m.exclusiveTenants.includes(tenantId))
+          : todos;
+        setModelosEspeciais(filtrados);
+      })
       .catch(console.error);
   }, []);
 
@@ -395,7 +403,13 @@ export default function ClienteChat({ userData, onClose }) {
       const bloqueados = tipo === 'estrutura' ? BLOQUEADOS_ESTRUTURA : tipo === 'operacao' ? BLOQUEADOS_EQUIPE : [];
       const filtrados = servs.filter(s => {
         const nome = normalize(s.serviceName || '') + ' ' + normalize(s.serviceParentName || '');
-        return !bloqueados.some(b => nome.includes(b));
+        if (bloqueados.some(b => nome.includes(b))) return false;
+        // Filtro por tenant: exclusiveTenants vazio = público
+        if (tenantId) {
+          const exc = s.exclusiveTenants || [];
+          if (exc.length > 0 && !exc.includes(tenantId)) return false;
+        }
+        return true;
       });
       const comOpcoes = await Promise.all(filtrados.map(async s => {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
