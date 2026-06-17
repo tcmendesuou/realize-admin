@@ -21,6 +21,8 @@ import FornecedorHome from './components/FornecedorHome';
 import ClienteHome from './components/ClienteHome';
 import ScriptManager from './components/ScriptManager';
 import FinanceiroManager from './components/FinanceiroManager';
+import TenantManager from './components/TenantManager';
+import { useTenant } from './hooks/useTenant';
 import './App.css';
 
 function ProjetoScreenWrapper({ user, userData, onLogout }) {
@@ -35,6 +37,7 @@ function ProjetoScreenWrapper({ user, userData, onLogout }) {
 }
 
 function App() {
+  const { tenant, loading: tenantLoading } = useTenant();
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [firestoreUser, setFirestoreUser] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -108,7 +111,9 @@ function App() {
       );
     }
 
-    if (systemRole === 'cliente') return <ClienteHome userData={firestoreUser} onLogout={handleLogout} />;
+    if (systemRole === 'cliente')       return <ClienteHome userData={firestoreUser} onLogout={handleLogout} />;
+    if (systemRole === 'franqueado')    return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
+    if (systemRole === 'tenant_admin')  return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenant} isTenantAdmin />;
 
     if (systemRole === 'fornecedor_pendente') {
       return (
@@ -205,6 +210,10 @@ function App() {
             <button className={activeView === 'financeiro' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('financeiro')}>
               <span className="nav-text">Financeiro</span>
             </button>
+            <div className="nav-separator" />
+            <button className={activeView === 'tenants' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tenants')}>
+              <span className="nav-text">Empresas (Tenants)</span>
+            </button>
           </nav>
           <div className="sidebar-footer">
             <div className="user-info">
@@ -231,6 +240,7 @@ function App() {
                 {activeView === 'suppliers' && 'Fornecedores'}
                 {activeView === 'users'     && 'Cadastros'}
                 {activeView === 'financeiro' && 'Financeiro'}
+                {activeView === 'tenants'   && 'Empresas (Tenants)'}
               </h2>
             </div>
             <div className="header-right">
@@ -250,6 +260,7 @@ function App() {
             {activeView === 'suppliers' && <SupplierManager />}
             {activeView === 'users'     && <UserManagement />}
             {activeView === 'financeiro' && <FinanceiroManager />}
+            {activeView === 'tenants'    && <TenantManager />}
           </div>
         </main>
       </div>
