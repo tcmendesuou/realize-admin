@@ -44,6 +44,206 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [propostasExpandidas, setPropostasExpandidas] = useState(true);
   const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
+
+  // ── Modal Nova Tarefa (completo) ──────────────────────────────────────────
+  const [novaTaskStep, setNovaTaskStep]         = useState(1); // 1=categoria 2=servico 3=opcao 4=detalhes 5=fornecedor
+  const [novaTaskCategoria, setNovaTaskCategoria] = useState('');
+  const [novaTaskServicos, setNovaTaskServicos]   = useState([]); // supplierServices da categoria
+  const [novaTaskLoadingServicos, setNovaTaskLoadingServicos] = useState(false);
+  const [novaTaskServico, setNovaTaskServico]     = useState(null); // supplierService selecionado
+  const [novaTaskOpcoes, setNovaTaskOpcoes]       = useState([]); // opcoes do catalogo
+  const [novaTaskOpcao, setNovaTaskOpcao]         = useState(null); // opcao selecionada
+  const [novaTaskFornecedores, setNovaTaskFornecedores] = useState([]); // fornecedores disponíveis
+  const [novaTaskFornecedor, setNovaTaskFornecedor]     = useState(null);
+  const [novaTaskLoadingForn, setNovaTaskLoadingForn]   = useState(false);
+  const [novaTaskForm, setNovaTaskForm] = useState({
+    quantidade: '', horasPorDia: '', diasServico: '', observacoes: '',
+    dataInicio: '', dataEntrega: '', prioridade: 'normal',
+  });
+  const [savingNovaTask, setSavingNovaTask] = useState(false);
+
+  const resetNovaTask = () => {
+    setNovaTaskStep(1); setNovaTaskCategoria(''); setNovaTaskServicos([]);
+    setNovaTaskServico(null); setNovaTaskOpcoes([]); setNovaTaskOpcao(null);
+    setNovaTaskFornecedores([]); setNovaTaskFornecedor(null);
+    setNovaTaskForm({ quantidade: '', horasPorDia: '', diasServico: '', observacoes: '', dataInicio: '', dataEntrega: '', prioridade: 'normal' });
+    setShowTaskForm(false);
+  };
+
+  const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  // Carrega supplierServices da categoria filtrados pela cidade do projeto
+  const carregarServicosNovaTask = async (categoria) => {
+    setNovaTaskLoadingServicos(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', categoria)));
+      const servs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+      const cidadeProj = normalize(project?.briefingData?.evento?.cidade || project?.location || '');
+      // Carrega opções e filtra por região
+      const comOpcoes = await Promise.all(servs.map(async s => {
+        const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+        const opcoes = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+        // Filtra por região se tiver cidade
+        const opsFiltradas = cidadeProj
+          ? opcoes.filter(o => !o.regiao || normalize(o.regiao).includes(cidadeProj) || cidadeProj.includes(normalize(o.regiao || '').split(' ')[0]))
+          : opcoes;
+        return { ...s, opcoes: opsFiltradas };
+      }));
+      setNovaTaskServicos(comOpcoes.filter(s => s.opcoes.length > 0));
+    } catch (e) { console.error(e); }
+    finally { setNovaTaskLoadingServicos(false); }
+  };
+
+  // Carrega opções do catálogo para o serviço selecionado
+  const carregarOpcoesNovaTask = async (servico) => {
+    if (!servico?.serviceId) { setNovaTaskOpcoes(servico?.opcoes || []); return; }
+    try {
+      const snap = await getDocs(collection(db, 'services', servico.serviceId, 'opcoes'));
+      const opcoesCat = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+      // Enriquece com dados do fornecedor
+      const enriquecidas = opcoesCat.map(opCat => {
+        const opForn = (servico.opcoes || []).find(o => o.opcaoCatalogoId === opCat.id);
+        return { ...opCat, ...opForn, id: opCat.id, nome: opCat.nome, valor: opCat.valor, unidade: opCat.unidade };
+      });
+      setNovaTaskOpcoes(enriquecidas.length > 0 ? enriquecidas : servico.opcoes || []);
+    } catch (e) { setNovaTaskOpcoes(servico?.opcoes || []); }
+  };
+
+  // Carrega fornecedores que têm o serviço cadastrado
+  const carregarFornecedoresNovaTask = async (servico) => {
+    setNovaTaskLoadingForn(true);
+    try {
+      const cidadeProj = normalize(project?.briefingData?.evento?.cidade || project?.location || '');
+      const snap = await getDocs(query(collection(db, 'supplierServices'), where('serviceName', '==', servico.serviceName)));
+      const todos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false && s.supplierId);
+      // Filtra por região
+      const filtrados = cidadeProj ? todos.filter(s => {
+        const regiao = normalize(s.regiao || '');
+        return !regiao || regiao.includes(cidadeProj) || cidadeProj.includes(regiao.split(' ')[0]);
+      }) : todos;
+      // Busca nomes dos fornecedores
+      const unique = [...new Set(filtrados.map(s => s.supplierId))];
+      const fns = await Promise.all(unique.map(async sid => {
+        try {
+          const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', sid)));
+          if (!uSnap.empty) {
+            const d = uSnap.docs[0].data();
+            return { id: sid, nome: d.companyName || d.name || sid };
+          }
+        } catch {}
+        return { id: sid, nome: sid };
+      }));
+      setNovaTaskFornecedores(fns);
+    } catch (e) { console.error(e); setNovaTaskFornecedores([]); }
+    finally { setNovaTaskLoadingForn(false); }
+  };
+
+  // Salva a nova task + supplierJob
+  const handleSalvarNovaTask = async () => {
+    if (!novaTaskServico || !novaTaskFornecedor) { alert('Selecione o serviço e o fornecedor.'); return; }
+    setSavingNovaTask(true);
+    try {
+      const ev2      = project.briefingData?.evento || {};
+      const diasEv   = (() => { const i=project.briefingData?.evento?.dataInicio||project.startDate,f=project.briefingData?.evento?.dataFim||project.endDate; if(i&&f){const d=Math.round((new Date(f+'T12:00:00')-new Date(i+'T12:00:00'))/(864e5))+1;return d>0?d:1;}return 1; })();
+      const preco    = parseFloat(novaTaskOpcao?.valor || 0);
+      const unidade  = novaTaskOpcao?.unidade || '';
+      const horasEv  = (() => { const i=ev2.horarioInicio,f=ev2.horarioFim; if(i&&f){const[h1,m1]=i.split(':').map(Number),[h2,m2]=f.split(':').map(Number);const h=(h2*60+m2-h1*60-m1)/60;return h>0?h:0;}return 0; })();
+      const horas    = parseFloat(novaTaskForm.horasPorDia) || horasEv;
+      const qtd      = parseFloat(novaTaskForm.quantidade) || 1;
+      const diasServ = parseFloat(novaTaskForm.diasServico) || diasEv;
+      const u        = unidade.toLowerCase();
+      const valor    = preco ? (u.includes('hora') ? preco*horas*diasServ*qtd : u.includes('dia') ? preco*diasServ*qtd : u.includes('pessoa') ? preco*(ev2.visitantesPorDia||0)*diasServ : preco) : 0;
+
+      // Busca toggles do serviço no catálogo
+      let preAprovacao = false, aprovacaoExecucao = false;
+      try {
+        const svcSnap = await getDocs(query(collection(db, 'services'), where('name', '==', novaTaskServico.serviceName)));
+        if (!svcSnap.empty) {
+          preAprovacao      = !!svcSnap.docs[0].data().preAprovacao;
+          aprovacaoExecucao = !!svcSnap.docs[0].data().aprovacaoExecucao;
+        }
+      } catch {}
+
+      // Cria supplierJob
+      const sjRef = await addDoc(collection(db, 'supplierJobs'), {
+        budgetId:           projectId,
+        supplierId:         novaTaskFornecedor.id,
+        supplierName:       novaTaskFornecedor.nome,
+        clientName:         project.clientName || '',
+        eventName:          project.eventName || '',
+        eventTypeName:      project.eventTypeName || '',
+        eventDate:          project.startDate || ev2.dataInicio || '',
+        eventDateFim:       project.endDate   || ev2.dataFim    || '',
+        eventLocal:         ev2.local || project.location || '',
+        eventCidade:        ev2.cidade || '',
+        eventHorarioInicio: ev2.horarioInicio || '',
+        eventHorarioFim:    ev2.horarioFim    || '',
+        eventDiasDuracao:   diasEv,
+        eventVisitantes:    ev2.visitantesPorDia || 0,
+        serviceName:        novaTaskServico.serviceName,
+        serviceNames:       [novaTaskServico.serviceName],
+        serviceParentName:  novaTaskServico.serviceParentName || '',
+        tipoServico:        novaTaskCategoria,
+        opcaoCatalogoId:    novaTaskOpcao?.id || '',
+        opcaoNome:          novaTaskOpcao?.nome || '',
+        preco,
+        unidade,
+        horasPorDia:        horas,
+        quantidade:         qtd,
+        diasServico:        diasServ,
+        observacoes:        novaTaskForm.observacoes,
+        diasPreparo:        novaTaskServico.diasPreparo || 0,
+        diasMontagem:       novaTaskServico.diasMontagem || 0,
+        stage:              'proposta',
+        status:             project.cotacaoEnviadaEm ? 'pending' : 'draft', // já envia se cotação foi enviada
+        enviadoEm:          project.cotacaoEnviadaEm ? serverTimestamp() : null,
+        createdAt:          serverTimestamp(),
+      });
+
+      // Cria task
+      await addDoc(collection(db, 'tasks'), {
+        budgetId:           projectId,
+        supplierJobId:      sjRef.id,
+        supplierId:         novaTaskFornecedor.id,
+        supplierName:       novaTaskFornecedor.nome,
+        serviceName:        novaTaskServico.serviceName,
+        serviceParentName:  novaTaskServico.serviceParentName || '',
+        tipoServico:        novaTaskCategoria,
+        opcaoCatalogoId:    novaTaskOpcao?.id || '',
+        opcaoNome:          novaTaskOpcao?.nome || '',
+        nome:               `${preAprovacao ? 'Preparação' : 'Execução'} — ${novaTaskServico.serviceName}`,
+        fase:               preAprovacao ? 'preparacao' : 'execucao',
+        descricao:          novaTaskForm.observacoes || '',
+        dataInicio:         novaTaskForm.dataInicio || '',
+        dataEntrega:        novaTaskForm.dataEntrega || '',
+        prioridade:         novaTaskForm.prioridade,
+        preco,
+        unidade,
+        horasPorDia:        horas,
+        quantidade:         qtd,
+        diasServico:        diasServ,
+        observacoes:        novaTaskForm.observacoes,
+        eventHorarioInicio: ev2.horarioInicio || '',
+        eventHorarioFim:    ev2.horarioFim    || '',
+        eventLocal:         ev2.local || project.location || '',
+        eventVisitantes:    ev2.visitantesPorDia || 0,
+        diasEvento:         diasEv,
+        diasPreparo:        novaTaskServico.diasPreparo || 0,
+        diasMontagem:       novaTaskServico.diasMontagem || 0,
+        valor,
+        preAprovacao,
+        aprovacaoExecucao,
+        status:             'pendente',
+        cor:                preAprovacao ? '#5B8DEF' : '#00C896',
+        createdAt:          serverTimestamp(),
+        criadoPor:          userData?.name || '',
+      });
+
+      resetNovaTask();
+    } catch (e) { console.error(e); alert('Erro ao criar tarefa.'); }
+    finally { setSavingNovaTask(false); }
+  };
+
   const [aprovacaoModal, setAprovacaoModal] = useState(null); // { task, tipo: 'pre'|'execucao'|'entrega' }
   const [aprovacaoArquivos, setAprovacaoArquivos] = useState([]);
   const [aprovacaoObs, setAprovacaoObs] = useState('');
@@ -2162,35 +2362,164 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               })()}
 
               {showTaskForm && (
-                <div style={{ background: '#f8faff', borderRadius: 10, border: '1px solid #e0e8ff', padding: 16, marginBottom: 16 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <div style={{ gridColumn: '1/-1' }}>
-                      <label style={lbl}>Nome *</label>
-                      <input value={newTask.name} onChange={e => setNewTask(p => ({ ...p, name: e.target.value }))} style={inp} placeholder="Nome da tarefa" />
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+                  onClick={e => { if (e.target === e.currentTarget) resetNovaTask(); }}>
+                  <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+                    {/* Header do modal */}
+                    <div style={{ padding: '18px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', fontFamily: 'Outfit, sans-serif' }}>Nova Tarefa</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>
+                          {['Categoria', 'Serviço', 'Opção', 'Detalhes', 'Fornecedor'][novaTaskStep - 1]} — passo {novaTaskStep} de 5
+                        </div>
+                      </div>
+                      <button onClick={resetNovaTask} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
                     </div>
-                    <div style={{ gridColumn: '1/-1' }}>
-                      <label style={lbl}>Descrição</label>
-                      <input value={newTask.descricao} onChange={e => setNewTask(p => ({ ...p, descricao: e.target.value }))} style={inp} placeholder="Detalhes..." />
+                    {/* Indicador de steps */}
+                    <div style={{ display: 'flex', padding: '0 24px', gap: 4, paddingTop: 16 }}>
+                      {[1,2,3,4,5].map(s => (
+                        <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, background: s <= novaTaskStep ? 'linear-gradient(90deg,#667eea,#764ba2)' : '#f0f2f5', transition: 'all 0.3s' }} />
+                      ))}
                     </div>
-                    <div>
-                      <label style={lbl}>Prazo</label>
-                      <input type="date" value={newTask.prazo} onChange={e => setNewTask(p => ({ ...p, prazo: e.target.value }))} style={inp} />
+
+                    <div style={{ padding: '20px 24px' }}>
+
+                      {/* STEP 1 — Categoria */}
+                      {novaTaskStep === 1 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual categoria de serviço?</div>
+                          {[
+                            { id: 'estrutura',      label: 'Estrutura',        icon: '🏗', cor: '#0080FF' },
+                            { id: 'operacao',       label: 'Operacional',      icon: '👥', cor: '#00E5C4' },
+                            { id: 'gastronomia',    label: 'Gastronomia',      icon: '🍽', cor: '#66BB6A' },
+                            { id: 'entretenimento', label: 'Entretenimento',   icon: '🎵', cor: '#FFA726' },
+                          ].map(cat => (
+                            <button key={cat.id} onClick={async () => {
+                              setNovaTaskCategoria(cat.id);
+                              await carregarServicosNovaTask(cat.id);
+                              setNovaTaskStep(2);
+                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskCategoria === cat.id ? cat.cor : '#e2e8f0'}`, background: novaTaskCategoria === cat.id ? `${cat.cor}11` : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{cat.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* STEP 2 — Serviço */}
+                      {novaTaskStep === 2 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual serviço?</div>
+                          {novaTaskLoadingServicos ? (
+                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando serviços...</div>
+                          ) : novaTaskServicos.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Nenhum serviço disponível nesta categoria para a cidade do projeto.</div>
+                          ) : novaTaskServicos.map(s => (
+                            <button key={s.id} onClick={async () => {
+                              setNovaTaskServico(s);
+                              await carregarOpcoesNovaTask(s);
+                              await carregarFornecedoresNovaTask(s);
+                              setNovaTaskStep(3);
+                            }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskServico?.id === s.id ? '#667eea' : '#e2e8f0'}`, background: novaTaskServico?.id === s.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.serviceName}</div>
+                                {s.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{s.serviceParentName}</div>}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#94a3b8' }}>{s.opcoes.length} opção(ões)</div>
+                            </button>
+                          ))}
+                          <button onClick={() => setNovaTaskStep(1)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                        </div>
+                      )}
+
+                      {/* STEP 3 — Opção */}
+                      {novaTaskStep === 3 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual opção de {novaTaskServico?.serviceName}?</div>
+                          {novaTaskOpcoes.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhuma opção cadastrada.</div>
+                          ) : novaTaskOpcoes.map(op => (
+                            <button key={op.id} onClick={() => { setNovaTaskOpcao(op); setNovaTaskStep(4); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskOpcao?.id === op.id ? '#667eea' : '#e2e8f0'}`, background: novaTaskOpcao?.id === op.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{op.nome}</div>
+                                {op.caracteristica && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{op.caracteristica}</div>}
+                              </div>
+                              {op.valor > 0 && <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>/ {op.unidade || 'evento'}</div>
+                              </div>}
+                            </button>
+                          ))}
+                          <button onClick={() => setNovaTaskStep(2)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                        </div>
+                      )}
+
+                      {/* STEP 4 — Detalhes */}
+                      {novaTaskStep === 4 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', fontFamily: 'Outfit, sans-serif' }}>Detalhes da tarefa</div>
+                          {/* Resumo da seleção */}
+                          <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(102,126,234,0.15)' }}>
+                            <div style={{ fontSize: 12, color: '#667eea', fontWeight: 600, fontFamily: 'Outfit, sans-serif' }}>{novaTaskServico?.serviceName} — {novaTaskOpcao?.nome}</div>
+                            {novaTaskOpcao?.valor > 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>R$ {Number(novaTaskOpcao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {novaTaskOpcao.unidade}</div>}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            <div><label style={lbl}>Quantidade</label><input type="number" value={novaTaskForm.quantidade} onChange={e => setNovaTaskForm(p => ({...p, quantidade: e.target.value}))} style={inp} placeholder="Ex: 2" min="1" /></div>
+                            <div><label style={lbl}>Horas/dia</label><input type="number" value={novaTaskForm.horasPorDia} onChange={e => setNovaTaskForm(p => ({...p, horasPorDia: e.target.value}))} style={inp} placeholder="Ex: 8" /></div>
+                            <div><label style={lbl}>Dias</label><input type="number" value={novaTaskForm.diasServico} onChange={e => setNovaTaskForm(p => ({...p, diasServico: e.target.value}))} style={inp} placeholder="Ex: 2" /></div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div><label style={lbl}>Data início</label><input type="date" value={novaTaskForm.dataInicio} onChange={e => setNovaTaskForm(p => ({...p, dataInicio: e.target.value}))} style={inp} /></div>
+                            <div><label style={lbl}>Data entrega</label><input type="date" value={novaTaskForm.dataEntrega} onChange={e => setNovaTaskForm(p => ({...p, dataEntrega: e.target.value}))} style={inp} /></div>
+                          </div>
+                          <div><label style={lbl}>Prioridade</label>
+                            <select value={novaTaskForm.prioridade} onChange={e => setNovaTaskForm(p => ({...p, prioridade: e.target.value}))} style={{ ...inp, background: 'white' }}>
+                              <option value="baixa">Baixa</option>
+                              <option value="normal">Normal</option>
+                              <option value="alta">Alta</option>
+                              <option value="urgente">Urgente</option>
+                            </select>
+                          </div>
+                          <div><label style={lbl}>Observações</label>
+                            <textarea value={novaTaskForm.observacoes} onChange={e => setNovaTaskForm(p => ({...p, observacoes: e.target.value}))} style={{ ...inp, resize: 'vertical', minHeight: 60 }} placeholder="Instruções específicas para o fornecedor..." />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                            <button onClick={() => setNovaTaskStep(3)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={() => setNovaTaskStep(5)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Próximo →</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* STEP 5 — Fornecedor */}
+                      {novaTaskStep === 5 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual fornecedor?</div>
+                          {novaTaskLoadingForn ? (
+                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando fornecedores...</div>
+                          ) : novaTaskFornecedores.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhum fornecedor disponível para este serviço na cidade do projeto.</div>
+                          ) : novaTaskFornecedores.map(f => (
+                            <button key={f.id} onClick={() => setNovaTaskFornecedor(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskFornecedor?.id === f.id ? '#667eea' : '#e2e8f0'}`, background: novaTaskFornecedor?.id === f.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#667eea,#764ba2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{(f.nome || 'F')[0].toUpperCase()}</div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.nome}</span>
+                              {novaTaskFornecedor?.id === f.id && <span style={{ marginLeft: 'auto', fontSize: 13, color: '#667eea' }}>✓</span>}
+                            </button>
+                          ))}
+                          {/* Aviso se já enviou cotação */}
+                          {project.cotacaoEnviadaEm && (
+                            <div style={{ background: 'rgba(255,167,38,0.08)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#FFA726' }}>
+                              ⚡ A proposta já foi enviada anteriormente. Esta nova tarefa será enviada imediatamente ao fornecedor.
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
+                            <button onClick={() => setNovaTaskStep(4)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={handleSalvarNovaTask} disabled={!novaTaskFornecedor || savingNovaTask} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: !novaTaskFornecedor ? '#e2e8f0' : 'linear-gradient(135deg,#667eea,#764ba2)', color: !novaTaskFornecedor ? '#94a3b8' : 'white', fontSize: 13, fontWeight: 600, cursor: !novaTaskFornecedor ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              {savingNovaTask ? 'Criando...' : project.cotacaoEnviadaEm ? '✓ Criar e Enviar' : '✓ Criar Tarefa'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label style={lbl}>Prioridade</label>
-                      <select value={newTask.prioridade} onChange={e => setNewTask(p => ({ ...p, prioridade: e.target.value }))} style={{ ...inp, background: 'white' }}>
-                        <option value="baixa">Baixa</option>
-                        <option value="normal">Normal</option>
-                        <option value="alta">Alta</option>
-                        <option value="urgente">Urgente</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button onClick={() => setShowTaskForm(false)} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                    <button onClick={handleAddTask} disabled={savingTask} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                      {savingTask ? 'Salvando...' : 'Criar Tarefa'}
-                    </button>
                   </div>
                 </div>
               )}
