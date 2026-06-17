@@ -22,6 +22,7 @@ import ClienteHome from './components/ClienteHome';
 import ScriptManager from './components/ScriptManager';
 import FinanceiroManager from './components/FinanceiroManager';
 import TenantManager from './components/TenantManager';
+import TenantAdmin from './components/TenantAdmin';
 import { useTenant } from './hooks/useTenant';
 import './App.css';
 
@@ -113,7 +114,7 @@ function App() {
 
     if (systemRole === 'cliente')       return <ClienteHome userData={firestoreUser} onLogout={handleLogout} />;
     if (systemRole === 'franqueado')    return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
-    if (systemRole === 'tenant_admin')  return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenant} isTenantAdmin />;
+    if (systemRole === 'tenant_admin')  return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
 
     if (systemRole === 'fornecedor_pendente') {
       return (

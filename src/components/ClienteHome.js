@@ -13,7 +13,7 @@ const STATUS_CONFIG = {
   rejected:        { label: 'Cancelado',            color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
 };
 
-export default function ClienteHome({ userData, onLogout }) {
+export default function ClienteHome({ userData, onLogout, tenant }) {
   const [events, setEvents] = useState([]);
   const [activeSection, setActiveSection] = useState('workspace');
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -318,6 +318,7 @@ export default function ClienteHome({ userData, onLogout }) {
           key={chatKey}
           userData={userData}
           onClose={() => setShowChat(false)}
+          tenant={tenant}
         />
       )}
     </div>
