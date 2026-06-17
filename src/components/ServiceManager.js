@@ -307,6 +307,49 @@ const APROVACOES_CONFIG = [
   { key: 'aprovacaoExecucao',   label: 'Aprovação de Execução',  desc: 'Aprovação no dia do evento, quando o fornecedor entrega o serviço ao cliente (ex: estande montado, estrutura pronta)', cor: '#667eea' },
 ];
 
+
+// ── Seletor de exclusividade por tenant ───────────────────────────────────────
+function TenantSelector({ value = [], onChange }) {
+  const [tenants, setTenants] = React.useState([]);
+  React.useEffect(() => {
+    import('../firebase/config').then(({ db }) => {
+      import('firebase/firestore').then(({ collection, getDocs, query, where }) => {
+        getDocs(query(collection(db, 'tenants'), where('ativo', '==', true)))
+          .then(snap => setTenants(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+          .catch(console.error);
+      });
+    });
+  }, []);
+
+  const toggle = (id) => {
+    const novo = value.includes(id) ? value.filter(x => x !== id) : [...value, id];
+    onChange(novo);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Exclusividade por empresa</div>
+      <div style={{ background: 'rgba(102,126,234,0.04)', border: '1px solid rgba(102,126,234,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>
+          {value.length === 0 ? '✓ Visível para todos (sem restrição)' : `🔒 Exclusivo de ${value.length} empresa(s)`}
+        </div>
+        {tenants.length === 0 ? (
+          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma empresa cadastrada ainda.</div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {tenants.map(t => (
+              <button key={t.id} onClick={() => toggle(t.id)} type="button"
+                style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${value.includes(t.id) ? t.corPrimaria || '#667eea' : '#e2e8f0'}`, background: value.includes(t.id) ? `${t.corPrimaria || '#667eea'}18` : 'white', color: value.includes(t.id) ? t.corPrimaria || '#667eea' : '#64748b', fontSize: 11, fontWeight: value.includes(t.id) ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {value.includes(t.id) ? '✓' : '○'} {t.nome}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const UNIDADES = [
   { id: 'hora',    label: 'por hora' },
   { id: 'dia',     label: 'por dia' },
@@ -318,7 +361,9 @@ const UNIDADES = [
 function SubServiceForm({ parentId, editData, onSave, onCancel }) {
   const [form, setForm] = useState(editData || {
     name: '', description: '', active: true,
-    preAprovacao: false, aprovacaoExecucao: false,   });
+    preAprovacao: false, aprovacaoExecucao: false,
+    exclusiveTenants: [],
+  });
   const [saving, setSaving] = useState(false);
   const [opcoes, setOpcoes]           = useState([]);
   const [loadingOpcoes, setLoadingOpcoes] = useState(false);
@@ -374,6 +419,7 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
         preAprovacao:      !!form.preAprovacao,
         aprovacaoExecucao: !!form.aprovacaoExecucao,
         parentId, updatedAt: new Date(),
+        exclusiveTenants: form.exclusiveTenants || [],
       };
       if (editData?.id) {
         await updateDoc(doc(db, 'services', editData.id), data);
@@ -488,6 +534,8 @@ function SubServiceForm({ parentId, editData, onSave, onCancel }) {
         )}
       </div>
 
+      <TenantSelector value={form.exclusiveTenants || []} onChange={v => setF('exclusiveTenants', v)} />
+
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
         <button onClick={handleSave} disabled={saving} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -579,9 +627,9 @@ export default function ServiceManager() {
     setSaving(true);
     try {
       if (editing) {
-        await updateDoc(doc(db, 'services', editing), { ...form, updatedAt: new Date() });
+        await updateDoc(doc(db, 'services', editing), { ...form, exclusiveTenants: form.exclusiveTenants || [], updatedAt: new Date() });
       } else {
-        await addDoc(collection(db, 'services'), { ...form, tipo: tipoAtivo, parentId: null, createdAt: new Date() });
+        await addDoc(collection(db, 'services'), { ...form, tipo: tipoAtivo, parentId: null, exclusiveTenants: form.exclusiveTenants || [], createdAt: new Date() });
       }
       await loadServices();
       setForm({ name: '', description: '', active: true });

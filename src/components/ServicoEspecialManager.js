@@ -104,9 +104,9 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
       };
 
       if (editData?.id) {
-        await updateDoc(doc(db, 'modelosEspeciais', editData.id), data);
+        await updateDoc(doc(db, 'modelosEspeciais', editData.id), { ...data, exclusiveTenants: form.exclusiveTenants || [] });
       } else {
-        await addDoc(collection(db, 'modelosEspeciais'), { ...data, createdAt: new Date() });
+        await addDoc(collection(db, 'modelosEspeciais'), { ...data, exclusiveTenants: form.exclusiveTenants || [], createdAt: new Date() });
       }
       onSave();
     } catch (e) { console.error(e); alert('Erro ao salvar modelo.'); }
@@ -270,6 +270,8 @@ function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, on
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
         <button onClick={onCancel} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+        <TenantSelector value={form.exclusiveTenants || []} onChange={v => setF('exclusiveTenants', v)} />
+
         <button onClick={handleSave} disabled={saving}
           style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: saving ? '#e2e8f0' : 'linear-gradient(135deg,#667eea,#764ba2)', color: saving ? '#94a3b8' : 'white', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
           {saving ? 'Salvando...' : 'Salvar modelo'}

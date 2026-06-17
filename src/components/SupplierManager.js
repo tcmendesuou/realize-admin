@@ -9,6 +9,49 @@ const STATUS_CONFIG = {
   inativo:     { label: 'Inativo',    bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' },
 };
 
+
+// ── Seletor de exclusividade por tenant ───────────────────────────────────────
+function TenantSelector({ value = [], onChange }) {
+  const [tenants, setTenants] = React.useState([]);
+  React.useEffect(() => {
+    import('../firebase/config').then(({ db }) => {
+      import('firebase/firestore').then(({ collection, getDocs, query, where }) => {
+        getDocs(query(collection(db, 'tenants'), where('ativo', '==', true)))
+          .then(snap => setTenants(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+          .catch(console.error);
+      });
+    });
+  }, []);
+
+  const toggle = (id) => {
+    const novo = value.includes(id) ? value.filter(x => x !== id) : [...value, id];
+    onChange(novo);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Exclusividade por empresa</div>
+      <div style={{ background: 'rgba(102,126,234,0.04)', border: '1px solid rgba(102,126,234,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>
+          {value.length === 0 ? '✓ Visível para todos (sem restrição)' : `🔒 Exclusivo de ${value.length} empresa(s)`}
+        </div>
+        {tenants.length === 0 ? (
+          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma empresa cadastrada ainda.</div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {tenants.map(t => (
+              <button key={t.id} onClick={() => toggle(t.id)} type="button"
+                style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${value.includes(t.id) ? t.corPrimaria || '#667eea' : '#e2e8f0'}`, background: value.includes(t.id) ? `${t.corPrimaria || '#667eea'}18` : 'white', color: value.includes(t.id) ? t.corPrimaria || '#667eea' : '#64748b', fontSize: 11, fontWeight: value.includes(t.id) ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {value.includes(t.id) ? '✓' : '○'} {t.nome}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SupplierManager() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +59,7 @@ export default function SupplierManager() {
   const [filterStatus, setFilterStatus] = useState('todos');
   const [saving, setSaving] = useState(false);
   const [obs, setObs] = useState('');
+  const [exclusiveTenants, setExclusiveTenants] = useState([]);
 
   useEffect(() => { loadSuppliers(); }, []);
 
@@ -53,7 +97,8 @@ export default function SupplierManager() {
         await updateDoc(doc(db, 'users', userId), { systemRole: 'fornecedor', active: true, supplierId: selected.id });
       }
       // Atualiza o supplier
-      await updateDoc(doc(db, 'suppliers', selected.id), { status: 'homologado', userId, obs, updatedAt: new Date() });
+      await updateDoc(doc(db, 'suppliers', selected.id), { status: 'homologado', userId, obs, exclusiveTenants, updatedAt: new Date() });
+      await updateDoc(doc(db, 'users', userId), { exclusiveTenants, updatedAt: new Date() });
       await loadSuppliers();
       setSelected(prev => prev ? { ...prev, status: 'homologado', userId } : null);
       alert('Fornecedor homologado! Acesso de login criado.');
@@ -228,6 +273,8 @@ export default function SupplierManager() {
             {/* Ações */}
             <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 8 }}>
               {selected.status !== 'homologado' && (
+                <TenantSelector value={exclusiveTenants} onChange={setExclusiveTenants} />
+
                 <button onClick={handleHomologar} disabled={saving}
                   style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                   Homologar
