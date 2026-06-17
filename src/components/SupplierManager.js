@@ -273,12 +273,13 @@ export default function SupplierManager() {
             {/* Ações */}
             <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 8 }}>
               {selected.status !== 'homologado' && (
-                <TenantSelector value={exclusiveTenants} onChange={setExclusiveTenants} />
-
-                <button onClick={handleHomologar} disabled={saving}
-                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  Homologar
-                </button>
+                <>
+                  <TenantSelector value={exclusiveTenants} onChange={setExclusiveTenants} />
+                  <button onClick={handleHomologar} disabled={saving}
+                    style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Homologar
+                  </button>
+                </>
               )}
               {selected.status !== 'recusado' && (
                 <button onClick={() => handleStatus(selected.id, 'recusado')} disabled={saving}
