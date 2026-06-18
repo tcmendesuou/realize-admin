@@ -78,7 +78,7 @@ function App() {
     setActiveView('dashboard');
   };
 
-  if (loading) return (
+  if (loading || tenantLoading) return (
     <div className="loading-container">
       <div className="spinner"></div>
       <p>Carregando...</p>
@@ -113,8 +113,21 @@ function App() {
     }
 
     if (systemRole === 'cliente')       return <ClienteHome userData={firestoreUser} onLogout={handleLogout} />;
-    if (systemRole === 'franqueado')    return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
-    if (systemRole === 'tenant_admin')  return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
+    if (systemRole === 'franqueado') {
+      const tenantEfetivo = tenant || (firestoreUser.tenantId ? { id: firestoreUser.tenantId } : null);
+      return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenantEfetivo} />;
+    }
+    if (systemRole === 'tenant_admin') {
+      // Se tenant não detectado pelo subdomínio, busca pelo tenantId do usuário
+      const tenantEfetivo = tenant || (firestoreUser.tenantId ? { id: firestoreUser.tenantId } : null);
+      if (!tenantEfetivo) return (
+        <div className="loading-container">
+          <p style={{ color: '#e74c3c', fontFamily: 'Outfit, sans-serif' }}>Tenant não encontrado. Acesse pelo subdomínio correto.</p>
+          <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Sair</button>
+        </div>
+      );
+      return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenantEfetivo} />;
+    }
 
     if (systemRole === 'fornecedor_pendente') {
       return (

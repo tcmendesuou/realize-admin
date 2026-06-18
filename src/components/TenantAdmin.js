@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  collection, getDocs, addDoc, updateDoc, doc, query,
+  collection, getDocs, addDoc, updateDoc, doc, getDoc, query,
   where, onSnapshot, serverTimestamp, orderBy
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -15,10 +15,21 @@ const formatBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency
 const formatDate = ts => ts?.toDate ? ts.toDate().toLocaleDateString('pt-BR') : '—';
 
 export default function TenantAdmin({ userData, onLogout, tenant }) {
-  const tenantId   = tenant?.id || userData?.tenantId;
-  const corPrimary = tenant?.corPrimaria   || '#667eea';
-  const corAccent  = tenant?.corAcento     || '#00E5C4';
-  const tenantNome = tenant?.nome          || 'Empresa';
+  const [tenantData, setTenantData] = useState(tenant || null);
+  const tenantId   = tenantData?.id || tenant?.id || userData?.tenantId;
+  const corPrimary = tenantData?.corPrimaria   || '#667eea';
+  const corAccent  = tenantData?.corAcento     || '#00E5C4';
+  const tenantNome = tenantData?.nome          || 'Empresa';
+
+  // Carrega tenant completo se vier só com ID (acesso direto sem subdomínio)
+  useEffect(() => {
+    if (tenant?.nome) { setTenantData(tenant); return; }
+    const tid = tenant?.id || userData?.tenantId;
+    if (!tid) return;
+    getDocs(query(collection(db, 'tenants'), where('__name__', '==', tid)))
+      .then(snap => { if (!snap.empty) setTenantData({ id: snap.docs[0].id, ...snap.docs[0].data() }); })
+      .catch(console.error);
+  }, [tenant, userData?.tenantId]);
 
   const [view, setView]         = useState('overview'); // overview | franqueados | verbas | eventos
   const [franqueados, setFranqueados] = useState([]);
