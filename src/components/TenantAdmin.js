@@ -277,57 +277,97 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </>
  )}
 
- {/* ── VERBAS ───────────────────────────────────────────────────────── */}
- {view === 'verbas' && (
- <>
- <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>Gestão de Verbas</div>
- <div style={{ ...card, marginBottom: 20 }}>
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
- <div>
- <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Modo de verba</div>
- <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{tenant?.modoVerba === 'pool' ? 'Pool (mensal/anual)' : 'Por evento'}</div>
- </div>
- <div>
- <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Total verba anual distribuída</div>
- <div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalVerba)}</div>
- </div>
- <div>
- <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Total utilizado</div>
- <div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(totalGasto)}</div>
- </div>
- </div>
- </div>
- <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
- {franqueados.map(f => {
- const gastoFranq = eventos.filter(e => e.clientUserId === f.id).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
- const verba = (f.verbaMensal || 0) * 12 + (f.verbalAnual || 0);
- const pct = verba > 0 ? Math.min(100, Math.round(gastoFranq / verba * 100)) : 0;
- return (
- <div key={f.id} style={card}>
- <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
- <div>
- <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
- <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.unidade} {f.cidade ? `· ${f.cidade}` : ''}</div>
- </div>
- <div style={{ textAlign: 'right' }}>
- <div style={{ fontSize: 13, color: '#94a3b8' }}>Mensal: <strong>{formatBRL(f.verbaMensal)}</strong></div>
- <div style={{ fontSize: 13, color: '#94a3b8' }}>Anual: <strong>{formatBRL(f.verbalAnual)}</strong></div>
- </div>
- </div>
- {/* Barra de uso */}
- <div style={{ background: '#f1f5f9', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 6 }}>
- <div style={{ width: `${pct}%`, height: '100%', background: pct > 80 ? '#ef4444' : pct > 60 ? '#FFA726' : corAccent, borderRadius: 6, transition: 'width 0.5s' }} />
- </div>
- <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8' }}>
- <span>{formatBRL(gastoFranq)} utilizado</span>
- <span>{pct}% da verba anual</span>
- </div>
- </div>
- );
- })}
- </div>
- </>
- )}
+        {/* ── VERBAS ───────────────────────────────────────────────────────── */}
+        {view === 'verbas' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Gestão de Verbas</div>
+              <button onClick={() => setShowNovaVerba(true)}
+                style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                + Adicionar Verba
+              </button>
+            </div>
+
+            {/* Pool geral */}
+            {(() => {
+              const totalPool    = verbasGerais.reduce((acc, v) => acc + (v.valor || 0), 0);
+              const totalAlocado = franqueados.reduce((acc, f) => acc + (f.saldoVerba || 0), 0);
+              const totalUsado   = franqueados.reduce((acc, f) => acc + (eventos.filter(e => e.clientUserId === f.id).reduce((a, e) => a + (e.orcamentoFinal?.total || 0), 0)), 0);
+              const pctAlocado   = totalPool > 0 ? Math.min(100, Math.round(totalAlocado / totalPool * 100)) : 0;
+              return (
+                <div style={{ ...card, marginBottom: 20, borderLeft: `4px solid ${corPrimary}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Carteira Geral</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Total disponível</div><div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalPool)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Alocado</div><div style={{ fontSize: 18, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalAlocado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Livre para alocar</div><div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(totalPool - totalAlocado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Utilizado em eventos</div><div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{formatBRL(totalUsado)}</div></div>
+                  </div>
+                  <div style={{ background: '#f1f5f9', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 4 }}>
+                    <div style={{ width: `${pctAlocado}%`, height: '100%', background: pctAlocado > 80 ? '#ef4444' : pctAlocado > 60 ? '#FFA726' : corPrimary, borderRadius: 6, transition: 'width 0.5s' }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>{pctAlocado}% alocado</div>
+                  {verbasGerais.length > 0 && (
+                    <div style={{ borderTop: '1px solid #f0f2f5', paddingTop: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Histórico de cargas</div>
+                      {verbasGerais.map(v => (
+                        <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f8faff' }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{formatBRL(v.valor)}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                              {v.descricao && `${v.descricao} · `}
+                              {v.dataInicio && new Date(v.dataInicio+'T12:00:00').toLocaleDateString('pt-BR')}
+                              {v.dataFim && ` → ${new Date(v.dataFim+'T12:00:00').toLocaleDateString('pt-BR')}`}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDate(v.createdAt)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Por franqueado */}
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>Verbas por Franqueado</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {franqueados.map(f => {
+                const gastoFranq = eventos.filter(e => e.clientUserId === f.id).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                const saldo      = f.saldoVerba || 0;
+                const pct        = saldo > 0 ? Math.min(100, Math.round(gastoFranq / saldo * 100)) : 0;
+                return (
+                  <div key={f.id} style={card}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.funcao || ''}{f.unidade ? ` · ${f.unidade}` : ''}{f.cidade ? ` · ${f.cidade}` : ''}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: corPrimary }}>{formatBRL(saldo)}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>saldo disponível</div>
+                        </div>
+                        <button onClick={() => { setShowGerenciarVerba(f); setValorAtribuir(''); }}
+                          style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${corPrimary}`, background: 'none', color: corPrimary, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                          Gerenciar
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: gastoFranq > saldo ? '#ef4444' : '#1e293b' }}>{formatBRL(gastoFranq)}</strong></div>
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Restante: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - gastoFranq))}</strong></div>
+                    </div>
+                    <div style={{ background: '#f1f5f9', borderRadius: 6, height: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: pct > 80 ? '#ef4444' : pct > 60 ? '#FFA726' : corAccent, borderRadius: 6, transition: 'width 0.5s' }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{pct}% utilizado</div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
  </div>
 
  {/* ── Modal Novo Franqueado ─────────────────────────────────────────── */}
@@ -359,6 +399,82 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  </div>
  )}
+
+      {/* ── Modal Nova Verba Geral ───────────────────────────────────────── */}
+      {showNovaVerba && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowNovaVerba(false); }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 460, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Adicionar Verba</div>
+              <button onClick={() => setShowNovaVerba(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={lbl}>Valor (R$) *</label>
+                <input type="number" value={formVerba.valor} onChange={e => setFormVerba(p => ({...p, valor: e.target.value}))} style={inp} placeholder="Ex: 500000" /></div>
+              <div><label style={lbl}>Descrição</label>
+                <input value={formVerba.descricao} onChange={e => setFormVerba(p => ({...p, descricao: e.target.value}))} style={inp} placeholder="Ex: Q1 2026" /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div><label style={lbl}>Data início</label>
+                  <input type="date" value={formVerba.dataInicio} onChange={e => setFormVerba(p => ({...p, dataInicio: e.target.value}))} style={{ ...inp, colorScheme: 'light' }} /></div>
+                <div><label style={lbl}>Data fim</label>
+                  <input type="date" value={formVerba.dataFim} onChange={e => setFormVerba(p => ({...p, dataFim: e.target.value}))} style={{ ...inp, colorScheme: 'light' }} /></div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
+                <button onClick={() => setShowNovaVerba(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                <button onClick={handleAdicionarVerba} disabled={savingVerba2}
+                  style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingVerba2 ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingVerba2 ? 0.7 : 1 }}>
+                  {savingVerba2 ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Gerenciar Verba do Franqueado ──────────────────────────── */}
+      {showGerenciarVerba && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowGerenciarVerba(null); }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Verba — {showGerenciarVerba.name}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Saldo atual: {formatBRL(showGerenciarVerba.saldoVerba || 0)}</div>
+              </div>
+              <button onClick={() => setShowGerenciarVerba(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={lbl}>Valor a atribuir (R$) *</label>
+                <input type="number" value={valorAtribuir} onChange={e => setValorAtribuir(e.target.value)} style={inp} placeholder="Ex: 50000" /></div>
+              <div><label style={lbl}>Período de uso</label>
+                <input value={periodoAtribuir} onChange={e => setPeriodoAtribuir(e.target.value)} style={inp} placeholder="Ex: Janeiro 2026 / Q1 2026" /></div>
+              {(() => {
+                const totalPool = verbasGerais.reduce((acc, v) => acc + (v.valor || 0), 0);
+                const totalAloc = franqueados.reduce((acc, f) => acc + (f.saldoVerba || 0), 0);
+                const livre     = totalPool - totalAloc;
+                const val       = parseFloat(valorAtribuir) || 0;
+                return val > livre ? (
+                  <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#ef4444' }}>
+                    Valor maior que a verba livre disponível ({formatBRL(livre)})
+                  </div>
+                ) : val > 0 ? (
+                  <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#16a34a' }}>
+                    Verba livre após atribuição: {formatBRL(livre - val)}
+                  </div>
+                ) : null;
+              })()}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
+                <button onClick={() => setShowGerenciarVerba(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                <button onClick={handleAtribuirVerba} disabled={savingVerba || !valorAtribuir}
+                  style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: !valorAtribuir || savingVerba ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: !valorAtribuir ? 0.5 : 1 }}>
+                  {savingVerba ? 'Salvando...' : 'Atribuir verba'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
  {/* ── Modal Gerenciar Verba ─────────────────────────────────────────── */}
  {editandoVerba && (
