@@ -44,6 +44,13 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  // Modal verba
  const [editandoVerba, setEditandoVerba] = useState(null); // { userId, verbaMensal, verbalAnual }
  const [savingVerba, setSavingVerba] = useState(false);
+  const [verbasGerais, setVerbasGerais]   = useState([]);
+  const [showNovaVerba, setShowNovaVerba] = useState(false);
+  const [formVerba, setFormVerba]         = useState({ valor: '', descricao: '', dataInicio: '', dataFim: '' });
+  const [savingVerba2, setSavingVerba2]   = useState(false);
+  const [showGerenciarVerba, setShowGerenciarVerba] = useState(null);
+  const [valorAtribuir, setValorAtribuir] = useState('');
+  const [periodoAtribuir, setPeriodoAtribuir] = useState('');
 
  useEffect(() => {
  if (!tenantId) return;
@@ -94,6 +101,45 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  };
 
  // ── Salvar verba ─────────────────────────────────────────────────────────────
+  // ── Adicionar verba geral ──────────────────────────────────────────────────
+  const handleAdicionarVerba = async () => {
+    if (!formVerba.valor) { alert('Informe o valor'); return; }
+    setSavingVerba2(true);
+    try {
+      const novaVerba = {
+        valor:      parseFloat(formVerba.valor),
+        descricao:  formVerba.descricao || '',
+        dataInicio: formVerba.dataInicio || '',
+        dataFim:    formVerba.dataFim    || '',
+        createdAt:  serverTimestamp(),
+        createdBy:  userData?.id,
+      };
+      const ref = await addDoc(collection(db, 'tenants', tenantId, 'verbas'), novaVerba);
+      setVerbasGerais(p => [{ id: ref.id, ...novaVerba }, ...p]);
+      setFormVerba({ valor: '', descricao: '', dataInicio: '', dataFim: '' });
+      setShowNovaVerba(false);
+    } catch (e) { console.error(e); alert('Erro ao adicionar verba.'); }
+    finally { setSavingVerba2(false); }
+  };
+
+  // ── Atribuir verba ao franqueado ────────────────────────────────────────────
+  const handleAtribuirVerba = async () => {
+    if (!showGerenciarVerba || !valorAtribuir) { alert('Informe o valor'); return; }
+    setSavingVerba(true);
+    try {
+      const novoSaldo = (parseFloat(showGerenciarVerba.saldoVerba) || 0) + parseFloat(valorAtribuir);
+      await updateDoc(doc(db, 'users', showGerenciarVerba.id), {
+        saldoVerba: novoSaldo,
+        updatedAt:  serverTimestamp(),
+      });
+      setFranqueados(p => p.map(f => f.id === showGerenciarVerba.id ? { ...f, saldoVerba: novoSaldo } : f));
+      setShowGerenciarVerba(null);
+      setValorAtribuir('');
+      setPeriodoAtribuir('');
+    } catch (e) { console.error(e); alert('Erro ao atribuir verba.'); }
+    finally { setSavingVerba(false); }
+  };
+
  const handleSalvarVerba = async () => {
  if (!editandoVerba) return;
  setSavingVerba(true);
