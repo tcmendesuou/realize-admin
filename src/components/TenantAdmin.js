@@ -38,7 +38,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
  // Modal novo franqueado
  const [showNovoFranq, setShowNovoFranq] = useState(false);
- const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidade: '', cidade: '', verbaMensal: '', verbaAnual: '' });
+ const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidade: '', cidade: '', funcao: '' });
  const [savingFranq, setSavingFranq] = useState(false);
 
  // Modal verba
@@ -79,13 +79,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  tenantRole: 'franqueado',
  unidade: formFranq.unidade,
  cidade: formFranq.cidade,
- verbaMensal: parseFloat(formFranq.verbaMensal) || 0,
- verbalAnual: parseFloat(formFranq.verbalAnual) || 0,
+ funcao: formFranq.funcao || '',
  active: true,
  createdAt: serverTimestamp(),
  createdBy: userData?.id,
  });
- setFormFranq({ nome: '', email: '', senha: '', unidade: '', cidade: '', verbaMensal: '', verbalAnual: '' });
+ setFormFranq({ nome: '', email: '', senha: '', unidade: '', cidade: '', funcao: '' });
  setShowNovoFranq(false);
  // Recarrega
  const snap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
@@ -344,11 +343,10 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Nome completo *</label><input value={formFranq.nome} onChange={e => setFormFranq(p => ({...p, nome: e.target.value}))} style={inp} placeholder="Nome do franqueado" /></div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Email *</label><input type="email" value={formFranq.email} onChange={e => setFormFranq(p => ({...p, email: e.target.value}))} style={inp} placeholder="email@franquia.com" /></div>
- <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Senha temporária *</label><input type="password" value={formFranq.senha} onChange={e => setFormFranq(p => ({...p, senha: e.target.value}))} style={inp} placeholder="Mínimo 6 caracteres" /></div>
+ <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Senha *</label><input type="password" value={formFranq.senha} onChange={e => setFormFranq(p => ({...p, senha: e.target.value}))} style={inp} placeholder="Mínimo 6 caracteres" /></div>
  <div><label style={lbl}>Unidade / Loja</label><input value={formFranq.unidade} onChange={e => setFormFranq(p => ({...p, unidade: e.target.value}))} style={inp} placeholder="Ex: Ford SP Centro" /></div>
  <div><label style={lbl}>Cidade</label><input value={formFranq.cidade} onChange={e => setFormFranq(p => ({...p, cidade: e.target.value}))} style={inp} placeholder="São Paulo" /></div>
- <div><label style={lbl}>Verba mensal (R$)</label><input type="number" value={formFranq.verbaMensal} onChange={e => setFormFranq(p => ({...p, verbaMensal: e.target.value}))} style={inp} placeholder="0,00" /></div>
- <div><label style={lbl}>Verba anual (R$)</label><input type="number" value={formFranq.verbalAnual} onChange={e => setFormFranq(p => ({...p, verbalAnual: e.target.value}))} style={inp} placeholder="0,00" /></div>
+ <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Função</label><input value={formFranq.funcao || ''} onChange={e => setFormFranq(p => ({...p, funcao: e.target.value}))} style={inp} placeholder="Ex: Gerente de Marketing" /></div>
  </div>
  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
  <button onClick={() => setShowNovoFranq(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
