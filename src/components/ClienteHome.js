@@ -24,7 +24,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
   const [tasksPendentesAprov, setTasksPendentesAprov] = useState([]);
   const [aprovandoTask, setAprovandoTask] = useState(false);
 
-  const userId = userData?.id;
+  const userId = userData?.uid || userData?.id;
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Cliente';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
