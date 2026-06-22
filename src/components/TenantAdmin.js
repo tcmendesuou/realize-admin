@@ -61,13 +61,30 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  .then(snap => setFranqueados(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
  .catch(console.error);
 
- // Eventos/budgets do tenant
- const unsub = onSnapshot(
- query(collection(db, 'budgets'), where('tenantId', '==', tenantId), orderBy('createdAt', 'desc')),
- snap => { setEventos(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); }
- );
- return () => unsub();
- }, [tenantId]);
+
+    // Eventos/budgets — busca por tenantId (novos) e clientUserId (antigos sem tenantId)
+    const franqSnap2 = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
+    const franqUids  = franqSnap2.docs.map(d => d.data().uid || d.id).filter(Boolean);
+
+    // Snapshot por tenantId (novos budgets)
+    const unsub = onSnapshot(
+      query(collection(db, 'budgets'), where('tenantId', '==', tenantId), orderBy('createdAt', 'desc')),
+      async snap => {
+        const comTenant = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Busca também antigos sem tenantId
+        let semTenant = [];
+        if (franqUids.length > 0) {
+          const bSnap = await getDocs(query(collection(db, 'budgets'), where('clientUserId', 'in', franqUids.slice(0, 10))));
+          semTenant = bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !b.tenantId);
+        }
+        const todos = [...comTenant, ...semTenant];
+        const unicos = Array.from(new Map(todos.map(e => [e.id, e])).values());
+        setEventos(unicos.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [tenantId]);
 
  // ── Criar franqueado ─────────────────────────────────────────────────────────
  const handleCriarFranqueado = async () => {
