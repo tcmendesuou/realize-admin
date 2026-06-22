@@ -389,9 +389,10 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                     <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Livre</div><div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(livre)}</div></div>
                   </div>
                   {/* Barra dupla: alocado (amarelo) + utilizado (vermelho) */}
-                  <div style={{ background: '#f1f5f9', borderRadius: 6, height: 10, overflow: 'hidden', marginBottom: 6, display: 'flex' }}>
+                  <div style={{ borderRadius: 6, height: 10, overflow: 'hidden', marginBottom: 6, display: 'flex' }}>
                     <div style={{ width: `${pctUsado}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
                     <div style={{ width: `${pctAlocado}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
+                    <div style={{ flex: 1, height: '100%', background: corAccent, opacity: 0.3, transition: 'width 0.5s' }} />
                   </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#94a3b8', marginBottom: 16 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />Utilizado {pctUsado.toFixed(1)}%</span>
@@ -453,9 +454,10 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                       <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoFranq)}</strong></div>
                       <div style={{ fontSize: 12, color: '#94a3b8' }}>Livre: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - alocFranq - usadoFranq))}</strong></div>
                     </div>
-                    <div style={{ background: '#f1f5f9', borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
+                    <div style={{ borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
                       <div style={{ width: `${pctU}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
                       <div style={{ width: `${pctA}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
+                      <div style={{ flex: 1, height: '100%', background: corAccent, opacity: 0.3, transition: 'width 0.5s' }} />
                     </div>
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
                   </div>
