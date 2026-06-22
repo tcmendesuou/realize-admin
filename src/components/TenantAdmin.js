@@ -260,7 +260,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  : eventos.slice(0, 8).map(ev => {
  const franq = franqueados.find(f => f.id === ev.clientUserId);
  return (
- <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: '1px solid #f8faff' }}>
+ <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: '1px solid #f8faff' }}>
  <div style={{ flex: 1 }}>
  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
  <div style={{ fontSize: 11, color: '#94a3b8' }}>{franq?.name || ev.clientName} · {formatDate(ev.createdAt)}</div>
@@ -328,7 +328,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {eventos.map(ev => {
  const franq = franqueados.find(f => f.id === ev.clientUserId);
  return (
- <div key={ev.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
+ <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ flex: 1 }}>
  <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
