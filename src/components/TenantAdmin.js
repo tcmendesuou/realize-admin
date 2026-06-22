@@ -66,14 +66,21 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
       const vSnap = await getDocs(collection(db, 'tenants', tenantId, 'verbas'));
       setVerbasGerais(vSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
 
-      // UIDs dos franqueados para buscar budgets antigos
-      const franqUids = franqs.map(f => f.uid || f.id).filter(Boolean);
+      // UIDs dos franqueados (uid do Firebase Auth)
+      const franqUids = [...new Set(franqs.flatMap(f => [f.uid, f.id].filter(Boolean)))];
 
-      // Busca budgets antigos (sem tenantId) pelos clientUserId
+      // Busca budgets antigos sem tenantId pelos clientUserId dos franqueados
       let semTenant = [];
       if (franqUids.length > 0) {
-        const bSnap = await getDocs(query(collection(db, 'budgets'), where('clientUserId', 'in', franqUids.slice(0, 10))));
-        semTenant = bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !b.tenantId);
+        // Firestore 'in' suporta até 10 valores
+        const chunks = [];
+        for (let i = 0; i < franqUids.length; i += 10) chunks.push(franqUids.slice(i, i+10));
+        for (const chunk of chunks) {
+          try {
+            const bSnap = await getDocs(query(collection(db, 'budgets'), where('clientUserId', 'in', chunk)));
+            semTenant = [...semTenant, ...bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !b.tenantId)];
+          } catch(e) { console.error('Erro busca budgets antigos:', e); }
+        }
       }
 
       // Snapshot em tempo real por tenantId (novos budgets)
