@@ -65,7 +65,17 @@ function App() {
   const loadAdminData = async (email) => {
     try {
       const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
-      if (!snap.empty) setUserData({ id: snap.docs[0].id, ...snap.docs[0].data() });
+      if (!snap.empty) {
+        const userData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        setUserData(userData);
+        // Se não tiver firestoreUser no sessionStorage, salva agora
+        // Isso cobre login via Firebase Auth (tenant_admin, franqueado etc.)
+        if (!sessionStorage.getItem('firestoreUser')) {
+          sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
+          setFirestoreUser(userData);
+        }
+        setLoading(false);
+      }
     } catch (err) { console.error(err); }
   };
 
