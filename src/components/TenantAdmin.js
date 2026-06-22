@@ -48,6 +48,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
   const [showNovaVerba, setShowNovaVerba] = useState(false);
   const [formVerba, setFormVerba]         = useState({ valor: '', descricao: '', dataInicio: '', dataFim: '' });
   const [savingVerba2, setSavingVerba2]   = useState(false);
+  const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [showGerenciarVerba, setShowGerenciarVerba] = useState(null);
   const [valorAtribuir, setValorAtribuir] = useState('');
   const [periodoAtribuir, setPeriodoAtribuir] = useState('');
@@ -497,6 +498,150 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  </div>
  )}
+
+      {/* ── Modal Detalhes do Evento ────────────────────────────────────── */}
+      {eventoSelecionado && (() => {
+        const ev2  = eventoSelecionado;
+        const bd   = ev2.briefingData || {};
+        const evt  = bd.evento || {};
+        const est  = bd.estrutura || {};
+        const opc  = bd.opcoesSelecionadas || [];
+        const labelPag = { '50_50': '50% entrada + 50% final', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
+        const labelStatus = { analyzing: 'Em análise', pendingApproval: 'Ag. aprovação', approved: 'Aprovado', completed: 'Concluído', rejected: 'Recusado' };
+        const corStatus   = { analyzing: '#FFA726', pendingApproval: '#0080FF', approved: '#66BB6A', completed: '#00E5C4', rejected: '#ef4444' };
+        const franq = franqueados.find(f => f.id === ev2.clientUserId || f.uid === ev2.clientUserId);
+
+        const SecTitle = ({ children }) => (
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 18, paddingBottom: 6, borderBottom: '1px solid #f0f2f5' }}>{children}</div>
+        );
+        const InfoRow = ({ label, value }) => value ? (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', minWidth: 110, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</span>
+            <span style={{ fontSize: 13, color: '#1e293b', flex: 1 }}>{value}</span>
+          </div>
+        ) : null;
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}
+            onClick={e => { if (e.target === e.currentTarget) setEventoSelecionado(null); }}>
+            <div style={{ background: 'white', width: '100%', maxWidth: 560, height: '100vh', overflow: 'auto', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+              {/* Header */}
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>{ev2.eventName || 'Evento'}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>{ev2.numeroPedido} · {franq?.name || ev2.clientName}</div>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: `${corStatus[ev2.status] || '#94a3b8'}18`, color: corStatus[ev2.status] || '#94a3b8' }}>
+                      {labelStatus[ev2.status] || ev2.status}
+                    </span>
+                    {ev2.orcamentoFinal?.total > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: corPrimary }}>{formatBRL(ev2.orcamentoFinal.total)}</span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setEventoSelecionado(null)} style={{ background: 'none', border: 'none', fontSize: 22, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              </div>
+
+              {/* Conteúdo */}
+              <div style={{ padding: '16px 24px', flex: 1, overflowY: 'auto' }}>
+
+                {/* Resumo IA */}
+                {ev2.descricaoBriefing && (
+                  <>
+                    <SecTitle>Sobre o Evento</SecTitle>
+                    <div style={{ background: '#f8faff', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#475569', lineHeight: 1.7 }}>{ev2.descricaoBriefing}</div>
+                  </>
+                )}
+
+                {/* Evento */}
+                <SecTitle>Dados do Evento</SecTitle>
+                <InfoRow label="Franqueado"   value={franq?.name || ev2.clientName} />
+                <InfoRow label="Tipo"          value={evt.tipo || ev2.eventTypeName} />
+                <InfoRow label="Nome"          value={evt.nome || ev2.eventName} />
+                <InfoRow label="Empresa"       value={evt.nomeEmpresa} />
+                <InfoRow label="Data início"   value={ev2.startDate ? new Date(ev2.startDate+'T12:00:00').toLocaleDateString('pt-BR') : null} />
+                <InfoRow label="Data término"  value={ev2.endDate ? new Date(ev2.endDate+'T12:00:00').toLocaleDateString('pt-BR') : null} />
+                <InfoRow label="Horário"       value={evt.horarioInicio ? `${evt.horarioInicio} às ${evt.horarioFim}` : null} />
+                <InfoRow label="Cidade"        value={evt.cidade} />
+                <InfoRow label="Local"         value={evt.local || ev2.location} />
+                <InfoRow label="Participantes" value={evt.visitantesPorDia ? `${evt.visitantesPorDia} pessoas/dia` : null} />
+                <InfoRow label="Pagamento"     value={labelPag[bd.formaPagamento]} />
+
+                {/* Stand */}
+                {est.ativo && (
+                  <>
+                    <SecTitle>Stand</SecTitle>
+                    <InfoRow label="Tipo"      value={est.tipoEstande === 'modular' ? 'Modular' : 'Personalizado'} />
+                    {bd.modeloEstande?.nome && <InfoRow label="Modelo" value={bd.modeloEstande.nome} />}
+                    <InfoRow label="Área"      value={est.areaM2 > 0 ? `${est.areaM2} m²` : null} />
+                    <InfoRow label="Teto"      value={est.alturaTeto} />
+                    <InfoRow label="Montagem"  value={est.diasMontagem > 0 ? `${est.diasMontagem} dias antes` : null} />
+                    {est.restricoes && <InfoRow label="Restrições" value={est.restricoes} />}
+                    <InfoRow label="Identidade visual" value={est.identidadeVisual === 'sim' ? 'Sim, enviada' : 'Não definida'} />
+                  </>
+                )}
+
+                {/* Serviços */}
+                {opc.length > 0 && (
+                  <>
+                    <SecTitle>Serviços Contratados</SecTitle>
+                    {['estrutura','operacao','gastronomia','entretenimento'].map(tipo => {
+                      const itens = opc.filter(o => o.tipoServico === tipo);
+                      if (!itens.length) return null;
+                      const labels = { estrutura: 'Estrutura', operacao: 'Equipe', gastronomia: 'Gastronomia', entretenimento: 'Entretenimento' };
+                      const cores  = { estrutura: '#0080FF', operacao: '#00E5C4', gastronomia: '#66BB6A', entretenimento: '#FFA726' };
+                      return (
+                        <div key={tipo} style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: cores[tipo], textTransform: 'uppercase', marginBottom: 6 }}>{labels[tipo]}</div>
+                          {itens.map((op, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: '#fafbff', border: '1px solid #f0f2f5', marginBottom: 4 }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
+                                {op.nome && <div style={{ fontSize: 11, color: '#667eea' }}>Opção: {op.nome}</div>}
+                              </div>
+                              {op.valor > 0 && (
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: corAccent }}>{formatBRL(op.valor)}</div>
+                                  {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Orçamento */}
+                {ev2.orcamentoFinal?.itens?.length > 0 && (
+                  <>
+                    <SecTitle>Orçamento</SecTitle>
+                    {ev2.orcamentoFinal.itens.map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f8faff' }}>
+                        <div style={{ fontSize: 13, color: '#475569' }}>{item.serviceName}{item.opcaoNome ? ` — ${item.opcaoNome}` : ''}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{formatBRL(item.subtotal)}</div>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', marginTop: 4, borderTop: '2px solid #f0f2f5' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Total</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: corPrimary }}>{formatBRL(ev2.orcamentoFinal.total)}</div>
+                    </div>
+                  </>
+                )}
+
+                {/* Info extra */}
+                {bd.infoExtra && (
+                  <>
+                    <SecTitle>Observações</SecTitle>
+                    <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{bd.infoExtra}</div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Modal Nova Verba Geral ───────────────────────────────────────── */}
       {showNovaVerba && (
