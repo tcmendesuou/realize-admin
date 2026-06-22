@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const FORMAS_PAGAMENTO = [
@@ -33,6 +33,8 @@ export default function FinanceiroManager() {
   const [configForm, setConfigForm] = useState({ impostos: 18, fee: 10 });
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
+  const [savingNota, setSavingNota]   = useState(false);
+  const [savingPagto, setSavingPagto] = useState(false);
   const [finForm, setFinForm]     = useState(null);
   const [filtro, setFiltro]       = useState('todos'); // todos | mes | trimestre
   const [supplierJobs, setSupplierJobs] = useState([]);
@@ -168,6 +170,39 @@ export default function FinanceiroManager() {
     setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
   };
 
+  // ── Envio de Nota ────────────────────────────────────────────────────────────
+  const handleEnvioNota = async () => {
+    if (!selected) return;
+    if (!window.confirm('Confirmar envio da nota fiscal?')) return;
+    setSavingNota(true);
+    try {
+      await updateDoc(doc(db, 'budgets', selected.id), {
+        notaEnviadaEm:  serverTimestamp(),
+        workspaceStage: 'Nota Enviada',
+        updatedAt:      serverTimestamp(),
+      });
+      setSelected(p => ({ ...p, notaEnviadaEm: new Date(), workspaceStage: 'Nota Enviada' }));
+    } catch (e) { console.error(e); alert('Erro ao registrar nota.'); }
+    finally { setSavingNota(false); }
+  };
+
+  // ── Pagamento Concluído ───────────────────────────────────────────────────────
+  const handlePagamentoConcluido = async () => {
+    if (!selected) return;
+    if (!window.confirm('Confirmar pagamento concluído? O projeto será marcado como Finalizado.')) return;
+    setSavingPagto(true);
+    try {
+      await updateDoc(doc(db, 'budgets', selected.id), {
+        status:          'completed',
+        workspaceStage:  'Finalizado',
+        pagamentoEm:     serverTimestamp(),
+        updatedAt:       serverTimestamp(),
+      });
+      setSelected(p => ({ ...p, status: 'completed', workspaceStage: 'Finalizado', pagamentoEm: new Date() }));
+    } catch (e) { console.error(e); alert('Erro ao registrar pagamento.'); }
+    finally { setSavingPagto(false); }
+  };
+
   // Filtro por período
   const budgetsFiltrados = budgets.filter(b => {
     if (filtro === 'todos') return true;
@@ -272,6 +307,8 @@ export default function FinanceiroManager() {
                   ) : (
                     <div style={{ fontSize: 11, color: '#94a3b8' }}>Sem financeiro</div>
                   )}
+                  {b.status === 'completed' && <div style={{ fontSize: 10, fontWeight: 700, color: '#00C896', marginTop: 2 }}>✓ PAGO</div>}
+                  {b.notaEnviadaEm && b.status !== 'completed' && <div style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', marginTop: 2 }}>✓ NOTA ENVIADA</div>}
                 </div>
               </div>
             </div>
@@ -292,10 +329,37 @@ export default function FinanceiroManager() {
                 <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>{selected.eventName || selected.eventTypeName}</h2>
                 <div style={{ fontSize: 12, color: '#94a3b8' }}>{selected.numeroPedido} • {selected.clientName}</div>
               </div>
-              <button onClick={salvarFinanceiro} disabled={saving}
-                style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {/* Status badges */}
+                {selected.notaEnviadaEm && (
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, background: 'rgba(102,187,106,0.1)', color: '#16a34a' }}>
+                    ✓ Nota enviada
+                  </span>
+                )}
+                {selected.status === 'completed' && (
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, background: 'rgba(0,229,196,0.1)', color: '#00C896' }}>
+                    ✓ Pago
+                  </span>
+                )}
+                {/* Botão Envio de Nota */}
+                {selected.status !== 'completed' && (
+                  <button onClick={handleEnvioNota} disabled={savingNota || !!selected.notaEnviadaEm}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: selected.notaEnviadaEm ? '#f8faff' : 'white', color: selected.notaEnviadaEm ? '#94a3b8' : '#475569', fontSize: 12, fontWeight: 600, cursor: selected.notaEnviadaEm ? 'default' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    {savingNota ? 'Salvando...' : selected.notaEnviadaEm ? '✓ Nota Enviada' : '📄 Envio de Nota'}
+                  </button>
+                )}
+                {/* Botão Pagamento Concluído */}
+                {selected.status !== 'completed' && (
+                  <button onClick={handlePagamentoConcluido} disabled={savingPagto}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00C896,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingPagto ? 0.6 : 1 }}>
+                    {savingPagto ? 'Salvando...' : '✓ Pagamento Concluído'}
+                  </button>
+                )}
+                <button onClick={salvarFinanceiro} disabled={saving}
+                  style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', opacity: saving ? 0.6 : 1 }}>
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
