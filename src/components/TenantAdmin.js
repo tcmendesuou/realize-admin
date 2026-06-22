@@ -337,22 +337,33 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             {/* Pool geral */}
             {(() => {
               const totalPool    = verbasGerais.reduce((acc, v) => acc + (v.valor || 0), 0);
-              const totalAlocado = franqueados.reduce((acc, f) => acc + (f.saldoVerba || 0), 0);
-              const totalUsado   = franqueados.reduce((acc, f) => acc + (eventos.filter(e => e.clientUserId === f.id).reduce((a, e) => a + (e.orcamentoFinal?.total || 0), 0)), 0);
-              const pctAlocado   = totalPool > 0 ? Math.min(100, Math.round(totalAlocado / totalPool * 100)) : 0;
+              const totalSaldos  = franqueados.reduce((acc, f) => acc + (f.saldoVerba || 0), 0);
+              // Alocado = eventos aprovados/pendentes (não pagos ainda)
+              const totalAlocado = eventos.filter(e => ['pendingApproval','approved','analyzing'].includes(e.status)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+              // Utilizado = eventos concluídos (pagos)
+              const totalUsado   = eventos.filter(e => e.status === 'completed').reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+              const livre        = Math.max(0, totalPool - totalAlocado - totalUsado);
+              const pctAlocado   = totalPool > 0 ? Math.min(100, (totalAlocado / totalPool) * 100) : 0;
+              const pctUsado     = totalPool > 0 ? Math.min(100, (totalUsado   / totalPool) * 100) : 0;
               return (
                 <div style={{ ...card, marginBottom: 20, borderLeft: `4px solid ${corPrimary}` }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Carteira Geral</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Total disponível</div><div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalPool)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Alocado</div><div style={{ fontSize: 18, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalAlocado)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Livre para alocar</div><div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(totalPool - totalAlocado)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Utilizado em eventos</div><div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{formatBRL(totalUsado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Total carregado</div><div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalPool)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Alocado (em eventos)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalAlocado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Utilizado (pago)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{formatBRL(totalUsado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Livre</div><div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(livre)}</div></div>
                   </div>
-                  <div style={{ background: '#f1f5f9', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 4 }}>
-                    <div style={{ width: `${pctAlocado}%`, height: '100%', background: pctAlocado > 80 ? '#ef4444' : pctAlocado > 60 ? '#FFA726' : corPrimary, borderRadius: 6, transition: 'width 0.5s' }} />
+                  {/* Barra dupla: alocado (amarelo) + utilizado (vermelho) */}
+                  <div style={{ background: '#f1f5f9', borderRadius: 6, height: 10, overflow: 'hidden', marginBottom: 6, display: 'flex' }}>
+                    <div style={{ width: `${pctUsado}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
+                    <div style={{ width: `${pctAlocado}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
                   </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>{pctAlocado}% alocado</div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#94a3b8', marginBottom: 16 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />Utilizado {pctUsado.toFixed(1)}%</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FFA726', display: 'inline-block' }} />Alocado {pctAlocado.toFixed(1)}%</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: corAccent, display: 'inline-block' }} />Livre {(100 - pctUsado - pctAlocado).toFixed(1)}%</span>
+                  </div>
                   {verbasGerais.length > 0 && (
                     <div style={{ borderTop: '1px solid #f0f2f5', paddingTop: 14 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Histórico de cargas</div>
@@ -379,9 +390,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>Verbas por Franqueado</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {franqueados.map(f => {
-                const gastoFranq = eventos.filter(e => e.clientUserId === f.id).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                const evsFranq   = eventos.filter(e => e.clientUserId === f.id || e.clientUserId === f.uid);
+                const alocFranq  = evsFranq.filter(e => ['pendingApproval','approved','analyzing'].includes(e.status)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                const usadoFranq = evsFranq.filter(e => e.status === 'completed').reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
                 const saldo      = f.saldoVerba || 0;
-                const pct        = saldo > 0 ? Math.min(100, Math.round(gastoFranq / saldo * 100)) : 0;
+                const pctA       = saldo > 0 ? Math.min(100, (alocFranq  / saldo) * 100) : 0;
+                const pctU       = saldo > 0 ? Math.min(100, (usadoFranq / saldo) * 100) : 0;
                 return (
                   <div key={f.id} style={card}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -392,7 +406,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: corPrimary }}>{formatBRL(saldo)}</div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>saldo disponível</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>saldo atribuído</div>
                         </div>
                         <button onClick={() => { setShowGerenciarVerba(f); setValorAtribuir(''); }}
                           style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${corPrimary}`, background: 'none', color: corPrimary, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -401,13 +415,15 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: gastoFranq > saldo ? '#ef4444' : '#1e293b' }}>{formatBRL(gastoFranq)}</strong></div>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Restante: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - gastoFranq))}</strong></div>
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Alocado: <strong style={{ color: '#FFA726' }}>{formatBRL(alocFranq)}</strong></div>
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoFranq)}</strong></div>
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Livre: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - alocFranq - usadoFranq))}</strong></div>
                     </div>
-                    <div style={{ background: '#f1f5f9', borderRadius: 6, height: 6, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: pct > 80 ? '#ef4444' : pct > 60 ? '#FFA726' : corAccent, borderRadius: 6, transition: 'width 0.5s' }} />
+                    <div style={{ background: '#f1f5f9', borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${pctU}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
+                      <div style={{ width: `${pctA}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
                     </div>
-                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{pct}% utilizado</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
                   </div>
                 );
               })}
