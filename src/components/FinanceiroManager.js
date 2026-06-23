@@ -58,11 +58,25 @@ export default function FinanceiroManager() {
     return () => unsub();
   }, []);
 
-  // Carrega supplierJobs do projeto selecionado
+  // Carrega supplierJobs e gera financeiro automaticamente se projeto aprovado sem financeiro
   useEffect(() => {
     if (!selected) return;
-    getDocs(query(collection(db, 'supplierJobs'))).then(snap => {
-      setSupplierJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => j.budgetId === selected.id && j.status === 'confirmed'));
+    getDocs(query(collection(db, 'supplierJobs'))).then(async snap => {
+      const jobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => j.budgetId === selected.id && j.status === 'confirmed');
+      setSupplierJobs(jobs);
+      // Gera financeiro automático quando aprovado e sem financeiro
+      if (['approved','completed'].includes(selected.status) && !selected.financeiro?.parcelas?.length) {
+        const finGerado = await gerarFinanceiroAuto(selected, jobs, config);
+        if (finGerado) {
+          setSelected(prev => ({ ...prev, financeiro: finGerado }));
+          setFinForm({
+            impostos:          finGerado.impostos,
+            fee:               finGerado.fee,
+            formaPagamento:    finGerado.formaPagamento,
+            valorFornecedores: finGerado.valorFornecedores,
+          });
+        }
+      }
     });
   }, [selected?.id]);
 
@@ -72,14 +86,46 @@ export default function FinanceiroManager() {
     setEditConfig(false);
   };
 
-  const abrirProjeto = (b) => {
+  const gerarFinanceiroAuto = async (b, jobs, cfg) => {
+    if (b.financeiro?.parcelas?.length > 0) return; // já tem financeiro
+    const valorForn = b.orcamentoFinal?.subtotalFornecedores
+      || jobs.reduce((acc, j) => acc + (parseFloat(j.preco) || 0), 0)
+      || 0;
+    if (!valorForn) return;
+    const imp  = cfg?.impostos ?? 18;
+    const fee  = cfg?.fee ?? 10;
+    const forma = b.financeiro?.formaPagamento || b.briefingData?.formaPagamento || '50_50';
+    const { base, impVal, feeVal, total } = calcFinanceiro(valorForn, imp, fee);
+    const fp = FORMAS_PAGAMENTO.find(f => f.id === forma) || FORMAS_PAGAMENTO[0];
+    const dataBase = b.startDate ? new Date(b.startDate) : new Date();
+    const parcelas = fp.parcelas.map((p, i) => {
+      const d = new Date(dataBase); d.setDate(d.getDate() + p.dias);
+      return { numero: i+1, percentual: p.pct, dias: p.dias, valor: total * p.pct / 100, dataVenc: d.toISOString().split('T')[0], status: 'pendente', pago: false, notaEnviada: false };
+    });
+    const pagForn = jobs.map(sj => ({
+      supplierId: sj.supplierId, supplierName: sj.supplierName || sj.serviceName,
+      serviceName: sj.serviceName, valor: parseFloat(sj.preco) || 0,
+      status: 'pendente', pago: false, notaRecebida: false,
+    }));
+    const finData = {
+      valorFornecedores: valorForn, impostos: imp, fee, valorImpostos: impVal,
+      valorFee: feeVal, valorTotal: total, formaPagamento: forma,
+      parcelas, pagamentosFornecedores: pagForn, updatedAt: new Date().toISOString(),
+    };
+    try {
+      await updateDoc(doc(db, 'budgets', b.id), { financeiro: finData, updatedAt: new Date() });
+      return finData;
+    } catch(e) { console.error('Erro ao gerar financeiro:', e); }
+  };
+
+  const abrirProjeto = async (b) => {
     setSelected(b);
     const fin = b.financeiro || {};
     const valorForn = fin.valorFornecedores || somarFornecedores(b);
     setFinForm({
-      impostos:       fin.impostos ?? config.impostos,
-      fee:            fin.fee ?? config.fee,
-      formaPagamento: fin.formaPagamento || '50_50',
+      impostos:          fin.impostos ?? config.impostos,
+      fee:               fin.fee ?? config.fee,
+      formaPagamento:    fin.formaPagamento || b.briefingData?.formaPagamento || '50_50',
       valorFornecedores: valorForn,
     });
   };
@@ -145,6 +191,22 @@ export default function FinanceiroManager() {
       setSelected(prev => ({ ...prev, financeiro: { valorFornecedores: parseFloat(finForm.valorFornecedores), impostos: parseFloat(finForm.impostos), fee: parseFloat(finForm.fee), valorImpostos: impVal, valorFee: feeVal, valorTotal: total, formaPagamento: finForm.formaPagamento, parcelas, pagamentosFornecedores: pagFornecedores } }));
     } catch (e) { console.error(e); alert('Erro ao salvar.'); }
     finally { setSaving(false); }
+  };
+
+  const marcarNotaParcelaEnviada = async (idx) => {
+    const novas = (selected.financeiro.parcelas || []).map((p, i) =>
+      i === idx ? { ...p, notaEnviada: true, notaEnviadaEm: new Date().toISOString() } : p
+    );
+    await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.parcelas': novas });
+    setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, parcelas: novas } }));
+  };
+
+  const marcarNotaFornRecebida = async (idx) => {
+    const novos = (selected.financeiro.pagamentosFornecedores || []).map((p, i) =>
+      i === idx ? { ...p, notaRecebida: true, notaRecebidaEm: new Date().toISOString() } : p
+    );
+    await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.pagamentosFornecedores': novos });
+    setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
   };
 
   const marcarParcelaPaga = async (idx) => {
@@ -341,19 +403,12 @@ export default function FinanceiroManager() {
                     ✓ Pago
                   </span>
                 )}
-                {/* Botão Envio de Nota */}
-                {!selected.notaEnviadaEm && (
-                  <button onClick={handleEnvioNota} disabled={savingNota}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: selected.notaEnviadaEm ? '#f8faff' : 'white', color: selected.notaEnviadaEm ? '#94a3b8' : '#475569', fontSize: 12, fontWeight: 600, cursor: selected.notaEnviadaEm ? 'default' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                    {savingNota ? 'Salvando...' : selected.notaEnviadaEm ? '✓ Nota Enviada' : '📄 Envio de Nota'}
-                  </button>
+                {/* Status badges */}
+                {selected.status === 'completed' && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: 'rgba(0,200,150,0.1)', color: '#00C896' }}>✓ Finalizado</span>
                 )}
-                {/* Botão Pagamento Concluído */}
-                {selected.status !== 'completed' && (
-                  <button onClick={handlePagamentoConcluido} disabled={savingPagto}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00C896,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingPagto ? 0.6 : 1 }}>
-                    {savingPagto ? 'Salvando...' : '✓ Pagamento Concluído'}
-                  </button>
+                {selected.status === 'approved' && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: 'rgba(102,126,234,0.1)', color: '#667eea' }}>✓ Aprovado</span>
                 )}
                 <button onClick={salvarFinanceiro} disabled={saving}
                   style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', opacity: saving ? 0.6 : 1 }}>
@@ -423,10 +478,20 @@ export default function FinanceiroManager() {
                         {p.pago ? (
                           <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>✓ Pago</span>
                         ) : (
-                          <button onClick={() => marcarParcelaPaga(i)}
-                            style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.3)', background: 'none', color: '#10b981', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                            Marcar pago
-                          </button>
+                          <>
+                            {p.notaEnviada ? (
+                              <span style={{ fontSize: 11, color: '#667eea', fontWeight: 600 }}>✓ Nota enviada</span>
+                            ) : (
+                              <button onClick={() => marcarNotaParcelaEnviada(i)}
+                                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                Nota enviada
+                              </button>
+                            )}
+                            <button onClick={() => marcarParcelaPaga(i)}
+                              style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.3)', background: 'none', color: '#10b981', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              Marcar pago
+                            </button>
+                          </>
                         )}
                       </div>
                     ))}
@@ -450,13 +515,25 @@ export default function FinanceiroManager() {
                           <div style={{ fontSize: 14, fontWeight: 700, color: p.pago ? '#10b981' : '#FFA726' }}>{formatBRL(p.valor)}</div>
                           {p.pago ? (
                             <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>✓ Pago</span>
-                          ) : !clientePagou ? (
-                            <span style={{ fontSize: 11, color: '#94a3b8' }}>Aguard. cliente</span>
                           ) : (
-                            <button onClick={() => marcarFornecedorPago(i)}
-                              style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                              Marcar pago
-                            </button>
+                            <>
+                              {p.notaRecebida ? (
+                                <span style={{ fontSize: 11, color: '#667eea', fontWeight: 600 }}>✓ Nota recebida</span>
+                              ) : (
+                                <button onClick={() => marcarNotaFornRecebida(i)}
+                                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                  Nota recebida
+                                </button>
+                              )}
+                              {!clientePagou ? (
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>Aguard. cliente</span>
+                              ) : (
+                                <button onClick={() => marcarFornecedorPago(i)}
+                                  style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                  Marcar pago
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       );
