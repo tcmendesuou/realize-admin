@@ -410,10 +410,7 @@ export default function FinanceiroManager() {
                 {selected.status === 'approved' && (
                   <span style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: 'rgba(102,126,234,0.1)', color: '#667eea' }}>✓ Aprovado</span>
                 )}
-                <button onClick={salvarFinanceiro} disabled={saving}
-                  style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', opacity: saving ? 0.6 : 1 }}>
-                  {saving ? 'Salvando...' : 'Salvar'}
-                </button>
+
               </div>
             </div>
 
