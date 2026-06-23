@@ -342,8 +342,8 @@ export default function FinanceiroManager() {
                   </span>
                 )}
                 {/* Botão Envio de Nota */}
-                {selected.status !== 'completed' && (
-                  <button onClick={handleEnvioNota} disabled={savingNota || !!selected.notaEnviadaEm}
+                {!selected.notaEnviadaEm && (
+                  <button onClick={handleEnvioNota} disabled={savingNota}
                     style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: selected.notaEnviadaEm ? '#f8faff' : 'white', color: selected.notaEnviadaEm ? '#94a3b8' : '#475569', fontSize: 12, fontWeight: 600, cursor: selected.notaEnviadaEm ? 'default' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     {savingNota ? 'Salvando...' : selected.notaEnviadaEm ? '✓ Nota Enviada' : '📄 Envio de Nota'}
                   </button>
