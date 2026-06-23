@@ -33,7 +33,6 @@ export default function FinanceiroManager() {
   const [configForm, setConfigForm] = useState({ impostos: 18, fee: 10 });
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
-  const [savingNota, setSavingNota]   = useState(false);
   const [savingPagto, setSavingPagto] = useState(false);
   const [finForm, setFinForm]     = useState(null);
   const [filtro, setFiltro]       = useState('todos'); // todos | mes | trimestre
@@ -253,21 +252,7 @@ export default function FinanceiroManager() {
     setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
   };
 
-  // ── Envio de Nota ────────────────────────────────────────────────────────────
-  const handleEnvioNota = async () => {
-    if (!selected) return;
-    if (!window.confirm('Confirmar envio da nota fiscal?')) return;
-    setSavingNota(true);
-    try {
-      await updateDoc(doc(db, 'budgets', selected.id), {
-        notaEnviadaEm:  serverTimestamp(),
-        workspaceStage: 'Nota Enviada',
-        updatedAt:      serverTimestamp(),
-      });
-      setSelected(p => ({ ...p, notaEnviadaEm: new Date(), workspaceStage: 'Nota Enviada' }));
-    } catch (e) { console.error(e); alert('Erro ao registrar nota.'); }
-    finally { setSavingNota(false); }
-  };
+
 
   // ── Pagamento Concluído ───────────────────────────────────────────────────────
   const handlePagamentoConcluido = async () => {
@@ -391,7 +376,7 @@ export default function FinanceiroManager() {
                     <div style={{ fontSize: 11, color: '#94a3b8' }}>Sem financeiro</div>
                   )}
                   {b.status === 'completed' && <div style={{ fontSize: 10, fontWeight: 700, color: '#00C896', marginTop: 2 }}>✓ PAGO</div>}
-                  {b.notaEnviadaEm && b.status !== 'completed' && <div style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', marginTop: 2 }}>✓ NOTA ENVIADA</div>}
+
                 </div>
               </div>
             </div>
@@ -414,11 +399,7 @@ export default function FinanceiroManager() {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {/* Status badges */}
-                {selected.notaEnviadaEm && (
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, background: 'rgba(102,187,106,0.1)', color: '#16a34a' }}>
-                    ✓ Nota enviada
-                  </span>
-                )}
+
                 {selected.status === 'completed' && (
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, background: 'rgba(0,229,196,0.1)', color: '#00C896' }}>
                     ✓ Pago
