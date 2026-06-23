@@ -38,6 +38,8 @@ export default function FinanceiroManager() {
   const [finForm, setFinForm]     = useState(null);
   const [filtro, setFiltro]       = useState('todos'); // todos | mes | trimestre
   const [supplierJobs, setSupplierJobs] = useState([]);
+  const [secExpanded, setSecExpanded]   = useState({ config: true, parcelas: true, fornecedores: true });
+  const toggleSec = (sec) => setSecExpanded(p => ({ ...p, [sec]: !p[sec] }));
 
   // Carrega config global
   useEffect(() => {
@@ -438,8 +440,12 @@ export default function FinanceiroManager() {
               {/* Configuração do projeto */}
               {finForm && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Configuração</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+                  <div onClick={() => toggleSec('config')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: secExpanded.config ? 12 : 0, paddingBottom: secExpanded.config ? 0 : 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Configuração</div>
+                    <span style={{ fontSize: 12, color: '#94a3b8', transform: secExpanded.config ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                  </div>
+                  {!secExpanded.config && null}
+                  {secExpanded.config && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
                     {[
                       { label: 'Valor Fornecedores (R$)', key: 'valorFornecedores', type: 'number' },
                       { label: 'Impostos (%)', key: 'impostos', type: 'number' },
@@ -476,14 +482,17 @@ export default function FinanceiroManager() {
                       ))}
                     </div>
                   )}
-                </div>
+                </div>}
               )}
 
               {/* Parcelas */}
               {fin?.parcelas?.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Parcelas do Cliente</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div onClick={() => toggleSec('parcelas')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: secExpanded.parcelas ? 10 : 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Parcelas do Cliente</div>
+                    <span style={{ fontSize: 12, color: '#94a3b8', transform: secExpanded.parcelas ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                  </div>
+                  {secExpanded.parcelas && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {fin.parcelas.map((p, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: `1px solid ${p.pago ? 'rgba(16,185,129,0.3)' : '#e2e8f0'}`, background: p.pago ? 'rgba(16,185,129,0.04)' : 'white' }}>
                         <div style={{ flex: 1 }}>
@@ -511,7 +520,7 @@ export default function FinanceiroManager() {
                         )}
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               )}
 
@@ -533,8 +542,11 @@ export default function FinanceiroManager() {
                 };
                 return (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Pagamentos aos Fornecedores</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div onClick={() => toggleSec('fornecedores')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: secExpanded.fornecedores ? 12 : 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Pagamentos aos Fornecedores</div>
+                    <span style={{ fontSize: 12, color: '#94a3b8', transform: secExpanded.fornecedores ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                  </div>
+                    {secExpanded.fornecedores && <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       {Object.entries(grupos).map(([key, grupo]) => {
                         const totalGrupo  = grupo.itens.reduce((acc, p) => acc + (p.valor || 0), 0);
                         const todosPagos  = grupo.itens.every(p => p.pago);
@@ -633,7 +645,7 @@ export default function FinanceiroManager() {
                           </div>
                         );
                       })}
-                    </div>
+                    </div>}
                   </div>
                 );
               })()}
