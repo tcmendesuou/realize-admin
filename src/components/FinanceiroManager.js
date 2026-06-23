@@ -225,6 +225,25 @@ export default function FinanceiroManager() {
     setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, parcelas: novas } }));
   };
 
+  // Marcar fornecedor pago — por parcela (supplierId + índice da parcela)
+  const marcarFornecedorPagoParcela = async (supplierId, parcelaIdx) => {
+    const fin = selected.financeiro;
+    // Marca todos os itens deste fornecedor como pagos nesta parcela
+    // Registra no array pagamentosFornecedores qual parcela foi paga
+    const novos = fin.pagamentosFornecedores.map(p => {
+      if (p.supplierId !== supplierId && p.supplierName !== supplierId) return p;
+      const parcelasPagas = p.parcelasPagas || [];
+      if (parcelasPagas.includes(parcelaIdx)) return p;
+      const novasParc = [...parcelasPagas, parcelaIdx];
+      // Se todas as parcelas foram pagas, marca o item como pago
+      const totalParcelas = fin.parcelas?.length || 1;
+      const pago = novasParc.length >= totalParcelas;
+      return { ...p, parcelasPagas: novasParc, pago, status: pago ? 'pago' : 'parcial', paidAt: pago ? new Date().toISOString() : p.paidAt };
+    });
+    await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.pagamentosFornecedores': novos });
+    setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
+  };
+
   const marcarFornecedorPago = async (idx) => {
     const fin = selected.financeiro;
     const novos = fin.pagamentosFornecedores.map((p, i) => i === idx ? { ...p, pago: true, status: 'pago', paidAt: new Date().toISOString() } : p);
@@ -525,7 +544,7 @@ export default function FinanceiroManager() {
                           valor: totalGrupo * (pc.percentual / 100),
                           dataCliente: pc.dataVenc,
                           dataReceb: addBizDays(pc.dataVenc, 3),
-                          pago: pc.pago && todosPagos,
+                          pago: grupo.itens.every(item => (item.parcelasPagas || []).includes(i)),
                           statusCliente: pc.pago ? 'pago' : pc.notaEnviada ? 'nota' : 'pendente',
                         }));
                         return (
@@ -592,12 +611,21 @@ export default function FinanceiroManager() {
                                         <span style={{ marginLeft: 8, opacity: 0.6 }}>· Cliente vence {p.dataCliente}</span>
                                       </div>
                                     </div>
-                                    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, flexShrink: 0,
-                                      background: p.pago ? 'rgba(16,185,129,0.08)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.06)' : 'rgba(255,167,38,0.06)',
-                                      color: p.pago ? '#10b981' : p.statusCliente === 'nota' ? '#667eea' : '#FFA726',
-                                      border: `1px solid ${p.pago ? 'rgba(16,185,129,0.2)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.2)' : 'rgba(255,167,38,0.2)'}` }}>
-                                      {p.pago ? '✓ Pago' : p.statusCliente === 'nota' ? 'Nota OK' : 'Aguardando'}
-                                    </span>
+                                    {p.pago ? (
+                                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: 'rgba(16,185,129,0.08)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)', flexShrink: 0 }}>✓ Pago</span>
+                                    ) : p.statusCliente === 'pago' ? (
+                                      <button onClick={() => marcarFornecedorPagoParcela(grupo.supplierId || grupo.supplierName, i)}
+                                        style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.35)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
+                                        Marcar pago
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, flexShrink: 0,
+                                        background: p.statusCliente === 'nota' ? 'rgba(102,126,234,0.06)' : 'rgba(255,167,38,0.06)',
+                                        color: p.statusCliente === 'nota' ? '#667eea' : '#FFA726',
+                                        border: `1px solid ${p.statusCliente === 'nota' ? 'rgba(102,126,234,0.2)' : 'rgba(255,167,38,0.2)'}` }}>
+                                        {p.statusCliente === 'nota' ? 'Nota OK' : 'Aguardando'}
+                                      </span>
+                                    )}
                                   </div>
                                 ))}
                               </div>
