@@ -22,6 +22,12 @@ export default function FornecedorHome({ userData, onLogout }) {
   const [myTasks, setMyTasks] = useState([]);
   const [budgetsMap, setBudgetsMap] = useState({});
   const [budgetsFin, setBudgetsFin] = useState({}); // dados financeiros completos por budgetId
+  const [finExpandidos, setFinExpandidos] = useState(new Set()); // bids expandidos na aba financeiro
+  const toggleFinExp = (bid) => setFinExpandidos(prev => {
+    const novo = new Set(prev);
+    novo.has(bid) ? novo.delete(bid) : novo.add(bid);
+    return novo;
+  });
   const [calMes, setCalMes]   = useState(new Date().getMonth());
   const [calAno, setCalAno]   = useState(new Date().getFullYear());
 
@@ -581,20 +587,30 @@ export default function FornecedorHome({ userData, onLogout }) {
                 }));
 
                 return (
-                  <div key={bid} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 14, padding: '20px 22px', marginBottom: 16 }}>
+                  <div key={bid} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${finExpandidos.has(bid) ? 'rgba(0,229,196,0.2)' : 'rgba(0,180,255,0.1)'}`, borderRadius: 14, overflow: 'hidden', marginBottom: 10 }}>
 
-                    {/* Header do projeto */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid rgba(0,180,255,0.08)' }}>
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{budget.eventName || 'Evento'}</div>
-                        <div style={{ fontSize: 12, color: '#7BAFD4', marginTop: 2 }}>{budget.numeroPedido} · {budget.clientName}</div>
+                    {/* Header clicável */}
+                    <div onClick={() => toggleFinExp(bid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', cursor: 'pointer', userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 12, color: '#00E5C4', transform: finExpandidos.has(bid) ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s', display: 'inline-block', lineHeight: 1 }}>▼</span>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>{budget.eventName || 'Evento'}</div>
+                          <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 1 }}>{budget.numeroPedido} · {budget.clientName}</div>
+                        </div>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
-                        background: todosPagos ? 'rgba(102,187,106,0.15)' : 'rgba(255,167,38,0.1)',
-                        color: todosPagos ? '#66BB6A' : '#FFA726' }}>
-                        {todosPagos ? '✓ PAGO' : 'PENDENTE'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>{fmtBRL(totalMeu)}</div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
+                          background: todosPagos ? 'rgba(102,187,106,0.15)' : 'rgba(255,167,38,0.1)',
+                          color: todosPagos ? '#66BB6A' : '#FFA726' }}>
+                          {todosPagos ? '✓ PAGO' : 'PENDENTE'}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Conteúdo expandido */}
+                    {finExpandidos.has(bid) && <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(0,180,255,0.08)' }}>
+                      <div style={{ height: 16 }} />
 
                     {/* Itens fornecidos */}
                     <div style={{ marginBottom: 14 }}>
@@ -615,9 +631,9 @@ export default function FornecedorHome({ userData, onLogout }) {
                     </div>
 
                     {/* Total */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 10, background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.15)', marginBottom: parcelasForn.length > 0 ? 16 : 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#E8F4FF', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total a receber</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: '#00E5C4' }}>{fmtBRL(totalMeu)}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.15)', marginBottom: parcelasForn.length > 0 ? 14 : 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total a receber</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#00E5C4' }}>{fmtBRL(totalMeu)}</div>
                     </div>
 
                     {/* Parcelas de recebimento */}
@@ -649,6 +665,7 @@ export default function FornecedorHome({ userData, onLogout }) {
                         ))}
                       </div>
                     )}
+                  </div>}
                   </div>
                 );
               })}
