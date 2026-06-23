@@ -56,7 +56,7 @@ export default function EquipeHome({ userData, onLogout }) {
         .eq-footer { padding: 16px; border-top: 1px solid rgba(0,180,255,0.08); }
         .eq-avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(0,229,196,0.15); border: 1.5px solid rgba(0,229,196,0.4); display: flex; align-items: center; justify-content: center; font-size: 12px; color: #00E5C4; font-weight: 600; }
         .eq-main { margin-left: 220px; flex: 1; padding: 28px 32px; }
-        .eq-kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 24px; }
+        .eq-kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 24px; }
         .eq-col { background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(0,180,255,0.08); overflow: hidden; }
         .eq-col-header { padding: 14px 16px; border-bottom: 1px solid rgba(0,180,255,0.08); display: flex; justify-content: space-between; align-items: center; }
         .eq-col-title { font-size: 12px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; }
