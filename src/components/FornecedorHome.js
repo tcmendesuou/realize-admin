@@ -74,7 +74,8 @@ export default function FornecedorHome({ userData, onLogout }) {
                 formaPagamento: bdata?.financeiro?.formaPagamento || '',
                 workspaceStage: bdata?.workspaceStage || 'Propostas',
               };
-              setBudgetsFin(prev => ({ ...prev, [bid]: bdata }));
+              // Salva budget completo para aba financeiro
+              setBudgetsFin(prev => ({ ...prev, [bid]: { ...bdata, id: bid } }));
             }
           } catch (e) { /* silencioso */ }
         }));
@@ -99,6 +100,7 @@ export default function FornecedorHome({ userData, onLogout }) {
             workspaceStage: bdata?.workspaceStage || 'Propostas',
           },
         }));
+        setBudgetsFin(prev => ({ ...prev, [bid]: { ...bdata, id: bid } }));
       })
     );
     return () => unsubs.forEach(u => u());
@@ -527,6 +529,91 @@ export default function FornecedorHome({ userData, onLogout }) {
             </div>
           );
         })()}
+
+        {/* ── ABA FINANCEIRO ── */}
+        {activeSection === 'financeiro' && (
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3, marginBottom: 4 }}>Financeiro</h1>
+            <p style={{ fontSize: 13, color: '#7BAFD4', marginBottom: 24 }}>Parcelas e pagamentos dos seus projetos</p>
+
+            {Object.keys(budgetsFin).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'rgba(123,175,212,0.4)', fontSize: 14 }}>Nenhum projeto com financeiro ainda</div>
+            ) : Object.entries(budgetsFin).map(([bid, budget]) => {
+              const fin = budget?.financeiro;
+              if (!fin?.pagamentosFornecedores?.length) return null;
+              const meusPags = fin.pagamentosFornecedores.filter(p =>
+                p.supplierId === userId || p.supplierId === supplierId ||
+                p.supplierId === userData?.id ||
+                p.supplierName === userData?.name ||
+                p.supplierName === userData?.companyName
+              );
+              if (!meusPags.length) return null;
+              const totalMeu   = meusPags.reduce((acc, p) => acc + (p.valor || 0), 0);
+              const todosPagos = meusPags.every(p => p.pago);
+
+              return (
+                <div key={bid} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{budget.eventName || 'Evento'}</div>
+                      <div style={{ fontSize: 12, color: '#7BAFD4', marginTop: 2 }}>{budget.numeroPedido} · {budget.clientName}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#00E5C4' }}>{totalMeu.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, padding: '2px 8px', borderRadius: 6, display: 'inline-block',
+                        background: todosPagos ? 'rgba(102,187,106,0.15)' : 'rgba(255,167,38,0.1)',
+                        color: todosPagos ? '#66BB6A' : '#FFA726' }}>
+                        {todosPagos ? '✓ PAGO' : 'PENDENTE'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Parcelas do cliente — leitura */}
+                  {fin.parcelas?.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.5)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Parcelas do Cliente</div>
+                      {fin.parcelas.map((p, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: `1px solid ${p.pago ? 'rgba(102,187,106,0.2)' : 'rgba(0,180,255,0.1)'}`, background: p.pago ? 'rgba(102,187,106,0.04)' : 'rgba(255,255,255,0.02)', marginBottom: 6 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: '#E8F4FF' }}>{i+1}ª parcela — {p.percentual}%</div>
+                            <div style={{ fontSize: 10, color: '#7BAFD4' }}>Venc: {p.dataVenc || '—'}</div>
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: p.pago ? '#66BB6A' : '#667eea' }}>{(p.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: p.pago ? '#66BB6A' : p.notaEnviada ? '#667eea' : 'rgba(123,175,212,0.4)' }}>
+                            {p.pago ? '✓ Pago' : p.notaEnviada ? 'Nota enviada' : 'Pendente'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Meus pagamentos */}
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.5)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Meus Pagamentos</div>
+                    {meusPags.map((p, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${p.pago ? 'rgba(102,187,106,0.2)' : 'rgba(0,180,255,0.1)'}`, background: p.pago ? 'rgba(102,187,106,0.04)' : 'rgba(255,255,255,0.02)', marginBottom: 6 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{p.serviceName}</div>
+                          <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 1 }}>
+                            {p.pago ? `Pago em ${p.paidAt ? new Date(p.paidAt).toLocaleDateString('pt-BR') : '—'}` : p.notaRecebida ? 'Nota recebida — aguardando pagamento' : 'Aguardando pagamento'}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: p.pago ? '#66BB6A' : '#FFA726' }}>{(p.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
+                          border: `1px solid ${p.pago ? 'rgba(102,187,106,0.3)' : p.notaRecebida ? 'rgba(102,126,234,0.3)' : 'rgba(0,180,255,0.1)'}`,
+                          color: p.pago ? '#66BB6A' : p.notaRecebida ? '#667eea' : 'rgba(123,175,212,0.4)' }}>
+                          {p.pago ? '✓ Pago' : p.notaRecebida ? '✓ Nota OK' : fin.parcelas?.some(pa => pa.pago) ? 'A pagar' : 'Ag. cliente'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
       </main>
       {/* Chat flutuante — só visualiza chats existentes, não cria novos */}
       <ChatWidget userData={userData} budgetIds={jobs.map(j => j.budgetId).filter(Boolean)} somenteVisualizar />
