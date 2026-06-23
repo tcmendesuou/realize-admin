@@ -496,48 +496,119 @@ export default function FinanceiroManager() {
                 </div>
               )}
 
-              {/* Pagamentos fornecedores */}
-              {fin?.pagamentosFornecedores?.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Pagamentos aos Fornecedores</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {fin.pagamentosFornecedores.map((p, i) => {
-                      const clientePagou = fin.parcelas?.some(pa => pa.pago);
-                      return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, border: `1px solid ${p.pago ? 'rgba(16,185,129,0.3)' : '#e2e8f0'}`, background: p.pago ? 'rgba(16,185,129,0.04)' : 'white' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{p.supplierName}</div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{p.serviceName}</div>
+              {/* Pagamentos fornecedores — agrupados por empresa */}
+              {fin?.pagamentosFornecedores?.length > 0 && (() => {
+                // Agrupa por supplierId
+                const grupos = fin.pagamentosFornecedores.reduce((acc, p, i) => {
+                  const key = p.supplierId || p.supplierName;
+                  if (!acc[key]) acc[key] = { supplierName: p.supplierName, supplierId: p.supplierId, itens: [] };
+                  acc[key].itens.push({ ...p, idx: i });
+                  return acc;
+                }, {});
+                const addBizDays = (dateStr, days) => {
+                  if (!dateStr) return '—';
+                  const d = new Date(dateStr + 'T12:00:00');
+                  let added = 0;
+                  while (added < days) { d.setDate(d.getDate() + 1); const dow = d.getDay(); if (dow !== 0 && dow !== 6) added++; }
+                  return d.toLocaleDateString('pt-BR');
+                };
+                return (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Pagamentos aos Fornecedores</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {Object.entries(grupos).map(([key, grupo]) => {
+                        const totalGrupo  = grupo.itens.reduce((acc, p) => acc + (p.valor || 0), 0);
+                        const todosPagos  = grupo.itens.every(p => p.pago);
+                        const clientePagou = fin.parcelas?.some(pa => pa.pago);
+                        const parcelasForn = (fin.parcelas || []).map((pc, i) => ({
+                          numero: i + 1, percentual: pc.percentual,
+                          valor: totalGrupo * (pc.percentual / 100),
+                          dataCliente: pc.dataVenc,
+                          dataReceb: addBizDays(pc.dataVenc, 3),
+                          pago: pc.pago && todosPagos,
+                          statusCliente: pc.pago ? 'pago' : pc.notaEnviada ? 'nota' : 'pendente',
+                        }));
+                        return (
+                          <div key={key} style={{ background: '#fafbff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 18px' }}>
+                            {/* Header fornecedor */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid #f0f2f5' }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{grupo.supplierName}</div>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                                background: todosPagos ? 'rgba(16,185,129,0.1)' : 'rgba(255,167,38,0.1)',
+                                color: todosPagos ? '#10b981' : '#FFA726' }}>
+                                {todosPagos ? '✓ PAGO' : 'PENDENTE'}
+                              </span>
+                            </div>
+                            {/* Itens */}
+                            {grupo.itens.map((p, ii) => (
+                              <div key={ii} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f0f2f5' }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 500, color: '#475569' }}>{p.serviceName}</div>
+                                  {p.notaRecebida && <div style={{ fontSize: 10, color: '#667eea', marginTop: 1 }}>✓ Nota recebida</div>}
+                                </div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: p.pago ? '#10b981' : '#FFA726' }}>{formatBRL(p.valor)}</div>
+                                {p.pago ? (
+                                  <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ Pago</span>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    {p.notaRecebida ? (
+                                      <span style={{ fontSize: 10, color: '#667eea', fontWeight: 600 }}>✓ Nota OK</span>
+                                    ) : (
+                                      <button onClick={() => marcarNotaFornRecebida(p.idx)}
+                                        style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                        Nota recebida
+                                      </button>
+                                    )}
+                                    {clientePagou ? (
+                                      <button onClick={() => marcarFornecedorPago(p.idx)}
+                                        style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                        Marcar pago
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: 10, color: '#94a3b8' }}>Ag. cliente</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {/* Total */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 8, background: 'rgba(255,167,38,0.05)', border: '1px solid rgba(255,167,38,0.15)', margin: '12px 0' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total a pagar</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalGrupo)}</div>
+                            </div>
+                            {/* Parcelas de repasse */}
+                            {parcelasForn.length > 0 && (
+                              <div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Previsão de Repasse</div>
+                                {parcelasForn.map((p, i) => (
+                                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
+                                    border: `1px solid ${p.pago ? 'rgba(16,185,129,0.2)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.15)' : '#e2e8f0'}`,
+                                    background: p.pago ? 'rgba(16,185,129,0.03)' : 'white', marginBottom: 5 }}>
+                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: p.pago ? 'rgba(16,185,129,0.1)' : 'rgba(255,167,38,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: p.pago ? '#10b981' : '#FFA726', flexShrink: 0 }}>{p.numero}</div>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{p.percentual}% — {formatBRL(p.valor)}</div>
+                                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>
+                                        {p.pago ? `Pago em ${p.dataReceb}` : `Repasse: ${p.dataReceb}`}
+                                        <span style={{ marginLeft: 8, opacity: 0.6 }}>· Cliente vence {p.dataCliente}</span>
+                                      </div>
+                                    </div>
+                                    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, flexShrink: 0,
+                                      background: p.pago ? 'rgba(16,185,129,0.08)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.06)' : 'rgba(255,167,38,0.06)',
+                                      color: p.pago ? '#10b981' : p.statusCliente === 'nota' ? '#667eea' : '#FFA726',
+                                      border: `1px solid ${p.pago ? 'rgba(16,185,129,0.2)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.2)' : 'rgba(255,167,38,0.2)'}` }}>
+                                      {p.pago ? '✓ Pago' : p.statusCliente === 'nota' ? 'Nota OK' : 'Aguardando'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: p.pago ? '#10b981' : '#FFA726' }}>{formatBRL(p.valor)}</div>
-                          {p.pago ? (
-                            <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>✓ Pago</span>
-                          ) : (
-                            <>
-                              {p.notaRecebida ? (
-                                <span style={{ fontSize: 11, color: '#667eea', fontWeight: 600 }}>✓ Nota recebida</span>
-                              ) : (
-                                <button onClick={() => marcarNotaFornRecebida(i)}
-                                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                  Nota recebida
-                                </button>
-                              )}
-                              {!clientePagou ? (
-                                <span style={{ fontSize: 11, color: '#94a3b8' }}>Aguard. cliente</span>
-                              ) : (
-                                <button onClick={() => marcarFornecedorPago(i)}
-                                  style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                  Marcar pago
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </>
         )}
