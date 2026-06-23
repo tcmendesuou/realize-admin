@@ -531,88 +531,130 @@ export default function FornecedorHome({ userData, onLogout }) {
         })()}
 
         {/* ── ABA FINANCEIRO ── */}
-        {activeSection === 'financeiro' && (
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3, marginBottom: 4 }}>Financeiro</h1>
-            <p style={{ fontSize: 13, color: '#7BAFD4', marginBottom: 24 }}>Parcelas e pagamentos dos seus projetos</p>
+        {activeSection === 'financeiro' && (() => {
+          // Calcula data de recebimento: dataVenc do cliente + 3 dias úteis
+          const addBizDays = (dateStr, days) => {
+            if (!dateStr) return '—';
+            const d = new Date(dateStr + 'T12:00:00');
+            let added = 0;
+            while (added < days) {
+              d.setDate(d.getDate() + 1);
+              const dow = d.getDay();
+              if (dow !== 0 && dow !== 6) added++;
+            }
+            return d.toLocaleDateString('pt-BR');
+          };
+          const fmtBRL = v => (v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-            {Object.keys(budgetsFin).length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 60, color: 'rgba(123,175,212,0.4)', fontSize: 14 }}>Nenhum projeto com financeiro ainda</div>
-            ) : Object.entries(budgetsFin).map(([bid, budget]) => {
-              const fin = budget?.financeiro;
-              if (!fin?.pagamentosFornecedores?.length) return null;
-              const meusPags = fin.pagamentosFornecedores.filter(p =>
-                p.supplierId === userId || p.supplierId === supplierId ||
-                p.supplierId === userData?.id ||
-                p.supplierName === userData?.name ||
-                p.supplierName === userData?.companyName
-              );
-              if (!meusPags.length) return null;
-              const totalMeu   = meusPags.reduce((acc, p) => acc + (p.valor || 0), 0);
-              const todosPagos = meusPags.every(p => p.pago);
+          const projetosVisiveis = Object.entries(budgetsFin).map(([bid, budget]) => {
+            const fin = budget?.financeiro;
+            if (!fin?.pagamentosFornecedores?.length) return null;
+            const meusPags = fin.pagamentosFornecedores.filter(p =>
+              p.supplierId === userId || p.supplierId === supplierId ||
+              p.supplierId === userData?.id ||
+              p.supplierName === userData?.name ||
+              p.supplierName === userData?.companyName
+            );
+            if (!meusPags.length) return null;
+            return { bid, budget, fin, meusPags };
+          }).filter(Boolean);
 
-              return (
-                <div key={bid} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
-                  {/* Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{budget.eventName || 'Evento'}</div>
-                      <div style={{ fontSize: 12, color: '#7BAFD4', marginTop: 2 }}>{budget.numeroPedido} · {budget.clientName}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: '#00E5C4' }}>{totalMeu.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-                      <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, padding: '2px 8px', borderRadius: 6, display: 'inline-block',
+          return (
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3, marginBottom: 4 }}>Financeiro</h1>
+              <p style={{ fontSize: 13, color: '#7BAFD4', marginBottom: 24 }}>Seus recebimentos por projeto</p>
+
+              {projetosVisiveis.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(123,175,212,0.4)', fontSize: 14 }}>Nenhum projeto com financeiro ainda</div>
+              ) : projetosVisiveis.map(({ bid, budget, fin, meusPags }) => {
+                const totalMeu   = meusPags.reduce((acc, p) => acc + (p.valor || 0), 0);
+                const todosPagos = meusPags.every(p => p.pago);
+                // Parcelas do fornecedor = proporcional às parcelas do cliente
+                const parcelasForn = (fin.parcelas || []).map((pc, i) => ({
+                  numero:     i + 1,
+                  percentual: pc.percentual,
+                  valor:      totalMeu * (pc.percentual / 100),
+                  dataCliente: pc.dataVenc,
+                  dataReceb:  addBizDays(pc.dataVenc, 3),
+                  pago:       pc.pago && meusPags.some(p => p.pago),
+                  statusCliente: pc.pago ? 'pago' : pc.notaEnviada ? 'nota' : 'pendente',
+                }));
+
+                return (
+                  <div key={bid} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 14, padding: '20px 22px', marginBottom: 16 }}>
+
+                    {/* Header do projeto */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid rgba(0,180,255,0.08)' }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{budget.eventName || 'Evento'}</div>
+                        <div style={{ fontSize: 12, color: '#7BAFD4', marginTop: 2 }}>{budget.numeroPedido} · {budget.clientName}</div>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
                         background: todosPagos ? 'rgba(102,187,106,0.15)' : 'rgba(255,167,38,0.1)',
                         color: todosPagos ? '#66BB6A' : '#FFA726' }}>
                         {todosPagos ? '✓ PAGO' : 'PENDENTE'}
-                      </div>
+                      </span>
                     </div>
-                  </div>
 
-                  {/* Parcelas do cliente — leitura */}
-                  {fin.parcelas?.length > 0 && (
+                    {/* Itens fornecidos */}
                     <div style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.5)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Parcelas do Cliente</div>
-                      {fin.parcelas.map((p, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: `1px solid ${p.pago ? 'rgba(102,187,106,0.2)' : 'rgba(0,180,255,0.1)'}`, background: p.pago ? 'rgba(102,187,106,0.04)' : 'rgba(255,255,255,0.02)', marginBottom: 6 }}>
+                      {meusPags.map((p, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid rgba(0,180,255,0.06)' }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: 500, color: '#E8F4FF' }}>{i+1}ª parcela — {p.percentual}%</div>
-                            <div style={{ fontSize: 10, color: '#7BAFD4' }}>Venc: {p.dataVenc || '—'}</div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: '#E8F4FF' }}>{p.serviceName}</div>
+                            {p.notaRecebida && <div style={{ fontSize: 10, color: '#667eea', marginTop: 2 }}>✓ Nota recebida</div>}
                           </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: p.pago ? '#66BB6A' : '#667eea' }}>{(p.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: p.pago ? '#66BB6A' : p.notaEnviada ? '#667eea' : 'rgba(123,175,212,0.4)' }}>
-                            {p.pago ? '✓ Pago' : p.notaEnviada ? 'Nota enviada' : 'Pendente'}
+                          <div style={{ fontSize: 14, fontWeight: 700, color: p.pago ? '#66BB6A' : '#00E5C4' }}>{fmtBRL(p.valor)}</div>
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+                            border: `1px solid ${p.pago ? 'rgba(102,187,106,0.3)' : p.notaRecebida ? 'rgba(102,126,234,0.3)' : 'rgba(0,180,255,0.15)'}`,
+                            color: p.pago ? '#66BB6A' : p.notaRecebida ? '#667eea' : 'rgba(123,175,212,0.5)' }}>
+                            {p.pago ? '✓ Pago' : p.notaRecebida ? 'Nota OK' : 'Pendente'}
                           </span>
                         </div>
                       ))}
                     </div>
-                  )}
 
-                  {/* Meus pagamentos */}
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.5)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Meus Pagamentos</div>
-                    {meusPags.map((p, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${p.pago ? 'rgba(102,187,106,0.2)' : 'rgba(0,180,255,0.1)'}`, background: p.pago ? 'rgba(102,187,106,0.04)' : 'rgba(255,255,255,0.02)', marginBottom: 6 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{p.serviceName}</div>
-                          <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 1 }}>
-                            {p.pago ? `Pago em ${p.paidAt ? new Date(p.paidAt).toLocaleDateString('pt-BR') : '—'}` : p.notaRecebida ? 'Nota recebida — aguardando pagamento' : 'Aguardando pagamento'}
+                    {/* Total */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 10, background: 'rgba(0,229,196,0.06)', border: '1px solid rgba(0,229,196,0.15)', marginBottom: parcelasForn.length > 0 ? 16 : 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#E8F4FF', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total a receber</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: '#00E5C4' }}>{fmtBRL(totalMeu)}</div>
+                    </div>
+
+                    {/* Parcelas de recebimento */}
+                    {parcelasForn.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.5)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Previsão de Recebimento</div>
+                        {parcelasForn.map((p, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,
+                            border: `1px solid ${p.pago ? 'rgba(102,187,106,0.25)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.2)' : 'rgba(0,180,255,0.1)'}`,
+                            background: p.pago ? 'rgba(102,187,106,0.04)' : 'rgba(255,255,255,0.02)',
+                            marginBottom: 6 }}>
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: p.pago ? 'rgba(102,187,106,0.15)' : 'rgba(0,229,196,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: p.pago ? '#66BB6A' : '#00E5C4', flexShrink: 0 }}>
+                              {p.numero}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{p.percentual}% — {fmtBRL(p.valor)}</div>
+                              <div style={{ fontSize: 10, color: '#7BAFD4', marginTop: 2 }}>
+                                {p.pago ? `Pago em ${p.dataReceb}` : `Prev. recebimento: ${p.dataReceb}`}
+                                <span style={{ marginLeft: 8, color: 'rgba(123,175,212,0.4)' }}>· Cliente vence {p.dataCliente}</span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, flexShrink: 0,
+                              background: p.pago ? 'rgba(102,187,106,0.1)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.08)' : 'rgba(0,180,255,0.06)',
+                              color: p.pago ? '#66BB6A' : p.statusCliente === 'nota' ? '#667eea' : 'rgba(123,175,212,0.5)',
+                              border: `1px solid ${p.pago ? 'rgba(102,187,106,0.2)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.2)' : 'rgba(0,180,255,0.1)'}` }}>
+                              {p.pago ? '✓ Recebido' : p.statusCliente === 'nota' ? 'Nota enviada' : 'Aguardando'}
+                            </span>
                           </div>
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: p.pago ? '#66BB6A' : '#FFA726' }}>{(p.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
-                          border: `1px solid ${p.pago ? 'rgba(102,187,106,0.3)' : p.notaRecebida ? 'rgba(102,126,234,0.3)' : 'rgba(0,180,255,0.1)'}`,
-                          color: p.pago ? '#66BB6A' : p.notaRecebida ? '#667eea' : 'rgba(123,175,212,0.4)' }}>
-                          {p.pago ? '✓ Pago' : p.notaRecebida ? '✓ Nota OK' : fin.parcelas?.some(pa => pa.pago) ? 'A pagar' : 'Ag. cliente'}
-                        </span>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
 
       </main>
       {/* Chat flutuante — só visualiza chats existentes, não cria novos */}
