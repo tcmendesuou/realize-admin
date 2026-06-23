@@ -21,6 +21,7 @@ export default function FornecedorHome({ userData, onLogout }) {
 
   const [myTasks, setMyTasks] = useState([]);
   const [budgetsMap, setBudgetsMap] = useState({});
+  const [budgetsFin, setBudgetsFin] = useState({}); // dados financeiros completos por budgetId
   const [calMes, setCalMes]   = useState(new Date().getMonth());
   const [calAno, setCalAno]   = useState(new Date().getFullYear());
 
@@ -73,6 +74,7 @@ export default function FornecedorHome({ userData, onLogout }) {
                 formaPagamento: bdata?.financeiro?.formaPagamento || '',
                 workspaceStage: bdata?.workspaceStage || 'Propostas',
               };
+              setBudgetsFin(prev => ({ ...prev, [bid]: bdata }));
             }
           } catch (e) { /* silencioso */ }
         }));
@@ -245,6 +247,7 @@ export default function FornecedorHome({ userData, onLogout }) {
           </button>
           <button className={`fn-nav-item ${activeSection === 'projetos' ? 'active' : ''}`} onClick={() => setActiveSection('projetos')}>Meus Projetos</button>
           <button className={`fn-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
+          <button className={`fn-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>
         </nav>
         <div className="fn-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
