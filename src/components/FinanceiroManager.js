@@ -445,7 +445,7 @@ export default function FinanceiroManager() {
                     <span style={{ fontSize: 12, color: '#94a3b8', transform: secExpanded.config ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
                   </div>
                   {!secExpanded.config && null}
-                  {secExpanded.config && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+                  {secExpanded.config && <><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
                     {[
                       { label: 'Valor Fornecedores (R$)', key: 'valorFornecedores', type: 'number' },
                       { label: 'Impostos (%)', key: 'impostos', type: 'number' },
@@ -481,8 +481,8 @@ export default function FinanceiroManager() {
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>}
+                  )}</>}
+                </div>
               )}
 
               {/* Parcelas */}
