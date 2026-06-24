@@ -34,6 +34,8 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const [view, setView] = useState('overview'); // overview | franqueados | verbas | eventos
  const [franqueados, setFranqueados] = useState([]);
  const [eventos, setEventos] = useState([]);
+ const [eventosComTenant, setEventosComTenant] = useState([]);
+ const [semTenantBudgets, setSemTenantBudgets] = useState([]);
  const [loading, setLoading] = useState(true);
 
  // Modal novo franqueado
@@ -57,51 +59,56 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     if (!tenantId) return;
     setLoading(true);
 
-    const inicializar = async () => {
-      // Franqueados
-      const fSnap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
-      const franqs = fSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setFranqueados(franqs);
+    // Franqueados — tempo real
+    const unsubFranq = onSnapshot(
+      query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')),
+      snap => {
+        const franqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setFranqueados(franqs);
 
-      // Verbas gerais
-      const vSnap = await getDocs(collection(db, 'tenants', tenantId, 'verbas'));
-      setVerbasGerais(vSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
-
-      // UIDs dos franqueados (uid do Firebase Auth)
-      const franqUids = [...new Set(franqs.flatMap(f => [f.uid, f.id].filter(Boolean)))];
-
-      // Busca budgets antigos sem tenantId pelos clientUserId dos franqueados
-      let semTenant = [];
-      if (franqUids.length > 0) {
-        // Firestore 'in' suporta até 10 valores
-        const chunks = [];
-        for (let i = 0; i < franqUids.length; i += 10) chunks.push(franqUids.slice(i, i+10));
-        for (const chunk of chunks) {
-          try {
-            const bSnap = await getDocs(query(collection(db, 'budgets'), where('clientUserId', 'in', chunk)));
-            semTenant = [...semTenant, ...bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !b.tenantId)];
-          } catch(e) { console.error('Erro busca budgets antigos:', e); }
+        // Busca budgets antigos sem tenantId pelos clientUserId dos franqueados
+        const franqUids = [...new Set(franqs.flatMap(f => [f.uid, f.id].filter(Boolean)))];
+        if (franqUids.length > 0) {
+          const chunks = [];
+          for (let i = 0; i < franqUids.length; i += 10) chunks.push(franqUids.slice(i, i+10));
+          Promise.all(chunks.map(chunk =>
+            getDocs(query(collection(db, 'budgets'), where('clientUserId', 'in', chunk)))
+              .then(bSnap => bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !b.tenantId))
+              .catch(() => [])
+          )).then(results => {
+            setSemTenantBudgets(results.flat());
+          });
         }
       }
+    );
 
-      // Snapshot em tempo real por tenantId (novos budgets)
-      const unsub = onSnapshot(
-        query(collection(db, 'budgets'), where('tenantId', '==', tenantId), orderBy('createdAt', 'desc')),
-        snap => {
-          const comTenant = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const todos     = [...comTenant, ...semTenant];
-          const unicos    = Array.from(new Map(todos.map(e => [e.id, e])).values());
-          setEventos(unicos.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
-          setLoading(false);
-        }
-      );
-      return unsub;
-    };
+    // Verbas gerais — tempo real
+    const unsubVerbas = onSnapshot(
+      collection(db, 'tenants', tenantId, 'verbas'),
+      snap => {
+        setVerbasGerais(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
+      }
+    );
 
-    let unsubFn = null;
-    inicializar().then(fn => { unsubFn = fn; }).catch(console.error);
-    return () => { if (unsubFn) unsubFn(); };
+    // Eventos por tenantId — tempo real
+    const unsubEventos = onSnapshot(
+      query(collection(db, 'budgets'), where('tenantId', '==', tenantId), orderBy('createdAt', 'desc')),
+      snap => {
+        const comTenant = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setEventosComTenant(comTenant);
+        setLoading(false);
+      }
+    );
+
+    return () => { unsubFranq(); unsubVerbas(); unsubEventos(); };
   }, [tenantId]);
+
+  // Combina eventos com e sem tenantId em tempo real
+  useEffect(() => {
+    const todos  = [...eventosComTenant, ...semTenantBudgets];
+    const unicos = Array.from(new Map(todos.map(e => [e.id, e])).values());
+    setEventos(unicos.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
+  }, [eventosComTenant, semTenantBudgets]);
 
 
  // ── Criar franqueado ─────────────────────────────────────────────────────────
