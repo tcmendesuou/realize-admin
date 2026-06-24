@@ -3,6 +3,7 @@ import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, 
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
+import { criarNotificacao } from '../hooks/useNotificacoes';
 
 const STATUS_MAP = {
   analyzing:  { label: 'EM ANÁLISE',   color: '#FFA726', bg: 'rgba(255,167,38,0.15)' },
@@ -351,6 +352,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       jobsSnap.docs.forEach(d => batch.update(d.ref, { status: 'pending', enviadoEm: serverTimestamp() }));
       batch.update(doc(db, 'budgets', projectId), { cotacaoEnviadaEm: serverTimestamp(), updatedAt: serverTimestamp() });
       await batch.commit();
+      // Notifica cada fornecedor
+      try {
+        const jobsSnap2 = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId)));
+        const fornIds = [...new Set(jobsSnap2.docs.map(d => d.data().supplierId).filter(Boolean))];
+        await Promise.all(fornIds.map(fid => criarNotificacao(fid, {
+          titulo: 'Nova proposta recebida',
+          mensagem: `Voce recebeu uma proposta para o evento "${project?.eventName || ''}". Acesse para confirmar ou recusar.`,
+          tipo: 'acao',
+          budgetId: projectId,
+        })));
+      } catch(e) { console.error('notif fornecedor:', e); }
       setConfirmEnvio(false);
     } catch (e) { console.error('Erro ao enviar cotação:', e); }
     finally { setEnviandoCotacao(false); }
@@ -395,6 +407,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         }],
         updatedAt: serverTimestamp(),
       });
+      // Notifica cliente
+      try {
+        if (project?.clientUserId) {
+          await criarNotificacao(project.clientUserId, {
+            titulo: 'Relatorio final disponivel',
+            mensagem: `O relatorio final do evento "${project?.eventName || ''}" foi enviado pelo coordenador.`,
+            tipo: 'info',
+            budgetId: projectId,
+          });
+        }
+      } catch(e) { console.error('notif relatorio:', e); }
       setConfirmRelatorio(false);
     } catch (e) { console.error(e); alert('Erro ao enviar relatório.'); }
     finally { setEnviandoRelatorio(false); }

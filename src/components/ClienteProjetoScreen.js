@@ -3,6 +3,7 @@ import {
   collection, getDocs, getDoc, query, where,
   updateDoc, doc, addDoc, onSnapshot, serverTimestamp,
 } from 'firebase/firestore';
+import { criarNotificacao } from '../hooks/useNotificacoes';
 import { db } from '../firebase/config';
 
 const STATUS_CONFIG = {
@@ -257,6 +258,17 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           await addDoc(collection(db, 'tasks'), { ...taskBase, fase: 'execucao', nome: `Execução — ${sj.serviceName}`, status: 'pendente', cor: '#00E5C4' });
         }
       }));
+      // Notifica coordenador que cliente aprovou o orçamento
+      try {
+        if (project.assignedTo) {
+          await criarNotificacao(project.assignedTo, {
+            titulo: 'Orcamento aprovado pelo cliente',
+            mensagem: `O cliente aprovou o orcamento do evento "${project.eventName || ''}". Envie a cotacao para os fornecedores.`,
+            tipo: 'acao',
+            budgetId: project.id,
+          });
+        }
+      } catch(e) { console.error('notif coord:', e); }
     } catch (e) { console.error(e); alert('Erro ao aprovar.'); }
     finally { setAprovando(false); }
   };

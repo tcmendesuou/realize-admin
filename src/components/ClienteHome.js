@@ -3,6 +3,7 @@ import { collection, onSnapshot, getDocs, addDoc, query, where, updateDoc, doc, 
 import { db } from '../firebase/config';
 import ClienteChat from './ClienteChat';
 import ClienteProjetoScreen from './ClienteProjetoScreen';
+import SinoNotificacoes from './SinoNotificacoes';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em analise',           color: '#FFA726', bg: 'rgba(255,167,38,0.1)' },
@@ -210,12 +211,15 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
           <button className={`cl-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
         </nav>
         <div className="cl-footer">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div className="cl-avatar">{userInitials}</div>
             <div>
               <div style={{ fontSize: 13, color: '#E8F4FF', fontWeight: 400 }}>{userName.split(' ')[0]}</div>
               <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)' }}>Cliente</div>
             </div>
+            </div>
+            <SinoNotificacoes userId={userId} tema="escuro" />
           </div>
           <button onClick={onLogout} style={{ width: '100%', padding: 9, background: 'none', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 8, color: 'rgba(231,76,60,0.7)', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Sair</button>
         </div>
