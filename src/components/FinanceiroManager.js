@@ -610,16 +610,10 @@ export default function FinanceiroManager() {
                                             Nota recebida
                                           </button>
                                         )}
-                                        {p.statusCliente === 'pago' ? (
-                                          <button onClick={() => marcarFornecedorPagoParcela(suppKey, i)}
-                                            style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.35)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                            Marcar pago
-                                          </button>
-                                        ) : (
-                                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: 'rgba(255,167,38,0.06)', color: '#FFA726', border: '1px solid rgba(255,167,38,0.2)' }}>
-                                            Aguardando
-                                          </span>
-                                        )}
+                                        <button onClick={() => marcarFornecedorPagoParcela(suppKey, i)}
+                                          style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.35)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                          Marcar pago
+                                        </button>
                                       </div>
                                     )}
                                   </div>
