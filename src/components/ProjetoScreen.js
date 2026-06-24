@@ -44,6 +44,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [propostasExpandidas, setPropostasExpandidas] = useState(true);
   const [tasksExpandidas, setTasksExpandidas] = useState({});
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showPropostaForm, setShowPropostaForm] = useState(false);
 
   // ── Modal Nova Tarefa (completo) ──────────────────────────────────────────
   const [novaTaskStep, setNovaTaskStep]         = useState(1); // 1=categoria 2=servico 3=opcao 4=detalhes 5=fornecedor
@@ -61,6 +62,31 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     dataInicio: '', dataEntrega: '', prioridade: 'normal',
   });
   const [savingNovaTask, setSavingNovaTask] = useState(false);
+
+  // ── Modal Nova Proposta (coordenador → fornecedor, sem criar task) ─────────
+  const [novaPropostaStep, setNovaPropostaStep]           = useState(1);
+  const [novaPropostaCategoria, setNovaPropostaCategoria] = useState('');
+  const [novaPropostaServicos, setNovaPropostaServicos]   = useState([]);
+  const [novaPropostaLoadingServicos, setNovaPropostaLoadingServicos] = useState(false);
+  const [novaPropostaServico, setNovaPropostaServico]     = useState(null);
+  const [novaPropostaOpcoes, setNovaPropostaOpcoes]       = useState([]);
+  const [novaPropostaOpcao, setNovaPropostaOpcao]         = useState(null);
+  const [novaPropostaFornecedores, setNovaPropostaFornecedores] = useState([]);
+  const [novaPropostaFornecedor, setNovaPropostaFornecedor]     = useState(null);
+  const [novaPropostaLoadingForn, setNovaPropostaLoadingForn]   = useState(false);
+  const [novaPropostaForm, setNovaPropostaForm] = useState({
+    quantidade: '', horasPorDia: '', diasServico: '', observacoes: '',
+    dataInicio: '', dataEntrega: '', prioridade: 'normal',
+  });
+  const [savingNovaProposta, setSavingNovaProposta] = useState(false);
+
+  const resetNovaProposta = () => {
+    setNovaPropostaStep(1); setNovaPropostaCategoria(''); setNovaPropostaServicos([]);
+    setNovaPropostaServico(null); setNovaPropostaOpcoes([]); setNovaPropostaOpcao(null);
+    setNovaPropostaFornecedores([]); setNovaPropostaFornecedor(null);
+    setNovaPropostaForm({ quantidade: '', horasPorDia: '', diasServico: '', observacoes: '', dataInicio: '', dataEntrega: '', prioridade: 'normal' });
+    setShowPropostaForm(false);
+  };
 
   const resetNovaTask = () => {
     setNovaTaskStep(1); setNovaTaskCategoria(''); setNovaTaskServicos([]);
@@ -242,6 +268,61 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
       resetNovaTask();
     } catch (e) { console.error(e); alert('Erro ao criar tarefa.'); }
     finally { setSavingNovaTask(false); }
+  };
+
+  // Salva nova proposta (só supplierJob, sem criar task)
+  const handleSalvarNovaProposta = async () => {
+    if (!novaPropostaServico || !novaPropostaFornecedor) { alert('Selecione o serviço e o fornecedor.'); return; }
+    setSavingNovaProposta(true);
+    try {
+      const ev2    = project.briefingData?.evento || {};
+      const diasEv = (() => { const i=project.briefingData?.evento?.dataInicio||project.startDate,f=project.briefingData?.evento?.dataFim||project.endDate; if(i&&f){const d=Math.round((new Date(f+'T12:00:00')-new Date(i+'T12:00:00'))/(864e5))+1;return d>0?d:1;}return 1; })();
+      const preco   = parseFloat(novaPropostaOpcao?.valor || 0);
+      const unidade = novaPropostaOpcao?.unidade || '';
+      const horasEv = (() => { const i=ev2.horarioInicio,f=ev2.horarioFim; if(i&&f){const[h1,m1]=i.split(':').map(Number),[h2,m2]=f.split(':').map(Number);const h=(h2*60+m2-h1*60-m1)/60;return h>0?h:0;}return 0; })();
+      const horas   = parseFloat(novaPropostaForm.horasPorDia) || horasEv;
+      const qtd     = parseFloat(novaPropostaForm.quantidade) || 1;
+      const diasServ= parseFloat(novaPropostaForm.diasServico) || diasEv;
+
+      await addDoc(collection(db, 'supplierJobs'), {
+        budgetId:           projectId,
+        supplierId:         novaPropostaFornecedor.id,
+        supplierName:       novaPropostaFornecedor.nome,
+        clientName:         project.clientName || '',
+        eventName:          project.eventName || '',
+        eventTypeName:      project.eventTypeName || '',
+        eventDate:          project.startDate || ev2.dataInicio || '',
+        eventDateFim:       project.endDate   || ev2.dataFim    || '',
+        eventLocal:         ev2.local || project.location || '',
+        eventCidade:        ev2.cidade || '',
+        eventHorarioInicio: ev2.horarioInicio || '',
+        eventHorarioFim:    ev2.horarioFim    || '',
+        eventDiasDuracao:   diasEv,
+        eventVisitantes:    ev2.visitantesPorDia || 0,
+        serviceName:        novaPropostaServico.serviceName,
+        serviceNames:       [novaPropostaServico.serviceName],
+        serviceParentName:  novaPropostaServico.serviceParentName || '',
+        tipoServico:        novaPropostaCategoria,
+        opcaoCatalogoId:    novaPropostaOpcao?.id || '',
+        opcaoNome:          novaPropostaOpcao?.nome || '',
+        preco,
+        unidade,
+        horasPorDia:        horas,
+        quantidade:         qtd,
+        diasServico:        diasServ,
+        observacoes:        novaPropostaForm.observacoes,
+        diasPreparo:        novaPropostaServico.diasPreparo || 0,
+        diasMontagem:       novaPropostaServico.diasMontagem || 0,
+        stage:              'proposta',
+        status:             'pending',
+        enviadoEm:          serverTimestamp(),
+        criadoPorCoordenador: true,
+        createdAt:          serverTimestamp(),
+      });
+
+      resetNovaProposta();
+    } catch (e) { console.error(e); alert('Erro ao criar proposta.'); }
+    finally { setSavingNovaProposta(false); }
   };
 
   const [aprovacaoModal, setAprovacaoModal] = useState(null); // { task, tipo: 'pre'|'execucao'|'entrega' }
@@ -1935,10 +2016,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div className="ps-card-title" style={{ margin: 0 }}>Fornecedores e Tarefas</div>
-                <button onClick={() => setShowTaskForm(s => !s)}
-                  style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  + Nova Tarefa
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setShowPropostaForm(s => !s)}
+                    style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #667eea', background: 'none', color: '#667eea', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    + Nova Proposta
+                  </button>
+                  <button onClick={() => setShowTaskForm(s => !s)}
+                    style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    + Nova Tarefa
+                  </button>
+                </div>
               </div>
 
               {/* Tasks formais da collection (pós-aprovação) */}
@@ -2519,6 +2606,199 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           </div>
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showPropostaForm && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+                  onClick={e => { if (e.target === e.currentTarget) resetNovaProposta(); }}>
+                  <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+                    <div style={{ padding: '18px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', fontFamily: 'Outfit, sans-serif' }}>Nova Proposta</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>
+                          {['Categoria', 'Serviço', 'Opção', 'Detalhes', 'Fornecedor'][novaPropostaStep - 1]} — passo {novaPropostaStep} de 5
+                        </div>
+                      </div>
+                      <button onClick={resetNovaProposta} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+                    </div>
+                    <div style={{ display: 'flex', padding: '0 24px', gap: 4, paddingTop: 16 }}>
+                      {[1,2,3,4,5].map(s => (
+                        <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, background: s <= novaPropostaStep ? 'linear-gradient(90deg,#667eea,#764ba2)' : '#f0f2f5', transition: 'all 0.3s' }} />
+                      ))}
+                    </div>
+                    <div style={{ padding: '20px 24px' }}>
+
+                      {/* STEP 1 — Categoria */}
+                      {novaPropostaStep === 1 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual categoria de serviço?</div>
+                          {[
+                            { id: 'estrutura',      label: 'Estrutura',      icon: '🏗', cor: '#0080FF' },
+                            { id: 'operacao',       label: 'Operacional',    icon: '👥', cor: '#00E5C4' },
+                            { id: 'gastronomia',    label: 'Gastronomia',    icon: '🍽', cor: '#66BB6A' },
+                            { id: 'entretenimento', label: 'Entretenimento', icon: '🎵', cor: '#FFA726' },
+                          ].map(cat => (
+                            <button key={cat.id} onClick={async () => {
+                              setNovaPropostaCategoria(cat.id);
+                              setNovaPropostaLoadingServicos(true);
+                              try {
+                                const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', cat.id)));
+                                const servs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false);
+                                const cidadeProj = (project?.briefingData?.evento?.cidade || project?.location || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+                                const comOpcoes = await Promise.all(servs.map(async s => {
+                                  const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+                                  const opcoes = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+                                  const opsFiltradas = cidadeProj ? opcoes.filter(o => !o.regiao || (o.regiao||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(cidadeProj) || cidadeProj.includes(((o.regiao||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')).split(' ')[0])) : opcoes;
+                                  return { ...s, opcoes: opsFiltradas };
+                                }));
+                                setNovaPropostaServicos(comOpcoes.filter(s => s.opcoes.length > 0));
+                              } catch(e) { console.error(e); }
+                              finally { setNovaPropostaLoadingServicos(false); }
+                              setNovaPropostaStep(2);
+                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaCategoria === cat.id ? cat.cor : '#e2e8f0'}`, background: novaPropostaCategoria === cat.id ? `${cat.cor}11` : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{cat.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* STEP 2 — Serviço */}
+                      {novaPropostaStep === 2 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual serviço?</div>
+                          {novaPropostaLoadingServicos ? (
+                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando serviços...</div>
+                          ) : novaPropostaServicos.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Nenhum serviço disponível nesta categoria.</div>
+                          ) : novaPropostaServicos.map(s => (
+                            <button key={s.id} onClick={async () => {
+                              setNovaPropostaServico(s);
+                              // Carrega opções do catálogo
+                              if (!s.serviceId) { setNovaPropostaOpcoes(s.opcoes || []); }
+                              else {
+                                try {
+                                  const snap = await getDocs(collection(db, 'services', s.serviceId, 'opcoes'));
+                                  const opcoesCat = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+                                  const enriquecidas = opcoesCat.map(opCat => {
+                                    const opForn = (s.opcoes || []).find(o => o.opcaoCatalogoId === opCat.id);
+                                    return { ...opCat, ...opForn, id: opCat.id, nome: opCat.nome, valor: opCat.valor, unidade: opCat.unidade };
+                                  });
+                                  setNovaPropostaOpcoes(enriquecidas.length > 0 ? enriquecidas : s.opcoes || []);
+                                } catch(e) { setNovaPropostaOpcoes(s.opcoes || []); }
+                              }
+                              // Carrega fornecedores
+                              setNovaPropostaLoadingForn(true);
+                              try {
+                                const cidadeProj = (project?.briefingData?.evento?.cidade || project?.location || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+                                const snap = await getDocs(query(collection(db, 'supplierServices'), where('serviceName', '==', s.serviceName)));
+                                const todos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(ss => ss.ativo !== false && ss.supplierId);
+                                const filtrados = cidadeProj ? todos.filter(ss => { const r = (ss.regiao||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); return !r || r.includes(cidadeProj) || cidadeProj.includes(r.split(' ')[0]); }) : todos;
+                                const unique = [...new Set(filtrados.map(ss => ss.supplierId))];
+                                const fns = await Promise.all(unique.map(async sid => {
+                                  try { const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', sid))); if (!uSnap.empty) { const d = uSnap.docs[0].data(); return { id: sid, nome: d.companyName || d.name || sid }; } } catch {}
+                                  return { id: sid, nome: sid };
+                                }));
+                                setNovaPropostaFornecedores(fns);
+                              } catch(e) { console.error(e); setNovaPropostaFornecedores([]); }
+                              finally { setNovaPropostaLoadingForn(false); }
+                              setNovaPropostaStep(3);
+                            }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaServico?.id === s.id ? '#667eea' : '#e2e8f0'}`, background: novaPropostaServico?.id === s.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.serviceName}</div>
+                                {s.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{s.serviceParentName}</div>}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#94a3b8' }}>{s.opcoes.length} opção(ões)</div>
+                            </button>
+                          ))}
+                          <button onClick={() => setNovaPropostaStep(1)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                        </div>
+                      )}
+
+                      {/* STEP 3 — Opção */}
+                      {novaPropostaStep === 3 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual opção de {novaPropostaServico?.serviceName}?</div>
+                          {novaPropostaOpcoes.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhuma opção cadastrada.</div>
+                          ) : novaPropostaOpcoes.map(op => (
+                            <button key={op.id} onClick={() => { setNovaPropostaOpcao(op); setNovaPropostaStep(4); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaOpcao?.id === op.id ? '#667eea' : '#e2e8f0'}`, background: novaPropostaOpcao?.id === op.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{op.nome}</div>
+                                {op.caracteristica && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{op.caracteristica}</div>}
+                              </div>
+                              {op.valor > 0 && <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#667eea' }}>R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>/ {op.unidade || 'evento'}</div>
+                              </div>}
+                            </button>
+                          ))}
+                          <button onClick={() => setNovaPropostaStep(2)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                        </div>
+                      )}
+
+                      {/* STEP 4 — Detalhes */}
+                      {novaPropostaStep === 4 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', fontFamily: 'Outfit, sans-serif' }}>Detalhes da proposta</div>
+                          <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(102,126,234,0.15)' }}>
+                            <div style={{ fontSize: 12, color: '#667eea', fontWeight: 600, fontFamily: 'Outfit, sans-serif' }}>{novaPropostaServico?.serviceName} — {novaPropostaOpcao?.nome}</div>
+                            {novaPropostaOpcao?.valor > 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>R$ {Number(novaPropostaOpcao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {novaPropostaOpcao.unidade}</div>}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            <div><label style={lbl}>Quantidade</label><input type="number" value={novaPropostaForm.quantidade} onChange={e => setNovaPropostaForm(p => ({...p, quantidade: e.target.value}))} style={inp} placeholder="Ex: 2" min="1" /></div>
+                            <div><label style={lbl}>Horas/dia</label><input type="number" value={novaPropostaForm.horasPorDia} onChange={e => setNovaPropostaForm(p => ({...p, horasPorDia: e.target.value}))} style={inp} placeholder="Ex: 8" /></div>
+                            <div><label style={lbl}>Dias</label><input type="number" value={novaPropostaForm.diasServico} onChange={e => setNovaPropostaForm(p => ({...p, diasServico: e.target.value}))} style={inp} placeholder="Ex: 2" /></div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div><label style={lbl}>Data início</label><input type="date" value={novaPropostaForm.dataInicio} onChange={e => setNovaPropostaForm(p => ({...p, dataInicio: e.target.value}))} style={inp} /></div>
+                            <div><label style={lbl}>Data entrega</label><input type="date" value={novaPropostaForm.dataEntrega} onChange={e => setNovaPropostaForm(p => ({...p, dataEntrega: e.target.value}))} style={inp} /></div>
+                          </div>
+                          <div><label style={lbl}>Prioridade</label>
+                            <select value={novaPropostaForm.prioridade} onChange={e => setNovaPropostaForm(p => ({...p, prioridade: e.target.value}))} style={{ ...inp, background: 'white' }}>
+                              <option value="baixa">Baixa</option>
+                              <option value="normal">Normal</option>
+                              <option value="alta">Alta</option>
+                              <option value="urgente">Urgente</option>
+                            </select>
+                          </div>
+                          <div><label style={lbl}>Observações</label>
+                            <textarea value={novaPropostaForm.observacoes} onChange={e => setNovaPropostaForm(p => ({...p, observacoes: e.target.value}))} style={{ ...inp, resize: 'vertical', minHeight: 60 }} placeholder="Instruções específicas para o fornecedor..." />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                            <button onClick={() => setNovaPropostaStep(3)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={() => setNovaPropostaStep(5)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Próximo →</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* STEP 5 — Fornecedor */}
+                      {novaPropostaStep === 5 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual fornecedor?</div>
+                          {novaPropostaLoadingForn ? (
+                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando fornecedores...</div>
+                          ) : novaPropostaFornecedores.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhum fornecedor disponível para este serviço na cidade do projeto.</div>
+                          ) : novaPropostaFornecedores.map(f => (
+                            <button key={f.id} onClick={() => setNovaPropostaFornecedor(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaFornecedor?.id === f.id ? '#667eea' : '#e2e8f0'}`, background: novaPropostaFornecedor?.id === f.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#667eea,#764ba2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{(f.nome || 'F')[0].toUpperCase()}</div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.nome}</span>
+                              {novaPropostaFornecedor?.id === f.id && <span style={{ marginLeft: 'auto', fontSize: 13, color: '#667eea' }}>✓</span>}
+                            </button>
+                          ))}
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
+                            <button onClick={() => setNovaPropostaStep(4)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={handleSalvarNovaProposta} disabled={!novaPropostaFornecedor || savingNovaProposta} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: !novaPropostaFornecedor ? '#e2e8f0' : 'linear-gradient(135deg,#667eea,#764ba2)', color: !novaPropostaFornecedor ? '#94a3b8' : 'white', fontSize: 13, fontWeight: 600, cursor: !novaPropostaFornecedor ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              {savingNovaProposta ? 'Enviando...' : '✓ Criar Proposta'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   </div>
                 </div>
