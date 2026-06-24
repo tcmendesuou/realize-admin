@@ -210,6 +210,19 @@ export default function FinanceiroManager() {
     setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
   };
 
+  // Nota recebida por parcela de repasse (supplierId + índice da parcela do cliente)
+  const marcarNotaFornParcelaRecebida = async (supplierId, parcelaIdx) => {
+    const fin = selected.financeiro;
+    const novos = fin.pagamentosFornecedores.map(p => {
+      if (p.supplierId !== supplierId && p.supplierName !== supplierId) return p;
+      const notasRecebidas = p.notasRecebidas || [];
+      if (notasRecebidas.includes(parcelaIdx)) return p;
+      return { ...p, notasRecebidas: [...notasRecebidas, parcelaIdx] };
+    });
+    await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.pagamentosFornecedores': novos });
+    setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
+  };
+
   const marcarParcelaPaga = async (idx) => {
     const fin = selected.financeiro;
     const novas = fin.parcelas.map((p, i) => i === idx ? { ...p, pago: true, status: 'pago', paidAt: new Date().toISOString() } : p);
@@ -538,7 +551,7 @@ export default function FinanceiroManager() {
                           dataCliente: pc.dataVenc,
                           dataReceb: addBizDays(pc.dataVenc, 3),
                           pago: grupo.itens.every(item => (item.parcelasPagas || []).includes(i)),
-                          statusCliente: pc.pago ? 'pago' : pc.notaEnviada ? 'nota' : 'pendente',
+                          statusCliente: pc.pago ? 'pago' : 'pendente',
                         }));
                         return (
                           <div key={key} style={{ background: '#fafbff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 18px' }}>
@@ -556,31 +569,9 @@ export default function FinanceiroManager() {
                               <div key={ii} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f0f2f5' }}>
                                 <div style={{ flex: 1 }}>
                                   <div style={{ fontSize: 12, fontWeight: 500, color: '#475569' }}>{p.serviceName}</div>
-                                  {p.notaRecebida && <div style={{ fontSize: 10, color: '#667eea', marginTop: 1 }}>✓ Nota recebida</div>}
                                 </div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: p.pago ? '#10b981' : '#FFA726' }}>{formatBRL(p.valor)}</div>
-                                {p.pago ? (
-                                  <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ Pago</span>
-                                ) : (
-                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    {p.notaRecebida ? (
-                                      <span style={{ fontSize: 10, color: '#667eea', fontWeight: 600 }}>✓ Nota OK</span>
-                                    ) : (
-                                      <button onClick={() => marcarNotaFornRecebida(p.idx)}
-                                        style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                        Nota recebida
-                                      </button>
-                                    )}
-                                    {clientePagou ? (
-                                      <button onClick={() => marcarFornecedorPago(p.idx)}
-                                        style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                                        Marcar pago
-                                      </button>
-                                    ) : (
-                                      <span style={{ fontSize: 10, color: '#94a3b8' }}>Ag. cliente</span>
-                                    )}
-                                  </div>
-                                )}
+                                {p.pago && <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ Pago</span>}
                               </div>
                             ))}
                             {/* Total */}
@@ -592,9 +583,12 @@ export default function FinanceiroManager() {
                             {parcelasForn.length > 0 && (
                               <div>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Previsão de Repasse</div>
-                                {parcelasForn.map((p, i) => (
+                                {parcelasForn.map((p, i) => {
+                                  const suppKey = grupo.supplierId || grupo.supplierName;
+                                  const notaRecebidaParcela = grupo.itens.some(item => (item.notasRecebidas || []).includes(i));
+                                  return (
                                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
-                                    border: `1px solid ${p.pago ? 'rgba(16,185,129,0.2)' : p.statusCliente === 'nota' ? 'rgba(102,126,234,0.15)' : '#e2e8f0'}`,
+                                    border: `1px solid ${p.pago ? 'rgba(16,185,129,0.2)' : '#e2e8f0'}`,
                                     background: p.pago ? 'rgba(16,185,129,0.03)' : 'white', marginBottom: 5 }}>
                                     <div style={{ width: 24, height: 24, borderRadius: '50%', background: p.pago ? 'rgba(16,185,129,0.1)' : 'rgba(255,167,38,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: p.pago ? '#10b981' : '#FFA726', flexShrink: 0 }}>{p.numero}</div>
                                     <div style={{ flex: 1 }}>
@@ -606,21 +600,31 @@ export default function FinanceiroManager() {
                                     </div>
                                     {p.pago ? (
                                       <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: 'rgba(16,185,129,0.08)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)', flexShrink: 0 }}>✓ Pago</span>
-                                    ) : p.statusCliente === 'pago' ? (
-                                      <button onClick={() => marcarFornecedorPagoParcela(grupo.supplierId || grupo.supplierName, i)}
-                                        style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.35)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
-                                        Marcar pago
-                                      </button>
                                     ) : (
-                                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, flexShrink: 0,
-                                        background: p.statusCliente === 'nota' ? 'rgba(102,126,234,0.06)' : 'rgba(255,167,38,0.06)',
-                                        color: p.statusCliente === 'nota' ? '#667eea' : '#FFA726',
-                                        border: `1px solid ${p.statusCliente === 'nota' ? 'rgba(102,126,234,0.2)' : 'rgba(255,167,38,0.2)'}` }}>
-                                        {p.statusCliente === 'nota' ? 'Nota OK' : 'Aguardando'}
-                                      </span>
+                                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                                        {notaRecebidaParcela ? (
+                                          <span style={{ fontSize: 10, color: '#667eea', fontWeight: 600 }}>✓ Nota OK</span>
+                                        ) : (
+                                          <button onClick={() => marcarNotaFornParcelaRecebida(suppKey, i)}
+                                            style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                            Nota recebida
+                                          </button>
+                                        )}
+                                        {p.statusCliente === 'pago' ? (
+                                          <button onClick={() => marcarFornecedorPagoParcela(suppKey, i)}
+                                            style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.35)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                            Marcar pago
+                                          </button>
+                                        ) : (
+                                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: 'rgba(255,167,38,0.06)', color: '#FFA726', border: '1px solid rgba(255,167,38,0.2)' }}>
+                                            Aguardando
+                                          </span>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
