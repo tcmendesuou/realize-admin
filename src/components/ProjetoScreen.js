@@ -2021,8 +2021,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #667eea', background: 'none', color: '#667eea', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                     + Nova Proposta
                   </button>
-                  <button onClick={() => setShowTaskForm(s => !s)}
-                    style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  <button disabled
+                    style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#e2e8f0', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'not-allowed', fontFamily: 'Outfit, sans-serif' }}>
                     + Nova Tarefa
                   </button>
                 </div>
