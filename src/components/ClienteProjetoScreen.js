@@ -83,6 +83,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         if (todasExecConcluidas) {
           await updateDoc(doc(db, 'budgets', task.budgetId), {
             workspaceStage: 'Acontecendo',
+            status: 'inProgress',
             updatedAt: serverTimestamp(),
           });
         }

@@ -84,6 +84,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
           if (todasExecConcluidas) {
             await updateDoc(doc(db, 'budgets', task.budgetId), {
               workspaceStage: 'Acontecendo',
+              status:         'inProgress',
               updatedAt:      serverTimestamp(),
             });
           }
