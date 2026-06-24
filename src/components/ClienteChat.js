@@ -358,7 +358,7 @@ export default function ClienteChat({ userData, onClose, tenant }) {
   const [dados, setDados] = useState({
     temStand: null, tipoEstande: null, standDescricao: '', standImagensUrls: [],
     areaM2: '', alturaTeto: '', diasMontagem: '', restricoes: '', identidadeVisual: null, identidadeImagensUrls: [],
-    nomeEmpresa: '', tipoEvento: '', nomeEvento: '', dataInicio: '', dataFim: '',
+    nomeEmpresa: tenantId ? (userData?.companyName || '') : '', tipoEvento: '', nomeEvento: '', dataInicio: '', dataFim: '',
     horarioInicio: '', horarioFim: '', cidade: '', local: '', visitantesPorDia: '',
     temProdutor: null,
     estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [],
@@ -520,6 +520,8 @@ export default function ClienteChat({ userData, onClose, tenant }) {
         briefingData: { ...bj, formaPagamento: dados.formaPagamento },
         financeiro: { formaPagamento: dados.formaPagamento },
         assignedTo, assignedToName, assignedAt: assignedTo ? serverTimestamp() : null,
+        // Tenant — grava vazio se for Realize normal
+        tenantId: tenantId || null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
 
@@ -739,12 +741,16 @@ export default function ClienteChat({ userData, onClose, tenant }) {
     );
 
     // ── EVENTO ───────────────────────────────────────────────────────────────
-    if (step === 'evento_empresa') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-        <Pergunta>Qual o nome da **empresa organizadora**?</Pergunta>
-        <StepInputSimples placeholder="Nome da empresa (ou deixe em branco)" autoFocus optional onConfirm={val => ir('evento_tipo', { nomeEmpresa: val })} />
-      </div>
-    );
+    if (step === 'evento_empresa') {
+      // Tenant/franqueado: pula a pergunta e usa companyName já preenchido no estado
+      if (tenantId) { ir('evento_tipo'); return null; }
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+          <Pergunta>Qual o nome da **empresa organizadora**?</Pergunta>
+          <StepInputSimples placeholder="Nome da empresa (ou deixe em branco)" autoFocus optional onConfirm={val => ir('evento_tipo', { nomeEmpresa: val })} />
+        </div>
+      );
+    }
 
     if (step === 'evento_tipo') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
