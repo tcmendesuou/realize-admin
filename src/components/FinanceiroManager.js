@@ -228,8 +228,8 @@ export default function FinanceiroManager() {
     const novas = fin.parcelas.map((p, i) => i === idx ? { ...p, pago: true, status: 'pago', paidAt: new Date().toISOString() } : p);
     await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.parcelas': novas });
 
-    // Se todas as parcelas pagas → muda para Finalizado
-    if (novas.every(p => p.pago)) {
+    // Se todas as parcelas pagas E relatório já enviado → muda para Finalizado
+    if (novas.every(p => p.pago) && selected.status === 'completed') {
       await updateDoc(doc(db, 'budgets', selected.id), {
         workspaceStage: 'Finalizado',
         finalizadoEm:   new Date().toISOString(),

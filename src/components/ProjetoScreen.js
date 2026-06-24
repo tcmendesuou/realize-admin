@@ -368,10 +368,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         valor: t.valor || 0,
       }));
       const totalServicos = itens.reduce((acc, t) => acc + (t.valor || 0), 0);
+
+      // Verifica se todos os fornecedores já foram pagos
+      const pagForn = project.financeiro?.pagamentosFornecedores || [];
+      const todosFornPagos = pagForn.length > 0 && pagForn.every(p => p.pago);
+      const todasParcelasPagas = (project.financeiro?.parcelas || []).every(p => p.pago);
+      const jaFinalizado = todosFornPagos && todasParcelasPagas;
+
       await updateDoc(doc(db, 'budgets', projectId), {
         status: 'completed',
-        workspaceStage: 'Concluido',
+        workspaceStage: jaFinalizado ? 'Finalizado' : 'Concluido',
         concluidoEm: serverTimestamp(),
+        ...(jaFinalizado ? { finalizadoEm: new Date().toISOString() } : {}),
         relatorioFinal: {
           geradoEm: new Date().toISOString(),
           itens,
