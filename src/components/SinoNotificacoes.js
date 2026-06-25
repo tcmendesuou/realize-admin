@@ -75,7 +75,7 @@ export default function SinoNotificacoes({ userId, tema = 'escuro' }) {
       {/* Dropdown */}
       {aberto && (
         <div style={{
-          position: 'absolute', top: '100%', right: 0, marginTop: 8,
+          position: 'fixed', top: 60, right: 32, marginTop: 0,
           width: 320, maxHeight: 420, overflowY: 'auto',
           background: corBg, borderRadius: 14,
           border: `1px solid ${corBorda}`,

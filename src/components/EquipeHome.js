@@ -81,15 +81,12 @@ export default function EquipeHome({ userData, onLogout }) {
           <button className={`eq-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
         </nav>
         <div className="eq-footer">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <div className="eq-avatar">{userInitials}</div>
             <div>
               <div style={{ fontSize: 13, color: '#E8F4FF', fontWeight: 400 }}>{userName.split(' ')[0]}</div>
               <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)' }}>Equipe</div>
             </div>
-            </div>
-            <SinoNotificacoes userId={userId} tema="escuro" />
           </div>
           <button onClick={onLogout} style={{ width: '100%', padding: 9, background: 'none', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 8, color: 'rgba(231,76,60,0.7)', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Sair</button>
         </div>
@@ -99,9 +96,12 @@ export default function EquipeHome({ userData, onLogout }) {
       <main className="eq-main">
         {activeSection === 'workspace' && (
           <>
-            <div>
-              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Workspace</h1>
-              <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Acompanhe todos os jobs em andamento</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Workspace</h1>
+                <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Acompanhe todos os jobs em andamento</p>
+              </div>
+              <SinoNotificacoes userId={userId} tema="escuro" />
             </div>
 
             {loading ? (

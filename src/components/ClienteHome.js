@@ -211,15 +211,12 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
           <button className={`cl-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
         </nav>
         <div className="cl-footer">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <div className="cl-avatar">{userInitials}</div>
             <div>
               <div style={{ fontSize: 13, color: '#E8F4FF', fontWeight: 400 }}>{userName.split(' ')[0]}</div>
               <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)' }}>Cliente</div>
             </div>
-            </div>
-            <SinoNotificacoes userId={userId} tema="escuro" />
           </div>
           <button onClick={onLogout} style={{ width: '100%', padding: 9, background: 'none', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 8, color: 'rgba(231,76,60,0.7)', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Sair</button>
         </div>
@@ -228,10 +225,13 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
       {/* Main */}
       <main className="cl-main">
         {/* Header de boas-vindas */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
-          {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
-          {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
+            {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
+            {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
+          </div>
+          <SinoNotificacoes userId={userId} tema="escuro" />
         </div>
 
         {activeSection === 'workspace' && (
