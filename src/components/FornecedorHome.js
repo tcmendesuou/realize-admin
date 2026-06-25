@@ -3,6 +3,7 @@ import { collection, onSnapshot, getDocs, getDoc, doc, query, where } from 'fire
 import { db } from '../firebase/config';
 import FornecedorServicos from './FornecedorServicos';
 import ChatWidget from './ChatWidget';
+import SinoNotificacoes from './SinoNotificacoes';
 
 const STAGES = [
   { id: 'proposta',    label: 'Propostas',   color: '#7BAFD4' },
