@@ -69,8 +69,9 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
       });
       // Incrementa naoLidas no documento do chat
       await updateDoc(doc(db, 'chats', chatId), {
-        naoLidas:  increment(1),
-        ultimaMsg: text.slice(0, 60),
+        naoLidas:    increment(1),
+        ultimaMsg:   text.slice(0, 60),
+        ultimaMsgAt: serverTimestamp(),
       });
     } catch (e) { console.error(e); }
     finally { setSending(false); }

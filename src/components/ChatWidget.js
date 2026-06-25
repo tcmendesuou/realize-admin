@@ -1,43 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, onSnapshot, query, where, orderBy, addDoc, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
 
 export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
-  const [open, setOpen]           = useState(false);
-  const [chats, setChats]         = useState([]);
+  const [open, setOpen]               = useState(false);
+  const [chats, setChats]             = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [activeChat, setActiveChat]   = useState(null);
   const [totalNaoLidas, setTotalNaoLidas] = useState(0);
+  const prevTotalRef = useRef(0);
 
-  // Carrega lista de chats
+  // Carrega lista de chats em tempo real
   useEffect(() => {
-    if (!budgetIds?.length) return;
-    // Fornecedor: busca chats pelo supplierId
+    if (!budgetIds?.length && !somenteVisualizar) return;
     const chatQuery = somenteVisualizar
       ? query(collection(db, 'chats'), where('supplierId', '==', userData?.id))
       : query(collection(db, 'chats'), where('budgetId', 'in', budgetIds.slice(0, 10)));
+
     const unsub = onSnapshot(chatQuery, snap => {
-      const cs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const cs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.ultimaMsgAt?.seconds || 0) - (a.ultimaMsgAt?.seconds || 0));
       setChats(cs);
+      const total = cs.reduce((acc, c) => acc + (c.naoLidas || 0), 0);
+      // Notificação sonora/visual quando chega mensagem nova e o chat está fechado
+      if (total > prevTotalRef.current && !open) {
+        document.title = `(${total}) realizehub`;
+      } else if (total === 0) {
+        document.title = 'realizehub';
+      }
+      prevTotalRef.current = total;
+      setTotalNaoLidas(total);
     });
     return () => unsub();
   }, [budgetIds?.join(','), somenteVisualizar, userData?.id]);
 
-  // Conta mensagens não lidas — direto do campo naoLidas de cada chat (atualizado em tempo real via onSnapshot)
+  // Reseta título ao abrir
   useEffect(() => {
-    setTotalNaoLidas(chats.reduce((acc, c) => acc + (c.naoLidas || 0), 0));
-  }, [chats]);
+    if (open) document.title = 'realizehub';
+  }, [open]);
 
-  const handleOpenChat = (chat) => {
+  const handleSelectChat = (chat) => {
     setActiveChatId(chat.id);
     setActiveChat(chat);
-    setOpen(false);
-  };
-
-  const handleClosePanel = () => {
-    setActiveChatId(null);
-    setActiveChat(null);
   };
 
   const accentColor = activeChat?.tipo === 'cliente' ? '#0080FF' : '#FFA726';
@@ -45,68 +50,131 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
   return (
     <>
       {/* Botão flutuante */}
-      <button onClick={() => { setOpen(o => !o); setActiveChatId(null); }}
-        style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 22, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,229,196,0.35)' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          position: 'fixed', bottom: 28, right: 28,
+          width: 52, height: 52, borderRadius: '50%',
+          border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)',
+          color: 'white', fontSize: 22, cursor: 'pointer',
+          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(0,229,196,0.35)',
+        }}>
         💬
         {totalNaoLidas > 0 && (
-          <span style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', background: '#66BB6A', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: '2px solid #0D1B2A' }}>
+          <span style={{
+            position: 'absolute', top: 2, right: 2,
+            width: 18, height: 18, borderRadius: '50%',
+            background: '#ef4444', fontSize: 9, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'white', border: '2px solid #0D1B2A',
+          }}>
             {totalNaoLidas > 9 ? '9+' : totalNaoLidas}
           </span>
         )}
       </button>
 
-      {/* Popup lista de chats */}
+      {/* Modal estilo WhatsApp */}
       {open && (
-        <div style={{ position: 'fixed', bottom: 90, right: 28, width: 300, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 14, zIndex: 1000, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', fontFamily: 'Outfit, sans-serif' }}>
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,180,255,0.1)' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>Mensagens</div>
-            <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 2 }}>Chats dos seus projetos</div>
-          </div>
-          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-            {chats.length === 0 ? (
-              <div style={{ padding: '20px 16px', textAlign: 'center', color: 'rgba(123,175,212,0.4)', fontSize: 12 }}>Nenhuma conversa ainda</div>
-            ) : chats.map(c => {
-              const cor = c.tipo === 'cliente' ? '#0080FF' : '#FFA726';
-              return (
-                <div key={c.id} onClick={() => handleOpenChat(c)}
-                  style={{ padding: '12px 16px', borderBottom: '1px solid rgba(0,180,255,0.06)', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${cor}20`, border: `2px solid ${cor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
-                    {c.tipo === 'cliente' ? '👤' : '🏢'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.titulo}</div>
-                    <div style={{ fontSize: 10, color: cor, marginTop: 1 }}>{c.subtitulo}</div>
-                    {c.empresa && <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.empresa}</div>}
-                    {c.ultimaMsg && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.ultimaMsg}</div>}
-                  </div>
-                  {(c.naoLidas || 0) > 0 && (
-                    <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#66BB6A', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>{c.naoLidas}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        <div style={{
+          position: 'fixed', bottom: 90, right: 28,
+          width: 700, height: 500,
+          background: 'rgba(10,22,38,0.99)',
+          border: '1px solid rgba(0,180,255,0.15)',
+          borderRadius: 16, zIndex: 1001,
+          boxShadow: '0 12px 48px rgba(0,0,0,0.5)',
+          display: 'flex', overflow: 'hidden',
+          fontFamily: 'Outfit, sans-serif',
+        }}>
 
-      {/* Painel de conversa ativo */}
-      {activeChatId && activeChat && (
-        <div style={{ position: 'fixed', bottom: 28, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(0,180,255,0.15)', borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {/* Botão voltar para lista */}
-          <button onClick={() => { setActiveChatId(null); setActiveChat(null); setOpen(true); }}
-            style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.08)', border: 'none', color: '#7BAFD4', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', zIndex: 2 }}>
-            ← Voltar
-          </button>
-          <ChatPanel
-            chatId={activeChatId}
-            title={activeChat.titulo}
-            subtitle={activeChat.subtitulo}
-            accentColor={accentColor}
-            userData={userData}
-            onClose={handleClosePanel}
-          />
+          {/* ── Painel esquerdo — lista de conversas ── */}
+          <div style={{
+            width: 240, flexShrink: 0,
+            borderRight: '1px solid rgba(0,180,255,0.1)',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {/* Header lista */}
+            <div style={{
+              padding: '14px 16px',
+              borderBottom: '1px solid rgba(0,180,255,0.1)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>Mensagens</div>
+                <div style={{ fontSize: 10, color: '#7BAFD4', marginTop: 1 }}>{chats.length} conversa{chats.length !== 1 ? 's' : ''}</div>
+              </div>
+              <button onClick={() => setOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'rgba(123,175,212,0.5)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Lista */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {chats.length === 0 ? (
+                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'rgba(123,175,212,0.35)', fontSize: 12 }}>
+                  Nenhuma conversa ainda
+                </div>
+              ) : chats.map(c => {
+                const cor = c.tipo === 'cliente' ? '#0080FF' : '#FFA726';
+                const ativo = c.id === activeChatId;
+                return (
+                  <div key={c.id} onClick={() => handleSelectChat(c)}
+                    style={{
+                      padding: '11px 14px',
+                      borderBottom: '1px solid rgba(0,180,255,0.06)',
+                      cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start',
+                      background: ativo ? 'rgba(0,229,196,0.07)' : 'transparent',
+                      borderLeft: ativo ? '3px solid #00E5C4' : '3px solid transparent',
+                      transition: 'all 0.1s',
+                    }}
+                    onMouseEnter={e => { if (!ativo) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                    onMouseLeave={e => { if (!ativo) e.currentTarget.style.background = 'transparent'; }}>
+                    {/* Avatar */}
+                    <div style={{
+                      width: 34, height: 34, borderRadius: '50%',
+                      background: `${cor}20`, border: `2px solid ${cor}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, flexShrink: 0,
+                    }}>
+                      {c.tipo === 'cliente' ? '👤' : '🏢'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{c.titulo}</div>
+                        {(c.naoLidas || 0) > 0 && (
+                          <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#ef4444', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
+                            {c.naoLidas > 9 ? '9+' : c.naoLidas}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 10, color: cor, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.subtitulo}</div>
+                      {c.ultimaMsg && (
+                        <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.45)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.ultimaMsg}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Painel direito — conversa ativa ── */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {activeChatId && activeChat ? (
+              <ChatPanel
+                chatId={activeChatId}
+                title={activeChat.titulo}
+                subtitle={activeChat.subtitulo}
+                accentColor={accentColor}
+                userData={userData}
+                onClose={() => { setActiveChatId(null); setActiveChat(null); }}
+              />
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', gap: 12 }}>
+                <div style={{ fontSize: 36 }}>💬</div>
+                <div style={{ fontSize: 13 }}>Selecione uma conversa</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>
