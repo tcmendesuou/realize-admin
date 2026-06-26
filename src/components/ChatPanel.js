@@ -12,8 +12,10 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
   useEffect(() => {
     if (!chatId) return;
 
-    // Zera naoLidas quando abre o chat
-    updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
+    // Zera naoLidas quando abre o chat (com pequeno delay para não competir com increment)
+    setTimeout(() => {
+      updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
+    }, 500);
 
     const unsub = onSnapshot(
       query(collection(db, 'chats', chatId, 'msgs'), orderBy('createdAt', 'asc')),
@@ -36,14 +38,14 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
 
         setMsgs(ms);
 
-        // Marca todas não lidas como lidas
-        snap.docs.forEach(d => {
-          if (!d.data().read && d.data().senderId !== userData?.id) {
+        // Marca mensagens não lidas como lidas e zera contador
+        const naoLidasDoOutro = snap.docs.filter(d => !d.data().read && d.data().senderId !== userData?.id);
+        if (naoLidasDoOutro.length > 0) {
+          naoLidasDoOutro.forEach(d => {
             updateDoc(doc(db, 'chats', chatId, 'msgs', d.id), { read: true }).catch(() => {});
-          }
-        });
-        // Zera contador
-        updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
+          });
+          updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
+        }
       }
     );
     return () => unsub();
@@ -69,9 +71,8 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
       });
       // Incrementa naoLidas no documento do chat
       await updateDoc(doc(db, 'chats', chatId), {
-        naoLidas:    increment(1),
-        ultimaMsg:   text.slice(0, 60),
-        ultimaMsgAt: serverTimestamp(),
+        naoLidas:  increment(1),
+        ultimaMsg: text.slice(0, 60),
       });
     } catch (e) { console.error(e); }
     finally { setSending(false); }
