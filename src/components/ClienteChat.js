@@ -873,20 +873,19 @@ export default function ClienteChat({ userData, onClose, tenant }) {
         if (temRecepcao) {
           try {
             const { collection, getDocs, query, where } = await import('firebase/firestore');
-            // Busca no catálogo admin (services) pelo tipo operacao
-            const snap = await getDocs(query(collection(db, 'services'), where('tipo', '==', 'operacao')));
-            const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s =>
-              (s.name || '').toLowerCase().includes('vestuario') ||
-              (s.name || '').toLowerCase().includes('vestuário') ||
-              (s.name || '').toLowerCase().includes('roupa') ||
-              (s.description || '').toLowerCase().includes('vestuario') ||
-              (s.description || '').toLowerCase().includes('vestuário')
-            );
+            // Busca no catálogo admin (services) — sem filtrar por tipo para não perder nada
+            const snap = await getDocs(collection(db, 'services'));
+            const norm = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => {
+              const n = norm(s.name) + ' ' + norm(s.description);
+              return n.includes('vestuario') || n.includes('roupa') || n.includes('uniforme') || n.includes('recepcionist');
+            });
             // Busca opções de cada serviço de vestuário
             const comOpcoes = await Promise.all(vestuarios.map(async v => {
               const opSnap = await getDocs(collection(db, 'services', v.id, 'opcoes'));
               return { ...v, serviceName: v.name, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
             }));
+            console.log('vestuarios encontrados:', vestuarios.map(v => v.name));
             setListaVestuario(comOpcoes.filter(v => v.opcoes.length > 0));
             ir('vestuario_recepcao');
           } catch(e) { console.error(e); ir('gastro_pergunta'); }
