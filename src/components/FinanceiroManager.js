@@ -240,22 +240,30 @@ export default function FinanceiroManager() {
   };
 
   // Marcar fornecedor pago — por parcela (supplierId + índice da parcela)
-  const marcarFornecedorPagoParcela = async (supplierId, parcelaIdx) => {
+  const marcarFornecedorPagoParcela = async (suppKey, parcelaIdx) => {
     const fin = selected.financeiro;
-    // Marca todos os itens deste fornecedor como pagos nesta parcela
-    // Registra no array pagamentosFornecedores qual parcela foi paga
+    const totalParcelas = fin.parcelas?.length || 1;
     const novos = fin.pagamentosFornecedores.map(p => {
-      if (p.supplierId !== supplierId && p.supplierName !== supplierId) return p;
+      // Filtra pelo supplierId ou supplierName — qualquer que bata com suppKey
+      const pertenceAoGrupo = (p.supplierId && p.supplierId === suppKey) || (p.supplierName && p.supplierName === suppKey);
+      if (!pertenceAoGrupo) return p;
       const parcelasPagas = p.parcelasPagas || [];
       if (parcelasPagas.includes(parcelaIdx)) return p;
       const novasParc = [...parcelasPagas, parcelaIdx];
-      // Se todas as parcelas foram pagas, marca o item como pago
-      const totalParcelas = fin.parcelas?.length || 1;
       const pago = novasParc.length >= totalParcelas;
       return { ...p, parcelasPagas: novasParc, pago, status: pago ? 'pago' : 'parcial', paidAt: pago ? new Date().toISOString() : p.paidAt };
     });
     await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.pagamentosFornecedores': novos });
     setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
+
+    // Verifica se todos fornecedores foram pagos e budget já está completed → Finalizado
+    const todosPagos = novos.every(p => p.pago);
+    if (todosPagos && selected.status === 'completed') {
+      await updateDoc(doc(db, 'budgets', selected.id), {
+        workspaceStage: 'Finalizado',
+        finalizadoEm: new Date().toISOString(),
+      });
+    }
   };
 
   const marcarFornecedorPago = async (idx) => {
