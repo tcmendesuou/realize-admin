@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp, setDoc, collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { criarNotificacao } from '../hooks/useNotificacoes';
 import ChatPanel from './ChatPanel';
 
 export default function FornecedorJobScreen({ job, userData, onBack }) {
@@ -77,6 +78,17 @@ export default function FornecedorJobScreen({ job, userData, onBack }) {
         });
       }
 
+      // Notifica coordenador
+      try {
+        if (budget?.assignedTo) {
+          await criarNotificacao(budget.assignedTo, {
+            titulo: 'Fornecedor confirmou disponibilidade',
+            mensagem: `${userName} confirmou para o evento "${job.eventName || ''}". Verifique se todos confirmaram para gerar o orçamento.`,
+            tipo: 'acao',
+            budgetId: job.budgetId,
+          });
+        }
+      } catch(e) { console.error('notif coord confirmacao:', e); }
       setConfirmed(true);
     } catch (e) {
       console.error(e);

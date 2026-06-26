@@ -654,6 +654,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         aprovacaoEnviadaEm: serverTimestamp(),
         updatedAt:        serverTimestamp(),
       });
+      // Notifica cliente que tem ação pendente
+      try {
+        if (project?.clientUserId) {
+          const tipoLabel = aprovacaoModal.tipo === 'pre' ? 'pre-aprovação' : aprovacaoModal.tipo === 'execucao' ? 'aprovação de execução' : 'aprovação de entrega';
+          await criarNotificacao(project.clientUserId, {
+            titulo: 'Acao necessaria no seu evento',
+            mensagem: `O serviço "${aprovacaoModal.task?.serviceName || ''}" aguarda sua ${tipoLabel} no evento "${project?.eventName || ''}".`,
+            tipo: 'acao',
+            budgetId: aprovacaoModal.task?.budgetId,
+          });
+        }
+      } catch(e) { console.error('notif aprovacao:', e); }
       setAprovacaoModal(null);
       setAprovacaoArquivos([]);
       setAprovacaoObs('');
@@ -768,6 +780,17 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         }],
         updatedAt: serverTimestamp(),
       });
+      // Notifica cliente que o orçamento está disponível
+      try {
+        if (project?.clientUserId) {
+          await criarNotificacao(project.clientUserId, {
+            titulo: 'Orcamento disponivel para aprovacao',
+            mensagem: `O orçamento do evento "${project?.eventName || ''}" está pronto. Acesse para aprovar.`,
+            tipo: 'acao',
+            budgetId: projectId,
+          });
+        }
+      } catch(e) { console.error('notif orcamento:', e); }
     } catch (e) { console.error(e); alert('Erro ao gerar orçamento.'); }
     finally { setGerandoOrcamento(false); }
   };
