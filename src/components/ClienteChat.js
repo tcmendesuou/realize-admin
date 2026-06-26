@@ -772,7 +772,7 @@ export default function ClienteChat({ userData, onClose, tenant }) {
     if (step === 'evento_data_inicio') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
         <Pergunta>Qual a **data de início** do evento?</Pergunta>
-        <input type="date" defaultValue="" onChange={e => set('dataInicio', e.target.value)}
+        <input type="date" defaultValue="" min={new Date().toISOString().split('T')[0]} onChange={e => set('dataInicio', e.target.value)}
           style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }} />
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <BtnAvancar onClick={() => ir('evento_data_fim')} disabled={!dados.dataInicio} />
@@ -873,18 +873,19 @@ export default function ClienteChat({ userData, onClose, tenant }) {
         if (temRecepcao) {
           try {
             const { collection, getDocs, query, where } = await import('firebase/firestore');
-            const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', 'operacao')));
+            // Busca no catálogo admin (services) pelo tipo operacao
+            const snap = await getDocs(query(collection(db, 'services'), where('tipo', '==', 'operacao')));
             const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s =>
-              (s.serviceName || '').toLowerCase().includes('vestuario') ||
-              (s.serviceName || '').toLowerCase().includes('vestuário') ||
-              (s.serviceParentName || '').toLowerCase().includes('vestuario') ||
-              (s.serviceParentName || '').toLowerCase().includes('vestuário') ||
-              (s.serviceName || '').toLowerCase().includes('roupa')
+              (s.name || '').toLowerCase().includes('vestuario') ||
+              (s.name || '').toLowerCase().includes('vestuário') ||
+              (s.name || '').toLowerCase().includes('roupa') ||
+              (s.description || '').toLowerCase().includes('vestuario') ||
+              (s.description || '').toLowerCase().includes('vestuário')
             );
-            // Busca opções de cada vestuário
+            // Busca opções de cada serviço de vestuário
             const comOpcoes = await Promise.all(vestuarios.map(async v => {
-              const opSnap = await getDocs(collection(db, 'supplierServices', v.id, 'opcoes'));
-              return { ...v, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
+              const opSnap = await getDocs(collection(db, 'services', v.id, 'opcoes'));
+              return { ...v, serviceName: v.name, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
             }));
             setListaVestuario(comOpcoes.filter(v => v.opcoes.length > 0));
             ir('vestuario_recepcao');
