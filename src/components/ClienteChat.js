@@ -282,11 +282,11 @@ const StepHorarioInline = ({ onConfirm }) => {
           </select></div>
         <div><div style={{ fontSize: 11, color: '#7BAFD4', marginBottom: 6, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase' }}>Término</div>
           <select value={fim} onChange={e => setFim(e.target.value)} style={selStyle}>
-            <option value="">--</option>{HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
+            <option value="">--</option>{HORARIOS.filter(h => !inicio || h > inicio).map(h => <option key={h} value={h}>{h}</option>)}
           </select></div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <BtnAvancar onClick={() => onConfirm(inicio, fim)} disabled={!inicio || !fim} />
+        <BtnAvancar onClick={() => onConfirm(inicio, fim)} disabled={!inicio || !fim || fim <= inicio} />
       </div>
     </div>
   );
