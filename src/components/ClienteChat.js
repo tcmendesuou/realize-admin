@@ -394,7 +394,7 @@ export default function ClienteChat({ userData, onClose, tenant }) {
   }, []);
 
   const BLOQUEADOS_ESTRUTURA = ['estande', 'stand', 'desenvolvimento'];
-  const BLOQUEADOS_EQUIPE    = ['produtor'];
+  const BLOQUEADOS_EQUIPE    = ['produtor', 'roupa', 'vestuario', 'vestuário'];
 
   const carregarTipo = async (tipo, setter) => {
     setLoadingOpcoes(true);
