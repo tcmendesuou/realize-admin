@@ -242,6 +242,8 @@ export default function FinanceiroManager() {
   // Marcar fornecedor pago — por parcela (supplierId + índice da parcela)
   const marcarFornecedorPagoParcela = async (idxsItens, parcelaIdx) => {
     // idxsItens = array de índices dos itens do grupo no array pagamentosFornecedores
+    console.log('marcarFornecedorPagoParcela chamado', { idxsItens, parcelaIdx });
+    console.log('pagamentosFornecedores:', JSON.stringify(selected.financeiro?.pagamentosFornecedores));
     const fin = selected.financeiro;
     const totalParcelas = fin.parcelas?.length || 1;
     const novos = fin.pagamentosFornecedores.map((p, i) => {
