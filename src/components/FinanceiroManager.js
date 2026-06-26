@@ -240,13 +240,12 @@ export default function FinanceiroManager() {
   };
 
   // Marcar fornecedor pago — por parcela (supplierId + índice da parcela)
-  const marcarFornecedorPagoParcela = async (suppKey, parcelaIdx) => {
+  const marcarFornecedorPagoParcela = async (idxsItens, parcelaIdx) => {
+    // idxsItens = array de índices dos itens do grupo no array pagamentosFornecedores
     const fin = selected.financeiro;
     const totalParcelas = fin.parcelas?.length || 1;
-    const novos = fin.pagamentosFornecedores.map(p => {
-      // Filtra pelo supplierId ou supplierName — qualquer que bata com suppKey
-      const pertenceAoGrupo = (p.supplierId && p.supplierId === suppKey) || (p.supplierName && p.supplierName === suppKey);
-      if (!pertenceAoGrupo) return p;
+    const novos = fin.pagamentosFornecedores.map((p, i) => {
+      if (!idxsItens.includes(i)) return p;
       const parcelasPagas = p.parcelasPagas || [];
       if (parcelasPagas.includes(parcelaIdx)) return p;
       const novasParc = [...parcelasPagas, parcelaIdx];
@@ -592,7 +591,7 @@ export default function FinanceiroManager() {
                               <div>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Previsão de Repasse</div>
                                 {parcelasForn.map((p, i) => {
-                                  const suppKey = grupo.supplierId || grupo.supplierName;
+                                  const idxsItens = grupo.itens.map(item => item.idx);
                                   const notaRecebidaParcela = grupo.itens.some(item => (item.notasRecebidas || []).includes(i));
                                   return (
                                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
@@ -613,12 +612,12 @@ export default function FinanceiroManager() {
                                         {notaRecebidaParcela ? (
                                           <span style={{ fontSize: 10, color: '#667eea', fontWeight: 600 }}>✓ Nota OK</span>
                                         ) : (
-                                          <button onClick={() => marcarNotaFornParcelaRecebida(suppKey, i)}
+                                          <button onClick={() => marcarNotaFornParcelaRecebida(grupo.supplierId || grupo.supplierName, i)}
                                             style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 10, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                                             Nota recebida
                                           </button>
                                         )}
-                                        <button onClick={() => marcarFornecedorPagoParcela(suppKey, i)}
+                                        <button onClick={() => marcarFornecedorPagoParcela(idxsItens, i)}
                                           style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.35)', background: 'rgba(255,167,38,0.06)', color: '#FFA726', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                                           Marcar pago
                                         </button>
