@@ -877,15 +877,14 @@ export default function ClienteChat({ userData, onClose, tenant }) {
             const snap = await getDocs(collection(db, 'services'));
             const norm = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => {
-              const n = norm(s.name) + ' ' + norm(s.description);
-              return n.includes('vestuario') || n.includes('roupa') || n.includes('uniforme') || n.includes('recepcionist');
+              const n = norm(s.name);
+              return (n.includes('vestuario') || n.includes('roupa') || n.includes('uniforme')) && !n.includes('recepcionist');
             });
             // Busca opções de cada serviço de vestuário
             const comOpcoes = await Promise.all(vestuarios.map(async v => {
               const opSnap = await getDocs(collection(db, 'services', v.id, 'opcoes'));
               return { ...v, serviceName: v.name, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
             }));
-            console.log('vestuarios encontrados:', vestuarios.map(v => v.name));
             setListaVestuario(comOpcoes.filter(v => v.opcoes.length > 0));
             ir('vestuario_recepcao');
           } catch(e) { console.error(e); ir('gastro_pergunta'); }
@@ -905,7 +904,7 @@ export default function ClienteChat({ userData, onClose, tenant }) {
             <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 12 }}>Carregando opções...</div>
           ) : opcoes.map(op => (
             <OpcaoBtn key={op.id} onClick={() => { set('vestuarioRecepcao', { id: op.id, nome: op.nome, valor: op.valor, unidade: op.unidade, serviceName: op.serviceName }); ir('gastro_pergunta'); }}>
-              {op.nome}{op.valor ? ` — R$ ${Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+              {op.nome}
             </OpcaoBtn>
           ))}
           <OpcaoBtn onClick={() => ir('gastro_pergunta')}>Definir depois</OpcaoBtn>
