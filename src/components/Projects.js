@@ -184,6 +184,9 @@ function Projects() {
       const allSnap = await getDocs(collection(db, 'budgets'));
       const filhos = allSnap.docs.filter(d => d.data().parentBudgetId === project.id);
       await Promise.all(filhos.map(d => deleteDoc(doc(db, 'budgets', d.id))));
+      // Exclui chats vinculados ao budget
+      const chatsSnap = await getDocs(query(collection(db, 'chats'), where('budgetId', '==', project.id)));
+      await Promise.all(chatsSnap.docs.map(d => deleteDoc(doc(db, 'chats', d.id))));
       // Exclui o budget principal
       await deleteDoc(doc(db, 'budgets', project.id));
       await loadProjects();

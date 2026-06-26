@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, getDocs, getDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import FornecedorServicos from './FornecedorServicos';
-import ChatWidget from './ChatWidget';
 import SinoNotificacoes from './SinoNotificacoes';
 
 const STAGES = [
@@ -679,7 +678,6 @@ export default function FornecedorHome({ userData, onLogout }) {
 
       </main>
       {/* Chat flutuante — só visualiza chats existentes, não cria novos */}
-      <ChatWidget userData={userData} budgetIds={jobs.map(j => j.budgetId).filter(Boolean)} somenteVisualizar />
     </div>
   );
 }

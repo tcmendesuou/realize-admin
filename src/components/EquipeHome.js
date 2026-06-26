@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import ChatWidget from './ChatWidget';
 import SinoNotificacoes from './SinoNotificacoes';
 
 const STAGES = [
@@ -151,7 +150,6 @@ export default function EquipeHome({ userData, onLogout }) {
           </div>
         )}
       </main>
-      <ChatWidget userData={userData} budgetIds={jobs.map(j => j.id)} />
     </div>
   );
 }

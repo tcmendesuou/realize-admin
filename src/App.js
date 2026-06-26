@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { auth } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase/config';
 import Login from './pages/Login';
 import Dashboard from './components/Dashboard';
@@ -24,6 +24,7 @@ import FinanceiroManager from './components/FinanceiroManager';
 import TenantManager from './components/TenantManager';
 import TenantAdmin from './components/TenantAdmin';
 import { useTenant } from './hooks/useTenant';
+import ChatWidget from './components/ChatWidget';
 import './App.css';
 
 function ProjetoScreenWrapper({ user, userData, onLogout }) {
@@ -33,6 +34,43 @@ function ProjetoScreenWrapper({ user, userData, onLogout }) {
       projectId={id}
       userData={userData || user}
       onBack={() => window.history.back()}
+    />
+  );
+}
+
+// Componente global do chat — sempre visível, busca budgetIds pelo role
+function ChatWidgetGlobal({ userData, role }) {
+  const [budgetIds, setBudgetIds] = React.useState([]);
+  const userId = userData?.id;
+
+  React.useEffect(() => {
+    if (!userId) return;
+    // Equipe: budgets onde assignedTo === userId
+    // Fornecedor: supplierJobs onde supplierId === userId → extrai budgetIds
+    if (role === 'equipe') {
+      const unsub = onSnapshot(
+        query(collection(db, 'budgets'), where('assignedTo', '==', userId)),
+        snap => setBudgetIds(snap.docs.map(d => d.id))
+      );
+      return () => unsub();
+    }
+    if (role === 'fornecedor') {
+      const unsub = onSnapshot(
+        query(collection(db, 'supplierJobs'), where('supplierId', '==', userId)),
+        snap => {
+          const ids = [...new Set(snap.docs.map(d => d.data().budgetId).filter(Boolean))];
+          setBudgetIds(ids);
+        }
+      );
+      return () => unsub();
+    }
+  }, [userId, role]);
+
+  return (
+    <ChatWidget
+      userData={userData}
+      budgetIds={budgetIds}
+      somenteVisualizar={role === 'fornecedor'}
     />
   );
 }
@@ -118,6 +156,7 @@ function App() {
             <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={firestoreUser} onLogout={handleLogout} />} />
             <Route path="*" element={<EquipeHome userData={firestoreUser} onLogout={handleLogout} />} />
           </Routes>
+          <ChatWidgetGlobal userData={firestoreUser} role="equipe" />
         </Router>
       );
     }
@@ -163,6 +202,7 @@ function App() {
             <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={firestoreUser} onLogout={handleLogout} />} />
             <Route path="*" element={<FornecedorHome userData={firestoreUser} onLogout={handleLogout} />} />
           </Routes>
+          <ChatWidgetGlobal userData={firestoreUser} role="fornecedor" />
         </Router>
       );
     }

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp, setDoc, collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import ChatPanel from './ChatPanel';
 
 export default function FornecedorJobScreen({ job, userData, onBack }) {
   const [budget, setBudget]     = useState(null);
   const [loading, setLoading]   = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed]   = useState(job.status === 'confirmed');
+  const [chatAberto, setChatAberto]   = useState(false);
+  const [chatId, setChatId]           = useState(null);
 
   const supplierId = userData?.supplierId || userData?.id;
   const userName   = userData?.name || userData?.email?.split('@')[0] || 'Fornecedor';
@@ -20,6 +23,21 @@ export default function FornecedorJobScreen({ job, userData, onBack }) {
     });
     return () => unsub();
   }, [job.budgetId]);
+
+  const handleAbrirChat = async () => {
+    const id = `${job.budgetId}_${supplierId}`;
+    await setDoc(doc(db, 'chats', id), {
+      budgetId:   job.budgetId,
+      supplierId,
+      tipo:       'fornecedor',
+      titulo:     job.eventName || 'Proposta',
+      subtitulo:  `${job.numeroPedido || ''} • ${(job.serviceNames || []).join(', ')}`,
+      empresa:    job.supplierName || '',
+      naoLidas:   0,
+    }, { merge: true });
+    setChatId(id);
+    setChatAberto(true);
+  };
 
   const handleConfirmar = async () => {
     if (confirmed) return;
@@ -102,6 +120,10 @@ export default function FornecedorJobScreen({ job, userData, onBack }) {
           <span style={{ color: confirmed ? '#10b981' : '#FFA726', fontWeight: 600 }}>
             {confirmed ? '✓ Disponibilidade confirmada' : '⏳ Aguardando confirmação'}
           </span>
+          <button onClick={handleAbrirChat}
+            style={{ padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(255,167,38,0.4)', background: 'rgba(255,167,38,0.08)', color: '#FFA726', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            💬 Chat com coordenador
+          </button>
         </div>
       </div>
 
@@ -196,6 +218,19 @@ export default function FornecedorJobScreen({ job, userData, onBack }) {
         </div>
 
       </div>
+      {/* Chat flutuante */}
+      {chatAberto && chatId && (
+        <div style={{ position: 'fixed', bottom: 28, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 14, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <ChatPanel
+            chatId={chatId}
+            title={job.eventName || 'Proposta'}
+            subtitle={(job.serviceNames || []).join(', ')}
+            accentColor="#FFA726"
+            userData={userData}
+            onClose={() => setChatAberto(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
