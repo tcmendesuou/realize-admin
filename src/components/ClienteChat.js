@@ -876,10 +876,10 @@ export default function ClienteChat({ userData, onClose, tenant }) {
             // Busca no catálogo admin (services) — sem filtrar por tipo para não perder nada
             const snap = await getDocs(collection(db, 'services'));
             const norm = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            // Pega só o serviço "Vestuário" (pai) — nome exato ou variações
+            // Pega o sub-serviço "Roupa Recepcionista" (filho de Vestuário)
             const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => {
               const n = norm(s.name);
-              return n === 'vestuario' || n === 'vestuarios' || n === 'roupa' || n === 'uniforme';
+              return n.includes('roupa') && n.includes('recepcionist');
             });
             // Busca opções de cada serviço de vestuário
             const comOpcoes = await Promise.all(vestuarios.map(async v => {
