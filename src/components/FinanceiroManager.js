@@ -242,8 +242,6 @@ export default function FinanceiroManager() {
   // Marcar fornecedor pago — por parcela (supplierId + índice da parcela)
   const marcarFornecedorPagoParcela = async (idxsItens, parcelaIdx) => {
     // idxsItens = array de índices dos itens do grupo no array pagamentosFornecedores
-    console.log('marcarFornecedorPagoParcela chamado', { idxsItens, parcelaIdx });
-    console.log('pagamentosFornecedores:', JSON.stringify(selected.financeiro?.pagamentosFornecedores));
     const fin = selected.financeiro;
     const totalParcelas = fin.parcelas?.length || 1;
     const novos = fin.pagamentosFornecedores.map((p, i) => {
@@ -252,7 +250,12 @@ export default function FinanceiroManager() {
       if (parcelasPagas.includes(parcelaIdx)) return p;
       const novasParc = [...parcelasPagas, parcelaIdx];
       const pago = novasParc.length >= totalParcelas;
-      return { ...p, parcelasPagas: novasParc, pago, status: pago ? 'pago' : 'parcial', paidAt: pago ? new Date().toISOString() : p.paidAt };
+      const item = { ...p, parcelasPagas: novasParc, pago, status: pago ? 'pago' : 'parcial' };
+      if (pago) item.paidAt = new Date().toISOString();
+      else if (p.paidAt) item.paidAt = p.paidAt;
+      // Remove campos undefined que o Firestore não aceita
+      Object.keys(item).forEach(k => { if (item[k] === undefined) delete item[k]; });
+      return item;
     });
     await updateDoc(doc(db, 'budgets', selected.id), { 'financeiro.pagamentosFornecedores': novos });
     setSelected(prev => ({ ...prev, financeiro: { ...prev.financeiro, pagamentosFornecedores: novos } }));
