@@ -16,7 +16,7 @@ const STEP_ETAPA = {
   evento_empresa: 1, evento_tipo: 1, evento_nome: 1, evento_data_inicio: 1,
   evento_data_fim: 1, evento_horario: 1, evento_local: 1, evento_visitantes: 1,
   produtor_pergunta: 2, estrutura_pergunta: 2, estrutura_selecao: 2, estrutura_opcoes: 2,
-  equipe_pergunta: 2, equipe_selecao: 2, equipe_opcoes: 2, equipe_detalhes: 2,
+  equipe_pergunta: 2, equipe_selecao: 2, equipe_opcoes: 2, equipe_detalhes: 2, vestuario_recepcao: 2,
   gastro_pergunta: 2, gastro_selecao: 2, gastro_opcoes: 2,
   servicos_pergunta: 2, servicos_selecao: 2, servicos_opcoes: 2,
   info_extra: 3, pagamento: 4, revisao: 4, sent: 4,
@@ -353,6 +353,7 @@ export default function ClienteChat({ userData, onClose, tenant }) {
   const [historico, setHistorico] = useState([]); // { step, resposta } — para voltar
   const [submitting, setSubmitting] = useState(false);
   const [loadingOpcoes, setLoadingOpcoes] = useState(false);
+  const [listaVestuario, setListaVestuario] = useState([]);
   const [animDir, setAnimDir]   = useState('in'); // 'in' | 'out'
 
   const [dados, setDados] = useState({
@@ -863,8 +864,54 @@ export default function ClienteChat({ userData, onClose, tenant }) {
     );
 
     if (step === 'equipe_detalhes') return (
-      <StepEquipeDetalhes equipe={dados.equipeSelecionada} onConfirm={det => { set('equipeDetalhes', det); ir('gastro_pergunta'); }} />
+      <StepEquipeDetalhes equipe={dados.equipeSelecionada} onConfirm={async det => {
+        set('equipeDetalhes', det);
+        // Verifica se tem recepcionista — busca opções de vestuário
+        const temRecepcao = dados.equipeSelecionada.some(s =>
+          (s.serviceName || '').toLowerCase().includes('recepcion')
+        );
+        if (temRecepcao) {
+          try {
+            const { collection, getDocs, query, where } = await import('firebase/firestore');
+            const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', 'operacao')));
+            const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s =>
+              (s.serviceName || '').toLowerCase().includes('vestuario') ||
+              (s.serviceName || '').toLowerCase().includes('vestuário') ||
+              (s.serviceParentName || '').toLowerCase().includes('vestuario') ||
+              (s.serviceParentName || '').toLowerCase().includes('vestuário') ||
+              (s.serviceName || '').toLowerCase().includes('roupa')
+            );
+            // Busca opções de cada vestuário
+            const comOpcoes = await Promise.all(vestuarios.map(async v => {
+              const opSnap = await getDocs(collection(db, 'supplierServices', v.id, 'opcoes'));
+              return { ...v, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
+            }));
+            setListaVestuario(comOpcoes.filter(v => v.opcoes.length > 0));
+            ir('vestuario_recepcao');
+          } catch(e) { console.error(e); ir('gastro_pergunta'); }
+        } else {
+          ir('gastro_pergunta');
+        }
+      }} />
     );
+
+    // ── VESTUÁRIO RECEPCIONISTA ──────────────────────────────────────────────
+    if (step === 'vestuario_recepcao') {
+      const opcoes = listaVestuario.flatMap(v => v.opcoes.map(op => ({ ...op, serviceName: v.serviceName, serviceParentName: v.serviceParentName })));
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+          <Pergunta>Qual será o **vestuário das recepcionistas**?</Pergunta>
+          {opcoes.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 12 }}>Carregando opções...</div>
+          ) : opcoes.map(op => (
+            <OpcaoBtn key={op.id} onClick={() => { set('vestuarioRecepcao', { id: op.id, nome: op.nome, valor: op.valor, unidade: op.unidade, serviceName: op.serviceName }); ir('gastro_pergunta'); }}>
+              {op.nome}{op.valor ? ` — R$ ${Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+            </OpcaoBtn>
+          ))}
+          <OpcaoBtn onClick={() => ir('gastro_pergunta')}>Definir depois</OpcaoBtn>
+        </div>
+      );
+    }
 
     // ── GASTRONOMIA ──────────────────────────────────────────────────────────
     if (step === 'gastro_pergunta') return (

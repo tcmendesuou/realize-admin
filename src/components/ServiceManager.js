@@ -356,6 +356,7 @@ const UNIDADES = [
   { id: 'evento',  label: 'por evento' },
   { id: 'pessoa',  label: 'por pessoa' },
   { id: 'm2',      label: 'por m²' },
+  { id: 'peca',    label: 'por peça' },
 ];
 
 function SubServiceForm({ parentId, editData, onSave, onCancel }) {
