@@ -100,7 +100,7 @@ export default function EquipeHome({ userData, onLogout }) {
                 <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Workspace</h1>
                 <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Acompanhe todos os jobs em andamento</p>
               </div>
-              <SinoNotificacoes userId={userId} tema="escuro" />
+              <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
             </div>
 
             {loading ? (

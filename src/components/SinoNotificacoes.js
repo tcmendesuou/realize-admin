@@ -18,8 +18,8 @@ function tempoRelativo(ts) {
   return `${Math.floor(diff / 86400)}d`;
 }
 
-export default function SinoNotificacoes({ userId, tema = 'escuro' }) {
-  const { notificacoes, naoLidas, marcarTodasLidas, marcarLida } = useNotificacoes(userId);
+export default function SinoNotificacoes({ userId, tema = 'escuro', userData }) {
+  const { notificacoes, naoLidas, marcarTodasLidas, marcarLida, deletarNotificacao } = useNotificacoes(userId);
   const [aberto, setAberto] = useState(false);
   const ref = useRef(null);
 
@@ -36,6 +36,19 @@ export default function SinoNotificacoes({ userId, tema = 'escuro' }) {
   const corItem     = tema === 'escuro' ? 'rgba(255,255,255,0.03)' : '#fafbff';
   const corTitulo   = tema === 'escuro' ? '#E8F4FF'  : '#1e293b';
   const corMensagem = tema === 'escuro' ? '#7BAFD4'  : '#475569';
+
+  const handleNavegar = (n) => {
+    if (!n.budgetId) return;
+    const role = userData?.systemRole || '';
+    marcarLida(n.id);
+    setAberto(false);
+    if (role === 'equipe' || role === 'workspace' || role === 'fornecedor') {
+      window.location.href = `/projeto/${n.budgetId}`;
+    } else {
+      // cliente/franqueado — dispara evento para o ClienteHome abrir o projeto
+      window.dispatchEvent(new CustomEvent('abrirProjeto', { detail: { budgetId: n.budgetId } }));
+    }
+  };
 
   const abrirFechar = () => {
     setAberto(a => !a);
@@ -100,24 +113,36 @@ export default function SinoNotificacoes({ userId, tema = 'escuro' }) {
           ) : notificacoes.map(n => {
             const cores = TIPO_COR[n.tipo] || TIPO_COR.info;
             return (
-              <div key={n.id} onClick={() => marcarLida(n.id)} style={{
+              <div key={n.id} style={{
                 padding: '12px 16px', borderBottom: `1px solid ${corBorda}`,
                 background: n.lida ? 'transparent' : corItem,
-                cursor: 'default', transition: 'background 0.15s',
+                transition: 'background 0.15s',
                 display: 'flex', gap: 10, alignItems: 'flex-start',
-              }}>
+                cursor: n.budgetId ? 'pointer' : 'default',
+              }}
+              onClick={() => n.budgetId ? handleNavegar(n) : marcarLida(n.id)}
+              onMouseEnter={e => { if (n.budgetId) e.currentTarget.style.background = tema === 'escuro' ? 'rgba(255,255,255,0.05)' : '#f1f5f9'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = n.lida ? 'transparent' : corItem; }}>
                 {/* Dot tipo */}
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.lida ? 'transparent' : cores.dot, flexShrink: 0, marginTop: 5 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                     <div style={{ fontSize: 12, fontWeight: n.lida ? 400 : 600, color: corTitulo, lineHeight: 1.4 }}>{n.titulo}</div>
-                    <div style={{ fontSize: 10, color: corMensagem, flexShrink: 0 }}>{tempoRelativo(n.createdAt)}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <div style={{ fontSize: 10, color: corMensagem }}>{tempoRelativo(n.createdAt)}</div>
+                      <button onClick={e => { e.stopPropagation(); deletarNotificacao(n.id); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(123,175,212,0.35)', fontSize: 13, lineHeight: 1, padding: '0 2px', fontFamily: 'Outfit, sans-serif' }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(123,175,212,0.35)'}>
+                        ✕
+                      </button>
+                    </div>
                   </div>
                   {n.mensagem && (
                     <div style={{ fontSize: 11, color: corMensagem, marginTop: 3, lineHeight: 1.5 }}>{n.mensagem}</div>
                   )}
                   {n.tipo === 'acao' && !n.lida && (
-                    <div style={{ marginTop: 6, fontSize: 10, fontWeight: 600, color: '#FFA726' }}>Acao necessaria</div>
+                    <div style={{ marginTop: 6, fontSize: 10, fontWeight: 600, color: '#FFA726' }}>Acao necessaria →</div>
                   )}
                 </div>
               </div>

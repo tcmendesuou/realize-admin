@@ -36,7 +36,13 @@ export function useNotificacoes(userId) {
 
   const naoLidas = notificacoes.filter(n => !n.lida).length;
 
-  return { notificacoes, naoLidas, marcarTodasLidas, marcarLida };
+  const deletarNotificacao = async (notifId) => {
+    if (!userId) return;
+    const { deleteDoc } = await import('firebase/firestore');
+    await deleteDoc(doc(db, 'notificacoes', userId, 'items', notifId));
+  };
+
+  return { notificacoes, naoLidas, marcarTodasLidas, marcarLida, deletarNotificacao };
 }
 
 // ── Função utilitária para criar notificação (use nos outros componentes) ──────

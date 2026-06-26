@@ -278,7 +278,7 @@ export default function FornecedorHome({ userData, onLogout }) {
             {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
             {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
           </div>
-          <SinoNotificacoes userId={userId} tema="escuro" />
+          <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
         </div>
 
         {activeSection === 'workspace' && (

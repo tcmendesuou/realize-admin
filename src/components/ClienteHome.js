@@ -26,6 +26,21 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
   const [aprovandoTask, setAprovandoTask] = useState(false);
 
   const userId = userData?.uid || userData?.id;
+
+  // Listener para abrir projeto via notificação do sino
+  useEffect(() => {
+    const handler = (e) => {
+      const { budgetId } = e.detail || {};
+      if (!budgetId) return;
+      setEventos(prev => {
+        const ev = prev.find(ev => ev.id === budgetId);
+        if (ev) setSelectedEvent(ev);
+        return prev;
+      });
+    };
+    window.addEventListener('abrirProjeto', handler);
+    return () => window.removeEventListener('abrirProjeto', handler);
+  }, []);
   const userName = userData?.name || userData?.email?.split('@')[0] || 'Cliente';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -231,7 +246,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
             {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
             {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
           </div>
-          <SinoNotificacoes userId={userId} tema="escuro" />
+          <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
         </div>
 
         {activeSection === 'workspace' && (
