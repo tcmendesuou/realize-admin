@@ -66,13 +66,10 @@ function ChatWidgetGlobal({ userData, role }) {
     }
   }, [userId, role]);
 
-  return (
-    <ChatWidget
-      userData={userData}
-      budgetIds={budgetIds}
-      somenteVisualizar={role === 'fornecedor'}
-    />
-  );
+  if (role === 'fornecedor') {
+    return <ChatWidget userData={userData} supplierId={userId} />;
+  }
+  return <ChatWidget userData={userData} budgetIds={budgetIds} />;
 }
 
 function App() {

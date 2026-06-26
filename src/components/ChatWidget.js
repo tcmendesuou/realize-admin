@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, where, orderBy, addDoc, updateDoc, doc, 
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
 
-export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
+export default function ChatWidget({ userData, budgetIds, somenteVisualizar, supplierId: supplierIdProp }) {
   const [open, setOpen]               = useState(false);
   const [chats, setChats]             = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -13,9 +13,10 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
 
   // Carrega lista de chats em tempo real
   useEffect(() => {
-    if (!budgetIds?.length && !somenteVisualizar) return;
-    const chatQuery = somenteVisualizar
-      ? query(collection(db, 'chats'), where('supplierId', '==', userData?.id))
+    const sid = supplierIdProp || (somenteVisualizar ? userData?.id : null);
+    if (!budgetIds?.length && !sid) return;
+    const chatQuery = sid
+      ? query(collection(db, 'chats'), where('supplierId', '==', sid))
       : query(collection(db, 'chats'), where('budgetId', 'in', budgetIds.slice(0, 10)));
 
     const unsub = onSnapshot(chatQuery, snap => {
@@ -33,7 +34,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar }) {
       setTotalNaoLidas(total);
     });
     return () => unsub();
-  }, [budgetIds?.join(','), somenteVisualizar, userData?.id]);
+  }, [budgetIds?.join(','), somenteVisualizar, userData?.id, supplierIdProp]);
 
   // Reseta título ao abrir
   useEffect(() => {
