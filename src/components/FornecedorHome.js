@@ -256,6 +256,7 @@ export default function FornecedorHome({ userData, onLogout }) {
           <button className={`fn-nav-item ${activeSection === 'projetos' ? 'active' : ''}`} onClick={() => setActiveSection('projetos')}>Meus Projetos</button>
           <button className={`fn-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
           <button className={`fn-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>
+          <button className={`fn-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>
         </nav>
         <div className="fn-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -672,6 +673,77 @@ export default function FornecedorHome({ userData, onLogout }) {
                   </div>
                 );
               })}
+            </div>
+          );
+        })()}
+
+        {activeSection === 'historico' && (() => {
+          const fmtData = str => { if (!str) return '—'; const [y,m,d] = str.split('-'); return `${d}/${m}/${y}`; };
+          const fmtBRL = v => (v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+          const historico = jobs.filter(j =>
+            j.status === 'completed' ||
+            j.workspaceStage === 'Concluido' ||
+            j.workspaceStage === 'Finalizado'
+          ).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+          return (
+            <div>
+              <div style={{ marginBottom: 24 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Histórico</h1>
+                <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Projetos concluídos e finalizados</p>
+              </div>
+              {historico.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(123,175,212,0.35)', fontSize: 14 }}>
+                  Nenhum projeto concluído ainda
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {historico.map(job => {
+                    const finalizado = job.workspaceStage === 'Finalizado';
+                    return (
+                      <div key={job.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(0,180,255,0.08)', borderRadius: 12, padding: '18px 20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 15, fontWeight: 500, color: '#E8F4FF' }}>{job.eventName || job.eventTypeName || 'Evento'}</div>
+                            <div style={{ fontSize: 12, color: '#7BAFD4', marginTop: 2 }}>{job.clientName || job.companyName || ''}</div>
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
+                            background: finalizado ? 'rgba(0,229,196,0.1)' : 'rgba(102,126,234,0.1)',
+                            color: finalizado ? '#00E5C4' : '#667eea',
+                            border: `1px solid ${finalizado ? 'rgba(0,229,196,0.2)' : 'rgba(102,126,234,0.2)'}` }}>
+                            {finalizado ? '✓ Finalizado' : 'Concluído'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                          {job.numeroPedido && (
+                            <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>
+                              <span style={{ color: 'rgba(123,175,212,0.4)', marginRight: 4 }}>Pedido</span>{job.numeroPedido}
+                            </div>
+                          )}
+                          {(job.eventDate || job.startDate) && (
+                            <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>
+                              <span style={{ color: 'rgba(123,175,212,0.4)', marginRight: 4 }}>Data</span>{fmtData(job.eventDate || job.startDate)}
+                            </div>
+                          )}
+                          {job.eventTypeName && (
+                            <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>
+                              <span style={{ color: 'rgba(123,175,212,0.4)', marginRight: 4 }}>Tipo</span>{job.eventTypeName}
+                            </div>
+                          )}
+                        </div>
+                        {/* Serviços */}
+                        {(job.serviceNames || job.serviceName) && (
+                          <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {(job.serviceNames || [job.serviceName]).map((s, i) => (
+                              <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(0,229,196,0.06)', color: '#00E5C4', border: '1px solid rgba(0,229,196,0.15)' }}>{s}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })()}
