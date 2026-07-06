@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { auth } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase/config';
 import Login from './pages/Login';
 import Dashboard from './components/Dashboard';
@@ -79,6 +79,8 @@ function App() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
+  const [checkingTenantRedirect, setCheckingTenantRedirect] = useState(false);
+  const [tenantRedirectFailed, setTenantRedirectFailed] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('firestoreUser');
@@ -96,6 +98,33 @@ function App() {
     });
     return () => { unsubscribe(); window.removeEventListener('firestoreLogin', onFirestoreLogin); };
   }, []);
+
+  // Trava de seguranca: tenant_admin so pode operar no subdominio correto
+  // (ex: ford.realizehub.com.br). Se estiver em qualquer outro dominio/subdominio,
+  // redireciona automaticamente para o subdominio certo do seu tenant.
+  useEffect(() => {
+    const checkTenantRedirect = async () => {
+      if (firestoreUser?.systemRole === 'tenant_admin' && firestoreUser?.tenantId) {
+        const tenantOk = tenant && tenant.id === firestoreUser.tenantId;
+        if (!tenantOk) {
+          setCheckingTenantRedirect(true);
+          try {
+            const tenantSnap = await getDoc(doc(db, 'tenants', firestoreUser.tenantId));
+            if (tenantSnap.exists() && tenantSnap.data().slug) {
+              window.location.href = `https://${tenantSnap.data().slug}.realizehub.com.br`;
+              return;
+            }
+            setTenantRedirectFailed(true);
+          } catch (e) {
+            console.error('Erro ao verificar tenant para redirecionamento:', e);
+            setTenantRedirectFailed(true);
+          }
+          setCheckingTenantRedirect(false);
+        }
+      }
+    };
+    if (!tenantLoading && firestoreUser) checkTenantRedirect();
+  }, [firestoreUser, tenant, tenantLoading]);
 
   const loadAdminData = async (email) => {
     try {
@@ -164,15 +193,31 @@ function App() {
       return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenantEfetivo} />;
     }
     if (systemRole === 'tenant_admin') {
-      // Se tenant não detectado pelo subdomínio, busca pelo tenantId do usuário
-      const tenantEfetivo = tenant || (firestoreUser.tenantId ? { id: firestoreUser.tenantId } : null);
-      if (!tenantEfetivo) return (
-        <div className="loading-container">
-          <p style={{ color: '#e74c3c', fontFamily: 'Outfit, sans-serif' }}>Tenant não encontrado. Acesse pelo subdomínio correto.</p>
-          <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Sair</button>
-        </div>
-      );
-      return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenantEfetivo} />;
+      // Trava: so renderiza o painel Ford se o tenant foi detectado pelo
+      // subdominio correto (ex: ford.realizehub.com.br) e bate com o
+      // tenantId do usuario. Sem fallback por ID — fora do subdominio certo
+      // o usuario e redirecionado automaticamente (ver useEffect acima).
+      const tenantOk = tenant && tenant.id === firestoreUser.tenantId;
+
+      if (!tenantOk) {
+        if (tenantRedirectFailed) {
+          return (
+            <div className="loading-container">
+              <p style={{ color: '#e74c3c', fontFamily: 'Outfit, sans-serif' }}>Não foi possível localizar o subdomínio da sua empresa. Contate o administrador.</p>
+              <button onClick={handleLogout} style={{ marginTop: 16, color: '#7BAFD4', background: 'none', border: '1px solid #7BAFD4', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Sair</button>
+            </div>
+          );
+        }
+        return (
+          <div className="loading-container">
+            <div className="spinner"></div>
+            <p style={{ color: '#7BAFD4', fontFamily: 'Outfit, sans-serif', marginTop: 12 }}>
+              {checkingTenantRedirect ? 'Redirecionando para o painel correto...' : 'Verificando acesso...'}
+            </p>
+          </div>
+        );
+      }
+      return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
     }
 
     if (systemRole === 'fornecedor_pendente') {
