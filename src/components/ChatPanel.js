@@ -7,6 +7,11 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
+  // Cada lado tem seu proprio contador de nao lidas, senao quem manda
+  // tambem via a bolinha vermelha (era um campo unico compartilhado).
+  const souFornecedor = userData?.systemRole === 'fornecedor';
+  const meuCampoNaoLidas = souFornecedor ? 'naoLidasFornecedor' : 'naoLidasCoordenador';
+  const campoNaoLidasDoOutro = souFornecedor ? 'naoLidasCoordenador' : 'naoLidasFornecedor';
 
   useEffect(() => {
     if (!chatId) return;
@@ -26,7 +31,7 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
           naoLidasDoOutro.forEach(d => {
             updateDoc(doc(db, 'chats', chatId, 'msgs', d.id), { read: true }).catch(() => {});
           });
-          updateDoc(doc(db, 'chats', chatId), { naoLidas: increment(-naoLidasDoOutro.length) }).catch(() => {});
+          updateDoc(doc(db, 'chats', chatId), { [meuCampoNaoLidas]: increment(-naoLidasDoOutro.length) }).catch(() => {});
         }
       }
     );
@@ -51,9 +56,9 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
         createdAt:  serverTimestamp(),
         read:       false,
       });
-      // Incrementa naoLidas no documento do chat
+      // Incrementa naoLidas apenas do lado de quem vai RECEBER a mensagem
       await updateDoc(doc(db, 'chats', chatId), {
-        naoLidas:  increment(1),
+        [campoNaoLidasDoOutro]: increment(1),
         ultimaMsg: text.slice(0, 60),
       });
     } catch (e) { console.error(e); }

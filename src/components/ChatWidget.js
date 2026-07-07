@@ -10,6 +10,10 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
   const [activeChat, setActiveChat]   = useState(null);
   const [totalNaoLidas, setTotalNaoLidas] = useState(0);
   const prevTotalRef = useRef(0);
+  // Define de qual lado este widget esta sendo usado, ja que agora o contador
+  // de nao lidas e separado por lado (coordenador x fornecedor).
+  const isFornecedorView = !!(supplierIdProp || (somenteVisualizar && userData?.id));
+  const campoNaoLidas = isFornecedorView ? 'naoLidasFornecedor' : 'naoLidasCoordenador';
 
   // Carrega lista de chats em tempo real
   useEffect(() => {
@@ -23,7 +27,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
       const cs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.ultimaMsgAt?.seconds || 0) - (a.ultimaMsgAt?.seconds || 0));
       setChats(cs);
-      const total = cs.reduce((acc, c) => acc + Math.max(0, c.naoLidas || 0), 0);
+      const total = cs.reduce((acc, c) => acc + Math.max(0, c[campoNaoLidas] || 0), 0);
       // Notificação sonora/visual quando chega mensagem nova e o chat está fechado
       if (total > prevTotalRef.current && !open) {
         document.title = `(${total}) realizehub`;
@@ -34,7 +38,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
       setTotalNaoLidas(total);
     });
     return () => unsub();
-  }, [budgetIds?.join(','), somenteVisualizar, userData?.id, supplierIdProp]);
+  }, [budgetIds?.join(','), somenteVisualizar, userData?.id, supplierIdProp, campoNaoLidas]);
 
   // Reseta título ao abrir
   useEffect(() => {
@@ -141,9 +145,9 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{c.titulo}</div>
-                        {(c.naoLidas || 0) > 0 && (
+                        {(c[campoNaoLidas] || 0) > 0 && (
                           <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#ef4444', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
-                            {c.naoLidas > 9 ? '9+' : c.naoLidas}
+                            {c[campoNaoLidas] > 9 ? '9+' : c[campoNaoLidas]}
                           </span>
                         )}
                       </div>
