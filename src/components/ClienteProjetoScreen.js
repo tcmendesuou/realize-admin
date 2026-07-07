@@ -256,7 +256,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         }
         etapasCronograma.push({
           id: `exec_${sj.id}`,
-          nome: `Execução — ${sj.serviceName}`,
+          nome: `Evento — ${sj.serviceName}`,
           descricao: `Execução de ${sj.serviceName} durante o evento`,
           responsavel: sj.supplierName || sj.serviceName || '',
           tipo: 'execucao',
@@ -722,10 +722,12 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                 </div>
               ) : (
                 <div>
-                  {cronograma.map((etapa, i) => (
+                  {cronograma.map((etapa, i) => {
+                    const corFase = { preparo: '#7BAFD4', montagem: '#FFA726', execucao: '#00E5C4' }[etapa.tipo] || etapa.cor || '#00E5C4';
+                    return (
                     <div key={i} className="cps-crono-item">
                       <div style={{ paddingTop: 4 }}>
-                        <div className="cps-crono-dot" style={{ background: etapa.cor || '#00E5C4' }} />
+                        <div className="cps-crono-dot" style={{ background: corFase }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 3 }}>{etapa.nome || etapa.etapa}</div>
@@ -747,7 +749,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
             </div>

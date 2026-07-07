@@ -1431,6 +1431,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             const COR_ATRASADO  = '#ef4444';  // vermelho
             const COR_CONCLUIDO = '#94a3b8';  // cinza
             const TIPO_COR = { administrativo: '#7BAFD4', estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A' };
+            // Cor por fase da etapa (preparo/montagem/execucao) — cada etapa já
+            // vem com sua fase própria, então usa essa cor antes de cair no
+            // mapeamento por categoria de serviço (etapas antigas/administrativas).
+            const COR_FASE = { preparo: COR_PREPARO, montagem: COR_MONTAGEM, execucao: COR_EXECUCAO };
             const hoje = new Date(); hoje.setHours(0,0,0,0);
             const toDate = s => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(y, m-1, d); };
             const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
@@ -1489,7 +1493,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     {[
                       [COR_PREPARO,   'Preparo'],
                       [COR_MONTAGEM,  'Montagem'],
-                      [COR_EXECUCAO,  'Execução'],
+                      [COR_EXECUCAO,  'Evento'],
                       [COR_ATRASADO,  'Atrasado'],
                       [COR_CONCLUIDO, 'Concluído'],
                     ].map(([cor, label]) => (
@@ -1520,7 +1524,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     {etapasOrdenadas.map((etapa, i) => {
                       const di  = toDate(etapa.dataInicio || etapa.di);
                       const de  = toDate(etapa.dataEntrega || etapa.de);
-                      const cor = TIPO_COR[etapa.tipo] || '#7BAFD4';
+                      const cor = COR_FASE[etapa.tipo] || TIPO_COR[etapa.tipo] || '#7BAFD4';
                       const atrasado = de && de < hoje && etapa.status !== 'concluido';
                       const concluido = etapa.status === 'concluido';
                       const left  = posLeft(di);
@@ -1530,22 +1534,6 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       );
                       const fornNome = fornecedorNome[etapa.responsavel] || etapa.responsavel;
 
-                      // Busca supplierJob para pegar dias de preparo e montagem
-                      const sjEtapa = supplierJobs.find(j =>
-                        etapa.responsavel?.toLowerCase().includes((j.serviceName||'').toLowerCase()) ||
-                        (j.serviceName||'').toLowerCase().includes((etapa.nome||'').toLowerCase())
-                      );
-                      const dPreparo  = sjEtapa?.diasPreparo  || 0;
-                      const dMontagem = sjEtapa?.diasMontagem || 0;
-                      const totalDiasEtapa = di && de ? Math.max(1, Math.round((de - di) / 86400000)) : 0;
-                      const dExecucao = Math.max(0, totalDiasEtapa - dPreparo - dMontagem);
-
-                      // Calcula largura de cada segmento
-                      const wTotal = posWidth(di, de);
-                      const wPreparo   = totalDiasEtapa > 0 ? (dPreparo / totalDiasEtapa) * wTotal : 0;
-                      const wMontagem  = totalDiasEtapa > 0 ? (dMontagem / totalDiasEtapa) * wTotal : 0;
-                      const wExecucao  = Math.max(0, wTotal - wPreparo - wMontagem);
-                      const temSegmentos = (dPreparo > 0 || dMontagem > 0) && !concluido && !atrasado;
 
                       return (
                         <div key={etapa.id || i} style={{ display: 'flex', alignItems: 'center', height: ROW_H, borderBottom: '1px solid #f8faff', background: i % 2 === 0 ? 'white' : '#fafbff' }}>
@@ -1565,35 +1553,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {hojePos >= 0 && hojePos <= 100 && (
                               <div style={{ position: 'absolute', left: `${hojePos}%`, top: 0, bottom: 0, width: 2, background: '#ef444455', zIndex: 2 }} />
                             )}
-                            {/* Barra segmentada ou simples */}
+                            {/* Barra da etapa (cor de acordo com a fase) */}
                             {di && de && (
-                              temSegmentos ? (
-                                // Barra com 3 segmentos: Preparo | Montagem | Execução
-                                <div style={{ position: 'absolute', left: `${left}%`, width: `${wTotal}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, display: 'flex', overflow: 'hidden', zIndex: 1, minWidth: 6 }}
-                                  title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)} | Preparo: ${dPreparo}d | Montagem: ${dMontagem}d | Execução: ${dExecucao}d`}>
-                                  {wPreparo > 0 && (
-                                    <div style={{ width: `${(wPreparo/wTotal)*100}%`, background: COR_PREPARO, borderRight: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 2 }}>
-                                      {wPreparo/wTotal > 0.15 && <span style={{ fontSize: 8, color: 'white', fontWeight: 700 }}>{dPreparo}d</span>}
-                                    </div>
-                                  )}
-                                  {wMontagem > 0 && (
-                                    <div style={{ width: `${(wMontagem/wTotal)*100}%`, background: COR_MONTAGEM, borderRight: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 2 }}>
-                                      {wMontagem/wTotal > 0.15 && <span style={{ fontSize: 8, color: 'white', fontWeight: 700 }}>{dMontagem}d</span>}
-                                    </div>
-                                  )}
-                                  {wExecucao > 0 && (
-                                    <div style={{ width: `${(wExecucao/wTotal)*100}%`, background: COR_EXECUCAO, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 2 }}>
-                                      {wExecucao/wTotal > 0.15 && <span style={{ fontSize: 8, color: 'white', fontWeight: 700 }}>{dExecucao}d</span>}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                // Barra simples (sem segmentos, concluída ou atrasada)
-                                <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: atrasado ? `${COR_ATRASADO}cc` : concluido ? `${COR_CONCLUIDO}88` : `${cor}cc`, border: `1px solid ${atrasado ? COR_ATRASADO : concluido ? COR_CONCLUIDO : cor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
-                                  title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)}`}>
-                                  {width > 8 && <span style={{ fontSize: 9, color: 'white', fontWeight: 600, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtShort(etapa.dataEntrega||etapa.de)}</span>}
-                                </div>
-                              )
+                              <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: '50%', transform: 'translateY(-50%)', height: 20, borderRadius: 4, background: atrasado ? `${COR_ATRASADO}cc` : concluido ? `${COR_CONCLUIDO}88` : `${cor}cc`, border: `1px solid ${atrasado ? COR_ATRASADO : concluido ? COR_CONCLUIDO : cor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 1, minWidth: 4 }}
+                                title={`${etapa.nome}: ${fmtShort(etapa.dataInicio||etapa.di)} → ${fmtShort(etapa.dataEntrega||etapa.de)}`}>
+                                {width > 8 && <span style={{ fontSize: 9, color: 'white', fontWeight: 600, whiteSpace: 'nowrap', paddingLeft: 4 }}>{fmtShort(etapa.dataEntrega||etapa.de)}</span>}
+                              </div>
                             )}
                             {atrasado && (
                               <div style={{ position: 'absolute', left: `${left + width + 0.5}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>⚠</div>
@@ -1609,7 +1574,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 <div style={{ padding: '0 24px 20px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', margin: '16px 0 10px' }}>Detalhes</div>
                   {etapasOrdenadas.map((etapa, i) => {
-                    const cor = TIPO_COR[etapa.tipo] || '#7BAFD4';
+                    const cor = COR_FASE[etapa.tipo] || TIPO_COR[etapa.tipo] || '#7BAFD4';
                     const di  = toDate(etapa.dataInicio || etapa.di);
                     const de  = toDate(etapa.dataEntrega || etapa.de);
                     const atrasado = de && de < hoje && etapa.status !== 'concluido';
