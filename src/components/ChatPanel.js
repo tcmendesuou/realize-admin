@@ -7,44 +7,26 @@ export default function ChatPanel({ chatId, title, subtitle, accentColor, userDa
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
-  const prevMsgCount = useRef(0);
 
   useEffect(() => {
     if (!chatId) return;
-
-    // Zera naoLidas quando abre o chat (com pequeno delay para não competir com increment)
-    setTimeout(() => {
-      updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
-    }, 500);
 
     const unsub = onSnapshot(
       query(collection(db, 'chats', chatId, 'msgs'), orderBy('createdAt', 'asc')),
       snap => {
         const ms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // Incrementa naoLidas para mensagens novas de outros usuários
-        const novasMsgs = snap.docChanges().filter(change => 
-          change.type === 'added' && 
-          change.doc.data().senderId !== userData?.id &&
-          !change.doc.data().read
-        );
-        if (novasMsgs.length > 0 && prevMsgCount.current > 0) {
-          // Só incrementa se o chat não está aberto (se está aberto, marca como lida)
-          novasMsgs.forEach(change => {
-            updateDoc(doc(db, 'chats', chatId, 'msgs', change.doc.id), { read: true }).catch(() => {});
-          });
-        }
-        prevMsgCount.current = ms.length;
-
         setMsgs(ms);
 
-        // Marca mensagens não lidas como lidas e zera contador
+        // Marca como lidas as mensagens do outro usuário e desconta exatamente
+        // essa quantidade do contador (increment negativo). Usar um valor
+        // relativo em vez de "setar 0" evita perder/sobrescrever um
+        // increment(1) do remetente que chegue ao mesmo tempo (race condition).
         const naoLidasDoOutro = snap.docs.filter(d => !d.data().read && d.data().senderId !== userData?.id);
         if (naoLidasDoOutro.length > 0) {
           naoLidasDoOutro.forEach(d => {
             updateDoc(doc(db, 'chats', chatId, 'msgs', d.id), { read: true }).catch(() => {});
           });
-          updateDoc(doc(db, 'chats', chatId), { naoLidas: 0 }).catch(() => {});
+          updateDoc(doc(db, 'chats', chatId), { naoLidas: increment(-naoLidasDoOutro.length) }).catch(() => {});
         }
       }
     );

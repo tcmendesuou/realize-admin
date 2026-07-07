@@ -23,7 +23,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
       const cs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.ultimaMsgAt?.seconds || 0) - (a.ultimaMsgAt?.seconds || 0));
       setChats(cs);
-      const total = cs.reduce((acc, c) => acc + (c.naoLidas || 0), 0);
+      const total = cs.reduce((acc, c) => acc + Math.max(0, c.naoLidas || 0), 0);
       // Notificação sonora/visual quando chega mensagem nova e o chat está fechado
       if (total > prevTotalRef.current && !open) {
         document.title = `(${total}) realizehub`;
