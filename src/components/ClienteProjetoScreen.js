@@ -146,7 +146,6 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         where('status', '==', 'confirmed')
       ));
       const sjs = sjSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const cronograma = project.cronograma?.etapas || [];
 
       // Calcula diasEvento corretamente pelas datas
       const calcDias = () => {
@@ -156,14 +155,18 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         return project.briefingData?.evento?.diasDuracao || 1;
       };
       const diasEvento = calcDias();
+      const dataInicioEvento = project.briefingData?.evento?.dataInicio || project.startDate || '';
+      const dataFimEvento    = project.briefingData?.evento?.dataFim    || project.endDate    || dataInicioEvento;
+      const addDias = (dataStr, dias) => {
+        if (!dataStr) return '';
+        const d = new Date(dataStr + 'T12:00:00');
+        d.setDate(d.getDate() + dias);
+        return d.toISOString().split('T')[0];
+      };
+      const etapasCronograma = [];
 
       await Promise.all(sjs.map(async sj => {
         await updateDoc(doc(db, 'supplierJobs', sj.id), { stage: 'aguardando', updatedAt: serverTimestamp() });
-
-        const etapa = cronograma.find(e =>
-          (e.nome||'').toLowerCase().includes((sj.serviceName||'').toLowerCase()) ||
-          (sj.serviceName||'').toLowerCase().includes((e.nome||'').toLowerCase())
-        );
 
         // Busca preAprovacao e aprovacaoExecucao — tenta por opcaoCatalogoId primeiro, depois por nome
         let preAprovacao = false, aprovacaoExecucao = false;
@@ -218,6 +221,50 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                        : unidade.includes('pessoa') ? preco * visitantes * diasServ
                        : preco;
 
+        // Prazos reais desse fornecedor (usados tanto na task quanto no cronograma)
+        const diasMontagemSj = parseFloat(sj.diasMontagem) || 0;
+        const diasPreparoSj  = parseFloat(sj.diasPreparo)  || 0;
+        const prazoInicioPreparo = addDias(dataInicioEvento, -(diasPreparoSj + diasMontagemSj));
+        const prazoFimPreparo    = addDias(dataInicioEvento, -diasMontagemSj);
+
+        // Monta as etapas reais do cronograma pra esse fornecedor, com base
+        // nos prazos que ele mesmo informou (diasPreparo/diasMontagem), não
+        // mais um cronograma genérico inventado.
+        if (diasPreparoSj > 0) {
+          etapasCronograma.push({
+            id: `prep_${sj.id}`,
+            nome: `Preparação — ${sj.serviceName}`,
+            descricao: `Preparação de ${sj.serviceName}`,
+            responsavel: sj.supplierName || sj.serviceName || '',
+            tipo: 'preparo',
+            status: 'pendente',
+            dataInicio: prazoInicioPreparo,
+            dataEntrega: prazoFimPreparo,
+          });
+        }
+        if (diasMontagemSj > 0) {
+          etapasCronograma.push({
+            id: `mont_${sj.id}`,
+            nome: `Montagem — ${sj.serviceName}`,
+            descricao: `Montagem de ${sj.serviceName}`,
+            responsavel: sj.supplierName || sj.serviceName || '',
+            tipo: 'montagem',
+            status: 'pendente',
+            dataInicio: addDias(dataInicioEvento, -diasMontagemSj),
+            dataEntrega: dataInicioEvento,
+          });
+        }
+        etapasCronograma.push({
+          id: `exec_${sj.id}`,
+          nome: `Execução — ${sj.serviceName}`,
+          descricao: `Execução de ${sj.serviceName} durante o evento`,
+          responsavel: sj.supplierName || sj.serviceName || '',
+          tipo: 'execucao',
+          status: 'pendente',
+          dataInicio: dataInicioEvento,
+          dataEntrega: dataFimEvento,
+        });
+
         const taskBase = {
           budgetId:          project.id,
           supplierJobId:     sj.id,
@@ -229,10 +276,10 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           opcaoCatalogoId:   sj.opcaoCatalogoId || '',
           opcaoNome:         sj.opcaoNome || '',
           nome:              sj.serviceName || '',
-          descricao:         etapa?.descricao || '',
-          dataInicio:        etapa?.dataInicio || etapa?.di || '',
-          dataEntrega:       etapa?.dataEntrega || etapa?.de || '',
-          diasAntes:         etapa?.diasAntes || 0,
+          descricao:         sj.observacoes || '',
+          dataInicio:        preAprovacao ? prazoInicioPreparo : dataInicioEvento,
+          dataEntrega:       preAprovacao ? prazoFimPreparo    : dataFimEvento,
+          diasAntes:         diasPreparoSj + diasMontagemSj,
           diasPreparo:       sj.diasPreparo || 0,
           diasMontagem:      sj.diasMontagem || 0,
           diasEvento,
@@ -258,6 +305,11 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           await addDoc(collection(db, 'tasks'), { ...taskBase, fase: 'execucao', nome: `Execução — ${sj.serviceName}`, status: 'pendente', cor: '#00E5C4' });
         }
       }));
+
+      // Grava o cronograma real, montado a partir dos fornecedores confirmados
+      await updateDoc(doc(db, 'budgets', project.id), {
+        cronograma: { etapas: etapasCronograma, prazoInviavel: false },
+      });
       // Notifica coordenador que cliente aprovou o orçamento
       try {
         if (project.assignedTo) {

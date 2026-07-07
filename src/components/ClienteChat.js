@@ -575,14 +575,10 @@ export default function ClienteChat({ userData, onClose, tenant }) {
         }
       } catch (e) { console.error('Erro supplierJobs:', e); }
 
-      try {
-        const hoje = new Date().toISOString().split('T')[0];
-        const cronRes = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, system: 'Responda APENAS com JSON válido e compacto.', messages: [{ role: 'user', content: `Monte cronograma. Responda APENAS JSON:\nEvento:${bj.evento?.nome||bj.evento?.tipo},data:${bj.evento?.dataInicio},cidade:${bj.evento?.cidade}\nServiços:${(bj.servicosNecessarios||[]).join(',')}\nHoje:${hoje}\nJSON:{"prazoInviavel":false,"etapas":[{"id":"e1","n":"nome","d":"desc","r":"coordenador","di":"YYYY-MM-DD","de":"YYYY-MM-DD","da":30,"s":"pendente","t":"administrativo","atrasado":false}]}` }] }) });
-        const cd = await cronRes.json();
-        const ct = (cd.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-        const cj = JSON.parse(ct.replace(/```json|```/g, '').trim());
-        if (cj?.etapas?.length > 0) await updateDoc(doc(db, 'budgets', budgetRef.id), { cronograma: { etapas: cj.etapas.map(e => ({ id: e.id||e.n, nome: e.n||e.nome, descricao: e.d||'', responsavel: e.r||'coordenador', dataInicio: e.di||'', dataEntrega: e.de||'', diasAntes: e.da??0, dependencias: e.dep||[], status: e.s||'pendente', tipo: e.t||'administrativo' })), prazoInviavel: cj.prazoInviavel||false } });
-      } catch (e) { console.error('Erro cronograma:', e); }
+      // Cronograma não é mais gerado aqui — ele é montado depois, na aprovação
+      // do orçamento (ClienteProjetoScreen.js), com base nos fornecedores
+      // realmente confirmados e nos prazos reais deles (diasPreparo/diasMontagem).
+      // Antes, uma IA "inventava" etapas genéricas nesse ponto, sem dados reais.
 
       try {
         const dr = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system: 'Especialista em eventos. PT-BR. Sem markdown.', messages: [{ role: 'user', content: `Parágrafo curto (max 3 linhas) descrevendo o evento.\nEvento:${bj.evento?.nome||bj.evento?.tipo}\nData:${bj.evento?.dataInicio} a ${bj.evento?.dataFim}\nLocal:${bj.evento?.local||bj.evento?.cidade}\nVisitantes:${bj.evento?.visitantesPorDia}\nServiços:${(bj.servicosNecessarios||[]).join(', ')}` }] }) });
