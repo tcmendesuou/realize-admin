@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 
 const TIPOS = [
   { id: 'estrutura',      label: 'Estrutura',      color: '#0080FF' },
@@ -19,6 +20,7 @@ const OPCAO_VAZIA = {
   opcaoCatalogoId: '', nome: '', caracteristica: '', observacoes: '',
   diasPreparo: '', diasMontagem: '',
   quantidade: '', regiao: 'São Paulo - Capital', ativo: true,
+  fotoUrl: '',
 };
 
 export default function FornecedorServicos({ userData, onServicosAdicionados }) {
@@ -30,6 +32,7 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const [showCascata, setShowCascata] = useState(false);
   const [editando, setEditando]     = useState(null);
   const [saving, setSaving]         = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
 
   // Cascata
   const [selTipo, setSelTipo]           = useState(null);
@@ -138,13 +141,42 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
       diasPreparo: op.diasPreparo || '', diasMontagem: op.diasMontagem || '',
       quantidade: op.quantidade || '',
       regiao: op.regiao || 'São Paulo - Capital', ativo: op.ativo !== false,
+      fotoUrl: op.fotoUrl || '',
     });
     setEditandoOpcaoId(op.id || op._tempId);
     setShowOpcaoForm(true);
   };
 
+  // ── Foto da opção ────────────────────────────────────────────────────────────
+  const handleFotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite selecionar o mesmo arquivo de novo depois
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Selecione um arquivo de imagem.'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('Imagem muito grande. Máximo 5MB.'); return; }
+    setUploadingFoto(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `supplierServices/${supplierId}/${opcaoForm.opcaoCatalogoId || 'opcao'}_${Date.now()}.${ext}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      setO('fotoUrl', url);
+    } catch (err) {
+      console.error('Erro ao enviar foto:', err);
+      alert('Erro ao enviar a foto. Tente novamente.');
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
+  const handleRemoverFoto = () => setO('fotoUrl', '');
+
   const handleExcluirOpcao = async (op) => {
     if (!window.confirm('Excluir esta opção?')) return;
+    if (op.fotoUrl) {
+      try { await deleteObject(storageRef(storage, op.fotoUrl)); } catch (e) { /* foto pode já não existir mais, ignora */ }
+    }
     if (op.id && editando?.id) {
       await deleteDoc(doc(db, 'supplierServices', editando.id, 'opcoes', op.id));
       loadOpcoes(editando.id);
@@ -397,7 +429,8 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
 
                                 {/* Dados operacionais já salvos */}
                                 {jaAtivada && !editandoEsta && (
-                                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
+                                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6, alignItems: 'center' }}>
+                                    {jaAtivada.fotoUrl && <img src={jaAtivada.fotoUrl} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', border: '1px solid rgba(0,180,255,0.2)' }} />}
                                     {jaAtivada.caracteristica && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.6)' }}>✦ {jaAtivada.caracteristica}</span>}
                                     {jaAtivada.diasPreparo > 0 && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>📦 {jaAtivada.diasPreparo}d preparo</span>}
                                     {jaAtivada.diasMontagem > 0 && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)' }}>🔧 {jaAtivada.diasMontagem}d montagem</span>}
@@ -436,14 +469,29 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
                                       </div>
                                     </div>
                                     <div>
+                                      <label style={lbl}>Foto do produto/serviço (opcional)</label>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        {opcaoForm.fotoUrl && (
+                                          <img src={opcaoForm.fotoUrl} alt="Prévia" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(0,180,255,0.2)' }} />
+                                        )}
+                                        <label style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', color: '#7BAFD4', fontSize: 12, cursor: uploadingFoto ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                          {uploadingFoto ? 'Enviando...' : opcaoForm.fotoUrl ? 'Trocar foto' : 'Adicionar foto'}
+                                          <input type="file" accept="image/*" onChange={handleFotoChange} disabled={uploadingFoto} style={{ display: 'none' }} />
+                                        </label>
+                                        {opcaoForm.fotoUrl && !uploadingFoto && (
+                                          <button onClick={handleRemoverFoto} style={{ padding: '7px 12px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Remover</button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div>
                                       <label style={lbl}>Observações</label>
                                       <input value={opcaoForm.observacoes} onChange={e => setO('observacoes', e.target.value)} style={inp} placeholder="Detalhes adicionais..." />
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                                       <button onClick={() => { resetOpcaoForm(); setShowOpcaoForm(false); }}
                                         style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(0,180,255,0.2)', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                                      <button onClick={handleAddOpcao}
-                                        style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                      <button onClick={handleAddOpcao} disabled={uploadingFoto}
+                                        style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: uploadingFoto ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00E5C4,#0080FF)', color: uploadingFoto ? '#7BAFD4' : 'white', fontSize: 12, fontWeight: 600, cursor: uploadingFoto ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                                         {editandoOpcaoId ? 'Atualizar' : 'Confirmar'}
                                       </button>
                                     </div>
