@@ -736,12 +736,34 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                        : unidade.includes('dia')    ? preco * diasServ * qtd
                        : unidade.includes('pessoa') ? preco * visitantes * diasServ
                        : preco; // por evento
+
+        // Busca a foto que o fornecedor cadastrou para essa opção específica
+        // (fica salva em supplierServices/{id}/opcoes/{id}.fotoUrl)
+        let fotoUrl = '';
+        try {
+          if (sj.supplierId && sj.opcaoCatalogoId) {
+            const svcSnap = await getDocs(query(
+              collection(db, 'supplierServices'),
+              where('supplierId', '==', sj.supplierId),
+              where('serviceName', '==', sj.serviceName)
+            ));
+            if (!svcSnap.empty) {
+              const opSnap = await getDocs(query(
+                collection(db, 'supplierServices', svcSnap.docs[0].id, 'opcoes'),
+                where('opcaoCatalogoId', '==', sj.opcaoCatalogoId)
+              ));
+              if (!opSnap.empty) fotoUrl = opSnap.docs[0].data().fotoUrl || '';
+            }
+          }
+        } catch (e) { console.error('Erro ao buscar foto do fornecedor:', e); }
+
         if (preco > 0) {
           totalOrcamento += subtotal;
           itensOrcamento.push({
             supplierName: sj.supplierName || sj.confirmedBy || sj.supplierId,
             serviceName:  sj.serviceName,
             opcaoNome:    sj.opcaoNome || '',
+            fotoUrl,
             preco,
             unidade:      sj.unidade || 'por evento',
             horas, qtd, diasServ,

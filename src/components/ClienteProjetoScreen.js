@@ -553,14 +553,19 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                   <div className="cps-card-title">Orçamento aguardando aprovação</div>
 
                   {(orcamento.itens || []).map((item, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f2f5' }}>
-                      <div>
-                        <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{item.serviceName}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                          {item.supplierName} · {formatBRL(item.preco)} × {item.diasEvento} dia(s)
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #f0f2f5' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                        {item.fotoUrl && (
+                          <img src={item.fotoUrl} alt={item.serviceName} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid #f0f2f5' }} />
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{item.serviceName}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                            {item.supplierName} · {formatBRL(item.preco)} × {item.diasEvento} dia(s)
+                          </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{formatBRL(item.subtotal)}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', flexShrink: 0 }}>{formatBRL(item.subtotal)}</div>
                     </div>
                   ))}
 
