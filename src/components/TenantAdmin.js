@@ -207,38 +207,42 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  return (
  <div style={{ minHeight: '100vh', background: '#f8faff', fontFamily: 'Outfit, sans-serif' }}>
 
- {/* Sidebar */}
- <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: corPrimary, display: 'flex', flexDirection: 'column', zIndex: 100 }}>
- {/* Logo */}
- <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+ {/* Sidebar — mesmo visual do admin principal (App.css: .sidebar, .nav-item, etc.) */}
+ <aside className="sidebar">
+ <div className="sidebar-header">
  {tenant?.logo
- ? <img src={tenant.logo} alt={tenantNome} style={{ height: 36, objectFit: 'contain' }} />
- : <div style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>{tenantNome}</div>}
- <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Admin Portal</div>
+ ? <img src={tenant.logo} alt={tenantNome} style={{ height: 36, objectFit: 'contain', marginBottom: 6 }} />
+ : <h1 className="logo">{tenantNome}</h1>}
+ <p className="logo-subtitle">REALIZEHUB</p>
  </div>
  {/* Nav */}
- <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+ <nav className="sidebar-nav">
  {[
- { id: 'overview', icon: '', label: 'Visão Geral' },
- { id: 'franqueados', icon: '', label: 'Franqueados' },
- { id: 'eventos', icon: '', label: 'Eventos' },
- { id: 'verbas', icon: '', label: 'Verbas' },
+ { id: 'overview', label: 'Visão Geral' },
+ { id: 'franqueados', label: 'Franqueados' },
+ { id: 'eventos', label: 'Eventos' },
+ { id: 'verbas', label: 'Verbas' },
  ].map(item => (
- <button key={item.id} onClick={() => setView(item.id)}
- style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: 'none', background: view === item.id ? 'rgba(255,255,255,0.15)' : 'none', color: 'white', fontSize: 13, fontWeight: view === item.id ? 600 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
- <span>{item.icon}</span>{item.label}
+ <button key={item.id} className={view === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setView(item.id)}>
+ <span className="nav-text">{item.label}</span>
  </button>
  ))}
  </nav>
  {/* Footer */}
- <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
- <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>{userData?.name}</div>
- <button onClick={onLogout} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Sair</button>
+ <div className="sidebar-footer">
+ <div className="user-info">
+ <div className="user-avatar"></div>
+ <div className="user-details">
+ <p className="user-name">{userData?.name}</p>
+ <p className="user-email">{userData?.email}</p>
  </div>
  </div>
+ <button className="logout-btn" onClick={onLogout}>Sair</button>
+ </div>
+ </aside>
 
  {/* Conteúdo */}
- <div style={{ marginLeft: 220, padding: '32px 32px' }}>
+ <div style={{ marginLeft: 230, padding: '32px 32px' }}>
 
  {/* ── VISÃO GERAL ─────────────────────────────────────────────────── */}
  {view === 'overview' && (
