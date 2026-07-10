@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const FORMAS_PAGAMENTO = [
@@ -42,9 +42,10 @@ export default function FinanceiroManager() {
 
   // Carrega config global
   useEffect(() => {
-    getDoc(doc(db, 'config', 'financeiro')).then(snap => {
+    const unsub = onSnapshot(doc(db, 'config', 'financeiro'), snap => {
       if (snap.exists()) { setConfig(snap.data()); setConfigForm(snap.data()); }
     });
+    return () => unsub();
   }, []);
 
   // Carrega budgets
@@ -62,23 +63,27 @@ export default function FinanceiroManager() {
   // Carrega supplierJobs e gera financeiro automaticamente se projeto aprovado sem financeiro
   useEffect(() => {
     if (!selected) return;
-    getDocs(query(collection(db, 'supplierJobs'))).then(async snap => {
-      const jobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => j.budgetId === selected.id && j.status === 'confirmed');
-      setSupplierJobs(jobs);
-      // Gera financeiro automático quando aprovado e sem financeiro
-      if (['approved','completed'].includes(selected.status) && !selected.financeiro?.parcelas?.length) {
-        const finGerado = await gerarFinanceiroAuto(selected, jobs, config);
-        if (finGerado) {
-          setSelected(prev => ({ ...prev, financeiro: finGerado }));
-          setFinForm({
-            impostos:          finGerado.impostos,
-            fee:               finGerado.fee,
-            formaPagamento:    finGerado.formaPagamento,
-            valorFornecedores: finGerado.valorFornecedores,
-          });
+    const unsub = onSnapshot(
+      query(collection(db, 'supplierJobs'), where('budgetId', '==', selected.id), where('status', '==', 'confirmed')),
+      async snap => {
+        const jobs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setSupplierJobs(jobs);
+        // Gera financeiro automático quando aprovado e sem financeiro
+        if (['approved','completed'].includes(selected.status) && !selected.financeiro?.parcelas?.length) {
+          const finGerado = await gerarFinanceiroAuto(selected, jobs, config);
+          if (finGerado) {
+            setSelected(prev => ({ ...prev, financeiro: finGerado }));
+            setFinForm({
+              impostos:          finGerado.impostos,
+              fee:               finGerado.fee,
+              formaPagamento:    finGerado.formaPagamento,
+              valorFornecedores: finGerado.valorFornecedores,
+            });
+          }
         }
       }
-    });
+    );
+    return () => unsub();
   }, [selected?.id]);
 
   const salvarConfig = async () => {
