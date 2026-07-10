@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../firebase/config';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -27,6 +27,15 @@ function Login() {
           if (userData.active === false) {
             setError('Usuario inativo. Entre em contato com o administrador.');
             return;
+          }
+          // Migração automática: esse usuário ainda não tinha conta real no
+          // Firebase Auth (só senha em texto puro no Firestore). Cria a conta
+          // agora, aproveitando que é o próprio usuário se autenticando.
+          try {
+            await createUserWithEmailAndPassword(auth, emailClean, password);
+            await updateDoc(doc(db, 'users', userData.id), { password: null });
+          } catch (migrateErr) {
+            if (migrateErr.code !== 'auth/email-already-in-use') console.warn('Migração de Auth (users) falhou:', migrateErr);
           }
           sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
           window.dispatchEvent(new Event('firestoreLogin'));
@@ -63,6 +72,13 @@ function Login() {
             systemRole: 'fornecedor',
             supplierId: supplier.id,
           };
+          // Migração automática: mesmo esquema do bloco de users acima.
+          try {
+            await createUserWithEmailAndPassword(auth, emailClean, password);
+            await updateDoc(doc(db, 'suppliers', supplier.id), { password: null });
+          } catch (migrateErr) {
+            if (migrateErr.code !== 'auth/email-already-in-use') console.warn('Migração de Auth (suppliers) falhou:', migrateErr);
+          }
           sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
           window.dispatchEvent(new Event('firestoreLogin'));
           return;

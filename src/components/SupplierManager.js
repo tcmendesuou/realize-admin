@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, updateDoc, addDoc, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { auth, db } from '../firebase/config';
 
 const STATUS_CONFIG = {
   pendente:    { label: 'Pendente',    bg: '#fef9c3', color: '#a16207', border: '#fde047' },
@@ -74,10 +76,32 @@ export default function SupplierManager() {
   const handleHomologar = async () => {
     if (!window.confirm(`Homologar ${selected.tradeName || selected.companyName}? Isso criará um acesso de login para o fornecedor.`)) return;
     setSaving(true);
+    // App secundário do Firebase só para criar o Auth do fornecedor — usar o
+    // "auth" principal aqui trocaria a sessão do admin logado (mesmo problema
+    // que já corrigimos na criação de franqueado).
+    const secondaryApp = initializeApp(auth.app.options, `Secondary-${Date.now()}`);
+    const secondaryAuth = getAuth(secondaryApp);
     try {
       // Verifica se já existe usuário com esse email
       const existing = await getDocs(query(collection(db, 'users'), where('email', '==', selected.email)));
       let userId = null;
+      let uid = null;
+
+      // Cria a conta real no Firebase Auth (o fornecedor até então só tinha
+      // a senha em texto puro no Firestore, sem login de verdade nenhum)
+      try {
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, selected.email, selected.password);
+        uid = cred.user.uid;
+      } catch (authErr) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          // Já existe conta de Auth pra esse e-mail (ex: homologado antes desse
+          // fix) — segue sem travar a homologação, só sem uid novo.
+          console.warn('Conta de Auth já existia para', selected.email);
+        } else {
+          throw authErr;
+        }
+      }
+
       if (existing.empty) {
         // Cria usuário em users
         const userRef = await addDoc(collection(db, 'users'), {
@@ -88,22 +112,28 @@ export default function SupplierManager() {
           active: true,
           supplierId: selected.id,
           companyName: selected.tradeName || selected.companyName,
+          uid: uid || null,
           createdAt: new Date(),
         });
         userId = userRef.id;
       } else {
         userId = existing.docs[0].id;
         // Atualiza o systemRole caso esteja diferente
-        await updateDoc(doc(db, 'users', userId), { systemRole: 'fornecedor', active: true, supplierId: selected.id });
+        await updateDoc(doc(db, 'users', userId), { systemRole: 'fornecedor', active: true, supplierId: selected.id, uid: uid || existing.docs[0].data().uid || null });
       }
-      // Atualiza o supplier
-      await updateDoc(doc(db, 'suppliers', selected.id), { status: 'homologado', userId, obs, exclusiveTenants, updatedAt: new Date() });
+      // Atualiza o supplier — remove a senha em texto puro, não é mais necessária
+      await updateDoc(doc(db, 'suppliers', selected.id), { status: 'homologado', userId, obs, exclusiveTenants, updatedAt: new Date(), password: null });
       await updateDoc(doc(db, 'users', userId), { exclusiveTenants, updatedAt: new Date() });
       await loadSuppliers();
       setSelected(prev => prev ? { ...prev, status: 'homologado', userId } : null);
       alert('Fornecedor homologado! Acesso de login criado.');
     } catch (e) { console.error(e); alert('Erro ao homologar.'); }
-    finally { setSaving(false); }
+    finally {
+      // Encerra e descarta o app secundário — a sessão do admin nunca foi tocada
+      try { await signOut(secondaryAuth); } catch (_) {}
+      try { await deleteApp(secondaryApp); } catch (_) {}
+      setSaving(false);
+    }
   };
 
   const handleStatus = async (id, newStatus) => {
