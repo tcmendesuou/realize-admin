@@ -176,6 +176,13 @@ function App() {
   if (firestoreUser) {
     const systemRole = firestoreUser.systemRole || 'none';
 
+    // Dentro do tipo Realize (systemRole workspace/equipe), o cargo
+    // "Financeiro" tem tela própria — os demais cargos (Coordenador, etc.)
+    // continuam indo pro Kanban normal.
+    if ((systemRole === 'workspace' || systemRole === 'equipe') && firestoreUser?.roleName?.toLowerCase() === 'financeiro') {
+      return <FinanceiroHome userData={firestoreUser} onLogout={handleLogout} />;
+    }
+
     if (systemRole === 'workspace' || systemRole === 'equipe') {
       return (
         <Router>
@@ -219,10 +226,6 @@ function App() {
         );
       }
       return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
-    }
-
-    if (systemRole === 'financeiro') {
-      return <FinanceiroHome userData={firestoreUser} onLogout={handleLogout} />;
     }
 
     if (systemRole === 'fornecedor_pendente') {
