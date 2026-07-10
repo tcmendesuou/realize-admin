@@ -3,7 +3,8 @@ import {
  collection, getDocs, addDoc, updateDoc, doc, getDoc, query,
  where, onSnapshot, serverTimestamp, orderBy
 } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -115,9 +116,14 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const handleCriarFranqueado = async () => {
  if (!formFranq.nome || !formFranq.email || !formFranq.senha) { alert('Nome, email e senha obrigatórios'); return; }
  setSavingFranq(true);
+ // Cria um app secundário do Firebase só para este cadastro. Usar o "auth"
+ // principal aqui trocaria a sessão logada para o usuário recém-criado
+ // (comportamento padrão do Firebase Auth) — o app secundário evita isso.
+ const secondaryApp = initializeApp(auth.app.options, `Secondary-${Date.now()}`);
+ const secondaryAuth = getAuth(secondaryApp);
  try {
- // Cria auth
- const cred = await createUserWithEmailAndPassword(auth, formFranq.email, formFranq.senha);
+ // Cria auth (na instância secundária, não afeta a sessão do admin)
+ const cred = await createUserWithEmailAndPassword(secondaryAuth, formFranq.email, formFranq.senha);
  // Cria user no Firestore
  await addDoc(collection(db, 'users'), {
  uid: cred.user.uid,
@@ -139,7 +145,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const snap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
  setFranqueados(snap.docs.map(d => ({ id: d.id, ...d.data() })));
  } catch (e) { console.error(e); alert(`Erro: ${e.message}`); }
- finally { setSavingFranq(false); }
+ finally {
+ // Encerra e descarta o app secundário — a sessão do admin nunca foi tocada
+ try { await signOut(secondaryAuth); } catch (_) {}
+ try { await deleteApp(secondaryApp); } catch (_) {}
+ setSavingFranq(false);
+ }
  };
 
  // ── Salvar verba ─────────────────────────────────────────────────────────────
