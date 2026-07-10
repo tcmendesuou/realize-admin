@@ -23,6 +23,7 @@ import ScriptManager from './components/ScriptManager';
 import FinanceiroManager from './components/FinanceiroManager';
 import TenantManager from './components/TenantManager';
 import TenantAdmin from './components/TenantAdmin';
+import FinanceiroHome from './components/FinanceiroHome';
 import { useTenant } from './hooks/useTenant';
 import ChatWidget from './components/ChatWidget';
 import './App.css';
@@ -218,6 +219,10 @@ function App() {
         );
       }
       return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
+    }
+
+    if (systemRole === 'financeiro') {
+      return <FinanceiroHome userData={firestoreUser} onLogout={handleLogout} />;
     }
 
     if (systemRole === 'fornecedor_pendente') {
