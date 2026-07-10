@@ -8,11 +8,13 @@ export default function UserManagement() {
   const [roles, setRoles]           = useState([]);
   const [suppliers, setSuppliers]   = useState([]);
   const [projects, setProjects]     = useState([]);
+  const [tenants, setTenants]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterTenant, setFilterTenant] = useState('');
 
   const emptyForm = {
     name: '', email: '', phone: '', cpf: '', city: '', state: '', companyName: '',
@@ -28,18 +30,20 @@ export default function UserManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersSnap, typesSnap, rolesSnap, suppliersSnap, budgetsSnap] = await Promise.all([
+      const [usersSnap, typesSnap, rolesSnap, suppliersSnap, budgetsSnap, tenantsSnap] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'userTypes')),
         getDocs(collection(db, 'roles')),
         getDocs(collection(db, 'suppliers')),
         getDocs(collection(db, 'budgets')),
+        getDocs(collection(db, 'tenants')),
       ]);
       setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setUserTypes(typesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order||0)-(b.order||0)));
       setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order||0)-(b.order||0)));
       setSuppliers(suppliersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setProjects(budgetsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => b.status === 'approved'));
+      setTenants(tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error(e);
     } finally {
@@ -154,7 +158,8 @@ export default function UserManagement() {
   const filteredUsers = users.filter(u => {
     const matchSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchType   = !filterType || u.userTypeId === filterType;
-    return matchSearch && matchType;
+    const matchTenant = !filterTenant || (filterTenant === '__sem_tenant__' ? !u.tenantId : u.tenantId === filterTenant);
+    return matchSearch && matchType && matchTenant;
   });
 
   const filteredRoles = roles.filter(r => r.userTypeId === form.userTypeId);
@@ -221,6 +226,13 @@ export default function UserManagement() {
               <option value="">Todos os tipos</option>
               {userTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+            {tenants.length > 0 && (
+              <select value={filterTenant} onChange={e => setFilterTenant(e.target.value)} style={{ ...inp, fontSize: 12, padding: '8px 12px' }}>
+                <option value="">Todos os tenants</option>
+                <option value="__sem_tenant__">Sem tenant (Realize)</option>
+                {tenants.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              </select>
+            )}
           </div>
 
           {/* Lista */}
@@ -246,6 +258,11 @@ export default function UserManagement() {
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{user.email}</div>
                   {user.roleName && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{user.roleName}</div>}
+                  {user.tenantId && (
+                    <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 3, fontWeight: 500 }}>
+                      🏢 {tenants.find(t => t.id === user.tenantId)?.nome || user.tenantId}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: user.active ? '#10b981' : '#ef4444' }} />
                     <span style={{ fontSize: 10, color: user.active ? '#10b981' : '#ef4444' }}>{user.active ? 'Ativo' : 'Inativo'}</span>
