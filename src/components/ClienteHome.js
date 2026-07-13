@@ -37,7 +37,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
     const handler = (e) => {
       const { budgetId } = e.detail || {};
       if (!budgetId) return;
-      setEventos(prev => {
+      setEvents(prev => {
         const ev = prev.find(ev => ev.id === budgetId);
         if (ev) setSelectedEvent(ev);
         return prev;
