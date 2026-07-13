@@ -681,9 +681,8 @@ export default function FornecedorHome({ userData, onLogout }) {
           const fmtData = str => { if (!str) return '—'; const [y,m,d] = str.split('-'); return `${d}/${m}/${y}`; };
           const fmtBRL = v => (v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
           const historico = jobs.filter(j =>
-            j.status === 'completed' ||
-            j.workspaceStage === 'Concluido' ||
-            j.workspaceStage === 'Finalizado'
+            budgetsMap[j.budgetId]?.workspaceStage === 'Concluido' ||
+            budgetsMap[j.budgetId]?.workspaceStage === 'Finalizado'
           ).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
           return (
@@ -699,7 +698,7 @@ export default function FornecedorHome({ userData, onLogout }) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {historico.map(job => {
-                    const finalizado = job.workspaceStage === 'Finalizado';
+                    const finalizado = budgetsMap[job.budgetId]?.workspaceStage === 'Finalizado';
                     return (
                       <div key={job.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(0,180,255,0.08)', borderRadius: 12, padding: '18px 20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
