@@ -25,6 +25,11 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
   const [tasksPendentesAprov, setTasksPendentesAprov] = useState([]);
   const [aprovandoTask, setAprovandoTask] = useState(false);
 
+  // Histórico = eventos já encerrados (concluídos ou cancelados);
+  // Workspace mostra só os que ainda estão em andamento.
+  const eventosHistorico = events.filter(e => e.status === 'completed' || e.status === 'rejected');
+  const eventosAtivos    = events.filter(e => e.status !== 'completed' && e.status !== 'rejected');
+
   const userId = userData?.uid || userData?.id;
 
   // Listener para abrir projeto via notificação do sino
@@ -223,6 +228,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
         <div className="cl-logo">realize<span>hub</span></div>
         <nav className="cl-nav">
           <button className={`cl-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>
+          <button className={`cl-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>
           <button className={`cl-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
         </nav>
         <div className="cl-footer">
@@ -267,7 +273,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
 
             {loading ? (
               <div style={{ textAlign: 'center', padding: 60, color: '#7BAFD4', fontSize: 14 }}>Carregando...</div>
-            ) : events.length === 0 ? (
+            ) : eventosAtivos.length === 0 ? (
               <div style={{ textAlign: 'center', padding: 80 }}>
                 <div style={{ fontSize: 14, color: 'rgba(123,175,212,0.5)', marginBottom: 20 }}>Voce ainda nao tem eventos</div>
                 <button
@@ -278,7 +284,67 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
               </div>
             ) : (
               <div className="cl-events-grid">
-                {events.map(event => {
+                {eventosAtivos.map(event => {
+                  const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
+                  return (
+                    <div key={event.id} className="cl-event-card" onClick={() => setSelectedEvent(event)}
+                      style={{ borderTopColor: st.color }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: st.color, borderRadius: '14px 14px 0 0' }} />
+
+                      {/* Status badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: st.bg, color: st.color, letterSpacing: 0.5 }}>{st.label}</span>
+                        {event.jobCode && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)' }}>{event.jobCode}</span>}
+                      </div>
+
+                      {/* Nome do evento */}
+                      <div style={{ fontSize: 16, fontWeight: 500, color: '#E8F4FF', marginBottom: 6 }}>
+                        {event.eventName || event.eventTypeName || 'Meu Evento'}
+                      </div>
+
+                      {/* Tipo */}
+                      {event.eventTypeName && (
+                        <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 12 }}>{event.eventTypeName}</div>
+                      )}
+
+                      {/* Datas */}
+                      {(event.startDate || event.endDate) && (
+                        <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 12 }}>
+                          {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` ate ${event.endDate}` : ''}
+                        </div>
+                      )}
+
+                      {/* Footer */}
+                      <div style={{ paddingTop: 12, borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)' }}>
+                          {event.createdAt?.toDate ? event.createdAt.toDate().toLocaleDateString('pt-BR') : ''}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#00E5C4' }}>Ver detalhes →</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeSection === 'historico' && (
+          <>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Histórico</h1>
+              <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Eventos concluídos ou cancelados</p>
+            </div>
+
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 60, color: '#7BAFD4', fontSize: 14 }}>Carregando...</div>
+            ) : eventosHistorico.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 80 }}>
+                <div style={{ fontSize: 14, color: 'rgba(123,175,212,0.5)' }}>Nenhum evento no histórico ainda.</div>
+              </div>
+            ) : (
+              <div className="cl-events-grid">
+                {eventosHistorico.map(event => {
                   const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
                   return (
                     <div key={event.id} className="cl-event-card" onClick={() => setSelectedEvent(event)}
