@@ -102,14 +102,9 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
             <div style={{
               padding: '14px 16px',
               borderBottom: '1px solid rgba(0,180,255,0.1)',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>Mensagens</div>
-                <div style={{ fontSize: 10, color: '#7BAFD4', marginTop: 1 }}>{chats.length} conversa{chats.length !== 1 ? 's' : ''}</div>
-              </div>
-              <button onClick={() => setOpen(false)}
-                style={{ background: 'none', border: 'none', color: 'rgba(123,175,212,0.5)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>Mensagens</div>
+              <div style={{ fontSize: 10, color: '#7BAFD4', marginTop: 1 }}>{chats.length} conversa{chats.length !== 1 ? 's' : ''}</div>
             </div>
 
             {/* Lista */}
@@ -171,7 +166,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
                 subtitle={activeChat.subtitulo}
                 accentColor={accentColor}
                 userData={userData}
-                onClose={() => { setActiveChatId(null); setActiveChat(null); }}
+                onClose={() => setOpen(false)}
               />
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', gap: 12 }}>
