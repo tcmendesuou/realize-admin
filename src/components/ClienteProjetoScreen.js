@@ -34,6 +34,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
   const [tasksPendentes, setTasksPendentes]   = useState([]);
   const [aprovandoTask, setAprovandoTask]     = useState(false);
   const [aprovando, setAprovando]             = useState(false);
+  const [fotoAmpliada, setFotoAmpliada]       = useState(null);
 
   // Escuta mudanças no budget em tempo real
   useEffect(() => {
@@ -608,7 +609,8 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #f0f2f5' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                         {item.fotoUrl && (
-                          <img src={item.fotoUrl} alt={item.serviceName} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid #f0f2f5' }} />
+                          <img src={item.fotoUrl} alt={item.serviceName} onClick={() => setFotoAmpliada(item.fotoUrl)}
+                            style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid #f0f2f5', cursor: 'zoom-in' }} />
                         )}
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{item.serviceName}</div>
@@ -822,6 +824,18 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
 
         </div>
       </div>
+
+      {/* Modal de foto ampliada */}
+      {fotoAmpliada && (
+        <div onClick={() => setFotoAmpliada(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <img src={fotoAmpliada} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }} />
+          <button onClick={() => setFotoAmpliada(null)}
+            style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 20, cursor: 'pointer' }}>
+            ✕
+          </button>
+        </div>
+      )}
     </>
   );
 }
