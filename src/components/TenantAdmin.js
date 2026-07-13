@@ -131,6 +131,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  systemRole: 'franqueado',
  tenantId,
  tenantRole: 'franqueado',
+ companyName: tenantNome,
  unidade: formFranq.unidade,
  cidade: formFranq.cidade,
  funcao: formFranq.funcao || '',
