@@ -134,11 +134,11 @@ export default function FornecedorHome({ userData, onLogout }) {
     if (job.status === 'confirmed') acc[bid].status = 'confirmed';
     return acc;
   }, {});
-  const stageMap = { Propostas: 'proposta', Aguardando: 'aguardando', Acontecendo: 'acontecendo', Concluido: 'concluido', Finalizado: 'concluido' };
+  const stageMap = { Propostas: 'proposta', Aguardando: 'aguardando', Acontecendo: 'acontecendo', Concluido: 'concluido' }; // 'Finalizado' fica de fora de propósito — sai do Kanban e vai só pra aba Histórico
   const jobsAgrupadosList = Object.values(jobsAgrupados).map(grupo => ({
     ...grupo,
     stage: stageMap[budgetsMap[grupo.budgetId]?.workspaceStage] || grupo.stage,
-  }));
+  })).filter(grupo => budgetsMap[grupo.budgetId]?.workspaceStage !== 'Finalizado');
   const jobsByStage = (stageId) => jobsAgrupadosList.filter(j => (j.stage || 'proposta') === stageId);
 
   // ── loading inicial ───────────────────────────────────────────────────────
