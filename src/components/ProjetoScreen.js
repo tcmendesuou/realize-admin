@@ -438,10 +438,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         } catch (e) { console.error(e); }
       }
 
-      // Busca supplierJobs do projeto
-      try {
-        const sjAllSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', snap.id)));
-        const allJobs = sjAllSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Carrega tarefas do budget
+      setTasks(data.tasks || []);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [projectId, userData?.id]);
+
+  // supplierJobs em tempo real — antes era um getDocs de "uma vez só" dentro
+  // do onSnapshot do budget, então uma nova proposta (criada direto na
+  // coleção supplierJobs, sem tocar no budget) não aparecia sem dar refresh.
+  useEffect(() => {
+    if (!projectId) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'supplierJobs'), where('budgetId', '==', projectId)),
+      async snap => {
+        const allJobs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Busca nomes dos fornecedores
         const supplierIds = [...new Set(allJobs.map(j => j.supplierId).filter(Boolean))];
@@ -468,12 +480,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           setSupplierJobsMine(mine);
           if (mine.length > 0) setSupplierJob(mine[0]);
         }
-      } catch (e) { console.error(e); }
-
-      // Carrega tarefas do budget
-      setTasks(data.tasks || []);
-      setLoading(false);
-    });
+      },
+      err => console.error('Erro ao ouvir supplierJobs:', err)
+    );
     return () => unsub();
   }, [projectId, userData?.id]);
 
