@@ -169,9 +169,15 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
                 onClose={() => setOpen(false)}
               />
             ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', gap: 12 }}>
-                <div style={{ fontSize: 36 }}>💬</div>
-                <div style={{ fontSize: 13 }}>Selecione uma conversa</div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '14px 16px' }}>
+                  <button onClick={() => setOpen(false)}
+                    style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', gap: 12, marginTop: -48 }}>
+                  <div style={{ fontSize: 36 }}>💬</div>
+                  <div style={{ fontSize: 13 }}>Selecione uma conversa</div>
+                </div>
               </div>
             )}
           </div>
