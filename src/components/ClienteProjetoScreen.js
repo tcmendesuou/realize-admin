@@ -689,12 +689,19 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
 
                     {task.aprovacaoArquivos?.length > 0 && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                        {task.aprovacaoArquivos.map((f, i) => (
-                          <a key={i} href={f.url} target="_blank" rel="noreferrer"
-                            style={{ fontSize: 12, color: '#667eea', textDecoration: 'none', background: 'rgba(102,126,234,0.08)', border: '1px solid rgba(102,126,234,0.2)', padding: '5px 12px', borderRadius: 8 }}>
-                            📎 {f.nome}
-                          </a>
-                        ))}
+                        {task.aprovacaoArquivos.map((f, i) => {
+                          const ehImagem = /\.(png|jpe?g|gif|webp)$/i.test(f.nome || f.url || '');
+                          const estiloChip = { fontSize: 12, color: '#667eea', textDecoration: 'none', background: 'rgba(102,126,234,0.08)', border: '1px solid rgba(102,126,234,0.2)', padding: '5px 12px', borderRadius: 8, cursor: 'pointer' };
+                          return ehImagem ? (
+                            <button key={i} onClick={() => setFotoAmpliada(f.url)} style={{ ...estiloChip, borderStyle: 'solid' }}>
+                              📎 {f.nome}
+                            </button>
+                          ) : (
+                            <a key={i} href={f.url} target="_blank" rel="noreferrer" style={estiloChip}>
+                              📎 {f.nome}
+                            </a>
+                          );
+                        })}
                       </div>
                     )}
 
