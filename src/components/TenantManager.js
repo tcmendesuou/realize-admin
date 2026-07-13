@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 
 const inp = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', color: '#1e293b' };
 const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 };
@@ -19,6 +20,7 @@ export default function TenantManager() {
   const [form, setForm]         = useState(FORM_VAZIO);
   const [saving, setSaving]     = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => { carregar(); }, []);
 
@@ -30,6 +32,31 @@ export default function TenantManager() {
   };
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Selecione um arquivo de imagem.'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('Imagem muito grande. Máximo 5MB.'); return; }
+    if (!form.slug.trim()) { alert('Preencha o slug antes de enviar a logo.'); return; }
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `tenants/${form.slug.trim().toLowerCase()}/logo_${Date.now()}.${ext}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      setF('logo', url);
+    } catch (err) {
+      console.error('Erro ao enviar logo:', err);
+      alert('Erro ao enviar a logo. Tente novamente.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoverLogo = () => setF('logo', '');
 
   const abrirNovo = () => {
     setEditando(null);
@@ -165,9 +192,20 @@ export default function TenantManager() {
               </div>
 
               <div>
-                <label style={lbl}>URL do Logo</label>
-                <input value={form.logo} onChange={e => setF('logo', e.target.value)} style={inp} placeholder="https://..." />
-                {form.logo && <img src={form.logo} alt="Logo" style={{ marginTop: 6, height: 40, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 6, padding: 4 }} onError={e => e.target.style.display='none'} />}
+                <label style={lbl}>Logo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {form.logo && (
+                    <img src={form.logo} alt="Logo" style={{ height: 40, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 6, padding: 4 }} onError={e => e.target.style.display='none'} />
+                  )}
+                  <label style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #e2e8f0', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: uploadingLogo ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    {uploadingLogo ? 'Enviando...' : form.logo ? 'Trocar logo' : 'Enviar logo'}
+                    <input type="file" accept="image/*" onChange={handleLogoChange} disabled={uploadingLogo} style={{ display: 'none' }} />
+                  </label>
+                  {form.logo && !uploadingLogo && (
+                    <button onClick={handleRemoverLogo} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Remover</button>
+                  )}
+                </div>
+                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 5 }}>Preencha o slug antes de enviar a logo (usado na organização do arquivo).</div>
               </div>
 
               {/* Cores */}
@@ -222,7 +260,7 @@ export default function TenantManager() {
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
                 <button onClick={() => setShowForm(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
-                <button onClick={salvar} disabled={saving} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: saving ? 0.7 : 1 }}>
+                <button onClick={salvar} disabled={saving || uploadingLogo} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: (saving || uploadingLogo) ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: (saving || uploadingLogo) ? 0.7 : 1 }}>
                   {saving ? 'Salvando...' : editando ? 'Salvar alterações' : 'Criar empresa'}
                 </button>
               </div>
