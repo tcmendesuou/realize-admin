@@ -45,7 +45,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const [savingFranq, setSavingFranq] = useState(false);
 
  // Modal verba
- const [editandoVerba, setEditandoVerba] = useState(null); // { userId, verbaMensal, verbalAnual }
  const [savingVerba, setSavingVerba] = useState(false);
   const [verbasGerais, setVerbasGerais]   = useState([]);
   const [showNovaVerba, setShowNovaVerba] = useState(false);
@@ -193,21 +192,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     finally { setSavingVerba(false); }
   };
 
- const handleSalvarVerba = async () => {
- if (!editandoVerba) return;
- setSavingVerba(true);
- try {
- await updateDoc(doc(db, 'users', editandoVerba.id), {
- verbaMensal: parseFloat(editandoVerba.verbaMensal) || 0,
- verbalAnual: parseFloat(editandoVerba.verbalAnual) || 0,
- updatedAt: serverTimestamp(),
- });
- setFranqueados(p => p.map(f => f.id === editandoVerba.id ? { ...f, ...editandoVerba } : f));
- setEditandoVerba(null);
- } catch (e) { console.error(e); alert('Erro ao salvar verba.'); }
- finally { setSavingVerba(false); }
- };
-
  // ── Métricas ─────────────────────────────────────────────────────────────────
  const totalEventos = eventos.length;
  const eventosAtivos = eventos.filter(e => !['completed', 'rejected'].includes(e.status)).length;
@@ -325,10 +309,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ fontSize: 12, color: '#94a3b8' }}>{evsFranq.length} evento(s)</div>
  <div style={{ fontSize: 13, fontWeight: 700, color: corAccent }}>{formatBRL(gastoFranq)} utilizado</div>
  </div>
- <button onClick={() => setEditandoVerba({ ...f })}
- style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${corPrimary}`, background: 'none', color: corPrimary, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
- Gerenciar verba
- </button>
  </div>
  );
  })}
@@ -742,30 +722,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
       )}
 
  {/* ── Modal Gerenciar Verba ─────────────────────────────────────────── */}
- {editandoVerba && (
- <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
- onClick={e => { if (e.target === e.currentTarget) setEditandoVerba(null); }}>
- <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 420, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
- <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
- <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Verba — {editandoVerba.name}</div>
- <button onClick={() => setEditandoVerba(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
- </div>
- <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
- <div><label style={lbl}>Verba mensal (R$)</label>
- <input type="number" value={editandoVerba.verbaMensal || ''} onChange={e => setEditandoVerba(p => ({...p, verbaMensal: e.target.value}))} style={inp} placeholder="0,00" /></div>
- <div><label style={lbl}>Verba anual (R$)</label>
- <input type="number" value={editandoVerba.verbalAnual || ''} onChange={e => setEditandoVerba(p => ({...p, verbalAnual: e.target.value}))} style={inp} placeholder="0,00" /></div>
- <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
- <button onClick={() => setEditandoVerba(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
- <button onClick={handleSalvarVerba} disabled={savingVerba}
- style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingVerba ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
- {savingVerba ? 'Salvando...' : 'Salvar verba'}
- </button>
- </div>
- </div>
- </div>
- </div>
- )}
  </div>
  );
 }
