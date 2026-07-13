@@ -537,9 +537,13 @@ export default function FinanceiroManager() {
 
               {/* Pagamentos fornecedores — agrupados por empresa */}
               {fin?.pagamentosFornecedores?.length > 0 && (() => {
-                // Agrupa por supplierId
+                // Agrupa por fornecedor — prioriza o nome (normalizado) em vez do
+                // supplierId, porque alguns fluxos (ex: Estande Modular) geram um
+                // supplierId de uma lista separada, que pode não bater com o ID
+                // real da conta do fornecedor nos outros serviços dele.
                 const grupos = fin.pagamentosFornecedores.reduce((acc, p, i) => {
-                  const key = p.supplierId || p.supplierName;
+                  const nomeNormalizado = (p.supplierName || '').trim().toUpperCase();
+                  const key = nomeNormalizado || p.supplierId || `sem-fornecedor-${i}`;
                   if (!acc[key]) acc[key] = { supplierName: p.supplierName, supplierId: p.supplierId, itens: [] };
                   acc[key].itens.push({ ...p, idx: i });
                   return acc;
