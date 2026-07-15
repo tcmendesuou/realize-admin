@@ -297,7 +297,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
  {franqueados.map(f => {
  const evsFranq = eventos.filter(e => e.clientUserId === f.id);
- const gastoFranq = evsFranq.reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+ const gastoFranq = evsFranq.filter(e => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
  return (
  <div key={f.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ width: 44, height: 44, borderRadius: '50%', background: corPrimary, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
@@ -377,10 +377,13 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             {(() => {
               const totalPool    = verbasGerais.reduce((acc, v) => acc + (v.valor || 0), 0);
               const totalSaldos  = franqueados.reduce((acc, f) => acc + (f.saldoVerba || 0), 0);
-              // Alocado = eventos aprovados/pendentes (não pagos ainda)
-              const totalAlocado = eventos.filter(e => ['pendingApproval','approved','analyzing'].includes(e.status)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
-              // Utilizado = eventos concluídos (pagos)
-              const totalUsado   = eventos.filter(e => e.status === 'completed').reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+              // Utilizado = parcelas do cliente todas marcadas como pagas pelo
+              // Financeiro (não basta o coordenador ter enviado o relatório).
+              const estaPago = (e) => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago);
+              // Alocado = tudo que ainda não foi pago (e não foi cancelado) —
+              // inclui eventos já concluídos mas aguardando confirmação do Financeiro.
+              const totalAlocado = eventos.filter(e => e.status !== 'rejected' && !estaPago(e)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+              const totalUsado   = eventos.filter(estaPago).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
               const livre        = Math.max(0, totalPool - totalAlocado - totalUsado);
               const pctAlocado   = totalPool > 0 ? Math.min(100, (totalAlocado / totalPool) * 100) : 0;
               const pctUsado     = totalPool > 0 ? Math.min(100, (totalUsado   / totalPool) * 100) : 0;
@@ -431,8 +434,9 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {franqueados.map(f => {
                 const evsFranq   = eventos.filter(e => e.clientUserId === f.id || e.clientUserId === f.uid);
-                const alocFranq  = evsFranq.filter(e => ['pendingApproval','approved','analyzing'].includes(e.status)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
-                const usadoFranq = evsFranq.filter(e => e.status === 'completed').reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                const estaPagoFranq = (e) => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago);
+                const alocFranq  = evsFranq.filter(e => e.status !== 'rejected' && !estaPagoFranq(e)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                const usadoFranq = evsFranq.filter(estaPagoFranq).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
                 const saldo      = f.saldoVerba || 0;
                 const pctA       = saldo > 0 ? Math.min(100, (alocFranq  / saldo) * 100) : 0;
                 const pctU       = saldo > 0 ? Math.min(100, (usadoFranq / saldo) * 100) : 0;
