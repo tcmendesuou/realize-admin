@@ -13,6 +13,8 @@ const STAGES = [
 
 export default function EquipeHome({ userData, onLogout }) {
   const [jobs, setJobs]               = useState([]);
+  const [supplierJobsAll, setSupplierJobsAll] = useState([]);
+  const [tasksAll, setTasksAll]       = useState([]);
   const [activeSection, setActiveSection] = useState('workspace');
   const [loading, setLoading]         = useState(true);
 
@@ -32,6 +34,40 @@ export default function EquipeHome({ userData, onLogout }) {
     );
     return () => unsub();
   }, [userId]);
+
+  // supplierJobs e tasks dos budgets deste coordenador — usados só pra saber
+  // se tem "ação pendente" no card (fornecedor respondeu proposta, ou task
+  // voltou de ajuste do cliente). Firestore limita "in" a 10 itens por vez,
+  // então olha só os 10 primeiros budgets (mesma limitação já aceita em
+  // outras telas do sistema).
+  const budgetIds = jobs.map(j => j.id).slice(0, 10);
+  useEffect(() => {
+    if (budgetIds.length === 0) { setSupplierJobsAll([]); setTasksAll([]); return; }
+    const unsubJobs = onSnapshot(
+      query(collection(db, 'supplierJobs'), where('budgetId', 'in', budgetIds)),
+      snap => setSupplierJobsAll(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    const unsubTasks = onSnapshot(
+      query(collection(db, 'tasks'), where('budgetId', 'in', budgetIds)),
+      snap => setTasksAll(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => { unsubJobs(); unsubTasks(); };
+  }, [budgetIds.join(',')]);
+
+  // Ação pendente pro coordenador: fornecedor confirmou/recusou proposta e
+  // ainda está na etapa inicial (não avançou pra cotação/execução), OU uma
+  // task voltou de "Solicitar Ajuste" do cliente, OU o evento já passou da
+  // data final e o relatório final ainda não foi enviado.
+  const temAcaoPendente = (job) => {
+    const propostaRespondida = supplierJobsAll.some(sj =>
+      sj.budgetId === job.id && (sj.stage === 'confirmado' || sj.status === 'rejected')
+      && (job.workspaceStage || 'Propostas') === 'Propostas'
+    );
+    const taskComAjuste = tasksAll.some(t => t.budgetId === job.id && t.status === 'ajuste');
+    const dataFim = job.endDate || job.briefingData?.evento?.dataFim;
+    const relatorioAtrasado = job.workspaceStage === 'Acontecendo' && dataFim && dataFim < new Date().toISOString().split('T')[0] && !job.relatorioFinal;
+    return propostaRespondida || taskComAjuste || relatorioAtrasado;
+  };
 
   // Normaliza workspaceStage para comparar com os ids do STAGES
   const normalizeStage = (stage) => (stage || 'Propostas').toLowerCase().replace(/s$/, '');
@@ -119,7 +155,10 @@ export default function EquipeHome({ userData, onLogout }) {
                         {cards.length === 0 ? (
                           <div className="eq-empty">Nenhum job</div>
                         ) : cards.map(job => (
-                          <div key={job.id} className="eq-card" onClick={() => handleCardClick(job.id)}>
+                          <div key={job.id} className="eq-card" style={{ position: 'relative' }} onClick={() => handleCardClick(job.id)}>
+                            {temAcaoPendente(job) && (
+                              <span title="Ação pendente" style={{ position: 'absolute', top: 10, right: 10, width: 10, height: 10, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
+                            )}
                             <div className="eq-card-name">{job.eventName || job.eventTypeName || 'Sem nome'}</div>
                             <div className="eq-card-client">{job.companyName || job.clientName || ''}</div>
                             <div className="eq-card-meta">

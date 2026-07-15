@@ -309,8 +309,13 @@ export default function FornecedorHome({ userData, onLogout }) {
                       <div className="fn-col-body">
                         {cards.length === 0 ? (
                           <div className="fn-empty">Nenhum job</div>
-                        ) : cards.map(grupo => (
-                          <div key={grupo.budgetId} className="fn-card" onClick={() => window.location.href = `/projeto/${grupo.budgetId}`}>
+                        ) : cards.map(grupo => {
+                          const temAcaoPendente = grupo.stage === 'proposta' || myTasks.some(t => t.budgetId === grupo.budgetId && t.status === 'ajuste');
+                          return (
+                          <div key={grupo.budgetId} className="fn-card" style={{ position: 'relative' }} onClick={() => window.location.href = `/projeto/${grupo.budgetId}`}>
+                            {temAcaoPendente && (
+                              <span title="Ação pendente" style={{ position: 'absolute', top: 10, right: 10, width: 10, height: 10, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
+                            )}
                             <div className="fn-card-name">{grupo.eventName || 'Evento'}</div>
                             <div className="fn-card-client">{grupo.clientName || ''}</div>
                             {grupo.numeroPedido && (
@@ -332,7 +337,8 @@ export default function FornecedorHome({ userData, onLogout }) {
                             )}
                             {grupo.eventDate && <div className="fn-card-date" style={{ marginTop: 6 }}>{grupo.eventDate}</div>}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );

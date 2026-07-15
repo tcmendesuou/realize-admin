@@ -299,10 +299,14 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
               <div className="cl-events-grid">
                 {eventosAtivos.map(event => {
                   const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
+                  const temAcaoPendente = event.status === 'pendingApproval' || tasksPendentesAprov.some(t => t.budgetId === event.id);
                   return (
                     <div key={event.id} className="cl-event-card" onClick={() => setSelectedEvent(event)}
                       style={{ borderTopColor: st.color }}>
                       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: st.color, borderRadius: '14px 14px 0 0' }} />
+                      {temAcaoPendente && (
+                        <span title="Ação pendente" style={{ position: 'absolute', top: 12, right: 12, width: 10, height: 10, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
+                      )}
 
                       {/* Status badge */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
