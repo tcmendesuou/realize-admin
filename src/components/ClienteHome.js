@@ -30,6 +30,18 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
   const eventosHistorico = events.filter(e => e.status === 'completed' || e.status === 'rejected');
   const eventosAtivos    = events.filter(e => e.status !== 'completed' && e.status !== 'rejected');
 
+  const formatBRL = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Verba do franqueado — mesma lógica de Alocado/Utilizado/Livre do TenantAdmin.js
+  const saldoVerba = userData?.saldoVerba || 0;
+  const valorAlocado = events.filter(e => ['pendingApproval', 'approved', 'analyzing'].includes(e.status))
+    .reduce((acc, e) => acc + (e.orcamentoFinal?.total || e.financeiro?.valorTotal || 0), 0);
+  const valorUtilizado = events.filter(e => e.status === 'completed')
+    .reduce((acc, e) => acc + (e.orcamentoFinal?.total || e.financeiro?.valorTotal || 0), 0);
+  const valorLivre = Math.max(0, saldoVerba - valorAlocado - valorUtilizado);
+  const pctAlocado = saldoVerba > 0 ? Math.min(100, (valorAlocado / saldoVerba) * 100) : 0;
+  const pctUtilizado = saldoVerba > 0 ? Math.min(100, (valorUtilizado / saldoVerba) * 100) : 0;
+
   const userId = userData?.uid || userData?.id;
 
   // Listener para abrir projeto via notificação do sino
@@ -229,6 +241,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
         <nav className="cl-nav">
           <button className={`cl-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>
           <button className={`cl-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>
+          <button className={`cl-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>
           <button className={`cl-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
         </nav>
         <div className="cl-footer">
@@ -386,6 +399,79 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
                 })}
               </div>
             )}
+          </>
+        )}
+
+        {activeSection === 'financeiro' && (
+          <>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Financeiro</h1>
+              <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Sua verba disponível e o custo dos seus eventos</p>
+            </div>
+
+            {/* Carteira / verba disponível */}
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 14, padding: '20px 24px' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Sua verba</div>
+              {userData?.periodoUso && (
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 16 }}>Período de uso: {userData.periodoUso}</div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 4 }}>Total</div>
+                  <div style={{ fontSize: 18, fontWeight: 500, color: '#E8F4FF' }}>{formatBRL(saldoVerba)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 4 }}>Alocado (em eventos)</div>
+                  <div style={{ fontSize: 18, fontWeight: 500, color: '#FFA726' }}>{formatBRL(valorAlocado)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 4 }}>Utilizado (pago)</div>
+                  <div style={{ fontSize: 18, fontWeight: 500, color: '#ef4444' }}>{formatBRL(valorUtilizado)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 4 }}>Livre</div>
+                  <div style={{ fontSize: 18, fontWeight: 500, color: '#00E5C4' }}>{formatBRL(valorLivre)}</div>
+                </div>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: `${pctUtilizado}%`, background: '#ef4444' }} />
+                <div style={{ width: `${pctAlocado}%`, background: '#FFA726' }} />
+              </div>
+            </div>
+
+            {/* Custos por evento */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(123,175,212,0.6)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Seus eventos</div>
+              {events.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: 'rgba(123,175,212,0.4)', fontSize: 13 }}>Nenhum evento ainda.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {events.map(ev => {
+                    const custo = ev.orcamentoFinal?.total || ev.financeiro?.valorTotal || 0;
+                    const parcelas = ev.financeiro?.parcelas || [];
+                    const notaEnviada = parcelas.length > 0 && parcelas.some(p => p.notaEnviada);
+                    const pago = parcelas.length > 0 && parcelas.every(p => p.pago);
+                    return (
+                      <div key={ev.id} onClick={() => setSelectedEvent(ev)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.08)', cursor: 'pointer', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#E8F4FF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.eventName || ev.eventTypeName || 'Meu Evento'}</div>
+                          <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>{custo > 0 ? formatBRL(custo) : 'Sem custo definido ainda'}</div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: notaEnviada ? 'rgba(0,128,255,0.12)' : 'rgba(123,175,212,0.08)', color: notaEnviada ? '#0080FF' : 'rgba(123,175,212,0.5)' }}>
+                          {notaEnviada ? 'Nota enviada' : 'Sem nota'}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: pago ? 'rgba(102,187,106,0.12)' : 'rgba(255,167,38,0.12)', color: pago ? '#66BB6A' : '#FFA726' }}>
+                          {pago ? '✓ Pago' : 'Pendente'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </>
         )}
 

@@ -183,9 +183,10 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
       const novoSaldo = (parseFloat(showGerenciarVerba.saldoVerba) || 0) + parseFloat(valorAtribuir);
       await updateDoc(doc(db, 'users', showGerenciarVerba.id), {
         saldoVerba: novoSaldo,
+        periodoUso: periodoAtribuir || showGerenciarVerba.periodoUso || '',
         updatedAt:  serverTimestamp(),
       });
-      setFranqueados(p => p.map(f => f.id === showGerenciarVerba.id ? { ...f, saldoVerba: novoSaldo } : f));
+      setFranqueados(p => p.map(f => f.id === showGerenciarVerba.id ? { ...f, saldoVerba: novoSaldo, periodoUso: periodoAtribuir || f.periodoUso || '' } : f));
       setShowGerenciarVerba(null);
       setValorAtribuir('');
       setPeriodoAtribuir('');
@@ -686,7 +687,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Verba — {showGerenciarVerba.name}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Saldo atual: {formatBRL(showGerenciarVerba.saldoVerba || 0)}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Saldo atual: {formatBRL(showGerenciarVerba.saldoVerba || 0)}{showGerenciarVerba.periodoUso ? ` · Período atual: ${showGerenciarVerba.periodoUso}` : ''}</div>
               </div>
               <button onClick={() => setShowGerenciarVerba(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
             </div>
