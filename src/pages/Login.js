@@ -31,12 +31,28 @@ function Login() {
           // Migração automática: esse usuário ainda não tinha conta real no
           // Firebase Auth (só senha em texto puro no Firestore). Cria a conta
           // agora, aproveitando que é o próprio usuário se autenticando.
+          let uid = null;
           try {
-            await createUserWithEmailAndPassword(auth, emailClean, password);
-            await updateDoc(doc(db, 'users', userData.id), { password: null });
+            const cred = await createUserWithEmailAndPassword(auth, emailClean, password);
+            uid = cred.user.uid;
           } catch (migrateErr) {
-            if (migrateErr.code !== 'auth/email-already-in-use') console.warn('Migração de Auth (users) falhou:', migrateErr);
+            if (migrateErr.code === 'auth/email-already-in-use') {
+              try {
+                const cred2 = await signInWithEmailAndPassword(auth, emailClean, password);
+                uid = cred2.user.uid;
+              } catch (signInErr) {
+                console.warn('Não foi possível autenticar conta de Auth já existente:', signInErr);
+              }
+            } else {
+              console.warn('Migração de Auth (users) falhou:', migrateErr);
+            }
           }
+          try {
+            await updateDoc(doc(db, 'users', userData.id), { password: null, ...(uid ? { uid } : {}) });
+          } catch (updateErr) {
+            console.warn('Não foi possível atualizar o documento users:', updateErr);
+          }
+          if (uid) userData.uid = uid;
           sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
           window.dispatchEvent(new Event('firestoreLogin'));
           return;

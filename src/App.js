@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { auth } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase/config';
 import Login from './pages/Login';
 import Dashboard from './components/Dashboard';
@@ -93,7 +93,7 @@ function App() {
     window.addEventListener('firestoreLogin', onFirestoreLogin);
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setFirebaseUser(currentUser);
-      if (currentUser) await loadAdminData(currentUser.email);
+      if (currentUser) await loadAdminData(currentUser.email, currentUser.uid);
       else setUserData(null);
       if (!sessionStorage.getItem('firestoreUser')) setLoading(false);
     });
@@ -127,11 +127,22 @@ function App() {
     if (!tenantLoading && firestoreUser) checkTenantRedirect();
   }, [firestoreUser, tenant, tenantLoading]);
 
-  const loadAdminData = async (email) => {
+  const loadAdminData = async (email, authUid) => {
     try {
       const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
       if (!snap.empty) {
         const userData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        // Conserto automático: qualquer conta com sessão real do Firebase
+        // Auth mas sem o campo "uid" salvo no Firestore (cadastros antigos,
+        // de antes dessa convenção existir) recebe o uid agora — sem isso,
+        // regras de segurança que conferem o uid (Storage, etc.) nunca
+        // encontram o dado certo pra comparar.
+        if (authUid && userData.uid !== authUid) {
+          try {
+            await updateDoc(doc(db, 'users', userData.id), { uid: authUid });
+            userData.uid = authUid;
+          } catch (e) { console.error('Erro ao gravar uid:', e); }
+        }
         setUserData(userData);
         // Se não tiver firestoreUser no sessionStorage, salva agora
         // Isso cobre login via Firebase Auth (tenant_admin, franqueado etc.)
