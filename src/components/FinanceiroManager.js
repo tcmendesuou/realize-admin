@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, where, doc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const FORMAS_PAGAMENTO = [
@@ -7,6 +7,23 @@ const FORMAS_PAGAMENTO = [
   { id: '30_60_90',   label: '30 / 60 / 90 dias', parcelas: [{ pct: 34, dias: 30 }, { pct: 33, dias: 60 }, { pct: 33, dias: 90 }] },
   { id: '30_60_90_120', label: '30 / 60 / 90 / 120 dias', parcelas: [{ pct: 25, dias: 30 }, { pct: 25, dias: 60 }, { pct: 25, dias: 90 }, { pct: 25, dias: 120 }] },
 ];
+
+// Cache em memória — evita repetir a mesma busca no Firestore várias vezes
+// na mesma sessão.
+const _cacheNomeFornecedor = {};
+async function buscarNomeFornecedor(supplierId) {
+  if (!supplierId) return null;
+  if (_cacheNomeFornecedor[supplierId] !== undefined) return _cacheNomeFornecedor[supplierId];
+  try {
+    const snap = await getDocs(query(collection(db, 'users'), where('__name__', '==', supplierId)));
+    const nome = !snap.empty ? (snap.docs[0].data().companyName || snap.docs[0].data().name || null) : null;
+    _cacheNomeFornecedor[supplierId] = nome;
+    return nome;
+  } catch (e) {
+    console.error('Erro ao buscar nome do fornecedor:', e);
+    return null;
+  }
+}
 
 function calcFinanceiro(valorFornecedores, impostos, fee) {
   const base   = parseFloat(valorFornecedores) || 0;
@@ -108,11 +125,12 @@ export default function FinanceiroManager() {
       const d = new Date(dataBase); d.setDate(d.getDate() + p.dias);
       return { numero: i+1, percentual: p.pct, dias: p.dias, valor: total * p.pct / 100, dataVenc: d.toISOString().split('T')[0], status: 'pendente', pago: false, notaEnviada: false };
     });
-    const pagForn = jobs.map(sj => ({
-      supplierId: sj.supplierId, supplierName: sj.supplierName || sj.serviceName,
+    const pagForn = await Promise.all(jobs.map(async sj => ({
+      supplierId: sj.supplierId,
+      supplierName: sj.supplierName || await buscarNomeFornecedor(sj.supplierId) || sj.serviceName,
       serviceName: sj.serviceName, valor: parseFloat(sj.preco) || 0,
       status: 'pendente', pago: false, notaRecebida: false,
-    }));
+    })));
     const finData = {
       valorFornecedores: valorForn, impostos: imp, fee, valorImpostos: impVal,
       valorFee: feeVal, valorTotal: total, formaPagamento: forma,
@@ -168,14 +186,14 @@ export default function FinanceiroManager() {
         };
       }) : [];
 
-      const pagFornecedores = supplierJobs.map(sj => ({
+      const pagFornecedores = await Promise.all(supplierJobs.map(async sj => ({
         supplierId:   sj.supplierId,
-        supplierName: sj.supplierName || sj.serviceName,
+        supplierName: sj.supplierName || await buscarNomeFornecedor(sj.supplierId) || sj.serviceName,
         serviceName:  sj.serviceName,
         valor:        parseFloat(sj.preco) || 0,
         status:       'pendente',
         pago:         false,
-      }));
+      })));
 
       await updateDoc(doc(db, 'budgets', selected.id), {
         financeiro: {
