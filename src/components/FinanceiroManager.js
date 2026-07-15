@@ -52,6 +52,7 @@ export default function FinanceiroManager() {
   const [saving, setSaving]       = useState(false);
   const [savingPagto, setSavingPagto] = useState(false);
   const [finForm, setFinForm]     = useState(null);
+  const [nomesResolvidos, setNomesResolvidos] = useState({}); // supplierId -> nome real (resolvido automaticamente)
   const [filtro, setFiltro]       = useState('todos'); // todos | mes | trimestre
   const [supplierJobs, setSupplierJobs] = useState([]);
   const [secExpanded, setSecExpanded]   = useState({ config: true, parcelas: true, fornecedores: true });
@@ -152,6 +153,21 @@ export default function FinanceiroManager() {
       formaPagamento:    fin.formaPagamento || b.briefingData?.formaPagamento || '50_50',
       valorFornecedores: valorForn,
     });
+
+    // Resolve automaticamente o nome real de qualquer fornecedor cujo nome
+    // salvo pareça ser na verdade o nome do serviço (bug antigo) — sem
+    // precisar de nenhum botão ou reescrever o financeiro salvo.
+    const pags = fin.pagamentosFornecedores || [];
+    const suspeitos = pags.filter(p => p.supplierId && p.supplierName === p.serviceName);
+    if (suspeitos.length > 0) {
+      const idsUnicos = [...new Set(suspeitos.map(p => p.supplierId))];
+      const pares = await Promise.all(idsUnicos.map(async id => [id, await buscarNomeFornecedor(id)]));
+      setNomesResolvidos(prev => {
+        const novos = { ...prev };
+        pares.forEach(([id, nome]) => { if (nome) novos[id] = nome; });
+        return novos;
+      });
+    }
   };
 
   const somarFornecedores = (b) => {
@@ -559,14 +575,16 @@ export default function FinanceiroManager() {
 
               {/* Pagamentos fornecedores — agrupados por empresa */}
               {fin?.pagamentosFornecedores?.length > 0 && (() => {
-                // Agrupa por fornecedor — prioriza o nome (normalizado) em vez do
-                // supplierId, porque alguns fluxos (ex: Estande Modular) geram um
-                // supplierId de uma lista separada, que pode não bater com o ID
-                // real da conta do fornecedor nos outros serviços dele.
+                // Agrupa por fornecedor — prioriza o nome resolvido automaticamente
+                // (busca pela conta real), depois o nome normalizado salvo, e só
+                // por último o supplierId. Isso evita separar o mesmo fornecedor
+                // em grupos diferentes quando o nome salvo veio errado (bug antigo)
+                // ou quando o supplierId vem de uma fonte diferente (ex: Estande Modular).
                 const grupos = fin.pagamentosFornecedores.reduce((acc, p, i) => {
-                  const nomeNormalizado = (p.supplierName || '').trim().toUpperCase();
+                  const nomeReal = nomesResolvidos[p.supplierId] || p.supplierName;
+                  const nomeNormalizado = (nomeReal || '').trim().toUpperCase();
                   const key = nomeNormalizado || p.supplierId || `sem-fornecedor-${i}`;
-                  if (!acc[key]) acc[key] = { supplierName: p.supplierName, supplierId: p.supplierId, itens: [] };
+                  if (!acc[key]) acc[key] = { supplierName: nomeReal, supplierId: p.supplierId, itens: [] };
                   acc[key].itens.push({ ...p, idx: i });
                   return acc;
                 }, {});
