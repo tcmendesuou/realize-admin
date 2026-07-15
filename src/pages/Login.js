@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../firebase/config';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, addDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -64,21 +64,57 @@ function Login() {
             setError('Seu cadastro foi recusado. Entre em contato com o suporte.');
             return;
           }
-          // Homologado mas sem users ainda — usa dados do supplier
+          // Homologado — garante conta de Auth real e um documento users de
+          // verdade (com o uid). Fornecedores homologados antes desse fluxo
+          // existir só tinham o cadastro em "suppliers", sem nenhum
+          // documento "users" correspondente.
+          let uid = null;
+          try {
+            const cred = await createUserWithEmailAndPassword(auth, emailClean, password);
+            uid = cred.user.uid;
+          } catch (migrateErr) {
+            if (migrateErr.code === 'auth/email-already-in-use') {
+              try {
+                const cred2 = await signInWithEmailAndPassword(auth, emailClean, password);
+                uid = cred2.user.uid;
+              } catch (signInErr) {
+                console.warn('Não foi possível autenticar conta de Auth já existente:', signInErr);
+              }
+            } else {
+              console.warn('Migração de Auth (suppliers) falhou:', migrateErr);
+            }
+          }
+          await updateDoc(doc(db, 'suppliers', supplier.id), { password: null });
+
+          let userId = supplier.userId;
+          try {
+            if (!userId) {
+              const novoUserRef = await addDoc(collection(db, 'users'), {
+                name: supplier.contactName || supplier.tradeName || supplier.companyName || '',
+                email: supplier.email,
+                systemRole: 'fornecedor',
+                active: true,
+                supplierId: supplier.id,
+                companyName: supplier.tradeName || supplier.companyName || '',
+                uid,
+                createdAt: serverTimestamp(),
+              });
+              userId = novoUserRef.id;
+              await updateDoc(doc(db, 'suppliers', supplier.id), { userId });
+            } else if (uid) {
+              await updateDoc(doc(db, 'users', userId), { uid });
+            }
+          } catch (userDocErr) {
+            console.warn('Não foi possível criar/atualizar o documento users:', userDocErr);
+          }
+
           const userData = {
-            id: supplier.userId || supplier.id,
+            id: userId || supplier.id,
             name: supplier.contactName || supplier.tradeName,
             email: supplier.email,
             systemRole: 'fornecedor',
             supplierId: supplier.id,
           };
-          // Migração automática: mesmo esquema do bloco de users acima.
-          try {
-            await createUserWithEmailAndPassword(auth, emailClean, password);
-            await updateDoc(doc(db, 'suppliers', supplier.id), { password: null });
-          } catch (migrateErr) {
-            if (migrateErr.code !== 'auth/email-already-in-use') console.warn('Migração de Auth (suppliers) falhou:', migrateErr);
-          }
           sessionStorage.setItem('firestoreUser', JSON.stringify(userData));
           window.dispatchEvent(new Event('firestoreLogin'));
           return;
