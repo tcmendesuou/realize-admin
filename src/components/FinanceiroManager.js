@@ -186,7 +186,11 @@ export default function FinanceiroManager() {
         };
       }) : [];
 
-      const pagFornecedores = await Promise.all(supplierJobs.map(async sj => ({
+      // Só os fornecedores confirmados DESTE projeto — antes usava o estado
+      // supplierJobs inteiro (de todos os projetos), o que podia misturar
+      // fornecedores de outros orçamentos no recálculo.
+      const jobsDoProjeto = supplierJobs.filter(j => j.budgetId === selected.id && j.status === 'confirmed');
+      const pagFornecedores = await Promise.all(jobsDoProjeto.map(async sj => ({
         supplierId:   sj.supplierId,
         supplierName: sj.supplierName || await buscarNomeFornecedor(sj.supplierId) || sj.serviceName,
         serviceName:  sj.serviceName,
