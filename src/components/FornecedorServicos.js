@@ -24,7 +24,12 @@ const OPCAO_VAZIA = {
 };
 
 export default function FornecedorServicos({ userData, onServicosAdicionados }) {
-  const supplierId  = userData?.supplierId || userData?.id;
+  // userData.id é a identidade oficial do fornecedor (usada em todo o resto
+  // do sistema, ex: supplierJobs). userData.supplierId é o ID do cadastro
+  // antigo (coleção suppliers, pré-homologação) — só mantido como legado
+  // pra migrar dados salvos com ele antes dessa correção.
+  const supplierId  = userData?.id || userData?.supplierId;
+  const supplierIdLegado = userData?.supplierId && userData.supplierId !== userData?.id ? userData.supplierId : null;
   const [servicos, setServicos]     = useState([]);
   const [catalogo, setCatalogo]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -60,6 +65,16 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const loadAll = async () => {
     if (!supplierId) return;
     try {
+      // Migração automática: se existirem serviços salvos com o ID antigo
+      // (legado, da coleção suppliers), reatribui pro ID correto (userData.id)
+      // — assim o cadastro não "some" pro fornecedor por causa da correção.
+      if (supplierIdLegado) {
+        const legadoSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', supplierIdLegado)));
+        if (!legadoSnap.empty) {
+          await Promise.all(legadoSnap.docs.map(d => updateDoc(doc(db, 'supplierServices', d.id), { supplierId })));
+        }
+      }
+
       const [svcSnap, catSnap] = await Promise.all([
         getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', supplierId))),
         getDocs(collection(db, 'services')),
