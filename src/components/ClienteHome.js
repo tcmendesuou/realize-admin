@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, getDocs, addDoc, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, getDoc, addDoc, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import ClienteChat from './ClienteChat';
 import ClienteProjetoScreen from './ClienteProjetoScreen';
@@ -16,6 +16,23 @@ const STATUS_CONFIG = {
 
 export default function ClienteHome({ userData, onLogout, tenant }) {
   const [events, setEvents] = useState([]);
+  const [tenantData, setTenantData] = useState(tenant || null);
+
+  // Se o tenant veio só com o ID (ex: franqueado acessou pelo domínio
+  // principal, não pelo subdomínio da empresa), busca os dados completos
+  // (logo, nome, cores) direto no Firestore — mesma correção já feita no
+  // TenantAdmin.js.
+  useEffect(() => {
+    if (tenant?.nome) { setTenantData(tenant); return; }
+    if (tenant?.id) {
+      getDoc(doc(db, 'tenants', tenant.id)).then(snap => {
+        if (snap.exists()) setTenantData({ id: snap.id, ...snap.data() });
+      }).catch(e => console.error('Erro ao buscar tenant completo:', e));
+    } else {
+      setTenantData(null);
+    }
+  }, [tenant?.id, tenant?.nome]);
+
   const [activeSection, setActiveSection] = useState('workspace');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -238,9 +255,9 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
       {/* Sidebar */}
       <aside className="cl-sidebar">
         <div className="cl-logo">
-          {tenant?.logo ? (
+          {tenantData?.logo ? (
             <>
-              <img src={tenant.logo} alt={tenant.nome || ''} style={{ height: 32, objectFit: 'contain', display: 'block', marginBottom: 6 }} />
+              <img src={tenantData.logo} alt={tenantData.nome || ''} style={{ height: 32, objectFit: 'contain', display: 'block', marginBottom: 6 }} />
               <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', letterSpacing: 1.5 }}>REALIZEHUB</div>
             </>
           ) : (
