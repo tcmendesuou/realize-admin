@@ -237,7 +237,16 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
 
       {/* Sidebar */}
       <aside className="cl-sidebar">
-        <div className="cl-logo">realize<span>hub</span></div>
+        <div className="cl-logo">
+          {tenant?.logo ? (
+            <>
+              <img src={tenant.logo} alt={tenant.nome || ''} style={{ height: 32, objectFit: 'contain', display: 'block', marginBottom: 6 }} />
+              <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', letterSpacing: 1.5 }}>REALIZEHUB</div>
+            </>
+          ) : (
+            <>realize<span>hub</span></>
+          )}
+        </div>
         <nav className="cl-nav">
           <button className={`cl-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>
           <button className={`cl-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>
