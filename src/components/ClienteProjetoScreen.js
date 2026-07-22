@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   collection, getDocs, getDoc, query, where,
-  updateDoc, doc, addDoc, onSnapshot, serverTimestamp,
+  updateDoc, doc, addDoc, setDoc, onSnapshot, serverTimestamp,
 } from 'firebase/firestore';
 import { criarNotificacao } from '../hooks/useNotificacoes';
 import { db } from '../firebase/config';
+import ChatPanel from './ChatPanel';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em analise',           color: '#FFA726' },
@@ -35,6 +36,18 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
   const [aprovandoTask, setAprovandoTask]     = useState(false);
   const [aprovando, setAprovando]             = useState(false);
   const [fotoAmpliada, setFotoAmpliada]       = useState(null);
+  const [chatAberto, setChatAberto]           = useState(false);
+  const [chatNaoLidas, setChatNaoLidas]       = useState(0);
+
+  // Escuta naoLidas do chat com o coordenador
+  useEffect(() => {
+    if (!project?.id) return;
+    const chatId = `${project.id}_cliente`;
+    const unsub = onSnapshot(doc(db, 'chats', chatId), snap => {
+      if (snap.exists()) setChatNaoLidas(snap.data().naoLidasCliente || 0);
+    });
+    return () => unsub();
+  }, [project?.id]);
 
   // Escuta mudanças no budget em tempo real
   useEffect(() => {
@@ -843,6 +856,52 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           </button>
         </div>
       )}
+
+      {/* ── CHAT FLUTUANTE (com o coordenador) ── */}
+      {project && (() => {
+        const chatId = `${project.id}_cliente`;
+        const titulo = project.eventName || project.eventTypeName || 'Projeto';
+        const subtitulo = `${project.numeroPedido || ''} • Coordenador`;
+
+        const abrirChat = async () => {
+          await setDoc(doc(db, 'chats', chatId), {
+            budgetId:  project.id,
+            tipo:      'cliente',
+            titulo,
+            subtitulo,
+            empresa:   userData?.companyName || userData?.name || '',
+            createdAt: serverTimestamp(),
+          }, { merge: true });
+          setChatAberto(true);
+        };
+
+        return (
+          <>
+            <button onClick={chatAberto ? () => setChatAberto(false) : abrirChat}
+              style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', border: 'none', background: '#0080FF', color: 'white', fontSize: 22, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,128,255,0.35)' }}>
+              💬
+              {!chatAberto && chatNaoLidas > 0 && (
+                <span style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', background: '#66BB6A', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: '2px solid white' }}>
+                  {chatNaoLidas > 9 ? '9+' : chatNaoLidas}
+                </span>
+              )}
+            </button>
+            {chatAberto && (
+              <div style={{ position: 'fixed', bottom: 90, right: 28, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(0,128,255,0.25)', borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <ChatPanel
+                  chatId={chatId}
+                  title={titulo}
+                  subtitle={subtitulo}
+                  accentColor="#0080FF"
+                  userData={userData}
+                  tipo="cliente"
+                  onClose={() => setChatAberto(false)}
+                />
+              </div>
+            )}
+          </>
+        );
+      })()}
     </>
   );
 }

@@ -2,16 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-export default function ChatPanel({ chatId, title, subtitle, accentColor, userData, onClose }) {
+export default function ChatPanel({ chatId, title, subtitle, accentColor, userData, onClose, tipo }) {
   const [msgs, setMsgs]   = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
   // Cada lado tem seu proprio contador de nao lidas, senao quem manda
   // tambem via a bolinha vermelha (era um campo unico compartilhado).
+  // Suporta 3 tipos de conversa: fornecedor<->coordenador e cliente<->coordenador.
+  // "tipo" indica de qual conversa se trata (obrigatorio quando quem esta
+  // vendo é o coordenador, já que ele fala com os dois lados diferentes).
   const souFornecedor = userData?.systemRole === 'fornecedor';
-  const meuCampoNaoLidas = souFornecedor ? 'naoLidasFornecedor' : 'naoLidasCoordenador';
-  const campoNaoLidasDoOutro = souFornecedor ? 'naoLidasCoordenador' : 'naoLidasFornecedor';
+  const souCliente     = userData?.systemRole === 'cliente';
+  const meuLado    = souFornecedor ? 'Fornecedor' : souCliente ? 'Cliente' : 'Coordenador';
+  const outroLado  = souFornecedor || souCliente ? 'Coordenador' : (tipo === 'cliente' ? 'Cliente' : 'Fornecedor');
+  const meuCampoNaoLidas = `naoLidas${meuLado}`;
+  const campoNaoLidasDoOutro = `naoLidas${outroLado}`;
 
   useEffect(() => {
     if (!chatId) return;

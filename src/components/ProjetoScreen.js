@@ -700,8 +700,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     const chatId = isFornecedor
       ? `${projectId}_${userData?.id}`
       : `${projectId}_cliente`;
+    const campo = isFornecedor ? 'naoLidasFornecedor' : 'naoLidasCliente';
     const unsub = onSnapshot(doc(db, 'chats', chatId), snap => {
-      if (snap.exists()) setChatNaoLidas(snap.data().naoLidas || 0);
+      if (snap.exists()) setChatNaoLidas(snap.data()[campo] || 0);
     });
     return () => unsub();
   }, [projectId, isFornecedor, userData?.id]);
@@ -746,9 +747,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                        : unidade.includes('pessoa') ? preco * visitantes * diasServ
                        : preco; // por evento
 
-        // Busca a foto que o fornecedor cadastrou para essa opção específica
-        // (fica salva em supplierServices/{id}/opcoes/{id}.fotoUrl)
+        // Busca a foto E os dias reais de preparo/montagem que o fornecedor
+        // cadastrou pra essa opção específica (fica salvo em
+        // supplierServices/{id}/opcoes/{id}). Serviços "normais" nascem no
+        // ClienteChat.js sem esses dias (o cliente só escolheu o serviço do
+        // catálogo geral, ainda sem fornecedor real definido) — corrige aqui,
+        // gravando de volta no supplierJob pro cronograma usar depois.
         let fotoUrl = '';
+        let diasPreparoReal = null;
+        let diasMontagemReal = null;
         try {
           if (sj.supplierId && sj.opcaoCatalogoId) {
             const svcSnap = await getDocs(query(
@@ -761,10 +768,25 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 collection(db, 'supplierServices', svcSnap.docs[0].id, 'opcoes'),
                 where('opcaoCatalogoId', '==', sj.opcaoCatalogoId)
               ));
-              if (!opSnap.empty) fotoUrl = opSnap.docs[0].data().fotoUrl || '';
+              if (!opSnap.empty) {
+                const opData = opSnap.docs[0].data();
+                fotoUrl = opData.fotoUrl || '';
+                diasPreparoReal  = parseFloat(opData.diasPreparo)  || 0;
+                diasMontagemReal = parseFloat(opData.diasMontagem) || 0;
+                // Se o supplierJob ainda não tem esses dias (ou estão zerados),
+                // grava os valores reais nele agora.
+                if ((!sj.diasPreparo && diasPreparoReal > 0) || (!sj.diasMontagem && diasMontagemReal > 0)) {
+                  await updateDoc(doc(db, 'supplierJobs', sj.id), {
+                    diasPreparo:  diasPreparoReal,
+                    diasMontagem: diasMontagemReal,
+                  });
+                  sj.diasPreparo  = diasPreparoReal;
+                  sj.diasMontagem = diasMontagemReal;
+                }
+              }
             }
           }
-        } catch (e) { console.error('Erro ao buscar foto do fornecedor:', e); }
+        } catch (e) { console.error('Erro ao buscar foto/dias do fornecedor:', e); }
 
         if (preco > 0) {
           totalOrcamento += subtotal;
@@ -1011,7 +1033,26 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               {statusInfo.label}
             </span>
           </div>
-          <div style={{ width: 80 }} />
+          {isCoord ? (
+            <button onClick={async () => {
+              const chatId = `${projectId}_cliente`;
+              await setDoc(doc(db, 'chats', chatId), {
+                budgetId:  projectId,
+                tipo:      'cliente',
+                titulo:    project.eventName || 'Projeto',
+                subtitulo: `${project.numeroPedido || ''} • ${client?.name || project.clientName || 'Cliente'}`,
+                empresa:   client?.companyName || project.clientCompanyName || '',
+                createdAt: serverTimestamp(),
+                naoLidas:  0,
+              }, { merge: true });
+              setCoordChatId(chatId);
+              setCoordChatInfo({ titulo: project.eventName, subtitulo: `${project.numeroPedido || ''} • ${client?.name || project.clientName || 'Cliente'}`, tipo: 'cliente' });
+            }} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(0,128,255,0.3)', background: 'none', color: '#0080FF', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', gap: 6 }}>
+              💬 Chat com Cliente
+            </button>
+          ) : (
+            <div style={{ width: 80 }} />
+          )}
         </div>
 
         {/* HERO */}
@@ -2292,7 +2333,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                       naoLidas:   0,
                                     }, { merge: true });
                                     setCoordChatId(chatId);
-                                    setCoordChatInfo({ titulo: project.eventName, subtitulo: `${project.numeroPedido || ''} • ${sj.supplierName || sj.serviceName}` });
+                                    setCoordChatInfo({ titulo: project.eventName, subtitulo: `${project.numeroPedido || ''} • ${sj.supplierName || sj.serviceName}`, tipo: 'fornecedor' });
                                   }} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,167,38,0.3)', background: 'none', color: '#FFA726', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>💬 Chat</button>
                                 )}
                               </>
@@ -3026,8 +3067,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             chatId={coordChatId}
             title={coordChatInfo.titulo}
             subtitle={coordChatInfo.subtitulo}
-            accentColor="#FFA726"
+            accentColor={coordChatInfo.tipo === 'cliente' ? '#0080FF' : '#FFA726'}
             userData={userData}
+            tipo={coordChatInfo.tipo}
             onClose={() => { setCoordChatId(null); setCoordChatInfo(null); }}
           />
         </div>
@@ -3080,6 +3122,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   subtitle={subtitulo}
                   accentColor={cor}
                   userData={userData}
+                  tipo={tipo}
                   onClose={() => setChatAberto(false)}
                 />
               </div>

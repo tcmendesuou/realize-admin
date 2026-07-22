@@ -166,6 +166,7 @@ export default function ChatWidget({ userData, budgetIds, somenteVisualizar, sup
                 subtitle={activeChat.subtitulo}
                 accentColor={accentColor}
                 userData={userData}
+                tipo={activeChat.tipo}
                 onClose={() => setOpen(false)}
               />
             ) : (
