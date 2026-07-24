@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, getDocs, getDoc, addDoc, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import ClienteChat from './ClienteChat';
+import ClienteChatV4 from './ClienteChatV4';
 import ClienteProjetoScreen from './ClienteProjetoScreen';
 import SinoNotificacoes from './SinoNotificacoes';
 
@@ -516,7 +516,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
 
       {/* Modal do Chat com a Bia */}
       {showChat && (
-        <ClienteChat
+        <ClienteChatV4
           key={chatKey}
           userData={userData}
           onClose={() => setShowChat(false)}
