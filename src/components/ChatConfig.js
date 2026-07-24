@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import BancoPerguntas from './BancoPerguntas';
+import TiposEvento from './TiposEvento';
 
 export default function ChatConfig() {
   const [aba, setAba] = useState('perguntas');
@@ -24,12 +25,7 @@ export default function ChatConfig() {
       </div>
 
       {aba === 'perguntas' && <BancoPerguntas />}
-      {aba === 'tipos' && (
-        <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🗂️</div>
-          <div style={{ fontSize: 14, fontWeight: 500 }}>Tipos de Evento — próxima etapa</div>
-        </div>
-      )}
+      {aba === 'tipos' && <TiposEvento />}
     </div>
   );
 }
