@@ -386,7 +386,7 @@ function App() {
             {activeView === 'services'  && <ServiceManager />}
             {activeView === 'pricing'   && <PricingManager />}
             {activeView === 'script'    && <ScriptManager />}
-            {activeView === 'chat'      && <ChatConfig />}
+            {activeView === 'chat'      && <ChatConfig userData={firestoreUser} />}
             {activeView === 'roles'     && <RoleManagement />}
             {activeView === 'suppliers' && <SupplierManager />}
             {activeView === 'users'     && <UserManagement />}
