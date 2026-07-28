@@ -4,6 +4,7 @@ import { db } from '../firebase/config';
 import ClienteChatV4 from './ClienteChatV4';
 import ClienteProjetoScreen from './ClienteProjetoScreen';
 import SinoNotificacoes from './SinoNotificacoes';
+import { usePermissoes } from '../hooks/usePermissoes';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em analise',           color: '#FFA726', bg: 'rgba(255,167,38,0.1)' },
@@ -15,6 +16,7 @@ const STATUS_CONFIG = {
 };
 
 export default function ClienteHome({ userData, onLogout, tenant }) {
+  const { pode } = usePermissoes(userData);
   const [events, setEvents] = useState([]);
   const [tenantData, setTenantData] = useState(tenant || null);
 
@@ -265,10 +267,10 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
           )}
         </div>
         <nav className="cl-nav">
-          <button className={`cl-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>
-          <button className={`cl-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>
-          <button className={`cl-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>
-          <button className={`cl-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
+          {pode('meus_eventos', 'V') && <button className={`cl-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>}
+          {pode('historico', 'V') && <button className={`cl-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>}
+          {pode('financeiro', 'V') && <button className={`cl-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>}
+          {pode('agenda', 'V') && <button className={`cl-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>}
         </nav>
         <div className="cl-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
