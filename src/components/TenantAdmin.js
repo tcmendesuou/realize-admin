@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
- collection, getDocs, addDoc, updateDoc, doc, getDoc, query,
+ collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, query,
  where, onSnapshot, serverTimestamp, orderBy
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
@@ -34,6 +34,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
  const [view, setView] = useState('overview'); // overview | franqueados | verbas | eventos
  const [franqueados, setFranqueados] = useState([]);
+ const [unidades, setUnidades] = useState([]);
  const [eventos, setEventos] = useState([]);
  const [eventosComTenant, setEventosComTenant] = useState([]);
  const [semTenantBudgets, setSemTenantBudgets] = useState([]);
@@ -100,7 +101,15 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
       }
     );
 
-    return () => { unsubFranq(); unsubVerbas(); unsubEventos(); };
+    // Unidades — tempo real
+    const unsubUnidades = onSnapshot(
+      collection(db, 'tenants', tenantId, 'unidades'),
+      snap => {
+        setUnidades(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.nome||'').localeCompare(b.nome||'')));
+      }
+    );
+
+    return () => { unsubFranq(); unsubVerbas(); unsubEventos(); unsubUnidades(); };
   }, [tenantId]);
 
   // Combina eventos com e sem tenantId em tempo real
@@ -176,6 +185,51 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
   };
 
   // ── Atribuir verba ao franqueado ────────────────────────────────────────────
+  const [showFormUnidade, setShowFormUnidade] = useState(false);
+  const [editandoUnidade, setEditandoUnidade] = useState(null);
+  const [formUnidade, setFormUnidade] = useState({ nome: '', cidade: '', saldoVerba: '', periodoUso: '', ativo: true });
+  const [savingUnidade, setSavingUnidade] = useState(false);
+
+  const abrirNovaUnidade = () => {
+    setEditandoUnidade(null);
+    setFormUnidade({ nome: '', cidade: '', saldoVerba: '', periodoUso: '', ativo: true });
+    setShowFormUnidade(true);
+  };
+
+  const abrirEditarUnidade = (u) => {
+    setEditandoUnidade(u);
+    setFormUnidade({ nome: u.nome || '', cidade: u.cidade || '', saldoVerba: u.saldoVerba || '', periodoUso: u.periodoUso || '', ativo: u.ativo !== false });
+    setShowFormUnidade(true);
+  };
+
+  const salvarUnidade = async () => {
+    if (!formUnidade.nome.trim()) { alert('Nome da unidade é obrigatório'); return; }
+    setSavingUnidade(true);
+    try {
+      const data = {
+        nome: formUnidade.nome.trim(),
+        cidade: formUnidade.cidade.trim(),
+        saldoVerba: parseFloat(formUnidade.saldoVerba) || 0,
+        periodoUso: formUnidade.periodoUso.trim(),
+        ativo: formUnidade.ativo,
+        updatedAt: serverTimestamp(),
+      };
+      if (editandoUnidade) {
+        await updateDoc(doc(db, 'tenants', tenantId, 'unidades', editandoUnidade.id), data);
+      } else {
+        await addDoc(collection(db, 'tenants', tenantId, 'unidades'), { ...data, createdAt: serverTimestamp() });
+      }
+      setShowFormUnidade(false);
+    } catch (e) { console.error(e); alert('Erro ao salvar unidade.'); }
+    finally { setSavingUnidade(false); }
+  };
+
+  const excluirUnidade = async (u) => {
+    if (!window.confirm(`Excluir a unidade "${u.nome}"? Franqueados vinculados a ela não são apagados, mas ficarão sem unidade.`)) return;
+    try { await deleteDoc(doc(db, 'tenants', tenantId, 'unidades', u.id)); }
+    catch (e) { console.error(e); alert('Erro ao excluir.'); }
+  };
+
   const handleAtribuirVerba = async () => {
     if (!showGerenciarVerba || !valorAtribuir) { alert('Informe o valor'); return; }
     setSavingVerba(true);
@@ -217,6 +271,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {[
  { id: 'overview', label: 'Visão Geral' },
  { id: 'franqueados', label: 'Franqueados' },
+ { id: 'unidades', label: 'Unidades' },
  { id: 'eventos', label: 'Eventos' },
  { id: 'verbas', label: 'Verbas' },
  ].map(item => (
@@ -318,6 +373,46 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
  <div style={{ fontSize: 36, marginBottom: 10 }}></div>
  <div>Nenhum franqueado cadastrado ainda.</div>
+ </div>
+ )}
+ </div>
+ </>
+ )}
+
+ {/* ── UNIDADES ─────────────────────────────────────────────────────── */}
+ {view === 'unidades' && (
+ <>
+ <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+ <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Unidades</div>
+ <button onClick={abrirNovaUnidade} style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+ + Nova Unidade
+ </button>
+ </div>
+ <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20 }}>
+ Cada unidade (ex: uma loja/filial) pode ter vários franqueados vinculados a ela — verba e período de uso ficam na unidade, não em cada pessoa.
+ </div>
+ <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+ {unidades.map(u => (
+ <div key={u.id} style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, opacity: u.ativo === false ? 0.5 : 1 }}>
+ <div style={{ flex: 1 }}>
+ <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+ <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{u.nome}</span>
+ {u.cidade && <span style={{ fontSize: 11, color: '#94a3b8' }}>· {u.cidade}</span>}
+ {u.ativo === false && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>INATIVA</span>}
+ </div>
+ <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+ Verba: {formatBRL(u.saldoVerba || 0)}{u.periodoUso ? ` · ${u.periodoUso}` : ''}
+ </div>
+ </div>
+ <div style={{ display: 'flex', gap: 8 }}>
+ <button onClick={() => abrirEditarUnidade(u)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+ <button onClick={() => excluirUnidade(u)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
+ </div>
+ </div>
+ ))}
+ {unidades.length === 0 && !loading && (
+ <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
+ <div>Nenhuma unidade cadastrada ainda.</div>
  </div>
  )}
  </div>
@@ -676,6 +771,49 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <button onClick={handleAdicionarVerba} disabled={savingVerba2}
                   style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingVerba2 ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingVerba2 ? 0.7 : 1 }}>
                   {savingVerba2 ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Nova/Editar Unidade ─────────────────────────────────────── */}
+      {showFormUnidade && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowFormUnidade(false); }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>{editandoUnidade ? 'Editar Unidade' : 'Nova Unidade'}</div>
+              <button onClick={() => setShowFormUnidade(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={lbl}>Nome da unidade *</label>
+                <input value={formUnidade.nome} onChange={e => setFormUnidade(p => ({ ...p, nome: e.target.value }))} style={inp} placeholder="Ex: Loja 1 São Paulo" autoFocus />
+              </div>
+              <div>
+                <label style={lbl}>Cidade</label>
+                <input value={formUnidade.cidade} onChange={e => setFormUnidade(p => ({ ...p, cidade: e.target.value }))} style={inp} placeholder="Ex: São Paulo" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={lbl}>Verba (R$)</label>
+                  <input type="number" value={formUnidade.saldoVerba} onChange={e => setFormUnidade(p => ({ ...p, saldoVerba: e.target.value }))} style={inp} placeholder="0,00" />
+                </div>
+                <div>
+                  <label style={lbl}>Período de uso</label>
+                  <input value={formUnidade.periodoUso} onChange={e => setFormUnidade(p => ({ ...p, periodoUso: e.target.value }))} style={inp} placeholder="Ex: Q1 2026" />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input type="checkbox" id="unidade-ativa" checked={formUnidade.ativo} onChange={e => setFormUnidade(p => ({ ...p, ativo: e.target.checked }))} style={{ width: 16, height: 16, accentColor: corPrimary }} />
+                <label htmlFor="unidade-ativa" style={{ fontSize: 13, color: '#475569', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Unidade ativa</label>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
+                <button onClick={() => setShowFormUnidade(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                <button onClick={salvarUnidade} disabled={savingUnidade} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingUnidade ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingUnidade ? 0.7 : 1 }}>
+                  {savingUnidade ? 'Salvando...' : editandoUnidade ? 'Salvar alterações' : 'Criar unidade'}
                 </button>
               </div>
             </div>
