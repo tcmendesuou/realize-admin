@@ -35,6 +35,13 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const [view, setView] = useState('overview'); // overview | franqueados | verbas | eventos
  const [franqueados, setFranqueados] = useState([]);
  const [unidades, setUnidades] = useState([]);
+ // Resolve nome/cidade da unidade vinculada — com fallback pros campos
+ // antigos (unidade/cidade em texto livre), de quando ainda não existia
+ // a coleção de Unidades.
+ const unidadeDe = (f) => {
+   const u = unidades.find(x => x.id === f.unidadeId);
+   return { nome: u?.nome || f.unidade || '', cidade: u?.cidade || f.cidade || '' };
+ };
  const [eventos, setEventos] = useState([]);
  const [eventosComTenant, setEventosComTenant] = useState([]);
  const [semTenantBudgets, setSemTenantBudgets] = useState([]);
@@ -42,7 +49,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
  // Modal novo franqueado
  const [showNovoFranq, setShowNovoFranq] = useState(false);
- const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidade: '', cidade: '', funcao: '' });
+ const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidadeId: '', funcao: '' });
  const [savingFranq, setSavingFranq] = useState(false);
 
  // Modal verba
@@ -123,6 +130,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  // ── Criar franqueado ─────────────────────────────────────────────────────────
  const handleCriarFranqueado = async () => {
  if (!formFranq.nome || !formFranq.email || !formFranq.senha) { alert('Nome, email e senha obrigatórios'); return; }
+ if (!formFranq.unidadeId) { alert('Selecione a unidade'); return; }
  setSavingFranq(true);
  // Cria um app secundário do Firebase só para este cadastro. Usar o "auth"
  // principal aqui trocaria a sessão logada para o usuário recém-criado
@@ -141,14 +149,13 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  tenantId,
  tenantRole: 'franqueado',
  companyName: tenantNome,
- unidade: formFranq.unidade,
- cidade: formFranq.cidade,
+ unidadeId: formFranq.unidadeId,
  funcao: formFranq.funcao || '',
  active: true,
  createdAt: serverTimestamp(),
  createdBy: userData?.id,
  });
- setFormFranq({ nome: '', email: '', senha: '', unidade: '', cidade: '', funcao: '' });
+ setFormFranq({ nome: '', email: '', senha: '', unidadeId: '', funcao: '' });
  setShowNovoFranq(false);
  // Recarrega
  const snap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
@@ -360,7 +367,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  <div style={{ flex: 1 }}>
  <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
- <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.email} {f.unidade ? `· ${f.unidade}` : ''} {f.cidade ? `· ${f.cidade}` : ''}</div>
+ <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.email} {unidadeDe(f).nome ? `· ${unidadeDe(f).nome}` : ''} {unidadeDe(f).cidade ? `· ${unidadeDe(f).cidade}` : ''}</div>
  </div>
  <div style={{ textAlign: 'right', flexShrink: 0 }}>
  <div style={{ fontSize: 12, color: '#94a3b8' }}>{evsFranq.length} evento(s)</div>
@@ -540,7 +547,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.funcao || ''}{f.unidade ? ` · ${f.unidade}` : ''}{f.cidade ? ` · ${f.cidade}` : ''}</div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.funcao || ''}{unidadeDe(f).nome ? ` · ${unidadeDe(f).nome}` : ''}{unidadeDe(f).cidade ? ` · ${unidadeDe(f).cidade}` : ''}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ textAlign: 'right' }}>
@@ -586,8 +593,16 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Nome completo *</label><input value={formFranq.nome} onChange={e => setFormFranq(p => ({...p, nome: e.target.value}))} style={inp} placeholder="Nome do franqueado" /></div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Email *</label><input type="email" value={formFranq.email} onChange={e => setFormFranq(p => ({...p, email: e.target.value}))} style={inp} placeholder="email@franquia.com" /></div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Senha *</label><input type="password" value={formFranq.senha} onChange={e => setFormFranq(p => ({...p, senha: e.target.value}))} style={inp} placeholder="Mínimo 6 caracteres" /></div>
- <div><label style={lbl}>Unidade / Loja</label><input value={formFranq.unidade} onChange={e => setFormFranq(p => ({...p, unidade: e.target.value}))} style={inp} placeholder="Ex: Ford SP Centro" /></div>
- <div><label style={lbl}>Cidade</label><input value={formFranq.cidade} onChange={e => setFormFranq(p => ({...p, cidade: e.target.value}))} style={inp} placeholder="São Paulo" /></div>
+ <div style={{ gridColumn: '1/-1' }}>
+   <label style={lbl}>Unidade</label>
+   <select value={formFranq.unidadeId} onChange={e => setFormFranq(p => ({...p, unidadeId: e.target.value}))} style={{ ...inp, background: 'white' }}>
+     <option value="">Selecione a unidade...</option>
+     {unidades.filter(u => u.ativo !== false).map(u => (
+       <option key={u.id} value={u.id}>{u.nome}{u.cidade ? ` — ${u.cidade}` : ''}</option>
+     ))}
+   </select>
+   {unidades.length === 0 && <div style={{ fontSize: 10, color: '#ef4444', marginTop: 4 }}>Nenhuma unidade cadastrada — crie uma na aba "Unidades" primeiro.</div>}
+ </div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Função</label><input value={formFranq.funcao || ''} onChange={e => setFormFranq(p => ({...p, funcao: e.target.value}))} style={inp} placeholder="Ex: Gerente de Marketing" /></div>
  </div>
  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
