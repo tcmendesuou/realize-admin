@@ -22,7 +22,7 @@ export default function UserManagement() {
     name: '', email: '', phone: '', cpf: '', city: '', state: '', companyName: '',
     password: '', tipoConta: '', cargoId: '', roleName: '', systemRole: 'none',
     active: true, selectedProjects: [], permissoesCustom: {},
-    ehTenantAdmin: false, tenantId: '', unidadeId: '',
+    ehTenantAdmin: false, tenantId: '', unidadeId: '', supplierId: '',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -79,6 +79,7 @@ export default function UserManagement() {
       selectedProjects: user.projects?.map(p => p.projectId) || [],
       permissoesCustom: user.permissoesCustom || {},
       ehTenantAdmin: user.systemRole === 'tenant_admin', tenantId: user.tenantId || '', unidadeId: user.unidadeId || '',
+      supplierId: user.supplierId || '',
     });
   };
 
@@ -87,7 +88,7 @@ export default function UserManagement() {
   const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
 
   const handleTipoContaChange = (tipoConta) => {
-    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {}, ehTenantAdmin: false, tenantId: '', unidadeId: '' }));
+    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {}, ehTenantAdmin: false, tenantId: '', unidadeId: '', supplierId: '' }));
   };
 
   const handleToggleTenantAdmin = (valor) => {
@@ -113,6 +114,7 @@ export default function UserManagement() {
     if (!form.email.trim())    { alert('Email é obrigatório'); return; }
     if (!form.tipoConta)       { alert('Selecione o tipo de conta'); return; }
     if (form.tipoConta === 'cliente' && !form.tenantId) { alert('Toda conta de Cliente precisa estar vinculada a uma Empresa'); return; }
+    if (form.tipoConta === 'fornecedor' && !form.supplierId) { alert('Toda conta de Fornecedor precisa estar vinculada a uma Empresa Fornecedora'); return; }
     if (!form.ehTenantAdmin && !form.cargoId) { alert('Selecione um cargo'); return; }
     if (!selectedUser && !form.password) { alert('Senha é obrigatória para novo usuário'); return; }
 
@@ -144,6 +146,9 @@ export default function UserManagement() {
       if (form.tipoConta === 'cliente') {
         data.tenantId = form.tenantId;
         data.unidadeId = form.ehTenantAdmin ? null : (form.unidadeId || null);
+      }
+      if (form.tipoConta === 'fornecedor') {
+        data.supplierId = form.supplierId;
       }
 
       if (selectedUser) {
@@ -359,6 +364,16 @@ export default function UserManagement() {
                           </div>
                         )}
                       </>
+                    )}
+                    {form.tipoConta === 'fornecedor' && (
+                      <div>
+                        <label style={lbl}>Empresa Fornecedora *</label>
+                        <select value={form.supplierId} onChange={e => setF('supplierId', e.target.value)} style={inp}>
+                          <option value="">Selecione a empresa...</option>
+                          {suppliers.map(s => <option key={s.id} value={s.id}>{s.tradeName || s.companyName} {s.status !== 'homologado' ? `(${s.status})` : ''}</option>)}
+                        </select>
+                        {suppliers.length === 0 && <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhuma empresa fornecedora cadastrada ainda. Crie em Admin → Fornecedores.</p>}
+                      </div>
                     )}
                     {!form.ehTenantAdmin && (
                       <div>

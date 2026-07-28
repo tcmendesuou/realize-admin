@@ -25,13 +25,13 @@ const CARGOS_PADRAO = [
   { nome: 'Visualizador', nivel: 5, tipoConta: 'cliente', permissoes: { meus_eventos: 'V', historico: 'V', financeiro: 'V', agenda: 'V', franqueados: 'V', verbas: 'V' } },
 
   // ── FORNECEDOR ──
-  { nome: 'Diretor', nivel: 1, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VCEXA', meus_servicos: 'VCEX', historico: 'V', financeiro: 'VCEXA' } },
-  { nome: 'Gerente', nivel: 2, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VCEXA', meus_servicos: 'VCEX', historico: 'V', financeiro: 'VCEA' } },
-  { nome: 'Coordenador', nivel: 3, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VEA', meus_servicos: 'VE', historico: 'V', financeiro: 'V' } },
-  { nome: 'Operação', nivel: 4, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VE', meus_servicos: 'VE', historico: 'V', financeiro: '' } },
-  { nome: 'Financeiro', nivel: 4, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'V', meus_servicos: 'V', historico: 'V', financeiro: 'VCEA' } },
-  { nome: 'Atendimento', nivel: 4, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VC', meus_servicos: 'V', historico: 'V', financeiro: '' } },
-  { nome: 'Visualizador', nivel: 5, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'V', meus_servicos: 'V', historico: 'V', financeiro: 'V' } },
+  { nome: 'Diretor', nivel: 1, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VCEXA', meus_servicos: 'VCEX', historico: 'V', financeiro: 'VCEXA', colaboradores: 'VCEXA' } },
+  { nome: 'Gerente', nivel: 2, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VCEXA', meus_servicos: 'VCEX', historico: 'V', financeiro: 'VCEA', colaboradores: 'VCE' } },
+  { nome: 'Coordenador', nivel: 3, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VEA', meus_servicos: 'VE', historico: 'V', financeiro: 'V', colaboradores: 'V' } },
+  { nome: 'Operação', nivel: 4, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VE', meus_servicos: 'VE', historico: 'V', financeiro: '', colaboradores: '' } },
+  { nome: 'Financeiro', nivel: 4, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'V', meus_servicos: 'V', historico: 'V', financeiro: 'VCEA', colaboradores: '' } },
+  { nome: 'Atendimento', nivel: 4, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'VC', meus_servicos: 'V', historico: 'V', financeiro: '', colaboradores: '' } },
+  { nome: 'Visualizador', nivel: 5, tipoConta: 'fornecedor', permissoes: { meus_jobs: 'V', meus_servicos: 'V', historico: 'V', financeiro: 'V', colaboradores: '' } },
 ];
 
 const CARGO_VAZIO = { nome: '', nivel: 3, tipoConta: 'realize', permissoes: {} };

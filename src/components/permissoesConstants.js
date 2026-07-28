@@ -23,6 +23,7 @@ export const RECURSOS_POR_TIPO = {
     { id: 'meus_servicos', label: 'Meus Serviços' },
     { id: 'historico',     label: 'Histórico' },
     { id: 'financeiro',    label: 'Financeiro (repasses)' },
+    { id: 'colaboradores', label: 'Colaboradores' },
   ],
 };
 

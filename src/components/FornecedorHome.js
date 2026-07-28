@@ -4,6 +4,7 @@ import { db } from '../firebase/config';
 import FornecedorServicos from './FornecedorServicos';
 import SinoNotificacoes from './SinoNotificacoes';
 import { usePermissoes } from '../hooks/usePermissoes';
+import FornecedorColaboradores from './FornecedorColaboradores';
 
 const STAGES = [
   { id: 'proposta',    label: 'Propostas',   color: '#7BAFD4' },
@@ -261,6 +262,7 @@ export default function FornecedorHome({ userData, onLogout }) {
           <button className={`fn-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
           {pode('financeiro', 'V') && <button className={`fn-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>}
           {pode('historico', 'V') && <button className={`fn-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>}
+          {pode('colaboradores', 'V') && <button className={`fn-nav-item ${activeSection === 'colaboradores' ? 'active' : ''}`} onClick={() => setActiveSection('colaboradores')}>Colaboradores</button>}
         </nav>
         <div className="fn-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -756,6 +758,10 @@ export default function FornecedorHome({ userData, onLogout }) {
             </div>
           );
         })()}
+
+        {activeSection === 'colaboradores' && (
+          <FornecedorColaboradores supplierId={supplierId} userData={userData} />
+        )}
 
       </main>
       {/* Chat flutuante — só visualiza chats existentes, não cria novos */}
