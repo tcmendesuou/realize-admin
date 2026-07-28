@@ -10,6 +10,7 @@ export default function UserManagement() {
   const [suppliers, setSuppliers]   = useState([]);
   const [projects, setProjects]     = useState([]);
   const [tenants, setTenants]       = useState([]);
+  const [unidadesTenant, setUnidadesTenant] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -21,13 +22,20 @@ export default function UserManagement() {
     name: '', email: '', phone: '', cpf: '', city: '', state: '', companyName: '',
     password: '', tipoConta: '', cargoId: '', roleName: '', systemRole: 'none',
     active: true, selectedProjects: [], permissoesCustom: {},
-    ehTenantAdmin: false, tenantId: '',
+    ehTenantAdmin: false, tenantId: '', unidadeId: '',
   };
   const [form, setForm] = useState(emptyForm);
 
   const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (!form.tenantId) { setUnidadesTenant([]); return; }
+    getDocs(collection(db, 'tenants', form.tenantId, 'unidades'))
+      .then(snap => setUnidadesTenant(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.ativo !== false)))
+      .catch(err => { console.error(err); setUnidadesTenant([]); });
+  }, [form.tenantId]);
 
   const loadData = async () => {
     setLoading(true);
@@ -70,7 +78,7 @@ export default function UserManagement() {
       systemRole: user.systemRole || 'none', active: user.active !== undefined ? user.active : true,
       selectedProjects: user.projects?.map(p => p.projectId) || [],
       permissoesCustom: user.permissoesCustom || {},
-      ehTenantAdmin: user.systemRole === 'tenant_admin', tenantId: user.tenantId || '',
+      ehTenantAdmin: user.systemRole === 'tenant_admin', tenantId: user.tenantId || '', unidadeId: user.unidadeId || '',
     });
   };
 
@@ -79,7 +87,7 @@ export default function UserManagement() {
   const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
 
   const handleTipoContaChange = (tipoConta) => {
-    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {}, ehTenantAdmin: false, tenantId: '' }));
+    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {}, ehTenantAdmin: false, tenantId: '', unidadeId: '' }));
   };
 
   const handleToggleTenantAdmin = (valor) => {
@@ -104,9 +112,8 @@ export default function UserManagement() {
     if (!form.name.trim())     { alert('Nome é obrigatório'); return; }
     if (!form.email.trim())    { alert('Email é obrigatório'); return; }
     if (!form.tipoConta)       { alert('Selecione o tipo de conta'); return; }
-    if (form.ehTenantAdmin) {
-      if (!form.tenantId) { alert('Selecione a empresa (tenant) que essa pessoa administra'); return; }
-    } else if (!form.cargoId) { alert('Selecione um cargo'); return; }
+    if (form.tipoConta === 'cliente' && !form.tenantId) { alert('Toda conta de Cliente precisa estar vinculada a uma Empresa'); return; }
+    if (!form.ehTenantAdmin && !form.cargoId) { alert('Selecione um cargo'); return; }
     if (!selectedUser && !form.password) { alert('Senha é obrigatória para novo usuário'); return; }
 
     setSaving(true);
@@ -131,10 +138,13 @@ export default function UserManagement() {
         }),
         updatedAt: new Date(),
       };
-      // tenantId só é tocado aqui quando é pra virar/editar um tenant_admin —
-      // assim não corre risco de apagar o vínculo de um franqueado existente
-      // que esteja sendo editado por outro motivo (ex: mudar o cargo dele).
-      if (form.ehTenantAdmin) data.tenantId = form.tenantId;
+      // tenantId é gravado sempre que for Cliente (agora toda empresa é
+      // cadastrada como tenant) — só não mexe quando NÃO for cliente, pra
+      // não interferir em fornecedor/realize.
+      if (form.tipoConta === 'cliente') {
+        data.tenantId = form.tenantId;
+        data.unidadeId = form.ehTenantAdmin ? null : (form.unidadeId || null);
+      }
 
       if (selectedUser) {
         if (form.password.trim()) data.password = form.password;
@@ -305,7 +315,7 @@ export default function UserManagement() {
             {selectedUser?.tenantId && (
               <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', color: '#7c3aed', fontSize: 12, marginBottom: 20 }}>
                 🏢 Esse usuário é do tenant <strong>{tenants.find(t => t.id === selectedUser.tenantId)?.nome || selectedUser.tenantId}</strong>
-                {selectedUser.unidadeId ? ' (franqueado de uma unidade)' : ' (empresa-mãe, vê tudo do tenant)'} — o vínculo de unidade só é ajustável no admin do cliente.
+                {selectedUser.unidadeId ? ' (franqueado de uma unidade)' : ' (empresa-mãe, vê tudo do tenant)'}.
               </div>
             )}
 
@@ -326,21 +336,31 @@ export default function UserManagement() {
                       </select>
                     </div>
                     {form.tipoConta === 'cliente' && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: form.ehTenantAdmin ? 'rgba(124,58,237,0.06)' : '#f8faff', border: `1px solid ${form.ehTenantAdmin ? 'rgba(124,58,237,0.2)' : '#f0f2f5'}`, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={form.ehTenantAdmin} onChange={e => handleToggleTenantAdmin(e.target.checked)} style={{ accentColor: '#7c3aed' }} />
-                        <span style={{ fontSize: 12, color: '#475569' }}>É administrador de uma empresa (tenant_admin) — gerencia franqueados, unidades e verbas</span>
-                      </label>
+                      <>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: form.ehTenantAdmin ? 'rgba(124,58,237,0.06)' : '#f8faff', border: `1px solid ${form.ehTenantAdmin ? 'rgba(124,58,237,0.2)' : '#f0f2f5'}`, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={form.ehTenantAdmin} onChange={e => handleToggleTenantAdmin(e.target.checked)} style={{ accentColor: '#7c3aed' }} />
+                          <span style={{ fontSize: 12, color: '#475569' }}>É administrador da empresa (tenant_admin) — gerencia franqueados, unidades e verbas</span>
+                        </label>
+                        <div>
+                          <label style={lbl}>Empresa *</label>
+                          <select value={form.tenantId} onChange={e => setF('tenantId', e.target.value)} style={inp}>
+                            <option value="">Selecione a empresa...</option>
+                            {tenants.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                          </select>
+                          {tenants.length === 0 && <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhuma empresa cadastrada ainda. Crie em Admin → Empresas.</p>}
+                        </div>
+                        {!form.ehTenantAdmin && form.tenantId && unidadesTenant.length > 0 && (
+                          <div>
+                            <label style={lbl}>Unidade (opcional)</label>
+                            <select value={form.unidadeId} onChange={e => setF('unidadeId', e.target.value)} style={inp}>
+                              <option value="">Sem unidade — empresa-mãe, vê tudo</option>
+                              {unidadesTenant.map(u => <option key={u.id} value={u.id}>{u.nome}{u.cidade ? ` — ${u.cidade}` : ''}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </>
                     )}
-                    {form.ehTenantAdmin ? (
-                      <div>
-                        <label style={lbl}>Empresa (tenant) *</label>
-                        <select value={form.tenantId} onChange={e => setF('tenantId', e.target.value)} style={inp}>
-                          <option value="">Selecione a empresa...</option>
-                          {tenants.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                        </select>
-                        {tenants.length === 0 && <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhuma empresa cadastrada ainda. Crie em Admin → Empresas/Tenants.</p>}
-                      </div>
-                    ) : (
+                    {!form.ehTenantAdmin && (
                       <div>
                         <label style={lbl}>Cargo *</label>
                         <select value={form.cargoId} onChange={e => handleCargoChange(e.target.value)} style={inp} disabled={!form.tipoConta}>

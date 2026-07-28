@@ -330,6 +330,9 @@ function App() {
               <span className="nav-text">Cargos</span>
             </button>
             <div className="nav-separator" />
+            <button className={activeView === 'tenants' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tenants')}>
+              <span className="nav-text">Empresas</span>
+            </button>
             <button className={activeView === 'suppliers' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('suppliers')}>
               <span className="nav-text">Fornecedores</span>
             </button>
@@ -339,10 +342,6 @@ function App() {
             <div className="nav-separator" />
             <button className={activeView === 'financeiro' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('financeiro')}>
               <span className="nav-text">Financeiro</span>
-            </button>
-            <div className="nav-separator" />
-            <button className={activeView === 'tenants' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tenants')}>
-              <span className="nav-text">Empresas (Tenants)</span>
             </button>
           </nav>
           <div className="sidebar-footer">
@@ -371,7 +370,7 @@ function App() {
                 {activeView === 'suppliers' && 'Fornecedores'}
                 {activeView === 'users'     && 'Cadastros'}
                 {activeView === 'financeiro' && 'Financeiro'}
-                {activeView === 'tenants'   && 'Empresas (Tenants)'}
+                {activeView === 'tenants'   && 'Empresas'}
               </h2>
             </div>
             <div className="header-right">
