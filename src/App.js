@@ -7,7 +7,6 @@ import { db } from './firebase/config';
 import Login from './pages/Login';
 import Dashboard from './components/Dashboard';
 import Projects from './components/Projects';
-import RoleManagement from './components/RoleManagement';
 import UserManagement from './components/UserManagement';
 import AtendimentoHome from './components/AtendimentoHome';
 import ProjetoScreen from './components/ProjetoScreen';
@@ -331,9 +330,6 @@ function App() {
               <span className="nav-text">Cargos</span>
             </button>
             <div className="nav-separator" />
-            <button className={activeView === 'roles' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('roles')}>
-              <span className="nav-text">Gestao de Acessos</span>
-            </button>
             <button className={activeView === 'suppliers' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('suppliers')}>
               <span className="nav-text">Fornecedores</span>
             </button>
@@ -372,7 +368,6 @@ function App() {
                 {activeView === 'script'    && 'Script da IA'}
                 {activeView === 'chat'      && 'Chat'}
                 {activeView === 'cargos'    && 'Cargos'}
-                {activeView === 'roles'     && 'Gestao de Acessos'}
                 {activeView === 'suppliers' && 'Fornecedores'}
                 {activeView === 'users'     && 'Cadastros'}
                 {activeView === 'financeiro' && 'Financeiro'}
@@ -394,7 +389,6 @@ function App() {
             {activeView === 'script'    && <ScriptManager />}
             {activeView === 'chat'      && <ChatConfig userData={firestoreUser} />}
             {activeView === 'cargos'    && <Cargos />}
-            {activeView === 'roles'     && <RoleManagement />}
             {activeView === 'suppliers' && <SupplierManager />}
             {activeView === 'users'     && <UserManagement />}
             {activeView === 'financeiro' && <FinanceiroManager />}

@@ -21,6 +21,7 @@ export default function UserManagement() {
     name: '', email: '', phone: '', cpf: '', city: '', state: '', companyName: '',
     password: '', tipoConta: '', cargoId: '', roleName: '', systemRole: 'none',
     active: true, selectedProjects: [], permissoesCustom: {},
+    ehTenantAdmin: false, tenantId: '',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -64,10 +65,12 @@ export default function UserManagement() {
     setForm({
       name: user.name || '', email: user.email || '', phone: user.phone || '', cpf: user.cpf || '',
       city: user.city || '', state: user.state || '', companyName: user.companyName || '',
-      password: '', tipoConta: user.tipoConta || '', cargoId: user.cargoId || '', roleName: user.roleName || '',
+      password: '', tipoConta: user.tipoConta || (user.systemRole === 'tenant_admin' ? 'cliente' : ''),
+      cargoId: user.cargoId || '', roleName: user.roleName || '',
       systemRole: user.systemRole || 'none', active: user.active !== undefined ? user.active : true,
       selectedProjects: user.projects?.map(p => p.projectId) || [],
       permissoesCustom: user.permissoesCustom || {},
+      ehTenantAdmin: user.systemRole === 'tenant_admin', tenantId: user.tenantId || '',
     });
   };
 
@@ -76,7 +79,11 @@ export default function UserManagement() {
   const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
 
   const handleTipoContaChange = (tipoConta) => {
-    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {} }));
+    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {}, ehTenantAdmin: false, tenantId: '' }));
+  };
+
+  const handleToggleTenantAdmin = (valor) => {
+    setForm(p => ({ ...p, ehTenantAdmin: valor, systemRole: valor ? 'tenant_admin' : derivarSystemRole(p.tipoConta, cargos.find(c => c.id === p.cargoId)), cargoId: valor ? '' : p.cargoId }));
   };
 
   const handleCargoChange = (cargoId) => {
@@ -97,7 +104,9 @@ export default function UserManagement() {
     if (!form.name.trim())     { alert('Nome é obrigatório'); return; }
     if (!form.email.trim())    { alert('Email é obrigatório'); return; }
     if (!form.tipoConta)       { alert('Selecione o tipo de conta'); return; }
-    if (!form.cargoId)         { alert('Selecione um cargo'); return; }
+    if (form.ehTenantAdmin) {
+      if (!form.tenantId) { alert('Selecione a empresa (tenant) que essa pessoa administra'); return; }
+    } else if (!form.cargoId) { alert('Selecione um cargo'); return; }
     if (!selectedUser && !form.password) { alert('Senha é obrigatória para novo usuário'); return; }
 
     setSaving(true);
@@ -111,8 +120,8 @@ export default function UserManagement() {
         state: form.state,
         companyName: form.companyName.trim(),
         tipoConta: form.tipoConta,
-        cargoId: form.cargoId,
-        roleName: form.roleName,
+        cargoId: form.ehTenantAdmin ? '' : form.cargoId,
+        roleName: form.ehTenantAdmin ? 'Administrador da Empresa' : form.roleName,
         systemRole: form.systemRole,
         active: form.active,
         permissoesCustom: form.permissoesCustom || {},
@@ -122,6 +131,10 @@ export default function UserManagement() {
         }),
         updatedAt: new Date(),
       };
+      // tenantId só é tocado aqui quando é pra virar/editar um tenant_admin —
+      // assim não corre risco de apagar o vínculo de um franqueado existente
+      // que esteja sendo editado por outro motivo (ex: mudar o cargo dele).
+      if (form.ehTenantAdmin) data.tenantId = form.tenantId;
 
       if (selectedUser) {
         if (form.password.trim()) data.password = form.password;
@@ -184,6 +197,7 @@ export default function UserManagement() {
     cliente:   { bg: 'rgba(0,229,196,0.1)',    color: '#00E5C4' },
     fornecedor:{ bg: 'rgba(255,167,38,0.1)',   color: '#FFA726' },
     admin:     { bg: 'rgba(239,68,68,0.1)',    color: '#ef4444' },
+    tenant_admin: { bg: 'rgba(124,58,237,0.1)', color: '#7c3aed' },
   };
 
   if (loading) return (
@@ -311,16 +325,33 @@ export default function UserManagement() {
                         {TIPOS_CONTA.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label style={lbl}>Cargo *</label>
-                      <select value={form.cargoId} onChange={e => handleCargoChange(e.target.value)} style={inp} disabled={!form.tipoConta}>
-                        <option value="">Selecione um cargo...</option>
-                        {cargosFiltrados.map(c => <option key={c.id} value={c.id}>{c.nome} (nível {c.nivel})</option>)}
-                      </select>
-                      {form.tipoConta && cargosFiltrados.length === 0 && (
-                        <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhum cargo para este tipo. Cadastre em Admin → Cargos.</p>
-                      )}
-                    </div>
+                    {form.tipoConta === 'cliente' && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: form.ehTenantAdmin ? 'rgba(124,58,237,0.06)' : '#f8faff', border: `1px solid ${form.ehTenantAdmin ? 'rgba(124,58,237,0.2)' : '#f0f2f5'}`, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={form.ehTenantAdmin} onChange={e => handleToggleTenantAdmin(e.target.checked)} style={{ accentColor: '#7c3aed' }} />
+                        <span style={{ fontSize: 12, color: '#475569' }}>É administrador de uma empresa (tenant_admin) — gerencia franqueados, unidades e verbas</span>
+                      </label>
+                    )}
+                    {form.ehTenantAdmin ? (
+                      <div>
+                        <label style={lbl}>Empresa (tenant) *</label>
+                        <select value={form.tenantId} onChange={e => setF('tenantId', e.target.value)} style={inp}>
+                          <option value="">Selecione a empresa...</option>
+                          {tenants.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                        </select>
+                        {tenants.length === 0 && <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhuma empresa cadastrada ainda. Crie em Admin → Empresas/Tenants.</p>}
+                      </div>
+                    ) : (
+                      <div>
+                        <label style={lbl}>Cargo *</label>
+                        <select value={form.cargoId} onChange={e => handleCargoChange(e.target.value)} style={inp} disabled={!form.tipoConta}>
+                          <option value="">Selecione um cargo...</option>
+                          {cargosFiltrados.map(c => <option key={c.id} value={c.id}>{c.nome} (nível {c.nivel})</option>)}
+                        </select>
+                        {form.tipoConta && cargosFiltrados.length === 0 && (
+                          <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhum cargo para este tipo. Cadastre em Admin → Cargos.</p>
+                        )}
+                      </div>
+                    )}
                     <div>
                       <label style={lbl}>Status</label>
                       <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
