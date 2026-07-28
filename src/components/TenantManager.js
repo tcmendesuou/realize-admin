@@ -110,7 +110,7 @@ export default function TenantManager() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Empresas (Tenants)</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Empresas</h2>
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Gerencie ambientes white-label para clientes corporativos</p>
         </div>
         <button onClick={abrirNovo} style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
