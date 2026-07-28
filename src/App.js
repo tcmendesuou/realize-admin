@@ -22,6 +22,7 @@ import ClienteHome from './components/ClienteHome';
 import ScriptManager from './components/ScriptManager';
 import FinanceiroManager from './components/FinanceiroManager';
 import ChatConfig from './components/ChatConfig';
+import Cargos from './components/Cargos';
 import TenantManager from './components/TenantManager';
 import TenantAdmin from './components/TenantAdmin';
 import FinanceiroHome from './components/FinanceiroHome';
@@ -325,6 +326,9 @@ function App() {
             <button className={activeView === 'chat' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('chat')}>
               <span className="nav-text">Chat</span>
             </button>
+            <button className={activeView === 'cargos' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('cargos')}>
+              <span className="nav-text">Cargos</span>
+            </button>
             <div className="nav-separator" />
             <button className={activeView === 'roles' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('roles')}>
               <span className="nav-text">Gestao de Acessos</span>
@@ -366,6 +370,7 @@ function App() {
                 {activeView === 'pricing'   && 'Tabela de Precos'}
                 {activeView === 'script'    && 'Script da IA'}
                 {activeView === 'chat'      && 'Chat'}
+                {activeView === 'cargos'    && 'Cargos'}
                 {activeView === 'roles'     && 'Gestao de Acessos'}
                 {activeView === 'suppliers' && 'Fornecedores'}
                 {activeView === 'users'     && 'Cadastros'}
@@ -387,6 +392,7 @@ function App() {
             {activeView === 'pricing'   && <PricingManager />}
             {activeView === 'script'    && <ScriptManager />}
             {activeView === 'chat'      && <ChatConfig userData={firestoreUser} />}
+            {activeView === 'cargos'    && <Cargos />}
             {activeView === 'roles'     && <RoleManagement />}
             {activeView === 'suppliers' && <SupplierManager />}
             {activeView === 'users'     && <UserManagement />}
