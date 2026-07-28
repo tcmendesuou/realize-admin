@@ -35,6 +35,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const [view, setView] = useState('overview'); // overview | franqueados | verbas | eventos
  const [franqueados, setFranqueados] = useState([]);
  const [unidades, setUnidades] = useState([]);
+ const [cargosCliente, setCargosCliente] = useState([]);
+ useEffect(() => {
+   getDocs(query(collection(db, 'cargos'), where('tipoConta', '==', 'cliente'))).then(snap => {
+     setCargosCliente(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.nivel||0)-(b.nivel||0)));
+   }).catch(console.error);
+ }, []);
  // Resolve nome/cidade da unidade vinculada — com fallback pros campos
  // antigos (unidade/cidade em texto livre), de quando ainda não existia
  // a coleção de Unidades.
@@ -42,6 +48,9 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
    const u = unidades.find(x => x.id === f.unidadeId);
    return { nome: u?.nome || f.unidade || '', cidade: u?.cidade || f.cidade || '' };
  };
+ // Resolve nome do cargo vinculado — com fallback pro campo antigo "funcao"
+ // (texto livre), de quando ainda não existia o catálogo de Cargos.
+ const cargoDe = (f) => cargosCliente.find(c => c.id === f.cargoId)?.nome || f.funcao || '';
  const [eventos, setEventos] = useState([]);
  const [eventosComTenant, setEventosComTenant] = useState([]);
  const [semTenantBudgets, setSemTenantBudgets] = useState([]);
@@ -49,7 +58,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
  // Modal novo franqueado
  const [showNovoFranq, setShowNovoFranq] = useState(false);
- const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidadeId: '', funcao: '' });
+ const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidadeId: '', cargoId: '' });
  const [savingFranq, setSavingFranq] = useState(false);
 
  // Modal verba
@@ -150,12 +159,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  tenantRole: 'franqueado',
  companyName: tenantNome,
  unidadeId: formFranq.unidadeId,
- funcao: formFranq.funcao || '',
+ cargoId: formFranq.cargoId || '',
  active: true,
  createdAt: serverTimestamp(),
  createdBy: userData?.id,
  });
- setFormFranq({ nome: '', email: '', senha: '', unidadeId: '', funcao: '' });
+ setFormFranq({ nome: '', email: '', senha: '', unidadeId: '', cargoId: '' });
  setShowNovoFranq(false);
  // Recarrega
  const snap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
@@ -547,7 +556,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.funcao || ''}{unidadeDe(f).nome ? ` · ${unidadeDe(f).nome}` : ''}{unidadeDe(f).cidade ? ` · ${unidadeDe(f).cidade}` : ''}</div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{cargoDe(f)}{unidadeDe(f).nome ? ` · ${unidadeDe(f).nome}` : ''}{unidadeDe(f).cidade ? ` · ${unidadeDe(f).cidade}` : ''}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ textAlign: 'right' }}>
@@ -603,7 +612,16 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
    </select>
    {unidades.length === 0 && <div style={{ fontSize: 10, color: '#ef4444', marginTop: 4 }}>Nenhuma unidade cadastrada — crie uma na aba "Unidades" primeiro.</div>}
  </div>
- <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Função</label><input value={formFranq.funcao || ''} onChange={e => setFormFranq(p => ({...p, funcao: e.target.value}))} style={inp} placeholder="Ex: Gerente de Marketing" /></div>
+ <div style={{ gridColumn: '1/-1' }}>
+   <label style={lbl}>Cargo</label>
+   <select value={formFranq.cargoId} onChange={e => setFormFranq(p => ({...p, cargoId: e.target.value}))} style={{ ...inp, background: 'white' }}>
+     <option value="">Selecione o cargo...</option>
+     {cargosCliente.map(c => (
+       <option key={c.id} value={c.id}>{c.nome} (nível {c.nivel})</option>
+     ))}
+   </select>
+   {cargosCliente.length === 0 && <div style={{ fontSize: 10, color: '#ef4444', marginTop: 4 }}>Nenhum cargo cadastrado — popule os cargos padrão em Admin → Cargos primeiro.</div>}
+ </div>
  </div>
  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
  <button onClick={() => setShowNovoFranq(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
