@@ -208,9 +208,10 @@ function App() {
       );
     }
 
-    if (systemRole === 'cliente')       return <ClienteHome userData={firestoreUser} onLogout={handleLogout} />;
-    if (systemRole === 'franqueado') {
-      const tenantEfetivo = tenant || (firestoreUser.tenantId ? { id: firestoreUser.tenantId } : null);
+    if (systemRole === 'cliente') {
+      // Se tiver tenantId (era o antigo "franqueado", agora unificado em
+      // cliente), resolve o tenant pra passar pro ClienteHome (logo, cores).
+      const tenantEfetivo = firestoreUser.tenantId ? (tenant || { id: firestoreUser.tenantId }) : null;
       return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenantEfetivo} />;
     }
     if (systemRole === 'tenant_admin') {

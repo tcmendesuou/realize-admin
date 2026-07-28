@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { TIPOS_CONTA } from './permissoesConstants';
+import PermissoesOverride from './PermissoesOverride';
 
 export default function UserManagement() {
   const [users, setUsers]           = useState([]);
-  const [userTypes, setUserTypes]   = useState([]);
-  const [roles, setRoles]           = useState([]);
+  const [cargos, setCargos]         = useState([]);
   const [suppliers, setSuppliers]   = useState([]);
   const [projects, setProjects]     = useState([]);
   const [tenants, setTenants]       = useState([]);
@@ -13,13 +14,13 @@ export default function UserManagement() {
   const [saving, setSaving]         = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
   const [filterTenant, setFilterTenant] = useState('');
 
   const emptyForm = {
     name: '', email: '', phone: '', cpf: '', city: '', state: '', companyName: '',
-    password: '', userTypeId: '', userTypeName: '', systemRole: 'none',
-    roleId: '', roleName: '', active: true, selectedProjects: [],
+    password: '', tipoConta: '', cargoId: '', roleName: '', systemRole: 'none',
+    active: true, selectedProjects: [], permissoesCustom: {},
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -30,17 +31,15 @@ export default function UserManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersSnap, typesSnap, rolesSnap, suppliersSnap, budgetsSnap, tenantsSnap] = await Promise.all([
+      const [usersSnap, cargosSnap, suppliersSnap, budgetsSnap, tenantsSnap] = await Promise.all([
         getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'userTypes')),
-        getDocs(collection(db, 'roles')),
+        getDocs(collection(db, 'cargos')),
         getDocs(collection(db, 'suppliers')),
         getDocs(collection(db, 'budgets')),
         getDocs(collection(db, 'tenants')),
       ]);
       setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setUserTypes(typesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order||0)-(b.order||0)));
-      setRoles(rolesSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order||0)-(b.order||0)));
+      setCargos(cargosSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.nivel||0)-(b.nivel||0)));
       setSuppliers(suppliersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setProjects(budgetsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => b.status === 'approved'));
       setTenants(tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -51,24 +50,24 @@ export default function UserManagement() {
     }
   };
 
+  // Deriva o systemRole (que controla qual tela a pessoa vê ao logar) a
+  // partir do tipo de conta + nível do cargo. Nível 1-2 (Diretor/Gerente) do
+  // Realize ganham o painel admin completo; os demais níveis vão pro Kanban.
+  const derivarSystemRole = (tipoConta, cargo) => {
+    if (tipoConta === 'realize') return (cargo?.nivel || 99) <= 2 ? 'admin' : 'equipe';
+    if (tipoConta === 'fornecedor') return 'fornecedor';
+    return 'cliente'; // cliente avulso ou franqueado (diferenciado por tenantId, não por systemRole)
+  };
+
   const handleSelect = (user) => {
     setSelectedUser(user);
     setForm({
-      name: user.name || '',
-      email: user.email || '',
-      phone: user.phone || '',
-      cpf: user.cpf || '',
-      city: user.city || '',
-      state: user.state || '',
-      companyName: user.companyName || '',
-      password: '',
-      userTypeId: user.userTypeId || '',
-      userTypeName: user.userTypeName || '',
-      systemRole: user.systemRole || 'none',
-      roleId: user.roleId || '',
-      roleName: user.roleName || '',
-      active: user.active !== undefined ? user.active : true,
+      name: user.name || '', email: user.email || '', phone: user.phone || '', cpf: user.cpf || '',
+      city: user.city || '', state: user.state || '', companyName: user.companyName || '',
+      password: '', tipoConta: user.tipoConta || '', cargoId: user.cargoId || '', roleName: user.roleName || '',
+      systemRole: user.systemRole || 'none', active: user.active !== undefined ? user.active : true,
       selectedProjects: user.projects?.map(p => p.projectId) || [],
+      permissoesCustom: user.permissoesCustom || {},
     });
   };
 
@@ -76,14 +75,13 @@ export default function UserManagement() {
 
   const setF = (field, value) => setForm(p => ({ ...p, [field]: value }));
 
-  const handleTypeChange = (typeId) => {
-    const t = userTypes.find(t => t.id === typeId);
-    setForm(p => ({ ...p, userTypeId: typeId, userTypeName: t?.name || '', systemRole: t?.systemRole || 'none', roleId: '', roleName: '' }));
+  const handleTipoContaChange = (tipoConta) => {
+    setForm(p => ({ ...p, tipoConta, cargoId: '', roleName: '', systemRole: derivarSystemRole(tipoConta, null), permissoesCustom: {} }));
   };
 
-  const handleRoleChange = (roleId) => {
-    const r = roles.find(r => r.id === roleId);
-    setForm(p => ({ ...p, roleId, roleName: r?.name || '' }));
+  const handleCargoChange = (cargoId) => {
+    const c = cargos.find(c => c.id === cargoId);
+    setForm(p => ({ ...p, cargoId, roleName: c?.nome || '', systemRole: derivarSystemRole(p.tipoConta, c), permissoesCustom: {} }));
   };
 
   const toggleProject = (projectId) => {
@@ -98,8 +96,8 @@ export default function UserManagement() {
   const handleSave = async () => {
     if (!form.name.trim())     { alert('Nome é obrigatório'); return; }
     if (!form.email.trim())    { alert('Email é obrigatório'); return; }
-    if (!form.userTypeId)      { alert('Selecione um tipo de usuário'); return; }
-    if (!form.roleId)          { alert('Selecione um cargo'); return; }
+    if (!form.tipoConta)       { alert('Selecione o tipo de conta'); return; }
+    if (!form.cargoId)         { alert('Selecione um cargo'); return; }
     if (!selectedUser && !form.password) { alert('Senha é obrigatória para novo usuário'); return; }
 
     setSaving(true);
@@ -112,12 +110,12 @@ export default function UserManagement() {
         city: form.city.trim(),
         state: form.state,
         companyName: form.companyName.trim(),
-        userTypeId: form.userTypeId,
-        userTypeName: form.userTypeName,
-        systemRole: form.systemRole,
-        roleId: form.roleId,
+        tipoConta: form.tipoConta,
+        cargoId: form.cargoId,
         roleName: form.roleName,
+        systemRole: form.systemRole,
         active: form.active,
+        permissoesCustom: form.permissoesCustom || {},
         projects: form.selectedProjects.map(pid => {
           const p = projects.find(p => p.id === pid);
           return { projectId: pid, projectName: p?.eventTypeName || 'Projeto', status: p?.status || 'active', joinedAt: new Date() };
@@ -157,12 +155,13 @@ export default function UserManagement() {
 
   const filteredUsers = users.filter(u => {
     const matchSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchType   = !filterType || u.userTypeId === filterType;
+    const matchTipo   = !filterTipo || u.tipoConta === filterTipo;
     const matchTenant = !filterTenant || (filterTenant === '__sem_tenant__' ? !u.tenantId : u.tenantId === filterTenant);
-    return matchSearch && matchType && matchTenant;
+    return matchSearch && matchTipo && matchTenant;
   });
 
-  const filteredRoles = roles.filter(r => r.userTypeId === form.userTypeId);
+  const cargosFiltrados = cargos.filter(c => c.tipoConta === form.tipoConta);
+  const cargoSelecionado = cargos.find(c => c.id === form.cargoId);
   const supplier = form.systemRole === 'fornecedor'
     ? suppliers.find(s => s.userId === selectedUser?.id || s.email === form.email)
     : null;
@@ -199,7 +198,9 @@ export default function UserManagement() {
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: '#1e293b', margin: 0 }}>Cadastros</h2>
-        <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>Gerencie usuários da plataforma</p>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
+          Gerencie usuários da plataforma — inclusive franqueados (o cadastro deles é feito no admin do cliente, mas aparecem aqui pra consulta/ajuste)
+        </p>
       </div>
 
       {/* Layout 2 painéis */}
@@ -222,14 +223,14 @@ export default function UserManagement() {
               onChange={e => setSearchTerm(e.target.value)}
               style={{ ...inp, fontSize: 12, padding: '8px 12px' }}
             />
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={{ ...inp, fontSize: 12, padding: '8px 12px' }}>
-              <option value="">Todos os tipos</option>
-              {userTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            <select value={filterTipo} onChange={e => setFilterTipo(e.target.value)} style={{ ...inp, fontSize: 12, padding: '8px 12px' }}>
+              <option value="">Todos os tipos de conta</option>
+              {TIPOS_CONTA.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
             {tenants.length > 0 && (
               <select value={filterTenant} onChange={e => setFilterTenant(e.target.value)} style={{ ...inp, fontSize: 12, padding: '8px 12px' }}>
                 <option value="">Todos os tenants</option>
-                <option value="__sem_tenant__">Sem tenant (Realize)</option>
+                <option value="__sem_tenant__">Sem tenant (Realize/Cliente avulso)</option>
                 {tenants.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
               </select>
             )}
@@ -260,7 +261,7 @@ export default function UserManagement() {
                   {user.roleName && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{user.roleName}</div>}
                   {user.tenantId && (
                     <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 3, fontWeight: 500 }}>
-                      🏢 {tenants.find(t => t.id === user.tenantId)?.nome || user.tenantId}
+                      🏢 {tenants.find(t => t.id === user.tenantId)?.nome || user.tenantId}{user.unidadeId ? ' · franqueado' : ' · empresa-mãe'}
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -287,6 +288,13 @@ export default function UserManagement() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            {selectedUser?.tenantId && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', color: '#7c3aed', fontSize: 12, marginBottom: 20 }}>
+                🏢 Esse usuário é do tenant <strong>{tenants.find(t => t.id === selectedUser.tenantId)?.nome || selectedUser.tenantId}</strong>
+                {selectedUser.unidadeId ? ' (franqueado de uma unidade)' : ' (empresa-mãe, vê tudo do tenant)'} — o vínculo de unidade só é ajustável no admin do cliente.
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
               {/* Coluna esquerda */}
@@ -297,20 +305,20 @@ export default function UserManagement() {
                   <div style={sectionTitle}>Vínculo</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
-                      <label style={lbl}>Tipo de Usuário *</label>
-                      <select value={form.userTypeId} onChange={e => handleTypeChange(e.target.value)} style={inp}>
-                        <option value="">Selecione um tipo...</option>
-                        {userTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      <label style={lbl}>Tipo de Conta *</label>
+                      <select value={form.tipoConta} onChange={e => handleTipoContaChange(e.target.value)} style={inp}>
+                        <option value="">Selecione...</option>
+                        {TIPOS_CONTA.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                       </select>
                     </div>
                     <div>
                       <label style={lbl}>Cargo *</label>
-                      <select value={form.roleId} onChange={e => handleRoleChange(e.target.value)} style={inp} disabled={!form.userTypeId}>
+                      <select value={form.cargoId} onChange={e => handleCargoChange(e.target.value)} style={inp} disabled={!form.tipoConta}>
                         <option value="">Selecione um cargo...</option>
-                        {filteredRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        {cargosFiltrados.map(c => <option key={c.id} value={c.id}>{c.nome} (nível {c.nivel})</option>)}
                       </select>
-                      {form.userTypeId && filteredRoles.length === 0 && (
-                        <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhum cargo para este tipo. Cadastre em Gestão de Acessos.</p>
+                      {form.tipoConta && cargosFiltrados.length === 0 && (
+                        <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Nenhum cargo para este tipo. Cadastre em Admin → Cargos.</p>
                       )}
                     </div>
                     <div>
@@ -428,6 +436,22 @@ export default function UserManagement() {
                 </div>
               </div>
             </div>
+
+            {/* Permissões — só faz sentido depois de escolher tipo+cargo */}
+            {form.tipoConta && form.cargoId && (
+              <div style={{ marginTop: 24 }}>
+                <div style={sectionTitle}>Permissões</div>
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: -8, marginBottom: 12 }}>
+                  Vem do cargo "{cargoSelecionado?.nome}" por padrão. Pode ajustar pontos específicos só pra essa pessoa — o que não for alterado aqui continua igual ao cargo.
+                </p>
+                <PermissoesOverride
+                  tipoConta={form.tipoConta}
+                  cargo={cargoSelecionado}
+                  permissoesCustom={form.permissoesCustom}
+                  onChange={novo => setF('permissoesCustom', novo)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Footer com botões */}

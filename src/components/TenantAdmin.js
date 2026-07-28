@@ -7,6 +7,7 @@ import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth'
 import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
 import { usePermissoes } from '../hooks/usePermissoes';
+import PermissoesOverride from './PermissoesOverride';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const inp = { width: '100%', padding: '10px 14px', borderRadius: 9, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', color: '#1e293b' };
@@ -80,7 +81,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
     // Franqueados — tempo real
     const unsubFranq = onSnapshot(
-      query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')),
+      query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'cliente')),
       snap => {
         const franqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setFranqueados(franqs);
@@ -141,7 +142,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  // ── Criar franqueado ─────────────────────────────────────────────────────────
  const handleCriarFranqueado = async () => {
  if (!formFranq.nome || !formFranq.email || !formFranq.senha) { alert('Nome, email e senha obrigatórios'); return; }
- if (!formFranq.unidadeId) { alert('Selecione a unidade'); return; }
+ if (!formFranq.cargoId) { alert('Selecione o cargo'); return; }
  setSavingFranq(true);
  // Cria um app secundário do Firebase só para este cadastro. Usar o "auth"
  // principal aqui trocaria a sessão logada para o usuário recém-criado
@@ -151,17 +152,19 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  try {
  // Cria auth (na instância secundária, não afeta a sessão do admin)
  const cred = await createUserWithEmailAndPassword(secondaryAuth, formFranq.email, formFranq.senha);
+ const cargoEscolhido = cargosCliente.find(c => c.id === formFranq.cargoId);
  // Cria user no Firestore
  await addDoc(collection(db, 'users'), {
  uid: cred.user.uid,
  name: formFranq.nome,
  email: formFranq.email,
- systemRole: 'franqueado',
+ systemRole: 'cliente',
+ tipoConta: 'cliente',
  tenantId,
- tenantRole: 'franqueado',
  companyName: tenantNome,
- unidadeId: formFranq.unidadeId,
+ unidadeId: formFranq.unidadeId || null,
  cargoId: formFranq.cargoId || '',
+ roleName: cargoEscolhido?.nome || '',
  active: true,
  createdAt: serverTimestamp(),
  createdBy: userData?.id,
@@ -169,7 +172,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  setFormFranq({ nome: '', email: '', senha: '', unidadeId: '', cargoId: '' });
  setShowNovoFranq(false);
  // Recarrega
- const snap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'franqueado')));
+ const snap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId), where('systemRole', '==', 'cliente')));
  setFranqueados(snap.docs.map(d => ({ id: d.id, ...d.data() })));
  } catch (e) { console.error(e); alert(`Erro: ${e.message}`); }
  finally {
@@ -204,6 +207,9 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
   // ── Atribuir verba ao franqueado ────────────────────────────────────────────
   const [showFormUnidade, setShowFormUnidade] = useState(false);
+ const [editandoPermissoes, setEditandoPermissoes] = useState(null); // franqueado sendo editado
+ const [permissoesCustomForm, setPermissoesCustomForm] = useState({});
+ const [savingPermissoes, setSavingPermissoes] = useState(false);
   const [editandoUnidade, setEditandoUnidade] = useState(null);
   const [formUnidade, setFormUnidade] = useState({ nome: '', cidade: '', saldoVerba: '', periodoUso: '', ativo: true });
   const [savingUnidade, setSavingUnidade] = useState(false);
@@ -246,6 +252,21 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     if (!window.confirm(`Excluir a unidade "${u.nome}"? Franqueados vinculados a ela não são apagados, mas ficarão sem unidade.`)) return;
     try { await deleteDoc(doc(db, 'tenants', tenantId, 'unidades', u.id)); }
     catch (e) { console.error(e); alert('Erro ao excluir.'); }
+  };
+
+  const abrirPermissoes = (f) => {
+    setEditandoPermissoes(f);
+    setPermissoesCustomForm(f.permissoesCustom || {});
+  };
+
+  const salvarPermissoes = async () => {
+    setSavingPermissoes(true);
+    try {
+      await updateDoc(doc(db, 'users', editandoPermissoes.id), { permissoesCustom: permissoesCustomForm });
+      setFranqueados(p => p.map(f => f.id === editandoPermissoes.id ? { ...f, permissoesCustom: permissoesCustomForm } : f));
+      setEditandoPermissoes(null);
+    } catch (e) { console.error(e); alert('Erro ao salvar permissões.'); }
+    finally { setSavingPermissoes(false); }
   };
 
   const handleAtribuirVerba = async () => {
@@ -386,6 +407,10 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ fontSize: 12, color: '#94a3b8' }}>{evsFranq.length} evento(s)</div>
  <div style={{ fontSize: 13, fontWeight: 700, color: corAccent }}>{formatBRL(gastoFranq)} utilizado</div>
  </div>
+ <button onClick={() => abrirPermissoes(f)}
+ style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
+ Permissões
+ </button>
  </div>
  );
  })}
@@ -607,14 +632,16 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Email *</label><input type="email" value={formFranq.email} onChange={e => setFormFranq(p => ({...p, email: e.target.value}))} style={inp} placeholder="email@franquia.com" /></div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Senha *</label><input type="password" value={formFranq.senha} onChange={e => setFormFranq(p => ({...p, senha: e.target.value}))} style={inp} placeholder="Mínimo 6 caracteres" /></div>
  <div style={{ gridColumn: '1/-1' }}>
-   <label style={lbl}>Unidade</label>
+   <label style={lbl}>Unidade (opcional)</label>
    <select value={formFranq.unidadeId} onChange={e => setFormFranq(p => ({...p, unidadeId: e.target.value}))} style={{ ...inp, background: 'white' }}>
-     <option value="">Selecione a unidade...</option>
+     <option value="">Sem unidade — pessoa da empresa-mãe</option>
      {unidades.filter(u => u.ativo !== false).map(u => (
        <option key={u.id} value={u.id}>{u.nome}{u.cidade ? ` — ${u.cidade}` : ''}</option>
      ))}
    </select>
-   {unidades.length === 0 && <div style={{ fontSize: 10, color: '#ef4444', marginTop: 4 }}>Nenhuma unidade cadastrada — crie uma na aba "Unidades" primeiro.</div>}
+   <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+     Sem unidade, essa pessoa enxerga os dados de <strong>toda a empresa</strong> (todas as unidades). Escolhendo uma unidade, ela só vê o que é daquela unidade específica.
+   </div>
  </div>
  <div style={{ gridColumn: '1/-1' }}>
    <label style={lbl}>Cargo</label>
@@ -808,6 +835,39 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <button onClick={handleAdicionarVerba} disabled={savingVerba2}
                   style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingVerba2 ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingVerba2 ? 0.7 : 1 }}>
                   {savingVerba2 ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Permissões por pessoa ──────────────────────────────────── */}
+      {editandoPermissoes && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setEditandoPermissoes(null); }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Permissões — {editandoPermissoes.name}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Cargo: {cargoDe(editandoPermissoes) || '—'}</div>
+              </div>
+              <button onClick={() => setEditandoPermissoes(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 0, marginBottom: 12 }}>
+                Vem do cargo por padrão. Ajustes aqui valem só pra essa pessoa.
+              </p>
+              <PermissoesOverride
+                tipoConta="cliente"
+                cargo={cargosCliente.find(c => c.id === editandoPermissoes.cargoId)}
+                permissoesCustom={permissoesCustomForm}
+                onChange={setPermissoesCustomForm}
+              />
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16 }}>
+                <button onClick={() => setEditandoPermissoes(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                <button onClick={salvarPermissoes} disabled={savingPermissoes} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingPermissoes ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingPermissoes ? 0.7 : 1 }}>
+                  {savingPermissoes ? 'Salvando...' : 'Salvar permissões'}
                 </button>
               </div>
             </div>
