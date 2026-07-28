@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import SinoNotificacoes from './SinoNotificacoes';
+import { usePermissoes } from '../hooks/usePermissoes';
 
 const STAGES = [
   { id: 'proposta',    label: 'Propostas',   color: '#7BAFD4' },
@@ -12,6 +13,7 @@ const STAGES = [
 ];
 
 export default function EquipeHome({ userData, onLogout }) {
+  const { pode } = usePermissoes(userData);
   const [jobs, setJobs]               = useState([]);
   const [supplierJobsAll, setSupplierJobsAll] = useState([]);
   const [tasksAll, setTasksAll]       = useState([]);
@@ -111,8 +113,8 @@ export default function EquipeHome({ userData, onLogout }) {
       <aside className="eq-sidebar">
         <div className="eq-logo">realize<span>hub</span></div>
         <nav className="eq-nav">
-          <button className={`eq-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>
-          <button className={`eq-nav-item ${activeSection === 'projetos' ? 'active' : ''}`} onClick={() => setActiveSection('projetos')}>Projetos</button>
+          {pode('projetos', 'V') && <button className={`eq-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>}
+          {pode('projetos', 'V') && <button className={`eq-nav-item ${activeSection === 'projetos' ? 'active' : ''}`} onClick={() => setActiveSection('projetos')}>Projetos</button>}
           <button className={`eq-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
         </nav>
         <div className="eq-footer">

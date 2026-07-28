@@ -3,6 +3,7 @@ import { collection, onSnapshot, getDocs, getDoc, doc, query, where } from 'fire
 import { db } from '../firebase/config';
 import FornecedorServicos from './FornecedorServicos';
 import SinoNotificacoes from './SinoNotificacoes';
+import { usePermissoes } from '../hooks/usePermissoes';
 
 const STAGES = [
   { id: 'proposta',    label: 'Propostas',   color: '#7BAFD4' },
@@ -12,6 +13,7 @@ const STAGES = [
 ];
 
 export default function FornecedorHome({ userData, onLogout }) {
+  const { pode } = usePermissoes(userData);
   const [jobs, setJobs]                   = useState([]);
   const [activeSection, setActiveSection] = useState('workspace');
   const [loading, setLoading]             = useState(true);
@@ -248,15 +250,17 @@ export default function FornecedorHome({ userData, onLogout }) {
       <aside className="fn-sidebar">
         <div className="fn-logo">realize<span>hub</span></div>
         <nav className="fn-nav">
-          <button className={`fn-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>
+          {pode('meus_jobs', 'V') && <button className={`fn-nav-item ${activeSection === 'workspace' ? 'active' : ''}`} onClick={() => setActiveSection('workspace')}>Workspace</button>}
+          {pode('meus_servicos', 'V') && (
           <button className={`fn-nav-item ${activeSection === 'servicos' ? 'active' : ''}`} onClick={() => setActiveSection('servicos')}>
             Meus Servicos
             {!hasServicos && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 6, background: 'rgba(255,167,38,0.2)', color: '#FFA726' }}>!</span>}
           </button>
-          <button className={`fn-nav-item ${activeSection === 'projetos' ? 'active' : ''}`} onClick={() => setActiveSection('projetos')}>Meus Projetos</button>
+          )}
+          {pode('meus_jobs', 'V') && <button className={`fn-nav-item ${activeSection === 'projetos' ? 'active' : ''}`} onClick={() => setActiveSection('projetos')}>Meus Projetos</button>}
           <button className={`fn-nav-item ${activeSection === 'agenda' ? 'active' : ''}`} onClick={() => setActiveSection('agenda')}>Agenda</button>
-          <button className={`fn-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>
-          <button className={`fn-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>
+          {pode('financeiro', 'V') && <button className={`fn-nav-item ${activeSection === 'financeiro' ? 'active' : ''}`} onClick={() => setActiveSection('financeiro')}>Financeiro</button>}
+          {pode('historico', 'V') && <button className={`fn-nav-item ${activeSection === 'historico' ? 'active' : ''}`} onClick={() => setActiveSection('historico')}>Histórico</button>}
         </nav>
         <div className="fn-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>

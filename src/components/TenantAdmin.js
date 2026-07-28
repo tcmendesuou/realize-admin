@@ -6,6 +6,7 @@ import {
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
+import { usePermissoes } from '../hooks/usePermissoes';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const inp = { width: '100%', padding: '10px 14px', borderRadius: 9, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', color: '#1e293b' };
@@ -16,6 +17,7 @@ const formatBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency
 const formatDate = ts => ts?.toDate ? ts.toDate().toLocaleDateString('pt-BR') : '—';
 
 export default function TenantAdmin({ userData, onLogout, tenant }) {
+ const { pode } = usePermissoes(userData);
  const [tenantData, setTenantData] = useState(tenant || null);
  const tenantId = tenantData?.id || tenant?.id || userData?.tenantId;
  const corPrimary = tenantData?.corPrimaria || '#667eea';
@@ -360,10 +362,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <>
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
  <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Franqueados</div>
+ {pode('franqueados', 'C') && (
  <button onClick={() => setShowNovoFranq(true)}
  style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
  + Novo Franqueado
  </button>
+ )}
  </div>
  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
  {franqueados.map(f => {
