@@ -118,8 +118,9 @@ function App() {
           setCheckingTenantRedirect(true);
           try {
             const tenantSnap = await getDoc(doc(db, 'tenants', firestoreUser.tenantId));
-            if (tenantSnap.exists() && tenantSnap.data().slug) {
+             if (tenantSnap.exists() && tenantSnap.data().slug) {
               sessionStorage.removeItem('firestoreUser');
+              try { await signOut(auth); } catch (e) {}
               window.location.href = `https://${tenantSnap.data().slug}.realizehub.com.br`;
               return;
             }
@@ -133,8 +134,9 @@ function App() {
         return;
       }
 
-      if (['admin', 'equipe', 'fornecedor'].includes(role) && tenant) {
+       if (['admin', 'equipe', 'fornecedor'].includes(role) && tenant) {
         sessionStorage.removeItem('firestoreUser');
+        try { await signOut(auth); } catch (e) {}
         window.location.href = 'https://realizehub.com.br';
       }
     };
