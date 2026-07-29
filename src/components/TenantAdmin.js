@@ -309,7 +309,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <nav className="sidebar-nav">
  {[
  { id: 'overview', label: 'Visão Geral' },
- { id: 'franqueados', label: 'Franqueados' },
+ { id: 'franqueados', label: 'Colaboradores' },
  { id: 'unidades', label: 'Unidades' },
  { id: 'eventos', label: 'Eventos' },
  { id: 'verbas', label: 'Verbas' },
@@ -342,7 +342,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {/* Cards de métricas */}
  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
  {[
- { label: 'Franqueados', value: franqueados.length, icon: '', cor: corPrimary },
+ { label: 'Colaboradores', value: franqueados.length, icon: '', cor: corPrimary },
  { label: 'Eventos ativos', value: eventosAtivos, icon: '', cor: '#0080FF' },
  { label: 'Total de eventos',value: totalEventos, icon: '', cor: '#667eea' },
  { label: 'Verba utilizada', value: formatBRL(totalGasto), icon: '', cor: '#66BB6A' },
@@ -382,11 +382,11 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {view === 'franqueados' && (
  <>
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
- <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Franqueados</div>
+ <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Colaboradores</div>
  {pode('franqueados', 'C') && (
  <button onClick={() => setShowNovoFranq(true)}
  style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
- + Novo Franqueado
+ + Novo Colaborador
  </button>
  )}
  </div>
@@ -417,7 +417,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {franqueados.length === 0 && !loading && (
  <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
  <div style={{ fontSize: 36, marginBottom: 10 }}></div>
- <div>Nenhum franqueado cadastrado ainda.</div>
+ <div>Nenhum colaborador cadastrado ainda.</div>
  </div>
  )}
  </div>
@@ -434,7 +434,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </button>
  </div>
  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20 }}>
- Cada unidade (ex: uma loja/filial) pode ter vários franqueados vinculados a ela — verba e período de uso ficam na unidade, não em cada pessoa.
+ Cada unidade (ex: uma loja/filial) pode ter vários colaboradores vinculados a ela — verba e período de uso ficam na unidade, não em cada pessoa.
  </div>
  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
  {unidades.map(u => (
@@ -570,7 +570,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             })()}
 
             {/* Por franqueado */}
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>Verbas por Franqueado</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>Verbas por Colaborador</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {franqueados.map(f => {
                 const evsFranq   = eventos.filter(e => e.clientUserId === f.id || e.clientUserId === f.uid);
@@ -617,18 +617,18 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
         )}
  </div>
 
- {/* ── Modal Novo Franqueado ─────────────────────────────────────────── */}
+ {/* ── Modal Novo Colaborador ─────────────────────────────────────────── */}
  {showNovoFranq && (
  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
  onClick={e => { if (e.target === e.currentTarget) setShowNovoFranq(false); }}>
  <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
  <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
- <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Novo Franqueado</div>
+ <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Novo Colaborador</div>
  <button onClick={() => setShowNovoFranq(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
  </div>
  <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
- <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Nome completo *</label><input value={formFranq.nome} onChange={e => setFormFranq(p => ({...p, nome: e.target.value}))} style={inp} placeholder="Nome do franqueado" /></div>
+ <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Nome completo *</label><input value={formFranq.nome} onChange={e => setFormFranq(p => ({...p, nome: e.target.value}))} style={inp} placeholder="Nome do colaborador" /></div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Email *</label><input type="email" value={formFranq.email} onChange={e => setFormFranq(p => ({...p, email: e.target.value}))} style={inp} placeholder="email@franquia.com" /></div>
  <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Senha *</label><input type="password" value={formFranq.senha} onChange={e => setFormFranq(p => ({...p, senha: e.target.value}))} style={inp} placeholder="Mínimo 6 caracteres" /></div>
  <div style={{ gridColumn: '1/-1' }}>
@@ -658,7 +658,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <button onClick={() => setShowNovoFranq(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
  <button onClick={handleCriarFranqueado} disabled={savingFranq}
  style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingFranq ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingFranq ? 0.7 : 1 }}>
- {savingFranq ? 'Criando...' : 'Criar franqueado'}
+ {savingFranq ? 'Criando...' : 'Criar colaborador'}
  </button>
  </div>
  </div>
@@ -722,7 +722,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
                 {/* Evento */}
                 <SecTitle>Dados do Evento</SecTitle>
-                <InfoRow label="Franqueado"   value={franq?.name || ev2.clientName} />
+                <InfoRow label="Colaborador"   value={franq?.name || ev2.clientName} />
                 <InfoRow label="Tipo"          value={evt.tipo || ev2.eventTypeName} />
                 <InfoRow label="Nome"          value={evt.nome || ev2.eventName} />
                 <InfoRow label="Empresa"       value={evt.nomeEmpresa} />
