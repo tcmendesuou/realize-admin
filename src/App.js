@@ -101,12 +101,18 @@ function App() {
     return () => { unsubscribe(); window.removeEventListener('firestoreLogin', onFirestoreLogin); };
   }, []);
 
-  // Trava de seguranca: tenant_admin so pode operar no subdominio correto
-  // (ex: ford.realizehub.com.br). Se estiver em qualquer outro dominio/subdominio,
-  // redireciona automaticamente para o subdominio certo do seu tenant.
+  // Trava de seguranca / roteamento por subdominio:
+  // - tenant_admin e cliente (com tenantId) só podem operar no subdominio
+  //   certo da empresa deles (ex: ford.realizehub.com.br) — redireciona
+  //   automaticamente se estiverem em outro lugar.
+  // - Realize (admin/equipe) e Fornecedor NUNCA deveriam estar num
+  //   subdominio de tenant — se estiverem, volta pro domínio principal.
   useEffect(() => {
     const checkTenantRedirect = async () => {
-      if (firestoreUser?.systemRole === 'tenant_admin' && firestoreUser?.tenantId) {
+      if (!firestoreUser) return;
+      const role = firestoreUser.systemRole;
+
+      if ((role === 'tenant_admin' || role === 'cliente') && firestoreUser.tenantId) {
         const tenantOk = tenant && tenant.id === firestoreUser.tenantId;
         if (!tenantOk) {
           setCheckingTenantRedirect(true);
@@ -123,6 +129,11 @@ function App() {
           }
           setCheckingTenantRedirect(false);
         }
+        return;
+      }
+
+      if (['admin', 'equipe', 'fornecedor'].includes(role) && tenant) {
+        window.location.href = 'https://realizehub.com.br';
       }
     };
     if (!tenantLoading && firestoreUser) checkTenantRedirect();
