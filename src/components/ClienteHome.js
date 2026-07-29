@@ -19,6 +19,20 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
   const { pode } = usePermissoes(userData);
   const [events, setEvents] = useState([]);
   const [tenantData, setTenantData] = useState(tenant || null);
+  const [verbaBucket, setVerbaBucket] = useState(null); // { saldoVerba, periodoUso } — da unidade, ou da matriz se não tiver unidade
+
+  // A verba não fica mais na pessoa — fica na Unidade dela, ou na Empresa
+  // (matriz) se ela não tiver unidade. Busca o bucket certo aqui.
+  useEffect(() => {
+    const tid = userData?.tenantId;
+    if (!tid) { setVerbaBucket(null); return; }
+    const ref = userData?.unidadeId
+      ? doc(db, 'tenants', tid, 'unidades', userData.unidadeId)
+      : doc(db, 'tenants', tid);
+    getDoc(ref).then(snap => {
+      if (snap.exists()) setVerbaBucket({ saldoVerba: snap.data().saldoVerba || 0, periodoUso: snap.data().periodoUso || '' });
+    }).catch(err => console.error('Erro ao buscar verba:', err));
+  }, [userData?.tenantId, userData?.unidadeId]);
 
   // Se o tenant veio só com o ID (ex: franqueado acessou pelo domínio
   // principal, não pelo subdomínio da empresa), busca os dados completos
@@ -52,7 +66,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
   const formatBRL = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Verba do franqueado — mesma lógica de Alocado/Utilizado/Livre do TenantAdmin.js
-  const saldoVerba = userData?.saldoVerba || 0;
+  const saldoVerba = verbaBucket?.saldoVerba || 0;
   const valorAlocado = events.filter(e => ['pendingApproval', 'approved', 'analyzing'].includes(e.status))
     .reduce((acc, e) => acc + (e.orcamentoFinal?.total || e.financeiro?.valorTotal || 0), 0);
   const valorUtilizado = events.filter(e => e.status === 'completed')
@@ -444,8 +458,8 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
             {/* Carteira / verba disponível */}
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 14, padding: '20px 24px' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Sua verba</div>
-              {userData?.periodoUso && (
-                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 16 }}>Período de uso: {userData.periodoUso}</div>
+              {verbaBucket?.periodoUso && (
+                <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 16 }}>Período de uso: {verbaBucket.periodoUso}</div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
                 <div>

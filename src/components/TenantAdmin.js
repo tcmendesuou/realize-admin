@@ -211,18 +211,18 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  const [permissoesCustomForm, setPermissoesCustomForm] = useState({});
  const [savingPermissoes, setSavingPermissoes] = useState(false);
   const [editandoUnidade, setEditandoUnidade] = useState(null);
-  const [formUnidade, setFormUnidade] = useState({ nome: '', cidade: '', saldoVerba: '', periodoUso: '', ativo: true });
+  const [formUnidade, setFormUnidade] = useState({ nome: '', cidade: '', ativo: true });
   const [savingUnidade, setSavingUnidade] = useState(false);
 
   const abrirNovaUnidade = () => {
     setEditandoUnidade(null);
-    setFormUnidade({ nome: '', cidade: '', saldoVerba: '', periodoUso: '', ativo: true });
+    setFormUnidade({ nome: '', cidade: '', ativo: true });
     setShowFormUnidade(true);
   };
 
   const abrirEditarUnidade = (u) => {
     setEditandoUnidade(u);
-    setFormUnidade({ nome: u.nome || '', cidade: u.cidade || '', saldoVerba: u.saldoVerba || '', periodoUso: u.periodoUso || '', ativo: u.ativo !== false });
+    setFormUnidade({ nome: u.nome || '', cidade: u.cidade || '', ativo: u.ativo !== false });
     setShowFormUnidade(true);
   };
 
@@ -230,18 +230,18 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     if (!formUnidade.nome.trim()) { alert('Nome da unidade é obrigatório'); return; }
     setSavingUnidade(true);
     try {
+      // Não mexe em saldoVerba/periodoUso aqui — isso é atribuído só pela
+      // aba Verbas, pra não sobrescrever sem querer o saldo já existente.
       const data = {
         nome: formUnidade.nome.trim(),
         cidade: formUnidade.cidade.trim(),
-        saldoVerba: parseFloat(formUnidade.saldoVerba) || 0,
-        periodoUso: formUnidade.periodoUso.trim(),
         ativo: formUnidade.ativo,
         updatedAt: serverTimestamp(),
       };
       if (editandoUnidade) {
         await updateDoc(doc(db, 'tenants', tenantId, 'unidades', editandoUnidade.id), data);
       } else {
-        await addDoc(collection(db, 'tenants', tenantId, 'unidades'), { ...data, createdAt: serverTimestamp() });
+        await addDoc(collection(db, 'tenants', tenantId, 'unidades'), { ...data, saldoVerba: 0, periodoUso: '', createdAt: serverTimestamp() });
       }
       setShowFormUnidade(false);
     } catch (e) { console.error(e); alert('Erro ao salvar unidade.'); }
@@ -274,12 +274,14 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     setSavingVerba(true);
     try {
       const novoSaldo = (parseFloat(showGerenciarVerba.saldoVerba) || 0) + parseFloat(valorAtribuir);
-      await updateDoc(doc(db, 'users', showGerenciarVerba.id), {
-        saldoVerba: novoSaldo,
-        periodoUso: periodoAtribuir || showGerenciarVerba.periodoUso || '',
-        updatedAt:  serverTimestamp(),
-      });
-      setFranqueados(p => p.map(f => f.id === showGerenciarVerba.id ? { ...f, saldoVerba: novoSaldo, periodoUso: periodoAtribuir || f.periodoUso || '' } : f));
+      const novoPeriodo = periodoAtribuir || showGerenciarVerba.periodoUso || '';
+      if (showGerenciarVerba.tipo === 'matriz') {
+        await updateDoc(doc(db, 'tenants', tenantId), { saldoVerba: novoSaldo, periodoUso: novoPeriodo, updatedAt: serverTimestamp() });
+        setTenantData(p => ({ ...p, saldoVerba: novoSaldo, periodoUso: novoPeriodo }));
+      } else {
+        await updateDoc(doc(db, 'tenants', tenantId, 'unidades', showGerenciarVerba.id), { saldoVerba: novoSaldo, periodoUso: novoPeriodo, updatedAt: serverTimestamp() });
+        setUnidades(p => p.map(u => u.id === showGerenciarVerba.id ? { ...u, saldoVerba: novoSaldo, periodoUso: novoPeriodo } : u));
+      }
       setShowGerenciarVerba(null);
       setValorAtribuir('');
       setPeriodoAtribuir('');
@@ -569,49 +571,64 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
               );
             })()}
 
-            {/* Por franqueado */}
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>Verbas por Colaborador</div>
+            {/* Por Unidade (+ Matriz) */}
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>Verbas por Unidade</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {franqueados.map(f => {
-                const evsFranq   = eventos.filter(e => e.clientUserId === f.id || e.clientUserId === f.uid);
-                const estaPagoFranq = (e) => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago);
-                const alocFranq  = evsFranq.filter(e => e.status !== 'rejected' && !estaPagoFranq(e)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
-                const usadoFranq = evsFranq.filter(estaPagoFranq).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
-                const saldo      = f.saldoVerba || 0;
-                const pctA       = saldo > 0 ? Math.min(100, (alocFranq  / saldo) * 100) : 0;
-                const pctU       = saldo > 0 ? Math.min(100, (usadoFranq / saldo) * 100) : 0;
-                return (
-                  <div key={f.id} style={card}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{cargoDe(f)}{unidadeDe(f).nome ? ` · ${unidadeDe(f).nome}` : ''}{unidadeDe(f).cidade ? ` · ${unidadeDe(f).cidade}` : ''}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: corPrimary }}>{formatBRL(saldo)}</div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>saldo atribuído</div>
+              {(() => {
+                // Descobre a qual unidade (ou matriz, se nenhuma) um evento
+                // pertence, olhando quem é o cliente dono do evento.
+                const unidadeIdDoEvento = (e) => {
+                  const f = franqueados.find(fr => fr.id === e.clientUserId || fr.uid === e.clientUserId);
+                  return f?.unidadeId || null;
+                };
+                const estaPagoEv = (e) => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago);
+                const buckets = [
+                  { tipo: 'matriz', id: tenantId, nome: 'Matriz (Empresa-mãe)', saldoVerba: tenantData?.saldoVerba || 0, periodoUso: tenantData?.periodoUso || '' },
+                  ...unidades.map(u => ({ tipo: 'unidade', id: u.id, nome: u.nome, cidade: u.cidade, saldoVerba: u.saldoVerba || 0, periodoUso: u.periodoUso || '' })),
+                ];
+                return buckets.map(b => {
+                  const evsBucket = eventos.filter(e => {
+                    const uid = unidadeIdDoEvento(e);
+                    return b.tipo === 'matriz' ? !uid : uid === b.id;
+                  });
+                  const alocBucket  = evsBucket.filter(e => e.status !== 'rejected' && !estaPagoEv(e)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                  const usadoBucket = evsBucket.filter(estaPagoEv).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
+                  const saldo = b.saldoVerba || 0;
+                  const pctA  = saldo > 0 ? Math.min(100, (alocBucket  / saldo) * 100) : 0;
+                  const pctU  = saldo > 0 ? Math.min(100, (usadoBucket / saldo) * 100) : 0;
+                  return (
+                    <div key={b.id} style={card}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{b.nome}</div>
+                          <div style={{ fontSize: 12, color: '#94a3b8' }}>{b.tipo === 'matriz' ? 'Vê tudo da empresa' : b.cidade}{b.periodoUso ? ` · ${b.periodoUso}` : ''}</div>
                         </div>
-                        <button onClick={() => { setShowGerenciarVerba(f); setValorAtribuir(''); }}
-                          style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${corPrimary}`, background: 'none', color: corPrimary, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                          Gerenciar
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: corPrimary }}>{formatBRL(saldo)}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>saldo atribuído</div>
+                          </div>
+                          <button onClick={() => { setShowGerenciarVerba(b); setValorAtribuir(''); setPeriodoAtribuir(''); }}
+                            style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${corPrimary}`, background: 'none', color: corPrimary, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            Gerenciar
+                          </button>
+                        </div>
                       </div>
+                      <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Alocado: <strong style={{ color: '#FFA726' }}>{formatBRL(alocBucket)}</strong></div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoBucket)}</strong></div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Livre: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - alocBucket - usadoBucket))}</strong></div>
+                      </div>
+                      <div style={{ borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
+                        <div style={{ width: `${pctU}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
+                        <div style={{ width: `${pctA}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
+                        <div style={{ flex: 1, height: '100%', background: corAccent, opacity: 0.3, transition: 'width 0.5s' }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Alocado: <strong style={{ color: '#FFA726' }}>{formatBRL(alocFranq)}</strong></div>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoFranq)}</strong></div>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>Livre: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - alocFranq - usadoFranq))}</strong></div>
-                    </div>
-                    <div style={{ borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
-                      <div style={{ width: `${pctU}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
-                      <div style={{ width: `${pctA}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
-                      <div style={{ flex: 1, height: '100%', background: corAccent, opacity: 0.3, transition: 'width 0.5s' }} />
-                    </div>
-                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           </>
         )}
@@ -893,16 +910,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <label style={lbl}>Cidade</label>
                 <input value={formUnidade.cidade} onChange={e => setFormUnidade(p => ({ ...p, cidade: e.target.value }))} style={inp} placeholder="Ex: São Paulo" />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={lbl}>Verba (R$)</label>
-                  <input type="number" value={formUnidade.saldoVerba} onChange={e => setFormUnidade(p => ({ ...p, saldoVerba: e.target.value }))} style={inp} placeholder="0,00" />
-                </div>
-                <div>
-                  <label style={lbl}>Período de uso</label>
-                  <input value={formUnidade.periodoUso} onChange={e => setFormUnidade(p => ({ ...p, periodoUso: e.target.value }))} style={inp} placeholder="Ex: Q1 2026" />
-                </div>
-              </div>
+              <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>A verba dessa unidade é atribuída depois, na aba "Verbas".</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="checkbox" id="unidade-ativa" checked={formUnidade.ativo} onChange={e => setFormUnidade(p => ({ ...p, ativo: e.target.checked }))} style={{ width: 16, height: 16, accentColor: corPrimary }} />
                 <label htmlFor="unidade-ativa" style={{ fontSize: 13, color: '#475569', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Unidade ativa</label>
@@ -925,7 +933,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
           <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Verba — {showGerenciarVerba.name}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Verba — {showGerenciarVerba.nome}</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Saldo atual: {formatBRL(showGerenciarVerba.saldoVerba || 0)}{showGerenciarVerba.periodoUso ? ` · Período atual: ${showGerenciarVerba.periodoUso}` : ''}</div>
               </div>
               <button onClick={() => setShowGerenciarVerba(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
@@ -937,7 +945,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <input value={periodoAtribuir} onChange={e => setPeriodoAtribuir(e.target.value)} style={inp} placeholder="Ex: Janeiro 2026 / Q1 2026" /></div>
               {(() => {
                 const totalPool = verbasGerais.reduce((acc, v) => acc + (v.valor || 0), 0);
-                const totalAloc = franqueados.reduce((acc, f) => acc + (f.saldoVerba || 0), 0);
+                const totalAloc = (tenantData?.saldoVerba || 0) + unidades.reduce((acc, u) => acc + (u.saldoVerba || 0), 0);
                 const livre     = totalPool - totalAloc;
                 const val       = parseFloat(valorAtribuir) || 0;
                 return val > livre ? (
