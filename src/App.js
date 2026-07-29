@@ -119,6 +119,7 @@ function App() {
           try {
             const tenantSnap = await getDoc(doc(db, 'tenants', firestoreUser.tenantId));
             if (tenantSnap.exists() && tenantSnap.data().slug) {
+              sessionStorage.removeItem('firestoreUser');
               window.location.href = `https://${tenantSnap.data().slug}.realizehub.com.br`;
               return;
             }
@@ -133,6 +134,7 @@ function App() {
       }
 
       if (['admin', 'equipe', 'fornecedor'].includes(role) && tenant) {
+        sessionStorage.removeItem('firestoreUser');
         window.location.href = 'https://realizehub.com.br';
       }
     };
