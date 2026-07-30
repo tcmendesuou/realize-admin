@@ -583,8 +583,15 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         if (dados.tipoEstande === 'modular' && modeloSelecionado) {
           const ts = await getDocs(collection(db, 'tiposEspeciais'));
           const tm = ts.docs.map(d => ({ id: d.id, ...d.data() })).find(t => t.id === modeloSelecionado.tipoEspecialId || t.nome?.toLowerCase().includes('modular'));
+          // fornecedoresAutorizados agora é por EMPRESA (não por pessoa) —
+          // busca todos os colaboradores ativos de cada empresa autorizada e
+          // cria a proposta pra cada um deles poder ver/confirmar.
           for (const f of (tm?.fornecedoresAutorizados || [])) {
-            await addDoc(collection(db, 'supplierJobs'), { supplierId: f.id, supplierName: f.nome || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: modeloSelecionado.nome, serviceParentName: tm?.nome || 'Estande Modular', tipoServico: 'estrutura', modeloEspecialId: modeloSelecionado.id, preco: modeloSelecionado.precoBase || 0, unidade: 'por evento', diasPreparo: modeloSelecionado.diasProducao || 0, diasMontagem: 0, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+            const colabSnap = await getDocs(query(collection(db, 'users'), where('supplierId', '==', f.id), where('systemRole', '==', 'fornecedor'), where('active', '==', true)));
+            const colaboradores = colabSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            for (const colab of colaboradores) {
+              await addDoc(collection(db, 'supplierJobs'), { supplierId: colab.id, supplierName: f.nome || colab.companyName || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: modeloSelecionado.nome, serviceParentName: tm?.nome || 'Estande Modular', tipoServico: 'estrutura', modeloEspecialId: modeloSelecionado.id, preco: modeloSelecionado.precoBase || 0, unidade: 'por evento', diasPreparo: modeloSelecionado.diasProducao || 0, diasMontagem: 0, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+            }
           }
         }
         if (dados.tipoEstande === 'personalizado') {

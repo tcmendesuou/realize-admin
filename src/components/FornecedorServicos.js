@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 
@@ -208,8 +208,14 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
     setSaving(true);
     try {
       const catObj = catalogo.find(c => c.id === selCategoria);
+      let nomeEmpresa = '';
+      try {
+        const supplierSnap = await getDoc(doc(db, 'suppliers', supplierId));
+        if (supplierSnap.exists()) nomeEmpresa = supplierSnap.data().tradeName || supplierSnap.data().companyName || '';
+      } catch (e) { console.error('Erro ao buscar nome da empresa:', e); }
       const data = {
         supplierId,
+        supplierName:      nomeEmpresa,
         tipoServico:       selTipo,
         serviceParentId:   selCategoria,
         serviceParentName: catObj?.name || '',

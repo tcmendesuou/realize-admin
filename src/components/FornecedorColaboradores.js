@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, updateDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
@@ -46,6 +46,8 @@ export default function FornecedorColaboradores({ supplierId, userData }) {
     const secondaryAuth = getAuth(secondaryApp);
     try {
       const cargoEscolhido = cargos.find(c => c.id === form.cargoId);
+      const supplierSnap = await getDoc(doc(db, 'suppliers', supplierId));
+      const nomeEmpresa = supplierSnap.exists() ? (supplierSnap.data().tradeName || supplierSnap.data().companyName || '') : '';
       const cred = await createUserWithEmailAndPassword(secondaryAuth, form.email, form.senha);
       await addDoc(collection(db, 'users'), {
         uid: cred.user.uid,
@@ -54,6 +56,7 @@ export default function FornecedorColaboradores({ supplierId, userData }) {
         systemRole: 'fornecedor',
         tipoConta: 'fornecedor',
         supplierId,
+        companyName: nomeEmpresa,
         cargoId: form.cargoId,
         roleName: cargoEscolhido?.nome || '',
         active: true,
