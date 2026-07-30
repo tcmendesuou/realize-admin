@@ -2068,12 +2068,22 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           })()}
 
           {/* ── TAREFAS ── */}          {/* ── TAREFAS ── */}
-          {activeTab === 'tasks' && !isFornecedor && (() => {
+ {activeTab === 'tasks' && !isFornecedor && (() => {
             const todosConfirmados = supplierJobs.length > 0 && supplierJobs.every(j => j.status === 'confirmed');
             const temDraft = supplierJobs.some(j => j.status === 'draft');
             const enviadoEm = project.cotacaoEnviadaEm;
+            const sjAtivosTopo = supplierJobs.filter(sj => sj.status !== 'cancelled');
+            const sjConfirmadosTopo = supplierJobs.filter(j => j.status === 'confirmed').length;
+            const custoEstimadoTopo = project.orcamentoFinal?.total || 0;
+            const diasAteEventoTopo = (() => {
+              const dataEv = project.briefingData?.evento?.dataInicio || project.startDate;
+              if (!dataEv) return '—';
+              const hoje3 = new Date(); hoje3.setHours(0,0,0,0);
+              const diff = Math.round((new Date(dataEv+'T12:00:00') - hoje3) / 864e5);
+              return diff >= 0 ? diff : 0;
+            })();
             return (
-            <div className="ps-card">
+            <div style={{ width: '100%' }}>
               {/* Botão Enviar Cotação — topo das tarefas */}
               {isCoord && (
                 <div style={{ marginBottom: 20 }}>
@@ -2082,19 +2092,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       <span style={{ fontSize: 16, color: '#66BB6A' }}>✓</span>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A' }}>Cotacao Enviada</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{enviadoEm?.toDate ? enviadoEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2 }}>{enviadoEm?.toDate ? enviadoEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</div>
                       </div>
                     </div>
                   ) : temDraft ? (
                     confirmEnvio ? (
                       <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.25)', borderRadius: 12, padding: '16px 20px' }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 6 }}>Confirmar envio da cotacao?</div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>Os fornecedores serao notificados e poderao confirmar ou recusar cada servico.</div>
+                        <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 14 }}>Os fornecedores serao notificados e poderao confirmar ou recusar cada servico.</div>
                         <div style={{ display: 'flex', gap: 10 }}>
                           <button onClick={handleEnviarCotacao} disabled={enviandoCotacao} style={{ padding: '8px 20px', background: '#00E5C4', border: 'none', borderRadius: 8, color: '#0D1B2A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                             {enviandoCotacao ? 'Enviando...' : 'Confirmar'}
                           </button>
-                          <button onClick={() => setConfirmEnvio(false)} style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                          <button onClick={() => setConfirmEnvio(false)} style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
                         </div>
                       </div>
                     ) : (
@@ -2105,8 +2115,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   ) : null}
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div className="ps-card-title" style={{ margin: 0 }}>Fornecedores e Tarefas</div>
+
+              {/* Cabeçalho: título + resumo em 3 blocos + linha de destaque */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Fornecedores e Tarefas</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: '#1e293b' }}>Fornecedores ({sjConfirmadosTopo} de {sjAtivosTopo.length} confirmados)</div>
+                </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setShowPropostaForm(s => !s)}
                     style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #667eea', background: 'none', color: '#667eea', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -2119,6 +2134,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 </div>
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: '#10192a', borderRadius: 10, padding: '12px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Custo estimado</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#E8F4FF' }}>R$ {custoEstimadoTopo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                </div>
+                <div style={{ background: '#10192a', borderRadius: 10, padding: '12px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Confirmados</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#E8F4FF' }}>{sjConfirmadosTopo} / {sjAtivosTopo.length}</div>
+                </div>
+                <div style={{ background: '#10192a', borderRadius: 10, padding: '12px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Dias até o evento</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#E8F4FF' }}>{diasAteEventoTopo}</div>
+                </div>
+              </div>
+              <div style={{ height: 2, background: '#00E5C4', marginBottom: 20 }} />
               {/* Tasks formais da collection (pós-aprovação) */}
               {projectTasks.length > 0 && (() => {
                 const TIPO_COR = { estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A', administrativo: '#7BAFD4' };
@@ -2159,7 +2189,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   const eExecC  = task.fase === 'execucao';
                   const corFC   = ePrepC ? '#5B8DEF' : eExecC ? '#00C896' : cor;
                   const bgFC    = ePrepC ? 'rgba(91,141,239,0.06)' : eExecC ? 'rgba(0,200,150,0.06)' : 'white';
-                  const bdFC    = ePrepC ? 'rgba(91,141,239,0.3)' : eExecC ? 'rgba(0,200,150,0.3)' : '#e2e8f0';
+                  const bdFC    = ePrepC ? 'rgba(91,141,239,0.3)' : eExecC ? 'rgba(0,200,150,0.3)' : 'rgba(255,255,255,0.12)';
                   return (
                     <div key={task.id} style={{ borderRadius: 10, border: `2px solid ${atrasada ? 'rgba(239,68,68,0.3)' : bdFC}`, marginBottom: 10, overflow: 'hidden', background: atrasada ? 'rgba(239,68,68,0.02)' : bgFC }}>
                       {task.fase && (
@@ -2171,18 +2201,18 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       )}
                       {/* Header clicável */}
                       <div onClick={() => toggleTask(task.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', cursor: 'pointer', userSelect: 'none', borderBottom: expanded ? '1px solid #f8faff' : 'none' }}>
-                        <span style={{ fontSize: 11, color: '#94a3b8', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', flexShrink: 0 }}>▶</span>
+                        <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', flexShrink: 0 }}>▶</span>
                         <div style={{ width: 7, height: 7, borderRadius: '50%', background: atrasada ? '#ef4444' : cor, flexShrink: 0 }} />
                         <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{task.nome || task.serviceName}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{task.nome || task.serviceName}</span>
                           {task.supplierName && <span style={{ fontSize: 11, color: '#667eea', marginLeft: 8 }}>{task.supplierName}</span>}
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                           {atrasada && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>⚠ Atrasada</span>}
-                          {task.dataEntrega && !expanded && <span style={{ fontSize: 11, color: '#94a3b8' }}>{task.dataEntrega.split('-').reverse().join('/')}</span>}
+                          {task.dataEntrega && !expanded && <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>{task.dataEntrega.split('-').reverse().join('/')}</span>}
                           <select value={task.status || 'pendente'} onChange={async e => {
                             await updateDoc(doc(db, 'tasks', task.id), { status: e.target.value, updatedAt: serverTimestamp() });
-                          }} style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', background: 'white' }}>
+                          }} style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#7BAFD4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', background: '#182131' }}>
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em andamento</option>
                             <option value="concluido">Concluído</option>
@@ -2194,21 +2224,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
                           {valorTotal > 0 && (
                             <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
-                              <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Valor</div>
+                              <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Valor</div>
                               <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                             </div>
                           )}
-                          {task.dataInicio && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Início</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.dataInicio.split('-').reverse().join('/')}</div></div>}
-                          {task.dataEntrega && <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Entrega</div><div style={{ fontSize: 12, fontWeight: 600, color: atrasada ? '#ef4444' : '#1e293b' }}>{task.dataEntrega.split('-').reverse().join('/')}</div></div>}
-                          {task.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasPreparo}d</div></div>}
-                          {task.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.diasMontagem}d</div></div>}
-                          {task.opcaoNome && <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(102,126,234,0.15)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Opção</div><div style={{ fontSize: 12, fontWeight: 600, color: '#667eea' }}>{task.opcaoNome}</div></div>}
-                          {(task.quantidade > 0 || task.horasPorDia > 0 || task.diasServico > 0 || task.observacoes) && <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.1)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Solicitação</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{task.quantidade > 0 && <span style={{ fontSize: 11, color: '#1e293b' }}><strong>{task.quantidade}</strong> profissional(is)</span>}{task.horasPorDia > 0 && <span style={{ fontSize: 11, color: '#1e293b' }}><strong>{task.horasPorDia}h</strong>/dia</span>}{task.diasServico > 0 && <span style={{ fontSize: 11, color: '#1e293b' }}><strong>{task.diasServico}</strong> dia(s)</span>}{task.observacoes && <span style={{ fontSize: 11, color: '#475569', fontStyle: 'italic' }}>"{task.observacoes}"</span>}</div></div>}
-                          {task.eventHorarioInicio && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Horário</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.eventHorarioInicio}{task.eventHorarioFim ? ` às ${task.eventHorarioFim}` : ''}</div></div>}
-                          {task.eventLocal && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{task.eventLocal}</div></div>}
-                          {task.preco > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preço base</div><div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>R$ {parseFloat(task.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {task.unidade || 'evento'}</div></div>}
-                          {task.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs.</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacao}</div></div>}
-                          {task.observacaoFornecedor && <div style={{ background: '#f0f9ff', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#475569' }}>{task.observacaoFornecedor}</div></div>}
+                          {task.dataInicio && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Início</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{task.dataInicio.split('-').reverse().join('/')}</div></div>}
+                          {task.dataEntrega && <div style={{ background: atrasada ? 'rgba(239,68,68,0.06)' : '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Entrega</div><div style={{ fontSize: 12, fontWeight: 600, color: atrasada ? '#ef4444' : '#E8F4FF' }}>{task.dataEntrega.split('-').reverse().join('/')}</div></div>}
+                          {task.diasPreparo > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{task.diasPreparo}d</div></div>}
+                          {task.diasMontagem > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{task.diasMontagem}d</div></div>}
+                          {task.opcaoNome && <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(102,126,234,0.15)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Opção</div><div style={{ fontSize: 12, fontWeight: 600, color: '#667eea' }}>{task.opcaoNome}</div></div>}
+                          {(task.quantidade > 0 || task.horasPorDia > 0 || task.diasServico > 0 || task.observacoes) && <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.1)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Solicitação</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{task.quantidade > 0 && <span style={{ fontSize: 11, color: '#E8F4FF' }}><strong>{task.quantidade}</strong> profissional(is)</span>}{task.horasPorDia > 0 && <span style={{ fontSize: 11, color: '#E8F4FF' }}><strong>{task.horasPorDia}h</strong>/dia</span>}{task.diasServico > 0 && <span style={{ fontSize: 11, color: '#E8F4FF' }}><strong>{task.diasServico}</strong> dia(s)</span>}{task.observacoes && <span style={{ fontSize: 11, color: '#7BAFD4', fontStyle: 'italic' }}>"{task.observacoes}"</span>}</div></div>}
+                          {task.eventHorarioInicio && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Horário</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{task.eventHorarioInicio}{task.eventHorarioFim ? ` às ${task.eventHorarioFim}` : ''}</div></div>}
+                          {task.eventLocal && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{task.eventLocal}</div></div>}
+                          {task.preco > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Preço base</div><div style={{ fontSize: 11, fontWeight: 600, color: '#7BAFD4' }}>R$ {parseFloat(task.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {task.unidade || 'evento'}</div></div>}
+                          {task.observacao && <div style={{ background: 'rgba(255,167,38,0.08)', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Obs.</div><div style={{ fontSize: 11, color: '#7BAFD4' }}>{task.observacao}</div></div>}
+                          {task.observacaoFornecedor && <div style={{ background: 'rgba(0,128,255,0.08)', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#7BAFD4' }}>{task.observacaoFornecedor}</div></div>}
                         </div>
                       )}
                     </div>
@@ -2218,11 +2248,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 return (
                   <div style={{ marginBottom: 24 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(123,175,212,0.6)', letterSpacing: 1, textTransform: 'uppercase' }}>
                         Tarefas do Projeto ({tasksConcluidas.length}/{projectTasks.length} concluídas)
                       </div>
                       <button onClick={() => { setTodasExpandidas(s => !s); setTasksExpandidas({}); }}
-                        style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#7BAFD4', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         {todasExpandidas ? '⊟ Recolher todas' : '⊞ Expandir todas'}
                       </button>
                     </div>
@@ -2230,7 +2260,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     {tasksConcluidas.length > 0 && (
                       <>
                         <button onClick={() => setShowConcluidas(s => !s)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1 }}>
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: 'rgba(123,175,212,0.6)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1 }}>
                           <span style={{ transform: showConcluidas ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
                           Concluídas ({tasksConcluidas.length})
                         </button>
@@ -2238,8 +2268,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, opacity: 0.6 }}>
                             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
                             <div style={{ flex: 1 }}>
-                              <span style={{ fontSize: 12, fontWeight: 500, color: '#64748b' }}>{task.nome || task.serviceName}</span>
-                              {task.supplierName && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{task.supplierName}</span>}
+                              <span style={{ fontSize: 12, fontWeight: 500, color: '#7BAFD4' }}>{task.nome || task.serviceName}</span>
+                              {task.supplierName && <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginLeft: 8 }}>{task.supplierName}</span>}
                             </div>
                             <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ Concluída</span>
                           </div>
@@ -2258,7 +2288,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 const sjPendentes   = sjAtivos.filter(sj => sj.status !== 'confirmed' && sj.status !== 'rejected');
                 return (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(123,175,212,0.6)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
                     Fornecedores ({supplierJobs.filter(j => j.status === 'confirmed').length}/{sjAtivos.length} confirmados)
                   </div>
                   {sjPendentes.map(sj => {
@@ -2299,12 +2329,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     const isEditing   = editandoJob === sj.id;
                     const isTrocando  = trocandoJob === sj.id;
                     return (
-                      <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                      <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed ? 'rgba(16,185,129,0.2)' : isRejected ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.12)'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed ? 'rgba(16,185,129,0.02)' : isRejected ? 'rgba(239,68,68,0.02)' : '#182131' }}>
                         {/* Header */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #f8faff' }}>
                           <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{nome}</div>
                             <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>
                               {sj.supplierName || sj.confirmedBy || 'Aguardando resposta'}
                             </div>
@@ -2316,7 +2346,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {!isEditing && !isTrocando && (
                               <>
                                 <button onClick={() => handleEditarJob(sj)}
-                                  style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                  style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
                                 <button onClick={() => handleTrocarFornecedor(sj)}
                                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Trocar</button>
                                 {isCoord && sj.supplierId && (
@@ -2347,19 +2377,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             {/* Opção escolhida pelo cliente */}
                             {sj.opcaoNome && (
                               <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(102,126,234,0.15)' }}>
-                                <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Opção escolhida pelo cliente</div>
+                                <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Opção escolhida pelo cliente</div>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: '#667eea' }}>{sj.opcaoNome}</div>
                               </div>
                             )}
                             {/* Detalhes de equipe escolhidos pelo cliente */}
                             {(sj.quantidade || sj.horasPorDia || sj.diasServico || sj.observacoes) && (
                               <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.1)' }}>
-                                <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Solicitação do cliente</div>
+                                <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Solicitação do cliente</div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                                  {sj.quantidade && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.quantidade}</strong> profissional(is)</span>}
-                                  {sj.horasPorDia && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.horasPorDia}h</strong>/dia</span>}
-                                  {sj.diasServico && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.diasServico}</strong> dia(s)</span>}
-                                  {sj.observacoes && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>"{sj.observacoes}"</span>}
+                                  {sj.quantidade && <span style={{ fontSize: 12, color: '#E8F4FF' }}><strong>{sj.quantidade}</strong> profissional(is)</span>}
+                                  {sj.horasPorDia && <span style={{ fontSize: 12, color: '#E8F4FF' }}><strong>{sj.horasPorDia}h</strong>/dia</span>}
+                                  {sj.diasServico && <span style={{ fontSize: 12, color: '#E8F4FF' }}><strong>{sj.diasServico}</strong> dia(s)</span>}
+                                  {sj.observacoes && <span style={{ fontSize: 12, color: '#7BAFD4', fontStyle: 'italic' }}>"{sj.observacoes}"</span>}
                                 </div>
                               </div>
                             )}
@@ -2367,27 +2397,27 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
                               {valorTotal && (
                                 <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
-                                  <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Valor total</div>
+                                  <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Valor total</div>
                                   <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                  <div style={{ fontSize: 9, color: '#94a3b8' }}>R$ {parseFloat(sj.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {sj.unidade ? `/ ${sj.unidade}` : ''}</div>
+                                  <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)' }}>R$ {parseFloat(sj.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {sj.unidade ? `/ ${sj.unidade}` : ''}</div>
                                 </div>
                               )}
-                              {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
-                              {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
-                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{(() => { const i = sj.eventDate, f = sj.eventDateFim; if (i && f) { const d = Math.round((new Date(f+'T12:00:00') - new Date(i+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return diasEvento; })()} dias</div></div>
-                              {sj.eventVisitantes > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Visitantes/dia</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventVisitantes}</div></div>}
-                              {sj.eventCidade && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Cidade</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventCidade}</div></div>}
-                              {sj.eventLocal && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventLocal}</div></div>}
-                              {sj.eventDate && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Data do evento</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventDate?.split('-').reverse().join('/')}{sj.eventDateFim && sj.eventDateFim !== sj.eventDate ? ` → ${sj.eventDateFim.split('-').reverse().join('/')}` : ''}</div></div>}
-                              {(sj.eventHorarioInicio || sj.eventHorarioFim) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Horário</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventHorarioInicio} às {sj.eventHorarioFim}</div></div>}
+                              {sj.diasPreparo > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{sj.diasPreparo} dias</div></div>}
+                              {sj.diasMontagem > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{sj.diasMontagem} dias</div></div>}
+                              <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{(() => { const i = sj.eventDate, f = sj.eventDateFim; if (i && f) { const d = Math.round((new Date(f+'T12:00:00') - new Date(i+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return diasEvento; })()} dias</div></div>
+                              {sj.eventVisitantes > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Visitantes/dia</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{sj.eventVisitantes}</div></div>}
+                              {sj.eventCidade && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Cidade</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{sj.eventCidade}</div></div>}
+                              {sj.eventLocal && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{sj.eventLocal}</div></div>}
+                              {sj.eventDate && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Data do evento</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{sj.eventDate?.split('-').reverse().join('/')}{sj.eventDateFim && sj.eventDateFim !== sj.eventDate ? ` → ${sj.eventDateFim.split('-').reverse().join('/')}` : ''}</div></div>}
+                              {(sj.eventHorarioInicio || sj.eventHorarioFim) && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Horário</div><div style={{ fontSize: 12, fontWeight: 600, color: '#E8F4FF' }}>{sj.eventHorarioInicio} às {sj.eventHorarioFim}</div></div>}
                             </div>
                             {/* Observações */}
-                            {sj.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Observações</div><div style={{ fontSize: 12, color: '#475569' }}>{sj.observacao}</div></div>}
-                            {sj.observacaoFornecedor && <div style={{ background: '#f0f9ff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. do fornecedor</div><div style={{ fontSize: 12, color: '#475569' }}>{sj.observacaoFornecedor}</div></div>}
+                            {sj.observacao && <div style={{ background: 'rgba(255,167,38,0.08)', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Observações</div><div style={{ fontSize: 12, color: '#7BAFD4' }}>{sj.observacao}</div></div>}
+                            {sj.observacaoFornecedor && <div style={{ background: 'rgba(0,128,255,0.08)', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Obs. do fornecedor</div><div style={{ fontSize: 12, color: '#7BAFD4' }}>{sj.observacaoFornecedor}</div></div>}
                             {/* Imagens do stand */}
                             {sj.standImagensUrls?.length > 0 && (
                               <div>
-                                <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>Imagens de referência do stand</div>
+                                <div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 6 }}>Imagens de referência do stand</div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                   {sj.standImagensUrls.map((url, i) => (
                                     <a key={i} href={url} target="_blank" rel="noreferrer">
@@ -2402,23 +2432,23 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
                         {/* Form de edição */}
                         {isEditing && (
-                          <div style={{ padding: '12px 16px', background: '#f8faff', borderTop: '1px solid #e0e8ff' }}>
+                          <div style={{ padding: '12px 16px', background: '#182131', borderTop: '1px solid #e0e8ff' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
                               {[['Preço (R$)', 'preco', 'number'], ['Dias de preparo', 'diasPreparo', 'number'], ['Dias de montagem', 'diasMontagem', 'number']].map(([label, field, type]) => (
                                 <div key={field}>
-                                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, fontWeight: 600 }}>{label}</div>
+                                  <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 3, fontWeight: 600 }}>{label}</div>
                                   <input type={type} value={editJobForm[field]} onChange={e => setEditJobForm(p => ({ ...p, [field]: e.target.value }))}
                                     style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                                 </div>
                               ))}
                             </div>
                             <div style={{ marginBottom: 10 }}>
-                              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, fontWeight: 600 }}>Observação</div>
+                              <div style={{ fontSize: 10, color: '#7BAFD4', marginBottom: 3, fontWeight: 600 }}>Observação</div>
                               <textarea value={editJobForm.observacao} onChange={e => setEditJobForm(p => ({ ...p, observacao: e.target.value }))}
                                 style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 12, fontFamily: 'Outfit, sans-serif', resize: 'vertical', minHeight: 50, boxSizing: 'border-box', outline: 'none' }} />
                             </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                              <button onClick={() => setEditandoJob(null)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
                               <button onClick={() => handleSalvarJob(sj.id)} disabled={salvandoJob}
                                 style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                                 {salvandoJob ? 'Salvando...' : 'Salvar'}
@@ -2429,15 +2459,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
                         {/* Troca de fornecedor */}
                         {isTrocando && (
-                          <div style={{ padding: '12px 16px', background: '#f8faff', borderTop: '1px solid #e0e8ff' }}>
+                          <div style={{ padding: '12px 16px', background: '#182131', borderTop: '1px solid #e0e8ff' }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: '#667eea', marginBottom: 10 }}>Selecione o novo fornecedor para "{nome}":</div>
                             {fornecedoresAlt.length === 0 ? (
-                              <div style={{ fontSize: 12, color: '#94a3b8', padding: '8px 0' }}>Nenhum outro fornecedor com este serviço cadastrado.</div>
+                              <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.6)', padding: '8px 0' }}>Nenhum outro fornecedor com este serviço cadastrado.</div>
                             ) : fornecedoresAlt.map(f => (
-                              <div key={f.svId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 6, background: 'white' }}>
+                              <div key={f.svId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 6, background: '#182131' }}>
                                 <div>
-                                  <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{f.supplierName}</div>
-                                  <div style={{ fontSize: 11, color: '#94a3b8' }}>R$ {parseFloat(f.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · {f.diasPreparo || 0}d preparo</div>
+                                  <div style={{ fontSize: 13, fontWeight: 500, color: '#E8F4FF' }}>{f.supplierName}</div>
+                                  <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>R$ {parseFloat(f.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · {f.diasPreparo || 0}d preparo</div>
                                 </div>
                                 <button onClick={() => handleConfirmarTroca(sj, f)} disabled={salvandoJob}
                                   style={{ padding: '5px 14px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -2446,7 +2476,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               </div>
                             ))}
                             <button onClick={() => { setTrocandoJob(null); setFornecedoresAlt([]); }}
-                              style={{ marginTop: 6, padding: '5px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              style={{ marginTop: 6, padding: '5px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                               Cancelar
                             </button>
                           </div>
@@ -2459,7 +2489,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   {sjConfirmados.length > 0 && (
                     <>
                       <button onClick={() => setShowFornConcluidos(s => !s)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', background: 'none', border: 'none', color: 'rgba(123,175,212,0.6)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                         <span style={{ transform: showFornConcluidos ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
                         Respondidos ({sjConfirmados.length})
                       </button>
@@ -2487,27 +2517,27 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           _p4
                         ) : null;
                         return (
-                          <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed2 ? 'rgba(16,185,129,0.2)' : isRejected2 ? 'rgba(239,68,68,0.2)' : '#e2e8f0'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed2 ? 'rgba(16,185,129,0.02)' : isRejected2 ? 'rgba(239,68,68,0.02)' : 'white' }}>
+                          <div key={sj.id} style={{ borderRadius: 10, border: `1px solid ${isConfirmed2 ? 'rgba(16,185,129,0.2)' : isRejected2 ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.12)'}`, marginBottom: 10, overflow: 'hidden', background: isConfirmed2 ? 'rgba(16,185,129,0.02)' : isRejected2 ? 'rgba(239,68,68,0.02)' : '#182131' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #f8faff' }}>
                               <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConfirmed2 ? '#10b981' : isRejected2 ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{nome2}</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{nome2}</div>
                                 <div style={{ fontSize: 11, color: '#667eea', marginTop: 1, fontWeight: 500 }}>{sj.supplierName || sj.confirmedBy || 'Fornecedor'}</div>
                               </div>
                               <div style={{ display: 'flex', gap: 6 }}>
                                 <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: isConfirmed2 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: isConfirmed2 ? '#10b981' : '#ef4444' }}>
                                   {isConfirmed2 ? '✓ Confirmado' : '✗ Recusado'}
                                 </span>
-                                <button onClick={() => handleEditarJob(sj)} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+                                <button onClick={() => handleEditarJob(sj)} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
                                 <button onClick={() => handleTrocarFornecedor(sj)} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(102,126,234,0.3)', background: 'none', color: '#667eea', fontSize: 11, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Trocar</button>
                               </div>
                             </div>
                             <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
-                              {valorTotal2 && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Valor total</div><div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal2.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
-                              {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
-                              {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
-                              <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento2} dias</div></div>
-                              {sj.observacaoFornecedor && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#475569' }}>{sj.observacaoFornecedor}</div></div>}
+                              {valorTotal2 && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Valor total</div><div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal2.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>}
+                              {sj.diasPreparo > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{sj.diasPreparo} dias</div></div>}
+                              {sj.diasMontagem > 0 && <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{sj.diasMontagem} dias</div></div>}
+                              <div style={{ background: '#182131', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{diasEvento2} dias</div></div>
+                              {sj.observacaoFornecedor && <div style={{ background: 'rgba(255,167,38,0.08)', borderRadius: 8, padding: '7px 10px', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: 'rgba(123,175,212,0.6)', textTransform: 'uppercase', marginBottom: 2 }}>Obs. fornecedor</div><div style={{ fontSize: 11, color: '#7BAFD4' }}>{sj.observacaoFornecedor}</div></div>}
                             </div>
                           </div>
                         );
@@ -2524,7 +2554,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     <div style={{ marginTop: 16, padding: 14, background: 'rgba(255,167,38,0.06)', borderRadius: 10, border: '1px solid rgba(255,167,38,0.2)', textAlign: 'center', fontSize: 13, color: '#FFA726', fontWeight: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <span>⏳ Orçamento enviado — aguardando aprovação do cliente</span>
                       <button onClick={handleGerarOrcamento} disabled={gerandoOrcamento}
-                        style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         {gerandoOrcamento ? 'Recalculando...' : '↻ Recalcular orçamento'}
                       </button>
                     </div>
@@ -2546,12 +2576,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     {/* Header do modal */}
                     <div style={{ padding: '18px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', fontFamily: 'Outfit, sans-serif' }}>Nova Tarefa</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>Nova Tarefa</div>
+                        <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>
                           {['Categoria', 'Serviço', 'Opção', 'Detalhes', 'Fornecedor'][novaTaskStep - 1]} — passo {novaTaskStep} de 5
                         </div>
                       </div>
-                      <button onClick={resetNovaTask} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+                      <button onClick={resetNovaTask} style={{ background: 'none', border: 'none', fontSize: 20, color: 'rgba(123,175,212,0.6)', cursor: 'pointer' }}>×</button>
                     </div>
                     {/* Indicador de steps */}
                     <div style={{ display: 'flex', padding: '0 24px', gap: 4, paddingTop: 16 }}>
@@ -2565,7 +2595,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       {/* STEP 1 — Categoria */}
                       {novaTaskStep === 1 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual categoria de serviço?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual categoria de serviço?</div>
                           {[
                             { id: 'estrutura',      label: 'Estrutura',        icon: '🏗', cor: '#0080FF' },
                             { id: 'operacao',       label: 'Operacional',      icon: '👥', cor: '#00E5C4' },
@@ -2576,9 +2606,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               setNovaTaskCategoria(cat.id);
                               await carregarServicosNovaTask(cat.id);
                               setNovaTaskStep(2);
-                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskCategoria === cat.id ? cat.cor : '#e2e8f0'}`, background: novaTaskCategoria === cat.id ? `${cat.cor}11` : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskCategoria === cat.id ? cat.cor : 'rgba(255,255,255,0.12)'}`, background: novaTaskCategoria === cat.id ? `${cat.cor}11` : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <span style={{ fontSize: 20 }}>{cat.icon}</span>
-                              <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{cat.label}</span>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>{cat.label}</span>
                             </button>
                           ))}
                         </div>
@@ -2587,59 +2617,59 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       {/* STEP 2 — Serviço */}
                       {novaTaskStep === 2 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual serviço?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual serviço?</div>
                           {novaTaskLoadingServicos ? (
-                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando serviços...</div>
+                            <div style={{ textAlign: 'center', padding: 30, color: 'rgba(123,175,212,0.6)' }}>Carregando serviços...</div>
                           ) : novaTaskServicos.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Nenhum serviço disponível nesta categoria para a cidade do projeto.</div>
+                            <div style={{ textAlign: 'center', padding: 30, color: 'rgba(123,175,212,0.6)' }}>Nenhum serviço disponível nesta categoria para a cidade do projeto.</div>
                           ) : novaTaskServicos.map(s => (
                             <button key={s.id} onClick={async () => {
                               setNovaTaskServico(s);
                               await carregarOpcoesNovaTask(s);
                               await carregarFornecedoresNovaTask(s);
                               setNovaTaskStep(3);
-                            }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskServico?.id === s.id ? '#667eea' : '#e2e8f0'}`, background: novaTaskServico?.id === s.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskServico?.id === s.id ? '#667eea' : 'rgba(255,255,255,0.12)'}`, background: novaTaskServico?.id === s.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.serviceName}</div>
-                                {s.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{s.serviceParentName}</div>}
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{s.serviceName}</div>
+                                {s.serviceParentName && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 1 }}>{s.serviceParentName}</div>}
                               </div>
-                              <div style={{ fontSize: 11, color: '#94a3b8' }}>{s.opcoes.length} opção(ões)</div>
+                              <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>{s.opcoes.length} opção(ões)</div>
                             </button>
                           ))}
-                          <button onClick={() => setNovaTaskStep(1)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                          <button onClick={() => setNovaTaskStep(1)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
                         </div>
                       )}
 
                       {/* STEP 3 — Opção */}
                       {novaTaskStep === 3 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual opção de {novaTaskServico?.serviceName}?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual opção de {novaTaskServico?.serviceName}?</div>
                           {novaTaskOpcoes.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhuma opção cadastrada.</div>
+                            <div style={{ textAlign: 'center', padding: 20, color: 'rgba(123,175,212,0.6)', fontSize: 12 }}>Nenhuma opção cadastrada.</div>
                           ) : novaTaskOpcoes.map(op => (
-                            <button key={op.id} onClick={() => { setNovaTaskOpcao(op); setNovaTaskStep(4); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskOpcao?.id === op.id ? '#667eea' : '#e2e8f0'}`, background: novaTaskOpcao?.id === op.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            <button key={op.id} onClick={() => { setNovaTaskOpcao(op); setNovaTaskStep(4); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskOpcao?.id === op.id ? '#667eea' : 'rgba(255,255,255,0.12)'}`, background: novaTaskOpcao?.id === op.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{op.nome}</div>
-                                {op.caracteristica && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{op.caracteristica}</div>}
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
+                                {op.caracteristica && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 1 }}>{op.caracteristica}</div>}
                               </div>
                               {op.valor > 0 && <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>/ {op.unidade || 'evento'}</div>
+                                <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.6)' }}>/ {op.unidade || 'evento'}</div>
                               </div>}
                             </button>
                           ))}
-                          <button onClick={() => setNovaTaskStep(2)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                          <button onClick={() => setNovaTaskStep(2)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
                         </div>
                       )}
 
                       {/* STEP 4 — Detalhes */}
                       {novaTaskStep === 4 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', fontFamily: 'Outfit, sans-serif' }}>Detalhes da tarefa</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>Detalhes da tarefa</div>
                           {/* Resumo da seleção */}
                           <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(102,126,234,0.15)' }}>
                             <div style={{ fontSize: 12, color: '#667eea', fontWeight: 600, fontFamily: 'Outfit, sans-serif' }}>{novaTaskServico?.serviceName} — {novaTaskOpcao?.nome}</div>
-                            {novaTaskOpcao?.valor > 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>R$ {Number(novaTaskOpcao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {novaTaskOpcao.unidade}</div>}
+                            {novaTaskOpcao?.valor > 0 && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2 }}>R$ {Number(novaTaskOpcao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {novaTaskOpcao.unidade}</div>}
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                             <div><label style={lbl}>Quantidade</label><input type="number" value={novaTaskForm.quantidade} onChange={e => setNovaTaskForm(p => ({...p, quantidade: e.target.value}))} style={inp} placeholder="Ex: 2" min="1" /></div>
@@ -2651,7 +2681,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             <div><label style={lbl}>Data entrega</label><input type="date" value={novaTaskForm.dataEntrega} onChange={e => setNovaTaskForm(p => ({...p, dataEntrega: e.target.value}))} style={inp} /></div>
                           </div>
                           <div><label style={lbl}>Prioridade</label>
-                            <select value={novaTaskForm.prioridade} onChange={e => setNovaTaskForm(p => ({...p, prioridade: e.target.value}))} style={{ ...inp, background: 'white' }}>
+                            <select value={novaTaskForm.prioridade} onChange={e => setNovaTaskForm(p => ({...p, prioridade: e.target.value}))} style={{ ...inp, background: '#182131' }}>
                               <option value="baixa">Baixa</option>
                               <option value="normal">Normal</option>
                               <option value="alta">Alta</option>
@@ -2662,7 +2692,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             <textarea value={novaTaskForm.observacoes} onChange={e => setNovaTaskForm(p => ({...p, observacoes: e.target.value}))} style={{ ...inp, resize: 'vertical', minHeight: 60 }} placeholder="Instruções específicas para o fornecedor..." />
                           </div>
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-                            <button onClick={() => setNovaTaskStep(3)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={() => setNovaTaskStep(3)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
                             <button onClick={() => setNovaTaskStep(5)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Próximo →</button>
                           </div>
                         </div>
@@ -2671,15 +2701,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       {/* STEP 5 — Fornecedor */}
                       {novaTaskStep === 5 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual fornecedor?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual fornecedor?</div>
                           {novaTaskLoadingForn ? (
-                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando fornecedores...</div>
+                            <div style={{ textAlign: 'center', padding: 30, color: 'rgba(123,175,212,0.6)' }}>Carregando fornecedores...</div>
                           ) : novaTaskFornecedores.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhum fornecedor disponível para este serviço na cidade do projeto.</div>
+                            <div style={{ textAlign: 'center', padding: 20, color: 'rgba(123,175,212,0.6)', fontSize: 12 }}>Nenhum fornecedor disponível para este serviço na cidade do projeto.</div>
                           ) : novaTaskFornecedores.map(f => (
-                            <button key={f.id} onClick={() => setNovaTaskFornecedor(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskFornecedor?.id === f.id ? '#667eea' : '#e2e8f0'}`, background: novaTaskFornecedor?.id === f.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            <button key={f.id} onClick={() => setNovaTaskFornecedor(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaTaskFornecedor?.id === f.id ? '#667eea' : 'rgba(255,255,255,0.12)'}`, background: novaTaskFornecedor?.id === f.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#667eea,#764ba2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{(f.nome || 'F')[0].toUpperCase()}</div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.nome}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{f.nome}</span>
                               {novaTaskFornecedor?.id === f.id && <span style={{ marginLeft: 'auto', fontSize: 13, color: '#667eea' }}>✓</span>}
                             </button>
                           ))}
@@ -2690,8 +2720,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             </div>
                           )}
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
-                            <button onClick={() => setNovaTaskStep(4)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
-                            <button onClick={handleSalvarNovaTask} disabled={!novaTaskFornecedor || savingNovaTask} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: !novaTaskFornecedor ? '#e2e8f0' : 'linear-gradient(135deg,#667eea,#764ba2)', color: !novaTaskFornecedor ? '#94a3b8' : 'white', fontSize: 13, fontWeight: 600, cursor: !novaTaskFornecedor ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            <button onClick={() => setNovaTaskStep(4)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={handleSalvarNovaTask} disabled={!novaTaskFornecedor || savingNovaTask} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: !novaTaskFornecedor ? 'rgba(255,255,255,0.12)' : 'linear-gradient(135deg,#667eea,#764ba2)', color: !novaTaskFornecedor ? 'rgba(123,175,212,0.6)' : 'white', fontSize: 13, fontWeight: 600, cursor: !novaTaskFornecedor ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                               {savingNovaTask ? 'Criando...' : project.cotacaoEnviadaEm ? '✓ Criar e Enviar' : '✓ Criar Tarefa'}
                             </button>
                           </div>
@@ -2708,12 +2738,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                   <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
                     <div style={{ padding: '18px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', fontFamily: 'Outfit, sans-serif' }}>Nova Proposta</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#E8F4FF', fontFamily: 'Outfit, sans-serif' }}>Nova Proposta</div>
+                        <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2, fontFamily: 'Outfit, sans-serif' }}>
                           {['Categoria', 'Serviço', 'Opção', 'Detalhes', 'Fornecedor'][novaPropostaStep - 1]} — passo {novaPropostaStep} de 5
                         </div>
                       </div>
-                      <button onClick={resetNovaProposta} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+                      <button onClick={resetNovaProposta} style={{ background: 'none', border: 'none', fontSize: 20, color: 'rgba(123,175,212,0.6)', cursor: 'pointer' }}>×</button>
                     </div>
                     <div style={{ display: 'flex', padding: '0 24px', gap: 4, paddingTop: 16 }}>
                       {[1,2,3,4,5].map(s => (
@@ -2725,7 +2755,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       {/* STEP 1 — Categoria */}
                       {novaPropostaStep === 1 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual categoria de serviço?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual categoria de serviço?</div>
                           {[
                             { id: 'estrutura',      label: 'Estrutura',      icon: '🏗', cor: '#0080FF' },
                             { id: 'operacao',       label: 'Operacional',    icon: '👥', cor: '#00E5C4' },
@@ -2749,9 +2779,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               } catch(e) { console.error(e); }
                               finally { setNovaPropostaLoadingServicos(false); }
                               setNovaPropostaStep(2);
-                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaCategoria === cat.id ? cat.cor : '#e2e8f0'}`, background: novaPropostaCategoria === cat.id ? `${cat.cor}11` : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaCategoria === cat.id ? cat.cor : 'rgba(255,255,255,0.12)'}`, background: novaPropostaCategoria === cat.id ? `${cat.cor}11` : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <span style={{ fontSize: 20 }}>{cat.icon}</span>
-                              <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{cat.label}</span>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>{cat.label}</span>
                             </button>
                           ))}
                         </div>
@@ -2760,11 +2790,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       {/* STEP 2 — Serviço */}
                       {novaPropostaStep === 2 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual serviço?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual serviço?</div>
                           {novaPropostaLoadingServicos ? (
-                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando serviços...</div>
+                            <div style={{ textAlign: 'center', padding: 30, color: 'rgba(123,175,212,0.6)' }}>Carregando serviços...</div>
                           ) : novaPropostaServicos.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Nenhum serviço disponível nesta categoria.</div>
+                            <div style={{ textAlign: 'center', padding: 30, color: 'rgba(123,175,212,0.6)' }}>Nenhum serviço disponível nesta categoria.</div>
                           ) : novaPropostaServicos.map(s => (
                             <button key={s.id} onClick={async () => {
                               setNovaPropostaServico(s);
@@ -2797,47 +2827,47 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               } catch(e) { console.error(e); setNovaPropostaFornecedores([]); }
                               finally { setNovaPropostaLoadingForn(false); }
                               setNovaPropostaStep(3);
-                            }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaServico?.id === s.id ? '#667eea' : '#e2e8f0'}`, background: novaPropostaServico?.id === s.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaServico?.id === s.id ? '#667eea' : 'rgba(255,255,255,0.12)'}`, background: novaPropostaServico?.id === s.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.serviceName}</div>
-                                {s.serviceParentName && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{s.serviceParentName}</div>}
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{s.serviceName}</div>
+                                {s.serviceParentName && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 1 }}>{s.serviceParentName}</div>}
                               </div>
-                              <div style={{ fontSize: 11, color: '#94a3b8' }}>{s.opcoes.length} opção(ões)</div>
+                              <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>{s.opcoes.length} opção(ões)</div>
                             </button>
                           ))}
-                          <button onClick={() => setNovaPropostaStep(1)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                          <button onClick={() => setNovaPropostaStep(1)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
                         </div>
                       )}
 
                       {/* STEP 3 — Opção */}
                       {novaPropostaStep === 3 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual opção de {novaPropostaServico?.serviceName}?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual opção de {novaPropostaServico?.serviceName}?</div>
                           {novaPropostaOpcoes.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhuma opção cadastrada.</div>
+                            <div style={{ textAlign: 'center', padding: 20, color: 'rgba(123,175,212,0.6)', fontSize: 12 }}>Nenhuma opção cadastrada.</div>
                           ) : novaPropostaOpcoes.map(op => (
-                            <button key={op.id} onClick={() => { setNovaPropostaOpcao(op); setNovaPropostaStep(4); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaOpcao?.id === op.id ? '#667eea' : '#e2e8f0'}`, background: novaPropostaOpcao?.id === op.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            <button key={op.id} onClick={() => { setNovaPropostaOpcao(op); setNovaPropostaStep(4); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaOpcao?.id === op.id ? '#667eea' : 'rgba(255,255,255,0.12)'}`, background: novaPropostaOpcao?.id === op.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{op.nome}</div>
-                                {op.caracteristica && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{op.caracteristica}</div>}
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{op.nome}</div>
+                                {op.caracteristica && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 1 }}>{op.caracteristica}</div>}
                               </div>
                               {op.valor > 0 && <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: '#667eea' }}>R$ {Number(op.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>/ {op.unidade || 'evento'}</div>
+                                <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.6)' }}>/ {op.unidade || 'evento'}</div>
                               </div>}
                             </button>
                           ))}
-                          <button onClick={() => setNovaPropostaStep(2)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                          <button onClick={() => setNovaPropostaStep(2)} style={{ marginTop: 8, padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
                         </div>
                       )}
 
                       {/* STEP 4 — Detalhes */}
                       {novaPropostaStep === 4 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', fontFamily: 'Outfit, sans-serif' }}>Detalhes da proposta</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', fontFamily: 'Outfit, sans-serif' }}>Detalhes da proposta</div>
                           <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(102,126,234,0.15)' }}>
                             <div style={{ fontSize: 12, color: '#667eea', fontWeight: 600, fontFamily: 'Outfit, sans-serif' }}>{novaPropostaServico?.serviceName} — {novaPropostaOpcao?.nome}</div>
-                            {novaPropostaOpcao?.valor > 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>R$ {Number(novaPropostaOpcao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {novaPropostaOpcao.unidade}</div>}
+                            {novaPropostaOpcao?.valor > 0 && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2 }}>R$ {Number(novaPropostaOpcao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {novaPropostaOpcao.unidade}</div>}
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                             <div><label style={lbl}>Quantidade</label><input type="number" value={novaPropostaForm.quantidade} onChange={e => setNovaPropostaForm(p => ({...p, quantidade: e.target.value}))} style={inp} placeholder="Ex: 2" min="1" /></div>
@@ -2849,7 +2879,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             <div><label style={lbl}>Data entrega</label><input type="date" value={novaPropostaForm.dataEntrega} onChange={e => setNovaPropostaForm(p => ({...p, dataEntrega: e.target.value}))} style={inp} /></div>
                           </div>
                           <div><label style={lbl}>Prioridade</label>
-                            <select value={novaPropostaForm.prioridade} onChange={e => setNovaPropostaForm(p => ({...p, prioridade: e.target.value}))} style={{ ...inp, background: 'white' }}>
+                            <select value={novaPropostaForm.prioridade} onChange={e => setNovaPropostaForm(p => ({...p, prioridade: e.target.value}))} style={{ ...inp, background: '#182131' }}>
                               <option value="baixa">Baixa</option>
                               <option value="normal">Normal</option>
                               <option value="alta">Alta</option>
@@ -2860,7 +2890,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             <textarea value={novaPropostaForm.observacoes} onChange={e => setNovaPropostaForm(p => ({...p, observacoes: e.target.value}))} style={{ ...inp, resize: 'vertical', minHeight: 60 }} placeholder="Instruções específicas para o fornecedor..." />
                           </div>
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-                            <button onClick={() => setNovaPropostaStep(3)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={() => setNovaPropostaStep(3)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
                             <button onClick={() => setNovaPropostaStep(5)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Próximo →</button>
                           </div>
                         </div>
@@ -2869,21 +2899,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                       {/* STEP 5 — Fornecedor */}
                       {novaPropostaStep === 5 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual fornecedor?</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#7BAFD4', marginBottom: 4, fontFamily: 'Outfit, sans-serif' }}>Qual fornecedor?</div>
                           {novaPropostaLoadingForn ? (
-                            <div style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>Carregando fornecedores...</div>
+                            <div style={{ textAlign: 'center', padding: 30, color: 'rgba(123,175,212,0.6)' }}>Carregando fornecedores...</div>
                           ) : novaPropostaFornecedores.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>Nenhum fornecedor disponível para este serviço na cidade do projeto.</div>
+                            <div style={{ textAlign: 'center', padding: 20, color: 'rgba(123,175,212,0.6)', fontSize: 12 }}>Nenhum fornecedor disponível para este serviço na cidade do projeto.</div>
                           ) : novaPropostaFornecedores.map(f => (
-                            <button key={f.id} onClick={() => setNovaPropostaFornecedor(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaFornecedor?.id === f.id ? '#667eea' : '#e2e8f0'}`, background: novaPropostaFornecedor?.id === f.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
+                            <button key={f.id} onClick={() => setNovaPropostaFornecedor(f)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${novaPropostaFornecedor?.id === f.id ? '#667eea' : 'rgba(255,255,255,0.12)'}`, background: novaPropostaFornecedor?.id === f.id ? 'rgba(102,126,234,0.05)' : 'white', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'left' }}>
                               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#667eea,#764ba2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{(f.nome || 'F')[0].toUpperCase()}</div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.nome}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{f.nome}</span>
                               {novaPropostaFornecedor?.id === f.id && <span style={{ marginLeft: 'auto', fontSize: 13, color: '#667eea' }}>✓</span>}
                             </button>
                           ))}
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
-                            <button onClick={() => setNovaPropostaStep(4)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
-                            <button onClick={handleSalvarNovaProposta} disabled={!novaPropostaFornecedor || savingNovaProposta} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: !novaPropostaFornecedor ? '#e2e8f0' : 'linear-gradient(135deg,#667eea,#764ba2)', color: !novaPropostaFornecedor ? '#94a3b8' : 'white', fontSize: 13, fontWeight: 600, cursor: !novaPropostaFornecedor ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            <button onClick={() => setNovaPropostaStep(4)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#7BAFD4', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>← Voltar</button>
+                            <button onClick={handleSalvarNovaProposta} disabled={!novaPropostaFornecedor || savingNovaProposta} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: !novaPropostaFornecedor ? 'rgba(255,255,255,0.12)' : 'linear-gradient(135deg,#667eea,#764ba2)', color: !novaPropostaFornecedor ? 'rgba(123,175,212,0.6)' : 'white', fontSize: 13, fontWeight: 600, cursor: !novaPropostaFornecedor ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                               {savingNovaProposta ? 'Enviando...' : '✓ Criar Proposta'}
                             </button>
                           </div>
@@ -2896,20 +2926,20 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               )}
 
               {tasks.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>Nenhuma tarefa ainda</div>
+                <div style={{ textAlign: 'center', padding: 40, color: 'rgba(123,175,212,0.6)', fontSize: 13 }}>Nenhuma tarefa ainda</div>
               ) : tasks.map(t => {
-                const PRIORIDADE = { baixa: '#94a3b8', normal: '#64748b', alta: '#f97316', urgente: '#ef4444' };
+                const PRIORIDADE = { baixa: 'rgba(123,175,212,0.6)', normal: '#7BAFD4', alta: '#f97316', urgente: '#ef4444' };
                 const STATUS_TASK = { todo: { label: 'A Fazer', color: '#f59e0b' }, in_progress: { label: 'Em Andamento', color: '#3b82f6' }, done: { label: 'Concluída', color: '#10b981' } };
                 const st = STATUS_TASK[t.status] || STATUS_TASK.todo;
                 return (
                   <div key={t.taskId} className="ps-task-item">
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginBottom: 2 }}>{t.name}</div>
-                      {t.descricao && <div style={{ fontSize: 11, color: '#94a3b8' }}>{t.descricao}</div>}
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#E8F4FF', marginBottom: 2 }}>{t.name}</div>
+                      {t.descricao && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)' }}>{t.descricao}</div>}
                       <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center' }}>
                         {t.prazo && <span style={{ fontSize: 10, color: '#f59e0b' }}>📅 {t.prazo}</span>}
                         {t.prioridade && t.prioridade !== 'normal' && <span style={{ fontSize: 10, color: PRIORIDADE[t.prioridade], fontWeight: 600 }}>{t.prioridade.toUpperCase()}</span>}
-                        {t.assignedToName && <span style={{ fontSize: 10, color: '#64748b' }}>👤 {t.assignedToName}</span>}
+                        {t.assignedToName && <span style={{ fontSize: 10, color: '#7BAFD4' }}>👤 {t.assignedToName}</span>}
                       </div>
                     </div>
                     <select value={t.status || 'todo'} onChange={e => handleTaskStatus(t.taskId, e.target.value)}
@@ -2937,7 +2967,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                     <span style={{ fontSize: 20, color: '#66BB6A' }}>✓</span>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#66BB6A' }}>Relatório enviado ao cliente</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                      <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.6)', marginTop: 2 }}>
                         Por {project.relatorioFinal.enviadoPor} • {new Date(project.relatorioFinal.geradoEm).toLocaleString('pt-BR')}
                       </div>
                     </div>
@@ -2945,21 +2975,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 ) : !todasConcluidas ? (
                   <div style={{ background: 'rgba(255,167,38,0.06)', border: '1px solid rgba(255,167,38,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#FFA726', marginBottom: 4 }}>Aguardando conclusão das tarefas</div>
-                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 12, color: 'rgba(123,175,212,0.6)' }}>
                       {allTasks.filter(t => t.status === 'concluido').length}/{allTasks.length} tarefas concluídas.
                     </div>
                   </div>
                 ) : confirmRelatorio ? (
                   <div style={{ background: 'rgba(102,187,106,0.06)', border: '1px solid rgba(102,187,106,0.25)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#66BB6A', marginBottom: 6 }}>Confirmar envio do relatório ao cliente?</div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>O projeto será marcado como concluído.</div>
+                    <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 14 }}>O projeto será marcado como concluído.</div>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <button onClick={handleEnviarRelatorio} disabled={enviandoRelatorio}
                         style={{ padding: '8px 20px', background: '#66BB6A', border: 'none', borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         {enviandoRelatorio ? 'Enviando...' : 'Confirmar'}
                       </button>
                       <button onClick={() => setConfirmRelatorio(false)}
-                        style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                        style={{ padding: '8px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, color: '#7BAFD4', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
                     </div>
                   </div>
                 ) : (
@@ -2973,14 +3003,14 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 <div className="ps-card">
                   <div className="ps-card-title">Resumo das Tarefas ({allTasks.length})</div>
                   {allTasks.length === 0 ? (
-                    <p style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma tarefa criada ainda.</p>
+                    <p style={{ fontSize: 13, color: 'rgba(123,175,212,0.6)' }}>Nenhuma tarefa criada ainda.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {allTasks.map(t => (
-                        <div key={t.id} style={{ borderRadius: 8, border: '1px solid #e2e8f0', padding: '10px 14px', background: t.status === 'concluido' ? 'rgba(102,187,106,0.04)' : 'white' }}>
+                        <div key={t.id} style={{ borderRadius: 8, border: '1px solid #e2e8f0', padding: '10px 14px', background: t.status === 'concluido' ? 'rgba(102,187,106,0.04)' : '#182131' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{t.serviceName}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>{t.serviceName}</span>
                               <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 8, background: t.fase === 'preparacao' ? 'rgba(123,175,212,0.15)' : 'rgba(0,229,196,0.1)', color: t.fase === 'preparacao' ? '#7BAFD4' : '#00E5C4' }}>
                                 {t.fase === 'preparacao' ? 'PREP' : 'EXEC'}
                               </span>
@@ -2990,7 +3020,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             </span>
                           </div>
                           {t.supplierName && <div style={{ fontSize: 11, color: '#667eea', marginTop: 4 }}>{t.supplierName}</div>}
-                          {t.observacaoFornecedor && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, background: '#f8faff', borderRadius: 6, padding: '4px 8px' }}>Obs: {t.observacaoFornecedor}</div>}
+                          {t.observacaoFornecedor && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4, background: '#182131', borderRadius: 6, padding: '4px 8px' }}>Obs: {t.observacaoFornecedor}</div>}
                           {t.valor > 0 && <div style={{ fontSize: 12, fontWeight: 600, color: '#00E5C4', marginTop: 4 }}>R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
                         </div>
                       ))}
