@@ -621,10 +621,19 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                   {(orcamento.itens || []).map((item, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #f0f2f5' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                        {item.fotoUrl && (
-                          <img src={item.fotoUrl} alt={item.serviceName} onClick={() => setFotoAmpliada(item.fotoUrl)}
-                            style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid #f0f2f5', cursor: 'zoom-in' }} />
-                        )}
+                        {(() => {
+                          const fotosItem = item.fotos || (item.fotoUrl ? [item.fotoUrl] : []);
+                          if (fotosItem.length === 0) return null;
+                          return (
+                            <div style={{ position: 'relative', flexShrink: 0 }} onClick={() => setFotoAmpliada({ fotos: fotosItem, idx: 0 })}>
+                              <img src={fotosItem[0]} alt={item.serviceName}
+                                style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid #f0f2f5', cursor: 'zoom-in' }} />
+                              {fotosItem.length > 1 && (
+                                <span style={{ position: 'absolute', bottom: -4, right: -4, fontSize: 9, fontWeight: 700, background: '#0080FF', color: 'white', borderRadius: 8, padding: '1px 5px' }}>+{fotosItem.length - 1}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{item.serviceName}</div>
                           <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
@@ -706,7 +715,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                           const ehImagem = /\.(png|jpe?g|gif|webp)$/i.test(f.nome || f.url || '');
                           const estiloChip = { fontSize: 12, color: '#667eea', textDecoration: 'none', background: 'rgba(102,126,234,0.08)', border: '1px solid rgba(102,126,234,0.2)', padding: '5px 12px', borderRadius: 8, cursor: 'pointer' };
                           return ehImagem ? (
-                            <button key={i} onClick={() => setFotoAmpliada(f.url)} style={{ ...estiloChip, borderStyle: 'solid' }}>
+                            <button key={i} onClick={() => setFotoAmpliada({ fotos: [f.url], idx: 0 })} style={{ ...estiloChip, borderStyle: 'solid' }}>
                               📎 {f.nome}
                             </button>
                           ) : (
@@ -845,11 +854,20 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         </div>
       </div>
 
-      {/* Modal de foto ampliada */}
+      {/* Modal de foto ampliada (galeria, navegável se tiver mais de uma) */}
       {fotoAmpliada && (
         <div onClick={() => setFotoAmpliada(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
-          <img src={fotoAmpliada} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }} />
+          <img src={fotoAmpliada.fotos[fotoAmpliada.idx]} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }} />
+          {fotoAmpliada.fotos.length > 1 && (
+            <>
+              <button onClick={e => { e.stopPropagation(); setFotoAmpliada(f => ({ ...f, idx: (f.idx - 1 + f.fotos.length) % f.fotos.length })); }}
+                style={{ position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 20, cursor: 'pointer' }}>‹</button>
+              <button onClick={e => { e.stopPropagation(); setFotoAmpliada(f => ({ ...f, idx: (f.idx + 1) % f.fotos.length })); }}
+                style={{ position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 20, cursor: 'pointer' }}>›</button>
+              <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, textAlign: 'center', color: 'white', fontSize: 12 }}>{fotoAmpliada.idx + 1} / {fotoAmpliada.fotos.length}</div>
+            </>
+          )}
           <button onClick={() => setFotoAmpliada(null)}
             style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 20, cursor: 'pointer' }}>
             ✕

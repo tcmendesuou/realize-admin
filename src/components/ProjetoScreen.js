@@ -753,7 +753,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         // ClienteChat.js sem esses dias (o cliente só escolheu o serviço do
         // catálogo geral, ainda sem fornecedor real definido) — corrige aqui,
         // gravando de volta no supplierJob pro cronograma usar depois.
-        let fotoUrl = '';
+        let fotos = [];
         let diasPreparoReal = null;
         let diasMontagemReal = null;
         try {
@@ -770,7 +770,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               ));
               if (!opSnap.empty) {
                 const opData = opSnap.docs[0].data();
-                fotoUrl = opData.fotoUrl || '';
+                fotos = opData.fotos || (opData.fotoUrl ? [opData.fotoUrl] : []);
                 diasPreparoReal  = parseFloat(opData.diasPreparo)  || 0;
                 diasMontagemReal = parseFloat(opData.diasMontagem) || 0;
                 // Se o supplierJob ainda não tem esses dias (ou estão zerados),
@@ -794,7 +794,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             supplierName: sj.supplierName || sj.confirmedBy || sj.supplierId,
             serviceName:  sj.serviceName,
             opcaoNome:    sj.opcaoNome || '',
-            fotoUrl,
+            fotos,
             preco,
             unidade:      sj.unidade || 'por evento',
             horas, qtd, diasServ,
