@@ -207,17 +207,17 @@ function App() {
     // "Financeiro" tem tela própria — os demais cargos (Coordenador, etc.)
     // continuam indo pro Kanban normal.
     if ((systemRole === 'workspace' || systemRole === 'equipe') && firestoreUser?.roleName?.toLowerCase() === 'financeiro') {
-      return <FinanceiroHome userData={firestoreUser} onLogout={handleLogout} />;
+      return <FinanceiroHome userData={userData} onLogout={handleLogout} />;
     }
 
     if (systemRole === 'workspace' || systemRole === 'equipe') {
       return (
         <Router>
           <Routes>
-            <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={firestoreUser} onLogout={handleLogout} />} />
-            <Route path="*" element={<EquipeHome userData={firestoreUser} onLogout={handleLogout} />} />
+            <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={userData} onLogout={handleLogout} />} />
+            <Route path="*" element={<EquipeHome userData={userData} onLogout={handleLogout} />} />
           </Routes>
-          <ChatWidgetGlobal userData={firestoreUser} role="equipe" />
+          <ChatWidgetGlobal userData={userData} role="equipe" />
         </Router>
       );
     }
@@ -226,7 +226,7 @@ function App() {
       // Se tiver tenantId (era o antigo "franqueado", agora unificado em
       // cliente), resolve o tenant pra passar pro ClienteHome (logo, cores).
       const tenantEfetivo = firestoreUser.tenantId ? (tenant || { id: firestoreUser.tenantId }) : null;
-      return <ClienteHome userData={firestoreUser} onLogout={handleLogout} tenant={tenantEfetivo} />;
+      return <ClienteHome userData={userData} onLogout={handleLogout} tenant={tenantEfetivo} />;
     }
     if (systemRole === 'tenant_admin') {
       // Trava: so renderiza o painel Ford se o tenant foi detectado pelo
@@ -253,7 +253,7 @@ function App() {
           </div>
         );
       }
-      return <TenantAdmin userData={firestoreUser} onLogout={handleLogout} tenant={tenant} />;
+      return <TenantAdmin userData={userData} onLogout={handleLogout} tenant={tenant} />;
     }
 
     if (systemRole === 'fornecedor_pendente') {
@@ -277,10 +277,10 @@ function App() {
       return (
         <Router>
           <Routes>
-            <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={firestoreUser} onLogout={handleLogout} />} />
-            <Route path="*" element={<FornecedorHome userData={firestoreUser} onLogout={handleLogout} />} />
+            <Route path="/projeto/:id" element={<ProjetoScreenWrapper user={firestoreUser} userData={userData} onLogout={handleLogout} />} />
+            <Route path="*" element={<FornecedorHome userData={userData} onLogout={handleLogout} />} />
           </Routes>
-          <ChatWidgetGlobal userData={firestoreUser} role="fornecedor" />
+          <ChatWidgetGlobal userData={userData} role="fornecedor" />
         </Router>
       );
     }
@@ -407,7 +407,7 @@ function App() {
             {activeView === 'services'  && <ServiceManager />}
             {activeView === 'pricing'   && <PricingManager />}
             {activeView === 'script'    && <ScriptManager />}
-            {activeView === 'chat'      && <ChatConfig userData={firestoreUser} />}
+            {activeView === 'chat'      && <ChatConfig userData={userData} />}
             {activeView === 'cargos'    && <Cargos />}
             {activeView === 'suppliers' && <SupplierManager />}
             {activeView === 'users'     && <UserManagement />}
