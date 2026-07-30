@@ -3,6 +3,40 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, o
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 
+// ── Seletor de exclusividade por empresa (estava sendo usado mas nunca foi
+// definido nesse arquivo — bug pré-existente, corrigido aqui) ───────────────
+function TenantSelector({ value = [], onChange }) {
+  const [tenants, setTenants] = useState([]);
+  useEffect(() => {
+    getDocs(collection(db, 'tenants')).then(snap => {
+      setTenants(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.ativo !== false));
+    }).catch(console.error);
+  }, []);
+  const toggle = (id) => onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
+  return (
+    <div>
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Exclusividade por empresa (opcional)</label>
+      <div style={{ background: 'rgba(102,126,234,0.04)', border: '1px solid rgba(102,126,234,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>
+          {value.length === 0 ? '✓ Visível para todos (sem restrição)' : `🔒 Exclusivo de ${value.length} empresa(s)`}
+        </div>
+        {tenants.length === 0 ? (
+          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma empresa cadastrada ainda.</div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {tenants.map(t => (
+              <button key={t.id} onClick={() => toggle(t.id)} type="button"
+                style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${value.includes(t.id) ? '#667eea' : '#e2e8f0'}`, background: value.includes(t.id) ? 'rgba(102,126,234,0.1)' : 'white', color: value.includes(t.id) ? '#667eea' : '#64748b', fontSize: 11, fontWeight: value.includes(t.id) ? 700 : 400, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                {value.includes(t.id) ? '✓' : '○'} {t.nome}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Formulário de modelo ──────────────────────────────────────────────────────
 function ModeloForm({ tipoEspecialId, tipoEspecialNome, supplierId, editData, onSave, onCancel }) {
   const [form, setForm] = useState(() => {
