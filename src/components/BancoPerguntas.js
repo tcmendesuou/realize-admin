@@ -388,7 +388,14 @@ export default function BancoPerguntas() {
               {form.destino === 'generico' && (
                 <div>
                   <label style={lbl}>Tipo da pergunta</label>
-                  <select value={form.tipo || ''} onChange={e => setF('tipo', e.target.value)} style={{ ...inp, background: 'white' }}>
+                  <select value={form.tipo || ''} onChange={e => {
+                    const novoTipo = e.target.value;
+                    setForm(p => ({
+                      ...p,
+                      tipo: novoTipo,
+                      opcoes: novoTipo === 'sim_nao' ? [{ valor: 'sim', label: 'Sim' }, { valor: 'nao', label: 'Não' }] : (novoTipo === 'multipla_escolha' ? p.opcoes : []),
+                    }));
+                  }} style={{ ...inp, background: 'white' }}>
                     <option value="">Selecione...</option>
                     {Object.entries(TIPOS_LABEL).filter(([k]) => !['roteador','catalogo','catalogo_modelos'].includes(k)).map(([k, v]) => (
                       <option key={k} value={k}>{v}</option>
