@@ -147,8 +147,10 @@ export default function UserManagement() {
         data.tenantId = form.tenantId;
         data.unidadeId = form.ehTenantAdmin ? null : (form.unidadeId || null);
       }
-      if (form.tipoConta === 'fornecedor') {
+       if (form.tipoConta === 'fornecedor') {
         data.supplierId = form.supplierId;
+        const empresaFornecedora = suppliers.find(s => s.id === form.supplierId);
+        data.companyName = empresaFornecedora?.tradeName || empresaFornecedora?.companyName || '';
       }
 
       if (selectedUser) {

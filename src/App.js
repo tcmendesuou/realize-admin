@@ -389,9 +389,9 @@ function App() {
               </h2>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{firestoreUser?.name}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{userData?.name}</div>
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                Realize{firestoreUser?.roleName ? ` · ${firestoreUser.roleName}` : ''}
+                Realize{userData?.roleName ? ` · ${userData.roleName}` : ''}
               </div>
             </div>
             <div className="header-right">
