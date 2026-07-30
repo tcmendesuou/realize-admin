@@ -279,13 +279,17 @@ export default function FornecedorHome({ userData, onLogout }) {
       {/* Main */}
       <main className="fn-main">
         {/* Header de boas-vindas */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
-            {userData?.roleName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 13, color: '#7BAFD4' }}>{userData.roleName}</span></>}
-            {userData?.companyName && <><span style={{ color: 'rgba(123,175,212,0.3)' }}>·</span><span style={{ fontSize: 12, color: 'rgba(123,175,212,0.5)' }}>{userData.companyName}</span></>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
+          <div />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
+            <div style={{ fontSize: 13, color: '#7BAFD4', marginTop: 2 }}>
+              {userData?.companyName}{userData?.companyName && userData?.roleName ? ' · ' : ''}{userData?.roleName}
+            </div>
           </div>
-          <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
+          </div>
         </div>
 
         {activeSection === 'workspace' && (

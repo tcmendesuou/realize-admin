@@ -131,6 +131,20 @@ export default function EquipeHome({ userData, onLogout }) {
 
       {/* Main */}
       <main className="eq-main">
+        {/* Header de boas-vindas */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(0,180,255,0.08)', marginBottom: 24 }}>
+          <div />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
+            <div style={{ fontSize: 13, color: '#7BAFD4', marginTop: 2 }}>
+              Realize{userData?.roleName ? ` · ${userData.roleName}` : ''}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
+          </div>
+        </div>
+
         {activeSection === 'workspace' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -138,7 +152,6 @@ export default function EquipeHome({ userData, onLogout }) {
                 <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Workspace</h1>
                 <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Acompanhe todos os jobs em andamento</p>
               </div>
-              <SinoNotificacoes userId={userId} tema="escuro" userData={userData} />
             </div>
 
             {loading ? (

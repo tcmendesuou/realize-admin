@@ -337,6 +337,18 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {/* Conteúdo */}
  <div style={{ marginLeft: 230, padding: '32px 32px' }}>
 
+        {/* Header de boas-vindas */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '0 0 20px 0', marginBottom: 24, borderBottom: '1px solid #e2e8f0' }}>
+          <div />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>{userData?.name}</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+              {tenantNome}{userData?.roleName ? ` · ${userData.roleName}` : ''}
+            </div>
+          </div>
+          <div />
+        </div>
+
  {/* ── VISÃO GERAL ─────────────────────────────────────────────────── */}
  {view === 'overview' && (
  <>

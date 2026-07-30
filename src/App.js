@@ -372,7 +372,7 @@ function App() {
         </aside>
 
         <main className="main-content">
-          <header className="top-header">
+          <header className="top-header" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
             <div className="header-left">
               <h2 className="page-title">
                 {activeView === 'dashboard' && 'Dashboard'}
@@ -387,6 +387,12 @@ function App() {
                 {activeView === 'financeiro' && 'Financeiro'}
                 {activeView === 'tenants'   && 'Empresas'}
               </h2>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{firestoreUser?.name}</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                Realize{firestoreUser?.roleName ? ` · ${firestoreUser.roleName}` : ''}
+              </div>
             </div>
             <div className="header-right">
               <div className="welcome-message">
