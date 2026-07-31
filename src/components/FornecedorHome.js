@@ -34,8 +34,16 @@ export default function FornecedorHome({ userData, onLogout }) {
   const [calMes, setCalMes]   = useState(new Date().getMonth());
   const [calAno, setCalAno]   = useState(new Date().getFullYear());
 
-  const supplierId = userData?.supplierId || userData?.id;
+   const supplierId = userData?.supplierId || userData?.id;
   const userId     = userData?.id;
+  const [nomeEmpresaResolvido, setNomeEmpresaResolvido] = useState('');
+
+  useEffect(() => {
+    if (userData?.companyName || !supplierId) return;
+    getDoc(doc(db, 'suppliers', supplierId)).then(snap => {
+      if (snap.exists()) setNomeEmpresaResolvido(snap.data().tradeName || snap.data().companyName || '');
+    }).catch(err => console.error('Erro ao buscar empresa:', err));
+  }, [userData?.companyName, supplierId]);
   const userName   = userData?.name || userData?.email?.split('@')[0] || 'Fornecedor';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -284,7 +292,7 @@ export default function FornecedorHome({ userData, onLogout }) {
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 600, color: '#E8F4FF' }}>{userName}</div>
             <div style={{ fontSize: 13, color: '#7BAFD4', marginTop: 2 }}>
-              {userData?.companyName}{userData?.companyName && userData?.roleName ? ' · ' : ''}{userData?.roleName}
+               {(() => { const nomeEmpresa = userData?.companyName || nomeEmpresaResolvido; return <>{nomeEmpresa}{nomeEmpresa && userData?.roleName ? ' · ' : ''}{userData?.roleName}</>; })()}
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
