@@ -335,7 +335,23 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
   // Envio de cotação
   const [enviandoCotacao, setEnviandoCotacao] = useState(false);
-  const [confirmEnvio, setConfirmEnvio] = useState(false);
+   const [confirmEnvio, setConfirmEnvio] = useState(false);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null); // { fotos: [], idx: 0 }
+
+  const baixarImagem = async (url) => {
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `referencia-${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) { console.error('Erro ao baixar imagem:', e); window.open(url, '_blank'); }
+  };
   const [confirmRelatorio, setConfirmRelatorio] = useState(false);
   const [enviandoRelatorio, setEnviandoRelatorio] = useState(false);
   const [chatAberto, setChatAberto]     = useState(false);
@@ -1152,9 +1168,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <span className="ps-info-label">Imagens de referência</span>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
                                 {est2.standImagensUrls.map((url, i) => (
-                                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                                  <button key={i} onClick={() => setFotoAmpliada({ fotos: est2.standImagensUrls, idx: i })} style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' }}>
                                     <img src={url} alt={`ref ${i+1}`} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                                  </a>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -1319,9 +1335,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               <span className="ps-info-label">Imagens de referência</span>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
                                 {est2.standImagensUrls.map((url, i) => (
-                                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                                  <button key={i} onClick={() => setFotoAmpliada({ fotos: est2.standImagensUrls, idx: i })} style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' }}>
                                     <img src={url} alt={`ref ${i+1}`} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                                  </a>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -2420,9 +2436,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>Imagens de referência do stand</div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                   {sj.standImagensUrls.map((url, i) => (
-                                    <a key={i} href={url} target="_blank" rel="noreferrer">
+                                    <button key={i} onClick={() => setFotoAmpliada({ fotos: sj.standImagensUrls, idx: i })} style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' }}>
                                       <img src={url} alt={`ref ${i+1}`} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid #e2e8f0' }} />
-                                    </a>
+                                    </button>
                                   ))}
                                 </div>
                               </div>
@@ -3160,6 +3176,29 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           </>
         );
       })()}
+
+      {/* Modal de foto ampliada — galeria navegável + baixar */}
+      {fotoAmpliada && (
+        <div onClick={() => setFotoAmpliada(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <img src={fotoAmpliada.fotos[fotoAmpliada.idx]} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }} />
+          {fotoAmpliada.fotos.length > 1 && (
+            <>
+              <button onClick={e => { e.stopPropagation(); setFotoAmpliada(f => ({ ...f, idx: (f.idx - 1 + f.fotos.length) % f.fotos.length })); }}
+                style={{ position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 20, cursor: 'pointer' }}>‹</button>
+              <button onClick={e => { e.stopPropagation(); setFotoAmpliada(f => ({ ...f, idx: (f.idx + 1) % f.fotos.length })); }}
+                style={{ position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 20, cursor: 'pointer' }}>›</button>
+              <div style={{ position: 'absolute', bottom: 76, left: 0, right: 0, textAlign: 'center', color: 'white', fontSize: 12 }}>{fotoAmpliada.idx + 1} / {fotoAmpliada.fotos.length}</div>
+            </>
+          )}
+          <button onClick={e => { e.stopPropagation(); baixarImagem(fotoAmpliada.fotos[fotoAmpliada.idx]); }}
+            style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: '10px 20px', borderRadius: 20, border: 'none', background: '#00E5C4', color: '#0D1B2A', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            ⬇ Baixar imagem
+          </button>
+          <button onClick={() => setFotoAmpliada(null)}
+            style={{ position: 'absolute', top: 24, right: 24, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 18, cursor: 'pointer' }}>×</button>
+        </div>
+      )}
     </>
   );
 }
