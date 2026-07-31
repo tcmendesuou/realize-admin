@@ -1017,7 +1017,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         .ps-tab { padding: 10px 20px; border: none; background: none; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 300; color: rgba(123,175,212,0.6); border-bottom: 2px solid transparent; transition: all 0.15s; }
         .ps-tab:hover { color: #7BAFD4; }
         .ps-tab.active { color: #00E5C4; border-bottom-color: #00E5C4; font-weight: 400; }
-        .ps-body { padding: 28px 36px; max-width: 900px; }
+         .ps-body { padding: 28px 36px; max-width: 900px; margin: 0 auto; }
+        .ps-hero-inner { max-width: 900px; margin: 0 auto; text-align: center; }
+        .ps-hero-meta { justify-content: center; }
+        .ps-tabs { justify-content: center; }
         .ps-card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e8eaed; }
         .ps-card-title { font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: #00E5C4; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f2f5; }
         .ps-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1073,6 +1076,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
 
         {/* HERO */}
         <div className="ps-hero">
+          <div className="ps-hero-inner">
           <h1 className="ps-hero-title">{project.eventName || project.eventTypeName || 'Projeto'}</h1>
           <div className="ps-hero-meta">
             {project.numeroPedido && <span style={{ color: '#00E5C4', fontWeight: 500, letterSpacing: 1 }}>{project.numeroPedido}</span>}
@@ -1087,6 +1091,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                 {t.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
