@@ -28,7 +28,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [supplierJob, setSupplierJob]     = useState(null);   // primeiro job (compat)
   const [supplierJobsMine, setSupplierJobsMine] = useState([]); // todos os jobs do fornecedor
   const [confirming, setConfirming]       = useState(false);
-  const [supplierJobs, setSupplierJobs]   = useState([]);
+   const [supplierJobs, setSupplierJobs]   = useState([]);
   const [gerandoOrcamento, setGerandoOrcamento] = useState(false);
   const [editandoJob, setEditandoJob]           = useState(null);  // id do job sendo editado
   const [editJobForm, setEditJobForm]           = useState({});
@@ -474,12 +474,21 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         // Busca nomes dos fornecedores
         const supplierIds = [...new Set(allJobs.map(j => j.supplierId).filter(Boolean))];
         const supplierNames = {};
-        await Promise.all(supplierIds.map(async sid => {
+         await Promise.all(supplierIds.map(async sid => {
           try {
             const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', sid)));
             if (!uSnap.empty) {
               const d = uSnap.docs[0].data();
-              supplierNames[sid] = d.companyName || d.name;
+              if (d.companyName) { supplierNames[sid] = d.companyName; return; }
+              // companyName pode estar vazio em contas mais antigas — busca a
+              // empresa de verdade pelo supplierId, em vez de cair no nome da pessoa.
+              if (d.supplierId) {
+                try {
+                  const supSnap = await getDoc(doc(db, 'suppliers', d.supplierId));
+                  if (supSnap.exists()) { supplierNames[sid] = supSnap.data().tradeName || supSnap.data().companyName || d.name; return; }
+                } catch {}
+              }
+              supplierNames[sid] = d.name;
             }
           } catch {}
         }));

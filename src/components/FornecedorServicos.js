@@ -68,14 +68,28 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const loadAll = async () => {
     if (!supplierId) return;
     try {
-      // Migração automática: se existirem serviços salvos com o ID da PESSOA
-      // (por causa do bug de prioridade já corrigido), reatribui pro ID
-      // correto da empresa — assim o cadastro não "some" pra outros
-      // colaboradores da mesma empresa.
+      // Nome real da empresa — usado nas duas migrações abaixo.
+      let nomeEmpresaAtual = '';
+      try {
+        const supSnap = await getDoc(doc(db, 'suppliers', supplierId));
+        if (supSnap.exists()) nomeEmpresaAtual = supSnap.data().tradeName || supSnap.data().companyName || '';
+      } catch (e) { console.error('Erro ao buscar nome da empresa:', e); }
+
+      // Migração automática 1: serviços salvos com o ID da PESSOA (bug de
+      // prioridade já corrigido) — reatribui pro ID correto da empresa.
       if (idPessoalLegado) {
         const legadoSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', idPessoalLegado)));
         if (!legadoSnap.empty) {
-          await Promise.all(legadoSnap.docs.map(d => updateDoc(doc(db, 'supplierServices', d.id), { supplierId })));
+          await Promise.all(legadoSnap.docs.map(d => updateDoc(doc(db, 'supplierServices', d.id), { supplierId, supplierName: nomeEmpresaAtual })));
+        }
+      }
+
+      // Migração automática 2: serviços já com o supplierId certo, mas que
+      // ficaram com supplierName vazio (salvos antes dessa correção).
+      if (nomeEmpresaAtual) {
+        const semNomeSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', supplierId), where('supplierName', '==', '')));
+        if (!semNomeSnap.empty) {
+          await Promise.all(semNomeSnap.docs.map(d => updateDoc(doc(db, 'supplierServices', d.id), { supplierName: nomeEmpresaAtual })));
         }
       }
 
