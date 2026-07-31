@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, where, doc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, getDoc, query, orderBy, where, doc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const FORMAS_PAGAMENTO = [
@@ -15,6 +15,14 @@ async function buscarNomeFornecedor(supplierId) {
   if (!supplierId) return null;
   if (_cacheNomeFornecedor[supplierId] !== undefined) return _cacheNomeFornecedor[supplierId];
   try {
+    // supplierId normalmente já é o ID da EMPRESA — tenta direto ali primeiro.
+    const supSnap = await getDoc(doc(db, 'suppliers', supplierId));
+    if (supSnap.exists()) {
+      const nome = supSnap.data().tradeName || supSnap.data().companyName || null;
+      _cacheNomeFornecedor[supplierId] = nome;
+      return nome;
+    }
+    // Fallback pra jobs bem antigos, salvos com o ID da PESSOA.
     const snap = await getDocs(query(collection(db, 'users'), where('__name__', '==', supplierId)));
     const nome = !snap.empty ? (snap.docs[0].data().companyName || snap.docs[0].data().name || null) : null;
     _cacheNomeFornecedor[supplierId] = nome;

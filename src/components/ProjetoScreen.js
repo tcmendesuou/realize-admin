@@ -476,16 +476,23 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         const supplierNames = {};
          await Promise.all(supplierIds.map(async sid => {
           try {
+            // sid normalmente já é o ID da EMPRESA (supplierId) — tenta
+            // direto ali primeiro, que é o caso comum agora.
+            const supSnap = await getDoc(doc(db, 'suppliers', sid));
+            if (supSnap.exists()) {
+              supplierNames[sid] = supSnap.data().tradeName || supSnap.data().companyName || 'Fornecedor';
+              return;
+            }
+            // Fallback pra jobs bem antigos, salvos com o ID da PESSOA em
+            // vez da empresa.
             const uSnap = await getDocs(query(collection(db, 'users'), where('__name__', '==', sid)));
             if (!uSnap.empty) {
               const d = uSnap.docs[0].data();
               if (d.companyName) { supplierNames[sid] = d.companyName; return; }
-              // companyName pode estar vazio em contas mais antigas — busca a
-              // empresa de verdade pelo supplierId, em vez de cair no nome da pessoa.
               if (d.supplierId) {
                 try {
-                  const supSnap = await getDoc(doc(db, 'suppliers', d.supplierId));
-                  if (supSnap.exists()) { supplierNames[sid] = supSnap.data().tradeName || supSnap.data().companyName || d.name; return; }
+                  const supSnap2 = await getDoc(doc(db, 'suppliers', d.supplierId));
+                  if (supSnap2.exists()) { supplierNames[sid] = supSnap2.data().tradeName || supSnap2.data().companyName || d.name; return; }
                 } catch {}
               }
               supplierNames[sid] = d.name;
