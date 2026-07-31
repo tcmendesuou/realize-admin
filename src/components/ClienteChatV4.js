@@ -512,7 +512,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     try {
       let assignedTo = null, assignedToName = null;
       try {
-        const coordSnap = await getDocs(query(collection(db, 'users'), where('roleName', '==', 'Coordenador'), where('active', '==', true)));
+         const coordSnap = await getDocs(query(collection(db, 'users'), where('roleName', '==', 'Coordenador'), where('tipoConta', '==', 'realize'), where('active', '==', true)));
         const coords = coordSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (coords.length > 0) {
           const bSnap = await getDocs(query(collection(db, 'budgets'), where('status', '==', 'analyzing')));
