@@ -24,12 +24,15 @@ const OPCAO_VAZIA = {
 };
 
 export default function FornecedorServicos({ userData, onServicosAdicionados }) {
-  // userData.id é a identidade oficial do fornecedor (usada em todo o resto
-  // do sistema, ex: supplierJobs). userData.supplierId é o ID do cadastro
-  // antigo (coleção suppliers, pré-homologação) — só mantido como legado
-  // pra migrar dados salvos com ele antes dessa correção.
-  const supplierId  = userData?.id || userData?.supplierId;
-  const supplierIdLegado = userData?.supplierId && userData.supplierId !== userData?.id ? userData.supplierId : null;
+  // userData.supplierId é o ID da EMPRESA fornecedora — é essa a identidade
+  // que deve ser usada em tudo (supplierServices, supplierJobs etc), pra
+  // todos os colaboradores da mesma empresa enxergarem o mesmo cadastro.
+  // userData.id (a pessoa) só entra como fallback pra contas muito antigas
+  // que nunca tiveram supplierId preenchido.
+  const supplierId = userData?.supplierId || userData?.id;
+  // Legado: serviços que, por causa do bug de prioridade invertida (já
+  // corrigido), acabaram salvos com o ID da PESSOA em vez da empresa.
+  const idPessoalLegado = userData?.id && userData.id !== supplierId ? userData.id : null;
   const [servicos, setServicos]     = useState([]);
   const [catalogo, setCatalogo]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -65,11 +68,12 @@ export default function FornecedorServicos({ userData, onServicosAdicionados }) 
   const loadAll = async () => {
     if (!supplierId) return;
     try {
-      // Migração automática: se existirem serviços salvos com o ID antigo
-      // (legado, da coleção suppliers), reatribui pro ID correto (userData.id)
-      // — assim o cadastro não "some" pro fornecedor por causa da correção.
-      if (supplierIdLegado) {
-        const legadoSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', supplierIdLegado)));
+      // Migração automática: se existirem serviços salvos com o ID da PESSOA
+      // (por causa do bug de prioridade já corrigido), reatribui pro ID
+      // correto da empresa — assim o cadastro não "some" pra outros
+      // colaboradores da mesma empresa.
+      if (idPessoalLegado) {
+        const legadoSnap = await getDocs(query(collection(db, 'supplierServices'), where('supplierId', '==', idPessoalLegado)));
         if (!legadoSnap.empty) {
           await Promise.all(legadoSnap.docs.map(d => updateDoc(doc(db, 'supplierServices', d.id), { supplierId })));
         }
