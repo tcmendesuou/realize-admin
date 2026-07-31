@@ -393,7 +393,10 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         .cps-tab.active { color: #00E5C4; border-bottom-color: #00E5C4; font-weight: 500; }
         .cps-tab.alert { color: #FFA726; }
         .cps-tab.alert.active { color: #FFA726; border-bottom-color: #FFA726; }
-        .cps-body { padding: 28px 36px; max-width: 860px; }
+         .cps-body { padding: 28px 36px; max-width: 860px; margin: 0 auto; }
+        .cps-hero-inner { max-width: 860px; margin: 0 auto; text-align: center; }
+        .cps-hero-meta { justify-content: center; }
+        .cps-tabs { justify-content: center; }
         .cps-card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e8eaed; }
         .cps-card-title { font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: #00E5C4; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f2f5; }
         .cps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -422,6 +425,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
 
         {/* HERO */}
         <div className="cps-hero">
+          <div className="cps-hero-inner">
           <h1 className="cps-hero-title">{project.eventName || project.eventTypeName || 'Projeto'}</h1>
           <div className="cps-hero-meta">
             {project.numeroPedido && <span style={{ color: '#00E5C4', fontWeight: 500, letterSpacing: 1 }}>{project.numeroPedido}</span>}
@@ -438,6 +442,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                 {t.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
