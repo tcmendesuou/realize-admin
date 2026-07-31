@@ -40,14 +40,14 @@ export default function FornecedorHome({ userData, onLogout }) {
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   // ── busca tasks do fornecedor ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
+   useEffect(() => {
+    if (!supplierId) return;
     const unsub = onSnapshot(
-      query(collection(db, 'tasks'), where('supplierId', '==', userId)),
+       query(collection(db, 'tasks'), where('supplierId', '==', supplierId)),
       snap => setMyTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
     return () => unsub();
-  }, [userId]);
+  }, [supplierId]);
 
   // ── verifica se já tem serviços cadastrados ───────────────────────────────
   useEffect(() => {
@@ -62,10 +62,10 @@ export default function FornecedorHome({ userData, onLogout }) {
   }, [supplierId]);
 
   // ── busca jobs do fornecedor ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
+   useEffect(() => {
+    if (!supplierId) return;
     const unsub = onSnapshot(
-      query(collection(db, 'supplierJobs'), where('supplierId', '==', userId), where('status', '!=', 'draft')),
+       query(collection(db, 'supplierJobs'), where('supplierId', '==', supplierId), where('status', '!=', 'draft')),
       async snap => {
         const jobsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setJobs(jobsList);
@@ -91,8 +91,8 @@ export default function FornecedorHome({ userData, onLogout }) {
         setBudgetsMap(map);
       }
     );
-    return () => unsub();
-  }, [userId]);
+     return () => unsub();
+  }, [supplierId]);
   
    // ── escuta mudanças nos budgets em tempo real ─────────────────────────────
   useEffect(() => {

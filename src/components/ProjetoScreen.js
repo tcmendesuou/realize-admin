@@ -501,7 +501,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         setSupplierJobs(allJobsComNome);
         // Se for fornecedor, filtra todos os jobs dele
         if (userData?.systemRole === 'fornecedor') {
-          const mine = allJobsComNome.filter(j => j.supplierId === userData.id);
+           const mine = allJobsComNome.filter(j => j.supplierId === userData.id || (userData.supplierId && j.supplierId === userData.supplierId));
           setSupplierJobsMine(mine);
           if (mine.length > 0) setSupplierJob(mine[0]);
         }
@@ -1689,7 +1689,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           {/* ── BRIEFING ── */}
           {/* ── MINHA TAREFA (fornecedor) ── */}
           {activeTab === 'tasks' && isFornecedor && (() => {
-            const myTasks          = projectTasks.filter(t => t.supplierId === userData?.id);
+             const myTasks          = projectTasks.filter(t => t.supplierId === userData?.id || (userData?.supplierId && t.supplierId === userData?.supplierId));
             const myPendentes      = myTasks.filter(t => t.status !== 'concluido').sort((a, b) => (a.fase === 'preparacao' ? -1 : 1) - (b.fase === 'preparacao' ? -1 : 1));
             const myConcluidas     = myTasks.filter(t => t.status === 'concluido');
             const TIPO_COR         = { estrutura: '#0080FF', operacao: '#00E5C4', entretenimento: '#FFA726', gastronomia: '#66BB6A', administrativo: '#7BAFD4' };
