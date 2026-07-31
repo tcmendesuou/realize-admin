@@ -992,7 +992,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const statusInfo = STATUS_MAP[project.status] || STATUS_MAP.analyzing;
 
 
-  const isCoord      = userData?.systemRole === 'workspace';
+   const isCoord      = userData?.systemRole === 'workspace' || userData?.systemRole === 'equipe';
   const cronograma   = project.cronograma?.etapas || [];
   const tabs = isFornecedor ? [
     { id: 'info',       label: 'Visão Geral' },
