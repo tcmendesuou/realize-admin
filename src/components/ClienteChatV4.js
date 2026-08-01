@@ -330,6 +330,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   const [faseCatalogo, setFaseCatalogo]   = useState('selecao'); // 'selecao' | 'opcoes'
   const [opcoesEspecifico, setOpcoesEspecifico] = useState(null); // null = ainda não carregou; [] = carregou e não achou nada
   const [loadingEspecifico, setLoadingEspecifico] = useState(false);
+  const [faseEspecifico, setFaseEspecifico] = useState('pergunta'); // 'pergunta' (Sim/Não) | 'opcoes' (mostra o catálogo)
 
   const [dados, setDados] = useState({
     temStand: null, tipoEstande: null, standDescricao: '', standImagensUrls: [],
@@ -338,6 +339,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     horarioInicio: '', horarioFim: '', cidade: '', estado: '', local: '', visitantesPorDia: '',
     temProdutor: null,
     estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [], especificosSelecionados: [],
+    respostasGenericas: {}, // { [perguntaId]: valor } — respostas de perguntas soltas (Sim/Não, Múltipla Escolha sem destino fixo)
     equipeDetalhes: {}, infoExtra: '', formaPagamento: '',
   });
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
@@ -475,6 +477,14 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     const cond = pergunta.condicaoExibicao;
     if (!cond || !cond.verificarDestino) return true;
     const alvo = normalize(cond.contemTexto || '');
+    // Pergunta solta (Sim/Não ou Múltipla Escolha sem destino fixo) — cada uma
+    // tem seu próprio espaço em dados.respostasGenericas, guardado pelo ID.
+    if (cond.verificarDestino.startsWith('pergunta:')) {
+      const perguntaId = cond.verificarDestino.replace('pergunta:', '');
+      const valorBruto = dados.respostasGenericas?.[perguntaId];
+      const valorTexto = typeof valorBruto === 'boolean' ? (valorBruto ? 'sim' : 'nao') : String(valorBruto || '');
+      return normalize(valorTexto).includes(alvo);
+    }
     const campoSel = DESTINO_PARA_CAMPO_SEL[cond.verificarDestino];
     if (campoSel) {
       // destino de catálogo: procura entre os itens escolhidos (serviceName)
@@ -483,7 +493,10 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     }
     // destino de múltipla escolha / sim-não: valor único salvo em "dados"
     const campo = campoDoDestino(cond.verificarDestino);
-    return normalize(String(dados[campo] || '')).includes(alvo);
+    const valorBruto = dados[campo];
+    // Sim/Não fica salvo como true/false — converte pra texto antes de comparar
+    const valorTexto = typeof valorBruto === 'boolean' ? (valorBruto ? 'sim' : 'nao') : String(valorBruto || '');
+    return normalize(valorTexto).includes(alvo);
   };
 
   // Avança pra próxima pergunta de topo (ou revisão, se acabou a lista)
@@ -688,7 +701,12 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   // RENDER — genérico, baseado no "tipo" da pergunta atual
   // ─────────────────────────────────────────────────────────────────────────
   const renderPerguntaGenerica = (p) => {
-    const opcoesOnClick = (valor) => responder(p.id, valor, { [campoDoDestino(p.destino)]: valor === 'sim' ? true : valor === 'nao' ? false : valor });
+    const opcoesOnClick = (valor) => {
+      const valorConvertido = valor === 'sim' ? true : valor === 'nao' ? false : valor;
+      const extra = { [campoDoDestino(p.destino)]: valorConvertido };
+      if (p.destino === 'generico') extra.respostasGenericas = { ...dados.respostasGenericas, [p.id]: valorConvertido };
+      responder(p.id, valor, extra);
+    };
 
     if (p.tipo === 'sim_nao' || p.tipo === 'multipla_escolha') {
       return (
@@ -823,14 +841,31 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       );
     }
     if (p.tipo === 'catalogo_especifico') {
-      // Pergunta objetiva ligada a UM serviço só (ex: "Roupa Recepcionista")
-      // — pula a etapa de "selecionar itens" e já mostra as opções direto.
+      // Pergunta objetiva ligada a UM serviço só (ex: "Roupa Recepcionista").
+      // Tem 2 fases: primeiro pergunta Sim/Não (a pergunta em si), e só se a
+      // resposta for Sim é que mostra as opções do fornecedor pra esse serviço.
+      if (faseEspecifico === 'pergunta') {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+            <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
+            <OpcaoBtn onClick={() => {
+              setDados(prev => ({ ...prev, respostasGenericas: { ...prev.respostasGenericas, [p.id]: true } }));
+              setFaseEspecifico('opcoes');
+            }}>Sim</OpcaoBtn>
+            <OpcaoBtn onClick={() => {
+              setDados(prev => ({ ...prev, respostasGenericas: { ...prev.respostasGenericas, [p.id]: false } }));
+              responder(p.id, 'nao');
+            }}>Não</OpcaoBtn>
+          </div>
+        );
+      }
+      // faseEspecifico === 'opcoes' — resposta foi Sim, mostra o catálogo desse serviço
       if (opcoesEspecifico === null && !loadingEspecifico) {
         carregarServicoEspecifico(p.servicoId);
       }
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-          <Pergunta>{p.texto}</Pergunta>
+          <Pergunta>{p.servicoNome ? `Escolha: ${p.servicoNome}` : p.texto}</Pergunta>
           {loadingEspecifico || opcoesEspecifico === null ? (
             <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 12 }}>Carregando opções...</div>
           ) : opcoesEspecifico.length === 0 ? (
@@ -838,11 +873,11 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
           ) : opcoesEspecifico.map(op => (
             <OpcaoBtn key={`${op.supplierId}_${op.id}`} onClick={() => {
               setDados(prev => ({ ...prev, especificosSelecionados: [...prev.especificosSelecionados, op] }));
-              setOpcoesEspecifico(null);
+              setOpcoesEspecifico(null); setFaseEspecifico('pergunta');
               responder(p.id, null);
             }}>{op.nome}</OpcaoBtn>
           ))}
-          <OpcaoBtn onClick={() => { setOpcoesEspecifico(null); responder(p.id, null); }}>Não preciso</OpcaoBtn>
+          <OpcaoBtn onClick={() => { setOpcoesEspecifico(null); setFaseEspecifico('pergunta'); responder(p.id, null); }}>Definir depois</OpcaoBtn>
         </div>
       );
     }
