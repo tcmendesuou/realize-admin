@@ -328,6 +328,8 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   const [loadingOpcoes, setLoadingOpcoes] = useState(false);
   const [listaCatalogo, setListaCatalogo] = useState([]); // lista genérica usada pelo passo de catálogo atual
   const [faseCatalogo, setFaseCatalogo]   = useState('selecao'); // 'selecao' | 'opcoes'
+  const [opcoesEspecifico, setOpcoesEspecifico] = useState(null); // null = ainda não carregou; [] = carregou e não achou nada
+  const [loadingEspecifico, setLoadingEspecifico] = useState(false);
 
   const [dados, setDados] = useState({
     temStand: null, tipoEstande: null, standDescricao: '', standImagensUrls: [],
@@ -335,7 +337,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     nomeEmpresa: tenantId ? (userData?.companyName || '') : '', tipoEvento: '', nomeEvento: '', dataInicio: '', dataFim: '',
     horarioInicio: '', horarioFim: '', cidade: '', estado: '', local: '', visitantesPorDia: '',
     temProdutor: null,
-    estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [], vestuarioSelecionada: [],
+    estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [], especificosSelecionados: [],
     equipeDetalhes: {}, infoExtra: '', formaPagamento: '',
   });
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
@@ -353,12 +355,8 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
 
   const set = (key, val) => setDados(p => ({ ...p, [key]: val }));
 
-  const DESTINO_PARA_SETOR = { 'catalogo.estrutura': 'estrutura', 'catalogo.equipe': 'operacao', 'catalogo.gastronomia': 'gastronomia', 'catalogo.entretenimento': 'entretenimento', 'catalogo.vestuario': 'operacao' };
-  const DESTINO_PARA_CAMPO_SEL = { 'catalogo.estrutura': 'estruturaSelecionada', 'catalogo.equipe': 'equipeSelecionada', 'catalogo.gastronomia': 'gastronomeSelecionada', 'catalogo.entretenimento': 'servicosSelecionados', 'catalogo.vestuario': 'vestuarioSelecionada' };
-  // "Vestuário" é uma categoria (serviceParentName) dentro da Área "Operacao" no
-  // cadastro do fornecedor — não uma Área própria. Esse mapa filtra por
-  // categoria além do setor, só pros destinos que precisam disso.
-  const DESTINO_PARA_CATEGORIA_FILTRO = { 'catalogo.vestuario': 'vestuario' };
+  const DESTINO_PARA_SETOR = { 'catalogo.estrutura': 'estrutura', 'catalogo.equipe': 'operacao', 'catalogo.gastronomia': 'gastronomia', 'catalogo.entretenimento': 'entretenimento' };
+  const DESTINO_PARA_CAMPO_SEL = { 'catalogo.estrutura': 'estruturaSelecionada', 'catalogo.equipe': 'equipeSelecionada', 'catalogo.gastronomia': 'gastronomeSelecionada', 'catalogo.entretenimento': 'servicosSelecionados' };
   const BLOQUEADOS_ESTRUTURA = ['estande', 'stand', 'desenvolvimento'];
   const BLOQUEADOS_EQUIPE    = ['produtor', 'roupa', 'vestuario', 'vestuário'];
 
@@ -395,6 +393,39 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       setListaCatalogo(comOpcoes.filter(s => s.opcoes.length > 0));
     } catch (e) { console.error(e); setListaCatalogo([]); }
     finally { setLoadingOpcoes(false); }
+  };
+
+  // Carrega as opções de UM serviço específico (Área>Categoria>Sub-Serviço
+  // escolhidos no Banco de Perguntas) — usado pelas perguntas tipo
+  // "catalogo_especifico". Mais direto que carregarCatalogo: não navega por
+  // categoria, já busca os fornecedores desse serviço exato e mostra as
+  // opções deles direto, já filtradas por região (Estado do evento).
+  const carregarServicoEspecifico = async (servicoId) => {
+    setLoadingEspecifico(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'supplierServices'), where('serviceId', '==', servicoId)));
+      const servs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.ativo !== false)
+        .filter(s => { if (tenantId) { const exc = s.exclusiveTenants || []; if (exc.length > 0 && !exc.includes(tenantId)) return false; } return true; });
+      const todasOpcoes = [];
+      for (const s of servs) {
+        const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
+        const opsForn = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false)
+          .filter(o => estadoBateComRegiao(dados.estado, o.regiao));
+        for (const opForn of opsForn) {
+          let opFinal = opForn;
+          if (opForn.opcaoCatalogoId && s.serviceId) {
+            try {
+              const catSnap = await getDocs(collection(db, 'services', s.serviceId, 'opcoes'));
+              const opCat = catSnap.docs.find(cd => cd.id === opForn.opcaoCatalogoId);
+              if (opCat) opFinal = { ...opForn, valor: opCat.data().valor ?? 0, unidade: opCat.data().unidade ?? '', nome: opForn.nome || opCat.data().nome || '' };
+            } catch (e) { console.error(e); }
+          }
+          todasOpcoes.push({ ...opFinal, serviceName: s.serviceName, serviceParentName: s.serviceParentName, supplierId: s.supplierId, supplierName: s.supplierName });
+        }
+      }
+      setOpcoesEspecifico(todasOpcoes);
+    } catch (e) { console.error(e); setOpcoesEspecifico([]); }
+    finally { setLoadingEspecifico(false); }
   };
 
   const handleUpload = async (files, campo) => {
@@ -534,7 +565,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
 
   // ── Envio final — idêntico ao ClienteChat.js original ───────────────────────
   const montarBriefingJson = () => {
-    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.vestuarioSelecionada];
+    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
     return {
       evento: { tipo: dados.tipoEvento, nome: dados.nomeEvento, dataInicio: dados.dataInicio, dataFim: dados.dataFim, horario: `${dados.horarioInicio} às ${dados.horarioFim}`, horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim, cidade: dados.cidade, estado: dados.estado, local: dados.local, endereco: dados.local, visitantesPorDia: parseInt(dados.visitantesPorDia) || 0, nomeEmpresa: dados.nomeEmpresa,
         diasDuracao: (() => { if (dados.dataInicio && dados.dataFim) { const d = Math.round((new Date(dados.dataFim+'T12:00:00') - new Date(dados.dataInicio+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return 1; })() },
@@ -589,7 +620,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       });
 
       try {
-        const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.vestuarioSelecionada];
+        const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
         const vistos = new Set();
         for (const sel of todas) {
           const key = `${sel.supplierId}__${sel.serviceName}`;
@@ -770,9 +801,8 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     if (p.tipo === 'catalogo') {
       const setor = p.setor || DESTINO_PARA_SETOR[p.destino];
       const campoSel = DESTINO_PARA_CAMPO_SEL[p.destino] || 'servicosSelecionados';
-      const categoriaFiltro = DESTINO_PARA_CATEGORIA_FILTRO[p.destino];
       if (faseCatalogo === 'selecao' && listaCatalogo.length === 0 && !loadingOpcoes) {
-        carregarCatalogo(setor, categoriaFiltro);
+        carregarCatalogo(setor);
       }
       if (faseCatalogo === 'selecao') {
         return (
@@ -790,6 +820,30 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
           setListaCatalogo([]); setFaseCatalogo('selecao');
           responder(p.id, null);
         }} />
+      );
+    }
+    if (p.tipo === 'catalogo_especifico') {
+      // Pergunta objetiva ligada a UM serviço só (ex: "Roupa Recepcionista")
+      // — pula a etapa de "selecionar itens" e já mostra as opções direto.
+      if (opcoesEspecifico === null && !loadingEspecifico) {
+        carregarServicoEspecifico(p.servicoId);
+      }
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+          <Pergunta>{p.texto}</Pergunta>
+          {loadingEspecifico || opcoesEspecifico === null ? (
+            <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 12 }}>Carregando opções...</div>
+          ) : opcoesEspecifico.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 12 }}>Nenhuma opção disponível pra essa região no momento.</div>
+          ) : opcoesEspecifico.map(op => (
+            <OpcaoBtn key={`${op.supplierId}_${op.id}`} onClick={() => {
+              setDados(prev => ({ ...prev, especificosSelecionados: [...prev.especificosSelecionados, op] }));
+              setOpcoesEspecifico(null);
+              responder(p.id, null);
+            }}>{op.nome}</OpcaoBtn>
+          ))}
+          <OpcaoBtn onClick={() => { setOpcoesEspecifico(null); responder(p.id, null); }}>Não preciso</OpcaoBtn>
+        </div>
       );
     }
     return <div style={{ color: '#7BAFD4', textAlign: 'center' }}>Tipo de pergunta não suportado: {p.tipo}</div>;
@@ -856,7 +910,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     conteudo = <StepEquipeDetalhes equipe={dados.equipeSelecionada} onConfirm={finalizarEquipeDetalhes} />;
   } else if (stepAtualId === 'revisao') {
     const LABEL_PAG = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
-    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.vestuarioSelecionada];
+    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
     conteudo = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
         <Pergunta>Tudo certo! Confira o **resumo**:</Pergunta>

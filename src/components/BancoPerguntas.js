@@ -13,6 +13,15 @@ import { db } from '../firebase/config';
 // valoresFixos: quando presente, as OPÇÕES de resposta também são travadas
 // (o texto do botão pode mudar, o valor salvo no banco não).
 // ─────────────────────────────────────────────────────────────────────────────
+// Mesma lista de Áreas usada em FornecedorServicos.js — usada no seletor de
+// serviço específico (Área > Categoria > Sub-Serviço) das perguntas.
+const TIPOS_AREA = [
+  { id: 'estrutura',      label: 'Estrutura' },
+  { id: 'operacao',       label: 'Operacao' },
+  { id: 'entretenimento', label: 'Entretenimento' },
+  { id: 'gastronomia',    label: 'Gastronomia' },
+];
+
 const DESTINOS_FIXOS = {
   'raiz.tipoEvento':        { label: 'Tipo de Evento (pergunta raiz)', tipo: 'roteador', grupo: 'Raiz' },
 
@@ -57,7 +66,7 @@ const DESTINOS_FIXOS = {
   'catalogo.equipe':          { label: 'Catálogo — Equipe / Operação', tipo: 'catalogo', setor: 'operacao', grupo: 'Catálogo' },
   'catalogo.gastronomia':     { label: 'Catálogo — Gastronomia', tipo: 'catalogo', setor: 'gastronomia', grupo: 'Catálogo' },
   'catalogo.entretenimento':  { label: 'Catálogo — Equipamentos / Atrações', tipo: 'catalogo', setor: 'entretenimento', grupo: 'Catálogo' },
-  'catalogo.vestuario':       { label: 'Catálogo — Vestuário / Uniformes', tipo: 'catalogo', setor: 'operacao', grupo: 'Catálogo' }, // "Vestuário" é categoria dentro da Área Operacao, não uma Área própria — o filtro extra por categoria é feito no ClienteChatV4.js
+  'catalogo.especifico':      { label: 'Catálogo — Serviço Específico (escolha exata)', tipo: 'catalogo_especifico', grupo: 'Catálogo' }, // em vez de uma categoria inteira, você escolhe Área > Categoria > Sub-Serviço exato — pra perguntas objetivas ligadas a um serviço só
 
   'extra.infoExtra':        { label: 'Informação Extra / Pedido Especial', tipo: 'texto_longo', grupo: 'Extras' },
 
@@ -76,6 +85,7 @@ const TIPOS_LABEL = {
   localizacao:     'Localização (cidade + local)',
   upload:          'Upload de arquivo',
   catalogo:        'Serviço de catálogo',
+  catalogo_especifico: 'Serviço específico (escolha exata)',
   catalogo_modelos:'Catálogo de modelos especiais',
 };
 
@@ -90,6 +100,8 @@ const PERGUNTA_VAZIA = {
   opcoes: [], quemResponde: 'todos', ativo: true,
   perguntaPaiId: null, condicaoRespostaPai: null,
   condicaoExibicao: null, // { verificarDestino, contemTexto } — pergunta condicional (ver DESTINOS que aceitam checagem abaixo)
+  // Preenchidos só quando destino === 'catalogo.especifico' (ver seletor Área > Categoria > Sub-Serviço)
+  servicoId: null, servicoNome: '', servicoCategoriaId: null, servicoCategoriaNome: '', servicoTipoServico: null,
 };
 
 // Destinos cuja resposta dá pra checar numa condição (catálogos = lista de itens
@@ -110,8 +122,18 @@ export default function BancoPerguntas() {
   // Quando != null, o formulário abre já vinculado como sub-pergunta desta:
   const [criandoSubDe, setCriandoSubDe] = useState(null); // { pai, valorCondicao }
   const [expandidas, setExpandidas] = useState({});
+  // Catálogo de serviços (Área > Categoria > Sub-Serviço) — usado no seletor
+  // de "Serviço Específico". Mesma coleção 'services' que FornecedorServicos.js lê.
+  const [catalogoServicos, setCatalogoServicos] = useState([]);
+  const [selTipo, setSelTipo]           = useState(null);
+  const [selCategoria, setSelCategoria] = useState(null);
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregar(); carregarCatalogoServicos(); }, []);
+
+  const carregarCatalogoServicos = async () => {
+    const snap = await getDocs(collection(db, 'services'));
+    setCatalogoServicos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
 
   const carregar = async () => {
     setLoading(true);
@@ -133,6 +155,7 @@ export default function BancoPerguntas() {
   const abrirNova = (destinoPreSelecionado) => {
     setEditando(null);
     setCriandoSubDe(null);
+    setSelTipo(null); setSelCategoria(null);
     setForm({ ...PERGUNTA_VAZIA, destino: destinoPreSelecionado || '' });
     setShowForm(true);
   };
@@ -144,6 +167,7 @@ export default function BancoPerguntas() {
   const abrirNovaCondicional = () => {
     setEditando(null);
     setCriandoSubDe(null);
+    setSelTipo(null); setSelCategoria(null);
     setForm({ ...PERGUNTA_VAZIA, condicaoExibicao: { verificarDestino: '', contemTexto: '' } });
     setShowForm(true);
   };
@@ -155,6 +179,7 @@ export default function BancoPerguntas() {
   const abrirNovaSub = (pai, valorCondicao) => {
     setEditando(null);
     setCriandoSubDe({ pai, valorCondicao });
+    setSelTipo(null); setSelCategoria(null);
     setForm({ ...PERGUNTA_VAZIA, perguntaPaiId: pai.id, condicaoRespostaPai: valorCondicao });
     setShowForm(true);
   };
@@ -162,21 +187,38 @@ export default function BancoPerguntas() {
   const abrirEditar = (p) => {
     setEditando(p);
     setCriandoSubDe(null);
+    setSelTipo(p.servicoTipoServico || null);
+    setSelCategoria(p.servicoCategoriaId || null);
     setForm({ ...PERGUNTA_VAZIA, ...p });
     setShowForm(true);
   };
 
   const handleDestinoChange = (destino) => {
     const info = DESTINOS_FIXOS[destino];
+    setSelTipo(null); setSelCategoria(null);
     setForm(p => ({
       ...p,
       destino,
       tipo: info?.tipo || null,
       setor: info?.setor || null,
+      servicoId: null, servicoNome: '', servicoCategoriaId: null, servicoCategoriaNome: '', servicoTipoServico: null,
       // Se o destino já tem valores fixos, pré-popula as opções com o label padrão
       opcoes: info?.valoresFixos ? info.valoresFixos.map(v => ({ valor: v.valor, label: v.labelPadrao })) : (info?.tipo === 'sim_nao' ? [{ valor: 'sim', label: 'Sim' }, { valor: 'nao', label: 'Não' }] : []),
     }));
   };
+
+  // Seleção do sub-serviço no seletor de 3 colunas
+  const selecionarServicoEspecifico = (sub, categoria) => {
+    setForm(p => ({
+      ...p,
+      servicoId: sub.id, servicoNome: sub.name,
+      servicoCategoriaId: categoria.id, servicoCategoriaNome: categoria.name,
+      servicoTipoServico: selTipo,
+    }));
+  };
+
+  const categoriasDoTipoSel = selTipo ? catalogoServicos.filter(s => !s.parentId && s.tipo === selTipo && s.active !== false) : [];
+  const subsDaCategoriaSel  = selCategoria ? catalogoServicos.filter(s => s.parentId === selCategoria && s.active !== false) : [];
 
   const setOpcaoLabel = (idx, label) => {
     setForm(p => ({ ...p, opcoes: p.opcoes.map((o, i) => i === idx ? { ...o, label } : o) }));
@@ -195,6 +237,10 @@ export default function BancoPerguntas() {
     if (!form.destino) { alert('Escolha um destino para a resposta.'); return; }
     if (form.condicaoExibicao && (!form.condicaoExibicao.verificarDestino || !form.condicaoExibicao.contemTexto.trim())) {
       alert('Preencha os dois campos da condição (qual resposta verificar e qual texto procurar).');
+      return;
+    }
+    if (form.tipo === 'catalogo_especifico' && !form.servicoId) {
+      alert('Escolha o serviço específico (Área > Categoria > Sub-Serviço) que essa pergunta vai oferecer.');
       return;
     }
     const precisaOpcoes = form.tipo === 'multipla_escolha' || form.tipo === 'sim_nao';
@@ -216,6 +262,11 @@ export default function BancoPerguntas() {
         perguntaPaiId: form.perguntaPaiId || null,
         condicaoRespostaPai: form.condicaoRespostaPai || null,
         condicaoExibicao: form.condicaoExibicao ? { verificarDestino: form.condicaoExibicao.verificarDestino, contemTexto: form.condicaoExibicao.contemTexto.trim() } : null,
+        servicoId: form.tipo === 'catalogo_especifico' ? form.servicoId : null,
+        servicoNome: form.tipo === 'catalogo_especifico' ? form.servicoNome : '',
+        servicoCategoriaId: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaId : null,
+        servicoCategoriaNome: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaNome : '',
+        servicoTipoServico: form.tipo === 'catalogo_especifico' ? form.servicoTipoServico : null,
         ordem: form.ordem ?? Date.now(),
         updatedAt: serverTimestamp(),
       };
@@ -298,7 +349,12 @@ export default function BancoPerguntas() {
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{info?.label || p.destino}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+              {info?.label || p.destino}
+              {p.tipo === 'catalogo_especifico' && p.servicoNome && (
+                <span> — {TIPOS_AREA.find(t => t.id === p.servicoTipoServico)?.label} › {p.servicoCategoriaNome} › <strong>{p.servicoNome}</strong></span>
+              )}
+            </div>
           </div>
           {temOpcoesParaSub && (
             <div style={{ display: 'flex', gap: 4 }}>
@@ -454,10 +510,66 @@ export default function BancoPerguntas() {
                     }));
                   }} style={{ ...inp, background: 'white' }}>
                     <option value="">Selecione...</option>
-                    {Object.entries(TIPOS_LABEL).filter(([k]) => !['roteador','catalogo','catalogo_modelos'].includes(k)).map(([k, v]) => (
+                    {Object.entries(TIPOS_LABEL).filter(([k]) => !['roteador','catalogo','catalogo_especifico','catalogo_modelos'].includes(k)).map(([k, v]) => (
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {/* Seletor de Serviço Específico — Área > Categoria > Sub-Serviço,
+                  mesmo padrão de FornecedorServicos.js. Troca a "categoria inteira"
+                  por um serviço exato (ex: "Roupa Recepcionista" dentro de
+                  Operacao > Vestuário), pra perguntas objetivas. */}
+              {form.tipo === 'catalogo_especifico' && (
+                <div>
+                  <label style={lbl}>Serviço específico *</label>
+                  {form.servicoId && (
+                    <div style={{ marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(102,126,234,0.08)', border: '1px solid rgba(102,126,234,0.25)', fontSize: 12, color: '#1e293b' }}>
+                      <strong>{form.servicoNome}</strong>
+                      <span style={{ color: '#64748b' }}> — {TIPOS_AREA.find(t => t.id === form.servicoTipoServico)?.label} › {form.servicoCategoriaNome}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', height: 220 }}>
+                    <div style={{ flex: 1, borderRight: '1px solid #e2e8f0', overflowY: 'auto', padding: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', padding: '4px 8px' }}>Área</div>
+                      {TIPOS_AREA.map(t => (
+                        <div key={t.id} onClick={() => { setSelTipo(t.id); setSelCategoria(null); }}
+                          style={{ padding: '8px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, marginBottom: 2, background: selTipo === t.id ? 'rgba(102,126,234,0.1)' : 'none', color: selTipo === t.id ? '#667eea' : '#475569', fontWeight: selTipo === t.id ? 600 : 400 }}>
+                          {t.label}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ flex: 1, borderRight: '1px solid #e2e8f0', overflowY: 'auto', padding: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', padding: '4px 8px' }}>Categoria</div>
+                      {!selTipo ? (
+                        <div style={{ fontSize: 11, color: '#cbd5e1', padding: '6px 10px' }}>Selecione uma área</div>
+                      ) : categoriasDoTipoSel.length === 0 ? (
+                        <div style={{ fontSize: 11, color: '#cbd5e1', padding: '6px 10px' }}>Nenhuma categoria</div>
+                      ) : categoriasDoTipoSel.map(cat => (
+                        <div key={cat.id} onClick={() => setSelCategoria(cat.id)}
+                          style={{ padding: '8px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, marginBottom: 2, background: selCategoria === cat.id ? 'rgba(102,126,234,0.1)' : 'none', color: selCategoria === cat.id ? '#667eea' : '#475569', fontWeight: selCategoria === cat.id ? 600 : 400 }}>
+                          {cat.name}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', padding: '4px 8px' }}>Sub-Serviço</div>
+                      {!selCategoria ? (
+                        <div style={{ fontSize: 11, color: '#cbd5e1', padding: '6px 10px' }}>Selecione uma categoria</div>
+                      ) : subsDaCategoriaSel.length === 0 ? (
+                        <div style={{ fontSize: 11, color: '#cbd5e1', padding: '6px 10px' }}>Nenhum sub-serviço</div>
+                      ) : subsDaCategoriaSel.map(sub => {
+                        const categoria = catalogoServicos.find(c => c.id === selCategoria);
+                        return (
+                          <div key={sub.id} onClick={() => selecionarServicoEspecifico(sub, categoria)}
+                            style={{ padding: '8px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, marginBottom: 2, background: form.servicoId === sub.id ? 'rgba(102,126,234,0.15)' : 'none', color: form.servicoId === sub.id ? '#667eea' : '#475569', fontWeight: form.servicoId === sub.id ? 600 : 400 }}>
+                            {sub.name}{form.servicoId === sub.id && ' ✓'}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
 
