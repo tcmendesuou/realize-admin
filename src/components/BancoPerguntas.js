@@ -57,6 +57,7 @@ const DESTINOS_FIXOS = {
   'catalogo.equipe':          { label: 'Catálogo — Equipe / Operação', tipo: 'catalogo', setor: 'operacao', grupo: 'Catálogo' },
   'catalogo.gastronomia':     { label: 'Catálogo — Gastronomia', tipo: 'catalogo', setor: 'gastronomia', grupo: 'Catálogo' },
   'catalogo.entretenimento':  { label: 'Catálogo — Equipamentos / Atrações', tipo: 'catalogo', setor: 'entretenimento', grupo: 'Catálogo' },
+  'catalogo.vestuario':       { label: 'Catálogo — Vestuário / Uniformes', tipo: 'catalogo', setor: 'operacao', grupo: 'Catálogo' }, // "Vestuário" é categoria dentro da Área Operacao, não uma Área própria — o filtro extra por categoria é feito no ClienteChatV4.js
 
   'extra.infoExtra':        { label: 'Informação Extra / Pedido Especial', tipo: 'texto_longo', grupo: 'Extras' },
 
@@ -88,7 +89,13 @@ const PERGUNTA_VAZIA = {
   texto: '', subtitulo: '', destino: '', tipo: null, setor: null,
   opcoes: [], quemResponde: 'todos', ativo: true,
   perguntaPaiId: null, condicaoRespostaPai: null,
+  condicaoExibicao: null, // { verificarDestino, contemTexto } — pergunta condicional (ver DESTINOS que aceitam checagem abaixo)
 };
+
+// Destinos cuja resposta dá pra checar numa condição (catálogos = lista de itens
+// escolhidos; múltipla escolha/sim-não = valor único). "generico" fica de fora
+// porque seu tipo varia livremente.
+const DESTINOS_CHECAVEIS = Object.entries(DESTINOS_FIXOS).filter(([k, v]) => k !== 'generico' && (v.tipo === 'catalogo' || v.tipo === 'multipla_escolha' || v.tipo === 'sim_nao'));
 
 const inp = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', color: '#1e293b' };
 const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 };
@@ -128,6 +135,21 @@ export default function BancoPerguntas() {
     setCriandoSubDe(null);
     setForm({ ...PERGUNTA_VAZIA, destino: destinoPreSelecionado || '' });
     setShowForm(true);
+  };
+
+  // Pergunta Condicional — mesmo formulário de sempre, só que já nasce marcada
+  // como condicional (mostra os campos "verificar destino" / "contém texto").
+  // Continua sendo uma pergunta de topo normal — entra na lista do Tipo de
+  // Evento na posição que você escolher, só que pode ser pulada em runtime.
+  const abrirNovaCondicional = () => {
+    setEditando(null);
+    setCriandoSubDe(null);
+    setForm({ ...PERGUNTA_VAZIA, condicaoExibicao: { verificarDestino: '', contemTexto: '' } });
+    setShowForm(true);
+  };
+
+  const setCondicao = (campo, valor) => {
+    setForm(p => ({ ...p, condicaoExibicao: { ...(p.condicaoExibicao || {}), [campo]: valor } }));
   };
 
   const abrirNovaSub = (pai, valorCondicao) => {
@@ -171,6 +193,10 @@ export default function BancoPerguntas() {
   const salvar = async () => {
     if (!form.texto.trim()) { alert('Preencha o texto da pergunta.'); return; }
     if (!form.destino) { alert('Escolha um destino para a resposta.'); return; }
+    if (form.condicaoExibicao && (!form.condicaoExibicao.verificarDestino || !form.condicaoExibicao.contemTexto.trim())) {
+      alert('Preencha os dois campos da condição (qual resposta verificar e qual texto procurar).');
+      return;
+    }
     const precisaOpcoes = form.tipo === 'multipla_escolha' || form.tipo === 'sim_nao';
     if (precisaOpcoes && form.opcoes.filter(o => o.label.trim()).length < 2) {
       alert('Adicione pelo menos 2 opções com texto preenchido.');
@@ -189,6 +215,7 @@ export default function BancoPerguntas() {
         ativo: form.ativo,
         perguntaPaiId: form.perguntaPaiId || null,
         condicaoRespostaPai: form.condicaoRespostaPai || null,
+        condicaoExibicao: form.condicaoExibicao ? { verificarDestino: form.condicaoExibicao.verificarDestino, contemTexto: form.condicaoExibicao.contemTexto.trim() } : null,
         ordem: form.ordem ?? Date.now(),
         updatedAt: serverTimestamp(),
       };
@@ -265,6 +292,11 @@ export default function BancoPerguntas() {
                 </span>
               )}
               {p.ativo === false && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>INATIVA</span>}
+              {p.condicaoExibicao && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: 'rgba(102,126,234,0.1)', color: '#667eea' }} title={`Só aparece se "${DESTINOS_FIXOS[p.condicaoExibicao.verificarDestino]?.label || p.condicaoExibicao.verificarDestino}" contiver "${p.condicaoExibicao.contemTexto}"`}>
+                  ⚡ CONDICIONAL
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{info?.label || p.destino}</div>
           </div>
@@ -295,9 +327,14 @@ export default function BancoPerguntas() {
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Banco de Perguntas</h2>
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Perguntas reutilizáveis pro chat do cliente — monte os Tipos de Evento com elas depois</p>
         </div>
-        <button onClick={() => abrirNova()} style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-          + Nova Pergunta
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={abrirNovaCondicional} style={{ padding: '9px 20px', borderRadius: 9, border: '1.5px dashed #667eea', background: 'none', color: '#667eea', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            + Pergunta Condicional
+          </button>
+          <button onClick={() => abrirNova()} style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            + Nova Pergunta
+          </button>
+        </div>
       </div>
 
       {/* Pergunta raiz — bloco especial, sempre no topo */}
@@ -345,6 +382,26 @@ export default function BancoPerguntas() {
               {criandoSubDe && (
                 <div style={{ fontSize: 12, color: '#667eea', background: 'rgba(102,126,234,0.06)', padding: '8px 12px', borderRadius: 8 }}>
                   Só aparece se a resposta de "{criandoSubDe.pai.texto}" for <strong>{criandoSubDe.pai.opcoes.find(o=>o.valor===criandoSubDe.valorCondicao)?.label}</strong>
+                </div>
+              )}
+
+              {form.condicaoExibicao && (
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(102,126,234,0.05)', border: '1px dashed rgba(102,126,234,0.4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#667eea', textTransform: 'uppercase', letterSpacing: 0.5 }}>Pergunta Condicional</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                    Essa pergunta só entra no fluxo se, em algum momento antes dela, o cliente tiver escolhido algo que bate com a condição abaixo. Se não bater, ela é pulada — o fluxo segue normal.
+                  </div>
+                  <div>
+                    <label style={lbl}>Verificar resposta de</label>
+                    <select value={form.condicaoExibicao.verificarDestino} onChange={e => setCondicao('verificarDestino', e.target.value)} style={{ ...inp, background: 'white' }}>
+                      <option value="">Selecione...</option>
+                      {DESTINOS_CHECAVEIS.map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Mostrar se a resposta contiver o texto</label>
+                    <input value={form.condicaoExibicao.contemTexto} onChange={e => setCondicao('contemTexto', e.target.value)} style={inp} placeholder='Ex: "recepcion" (não precisa ser a palavra exata, nem maiúscula/minúscula)' />
+                  </div>
                 </div>
               )}
 

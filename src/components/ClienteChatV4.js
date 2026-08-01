@@ -72,6 +72,32 @@ const Inp = ({ value, onChange, placeholder, type = 'text', min, max, onKeyDown,
     style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
 );
 
+// Lista completa de estados — usada no seletor de Estado do evento, pra
+// conseguir comparar com a região de atendimento cadastrada pelo fornecedor
+// (FornecedorServicos.js), que hoje é uma lista fixa de estados/regiões.
+const ESTADOS_BR = [
+  'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará', 'Distrito Federal',
+  'Espírito Santo', 'Goiás', 'Maranhão', 'Mato Grosso', 'Mato Grosso do Sul',
+  'Minas Gerais', 'Pará', 'Paraíba', 'Paraná', 'Pernambuco', 'Piauí',
+  'Rio de Janeiro', 'Rio Grande do Norte', 'Rio Grande do Sul', 'Rondônia',
+  'Roraima', 'Santa Catarina', 'São Paulo', 'Sergipe', 'Tocantins',
+];
+
+// Compara o Estado do evento com a Região de atendimento do fornecedor
+// (REGIOES em FornecedorServicos.js). "Nacional" atende qualquer estado;
+// "São Paulo - Capital/Interior" contam como o estado São Paulo; os demais
+// nomes da lista batem 1:1 com o estado; "Outros" é o resto (estados que não
+// têm região própria cadastrável ainda, ex: os da região Norte/Nordeste).
+const ESTADOS_COM_REGIAO_PROPRIA = ['São Paulo', 'Rio de Janeiro', 'Minas Gerais', 'Paraná', 'Santa Catarina', 'Rio Grande do Sul', 'Bahia', 'Goiás', 'Distrito Federal'];
+const estadoBateComRegiao = (estadoEvento, regiaoFornecedor) => {
+  if (!regiaoFornecedor) return true; // sem região cadastrada — não filtra (compatibilidade)
+  if (regiaoFornecedor === 'Nacional') return true;
+  if (!estadoEvento) return true; // evento sem estado informado — não filtra (compatibilidade)
+  if (regiaoFornecedor === 'São Paulo - Capital' || regiaoFornecedor === 'São Paulo - Interior') return estadoEvento === 'São Paulo';
+  if (regiaoFornecedor === 'Outros') return !ESTADOS_COM_REGIAO_PROPRIA.includes(estadoEvento);
+  return regiaoFornecedor === estadoEvento;
+};
+
 const Row = ({ label, value }) => value ? (
   <div style={{ display: 'flex', gap: 10 }}>
     <span style={{ fontSize: 11, fontWeight: 700, color: '#7BAFD4', minWidth: 90, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 2 }}>{label}</span>
@@ -144,13 +170,19 @@ const StepHorarioInline = ({ onConfirm }) => {
 
 const StepLocalInline = ({ onConfirm }) => {
   const [cidade, setCidade] = useState('');
+  const [estado, setEstado] = useState('');
   const [local, setLocal]   = useState('');
+  const selStyle = { width: '100%', padding: '14px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(10,22,38,0.95)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', outline: 'none', cursor: 'pointer' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
       <Inp value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Cidade" autoFocus />
+      <select value={estado} onChange={e => setEstado(e.target.value)} style={selStyle}>
+        <option value="">Estado...</option>
+        {ESTADOS_BR.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+      </select>
       <Inp value={local}  onChange={e => setLocal(e.target.value)}  placeholder="Local / endereço (opcional)" />
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <BtnAvancar onClick={() => onConfirm(cidade, local)} disabled={!cidade} />
+        <BtnAvancar onClick={() => onConfirm(cidade, local, estado)} disabled={!cidade || !estado} />
       </div>
     </div>
   );
@@ -296,16 +328,15 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   const [loadingOpcoes, setLoadingOpcoes] = useState(false);
   const [listaCatalogo, setListaCatalogo] = useState([]); // lista genérica usada pelo passo de catálogo atual
   const [faseCatalogo, setFaseCatalogo]   = useState('selecao'); // 'selecao' | 'opcoes'
-  const [listaVestuario, setListaVestuario] = useState([]);
 
   const [dados, setDados] = useState({
     temStand: null, tipoEstande: null, standDescricao: '', standImagensUrls: [],
     areaM2: '', alturaTeto: '', diasMontagem: '', restricoes: '', identidadeVisual: null, identidadeImagensUrls: [],
     nomeEmpresa: tenantId ? (userData?.companyName || '') : '', tipoEvento: '', nomeEvento: '', dataInicio: '', dataFim: '',
-    horarioInicio: '', horarioFim: '', cidade: '', local: '', visitantesPorDia: '',
+    horarioInicio: '', horarioFim: '', cidade: '', estado: '', local: '', visitantesPorDia: '',
     temProdutor: null,
-    estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [],
-    equipeDetalhes: {}, infoExtra: '', formaPagamento: '', vestuarioRecepcao: null,
+    estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [], vestuarioSelecionada: [],
+    equipeDetalhes: {}, infoExtra: '', formaPagamento: '',
   });
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
@@ -322,12 +353,16 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
 
   const set = (key, val) => setDados(p => ({ ...p, [key]: val }));
 
-  const DESTINO_PARA_SETOR = { 'catalogo.estrutura': 'estrutura', 'catalogo.equipe': 'operacao', 'catalogo.gastronomia': 'gastronomia', 'catalogo.entretenimento': 'entretenimento' };
-  const DESTINO_PARA_CAMPO_SEL = { 'catalogo.estrutura': 'estruturaSelecionada', 'catalogo.equipe': 'equipeSelecionada', 'catalogo.gastronomia': 'gastronomeSelecionada', 'catalogo.entretenimento': 'servicosSelecionados' };
+  const DESTINO_PARA_SETOR = { 'catalogo.estrutura': 'estrutura', 'catalogo.equipe': 'operacao', 'catalogo.gastronomia': 'gastronomia', 'catalogo.entretenimento': 'entretenimento', 'catalogo.vestuario': 'operacao' };
+  const DESTINO_PARA_CAMPO_SEL = { 'catalogo.estrutura': 'estruturaSelecionada', 'catalogo.equipe': 'equipeSelecionada', 'catalogo.gastronomia': 'gastronomeSelecionada', 'catalogo.entretenimento': 'servicosSelecionados', 'catalogo.vestuario': 'vestuarioSelecionada' };
+  // "Vestuário" é uma categoria (serviceParentName) dentro da Área "Operacao" no
+  // cadastro do fornecedor — não uma Área própria. Esse mapa filtra por
+  // categoria além do setor, só pros destinos que precisam disso.
+  const DESTINO_PARA_CATEGORIA_FILTRO = { 'catalogo.vestuario': 'vestuario' };
   const BLOQUEADOS_ESTRUTURA = ['estande', 'stand', 'desenvolvimento'];
   const BLOQUEADOS_EQUIPE    = ['produtor', 'roupa', 'vestuario', 'vestuário'];
 
-  const carregarCatalogo = async (setor) => {
+  const carregarCatalogo = async (setor, categoriaFiltro) => {
     setLoadingOpcoes(true);
     try {
       const snap = await getDocs(query(collection(db, 'supplierServices'), where('tipoServico', '==', setor)));
@@ -336,12 +371,15 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       const filtrados = servs.filter(s => {
         const nome = normalize(s.serviceName || '') + ' ' + normalize(s.serviceParentName || '');
         if (bloqueados.some(b => nome.includes(b))) return false;
+        if (categoriaFiltro && !normalize(s.serviceParentName || '').includes(normalize(categoriaFiltro))) return false;
         if (tenantId) { const exc = s.exclusiveTenants || []; if (exc.length > 0 && !exc.includes(tenantId)) return false; }
         return true;
       });
       const comOpcoes = await Promise.all(filtrados.map(async s => {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
-        const opsForn = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+        const opsForn = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false)
+          // Só mostra opções cuja região de atendimento bate com o Estado do evento
+          .filter(o => estadoBateComRegiao(dados.estado, o.regiao));
         const opsEnriquecidas = await Promise.all(opsForn.map(async opForn => {
           if (opForn.opcaoCatalogoId && s.serviceId) {
             try {
@@ -398,15 +436,35 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     if (primeiraId) setStepAtualId(primeiraId); else setStepAtualId('revisao');
   };
 
+  // Checa se a "condicaoExibicao" de uma pergunta condicional foi atendida —
+  // olha o campo já respondido (via DESTINO_PARA_CAMPO_SEL, se for catálogo,
+  // ou o valor direto salvo em "dados", se for múltipla escolha/sim-não) e
+  // procura o texto configurado (contemTexto) dentro dele.
+  const condicaoAtendida = (pergunta) => {
+    const cond = pergunta.condicaoExibicao;
+    if (!cond || !cond.verificarDestino) return true;
+    const alvo = normalize(cond.contemTexto || '');
+    const campoSel = DESTINO_PARA_CAMPO_SEL[cond.verificarDestino];
+    if (campoSel) {
+      // destino de catálogo: procura entre os itens escolhidos (serviceName)
+      const selecionados = dados[campoSel] || [];
+      return selecionados.some(s => normalize(s.serviceName || s.nome || '').includes(alvo));
+    }
+    // destino de múltipla escolha / sim-não: valor único salvo em "dados"
+    const campo = campoDoDestino(cond.verificarDestino);
+    return normalize(String(dados[campo] || '')).includes(alvo);
+  };
+
   // Avança pra próxima pergunta de topo (ou revisão, se acabou a lista)
   const proximoTopo = (novoIdx) => {
     const tipo = tiposEvento.find(t => t.id === tipoEscolhidoId);
     const lista = tipo?.perguntasIds || [];
-    // pula perguntas que não se aplicam a este perfil (quemResponde)
+    // pula perguntas que não se aplicam a este perfil (quemResponde) ou cuja
+    // condição de exibição (pergunta condicional) não foi atendida
     let i = novoIdx;
     while (i < lista.length) {
       const p = perguntasMap[lista[i]];
-      if (p && p.ativo !== false && (p.quemResponde === 'todos' || p.quemResponde === perfilQuemResponde)) break;
+      if (p && p.ativo !== false && (p.quemResponde === 'todos' || p.quemResponde === perfilQuemResponde) && condicaoAtendida(p)) break;
       i++;
     }
     setTopoIdx(i);
@@ -461,40 +519,24 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   };
 
   // ── Fim do gancho especial de Equipe ────────────────────────────────────────
+  // OBS: o desvio automático de "vestuário da recepcionista" que existia aqui
+  // foi retirado (01/08/2026) — essa pergunta agora é uma Pergunta Condicional
+  // normal (destino catalogo.vestuario), configurada no Banco de Perguntas e
+  // posicionada logo depois de "Catálogo — Equipe/Operação" no Tipo de Evento.
+  // Ela passa pelo motor de catálogo genérico (mesma lógica de Estrutura/
+  // Gastronomia), então já entra no resumo, no orçamento e gera pedido de
+  // verdade pro fornecedor — sem precisar de nenhum código especial.
   const finalizarEquipeDetalhes = async (det) => {
     set('equipeDetalhes', det);
-    const temRecepcao = dados.equipeSelecionada.some(s => (s.serviceName || '').toLowerCase().includes('recepcion'));
-    if (temRecepcao) {
-      try {
-        const snap = await getDocs(collection(db, 'services'));
-        const vestuarios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => {
-          const n = normalize(s.name);
-          return n.includes('roupa') && n.includes('recepcionist');
-        });
-        const comOpcoes = await Promise.all(vestuarios.map(async v => {
-          const opSnap = await getDocs(collection(db, 'services', v.id, 'opcoes'));
-          return { ...v, serviceName: v.name, opcoes: opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false) };
-        }));
-        setListaVestuario(comOpcoes.filter(v => v.opcoes.length > 0));
-        setPassoEspecial('vestuario_recepcao');
-      } catch (e) { console.error(e); setPassoEspecial(null); avancarNaPilha(); }
-    } else {
-      setPassoEspecial(null);
-      avancarNaPilha();
-    }
-  };
-
-  const finalizarVestuario = (valor) => {
-    if (valor) set('vestuarioRecepcao', valor);
     setPassoEspecial(null);
     avancarNaPilha();
   };
 
   // ── Envio final — idêntico ao ClienteChat.js original ───────────────────────
   const montarBriefingJson = () => {
-    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
+    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.vestuarioSelecionada];
     return {
-      evento: { tipo: dados.tipoEvento, nome: dados.nomeEvento, dataInicio: dados.dataInicio, dataFim: dados.dataFim, horario: `${dados.horarioInicio} às ${dados.horarioFim}`, horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim, cidade: dados.cidade, local: dados.local, endereco: dados.local, visitantesPorDia: parseInt(dados.visitantesPorDia) || 0, nomeEmpresa: dados.nomeEmpresa,
+      evento: { tipo: dados.tipoEvento, nome: dados.nomeEvento, dataInicio: dados.dataInicio, dataFim: dados.dataFim, horario: `${dados.horarioInicio} às ${dados.horarioFim}`, horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim, cidade: dados.cidade, estado: dados.estado, local: dados.local, endereco: dados.local, visitantesPorDia: parseInt(dados.visitantesPorDia) || 0, nomeEmpresa: dados.nomeEmpresa,
         diasDuracao: (() => { if (dados.dataInicio && dados.dataFim) { const d = Math.round((new Date(dados.dataFim+'T12:00:00') - new Date(dados.dataInicio+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return 1; })() },
       estrutura: { ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '', areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto, diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes, identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao', identidadeImagensUrls: dados.identidadeImagensUrls, standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls, observacoes: '' },
       tipoEstande: dados.tipoEstande || '', modeloEstande: modeloSelecionado || null,
@@ -547,7 +589,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       });
 
       try {
-        const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
+        const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.vestuarioSelecionada];
         const vistos = new Set();
         for (const sel of todas) {
           const key = `${sel.supplierId}__${sel.serviceName}`;
@@ -675,7 +717,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
-          <StepLocalInline onConfirm={(cidade, local) => responder(p.id, null, { cidade, local })} />
+          <StepLocalInline onConfirm={(cidade, local, estado) => responder(p.id, null, { cidade, local, estado })} />
         </div>
       );
     }
@@ -728,8 +770,9 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     if (p.tipo === 'catalogo') {
       const setor = p.setor || DESTINO_PARA_SETOR[p.destino];
       const campoSel = DESTINO_PARA_CAMPO_SEL[p.destino] || 'servicosSelecionados';
+      const categoriaFiltro = DESTINO_PARA_CATEGORIA_FILTRO[p.destino];
       if (faseCatalogo === 'selecao' && listaCatalogo.length === 0 && !loadingOpcoes) {
-        carregarCatalogo(setor);
+        carregarCatalogo(setor, categoriaFiltro);
       }
       if (faseCatalogo === 'selecao') {
         return (
@@ -811,22 +854,9 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     );
   } else if (passoEspecial === 'equipe_detalhes') {
     conteudo = <StepEquipeDetalhes equipe={dados.equipeSelecionada} onConfirm={finalizarEquipeDetalhes} />;
-  } else if (passoEspecial === 'vestuario_recepcao') {
-    const opcoes = listaVestuario.flatMap(v => v.opcoes.map(op => ({ ...op, serviceName: v.serviceName, serviceParentName: v.serviceParentName })));
-    conteudo = (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-        <Pergunta>Qual será o **vestuário das recepcionistas**?</Pergunta>
-        {opcoes.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 12 }}>Carregando opções...</div>
-        ) : opcoes.map(op => (
-          <OpcaoBtn key={op.id} onClick={() => finalizarVestuario({ id: op.id, nome: op.nome, valor: op.valor, unidade: op.unidade, serviceName: op.serviceName })}>{op.nome}</OpcaoBtn>
-        ))}
-        <OpcaoBtn onClick={() => finalizarVestuario(null)}>Definir depois</OpcaoBtn>
-      </div>
-    );
   } else if (stepAtualId === 'revisao') {
     const LABEL_PAG = { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' };
-    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados];
+    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.vestuarioSelecionada];
     conteudo = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
         <Pergunta>Tudo certo! Confira o **resumo**:</Pergunta>
@@ -836,7 +866,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
           <Row label="Evento" value={`${dados.tipoEvento}${dados.nomeEvento ? ` — ${dados.nomeEvento}` : ''}`} />
           <Row label="Data" value={`${dados.dataInicio ? new Date(dados.dataInicio + 'T12:00:00').toLocaleDateString('pt-BR') : ''} → ${dados.dataFim ? new Date(dados.dataFim + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`} />
           <Row label="Horário" value={`${dados.horarioInicio} às ${dados.horarioFim}`} />
-          <Row label="Local" value={`${dados.cidade}${dados.local ? ` — ${dados.local}` : ''}`} />
+          <Row label="Local" value={`${dados.cidade}${dados.estado ? ` — ${dados.estado}` : ''}${dados.local ? ` — ${dados.local}` : ''}`} />
           <Row label="Pessoas" value={`${dados.visitantesPorDia}/dia`} />
           {dados.temProdutor && <Row label="Produtor" value="Sim" />}
           {todas.length > 0 && <Row label="Serviços" value={todas.map(s => `${s.serviceName}${s.opcaoNome ? ` (${s.opcaoNome})` : ''}`).join(' · ')} />}
