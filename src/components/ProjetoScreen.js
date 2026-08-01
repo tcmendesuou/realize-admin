@@ -717,10 +717,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   // Disparo automático quando todos os supplierJobs forem respondidos
   useEffect(() => {
     if (!project || !supplierJobs.length) return;
-    if (project.status !== 'analyzing') return;
+    console.log('[DEBUG ORCAMENTO] project.status =', project.status, '| supplierJobs:', supplierJobs.map(j => ({ id: j.id, status: j.status, supplierId: j.supplierId })));
+    if (project.status !== 'analyzing') { console.log('[DEBUG ORCAMENTO] saiu: project.status !== analyzing'); return; }
     const todosRespondidos = supplierJobs.every(j => j.status === 'confirmed' || j.status === 'rejected');
     const algumConfirmado  = supplierJobs.some(j => j.status === 'confirmed');
+    console.log('[DEBUG ORCAMENTO] todosRespondidos =', todosRespondidos, '| algumConfirmado =', algumConfirmado);
     if (todosRespondidos && algumConfirmado) {
+      console.log('[DEBUG ORCAMENTO] chamando handleGerarOrcamento()');
       handleGerarOrcamento();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -740,6 +743,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   }, [projectId, isFornecedor, userData?.id]);
 
   const handleGerarOrcamento = async () => {
+    console.log('[DEBUG ORCAMENTO] handleGerarOrcamento INICIADA');
     setGerandoOrcamento(true);
     try {
       // Busca preços dos supplierServices confirmados
@@ -876,8 +880,8 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           });
         }
       } catch(e) { console.error('notif orcamento:', e); }
-    } catch (e) { console.error(e); alert('Erro ao gerar orçamento.'); }
-    finally { setGerandoOrcamento(false); }
+    } catch (e) { console.error('[DEBUG ORCAMENTO] ERRO dentro de handleGerarOrcamento:', e); alert('Erro ao gerar orçamento.'); }
+    finally { setGerandoOrcamento(false); console.log('[DEBUG ORCAMENTO] handleGerarOrcamento FINALIZADA'); }
   };
 
   const handleEditarJob = (sj) => {
