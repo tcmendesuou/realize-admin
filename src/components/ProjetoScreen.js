@@ -3104,11 +3104,20 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Arquivos / Fotos *</label>
               <input type="file" multiple accept="image/*,.pdf,.doc,.docx"
-                onChange={e => setAprovacaoArquivos(Array.from(e.target.files))}
+                onChange={e => { setAprovacaoArquivos(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = ''; }}
                 style={{ width: '100%', fontSize: 12, fontFamily: 'Outfit, sans-serif' }} />
               {aprovacaoArquivos.length > 0 && (
-                <div style={{ marginTop: 6, fontSize: 11, color: '#667eea' }}>
-                  {aprovacaoArquivos.length} arquivo(s) selecionado(s)
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: '#667eea', marginBottom: 4 }}>
+                    {aprovacaoArquivos.length} arquivo(s) selecionado(s) — pode continuar adicionando mais
+                  </div>
+                  {aprovacaoArquivos.map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#475569', padding: '4px 8px', background: '#f8fafc', borderRadius: 6, marginTop: 4 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      <button type="button" onClick={() => setAprovacaoArquivos(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ border: 'none', background: 'none', color: '#ef5350', cursor: 'pointer', fontSize: 13, fontWeight: 700, marginLeft: 8 }}>✕</button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
