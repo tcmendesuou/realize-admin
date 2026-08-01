@@ -422,7 +422,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
               if (opCat) opFinal = { ...opForn, valor: opCat.data().valor ?? 0, unidade: opCat.data().unidade ?? '', nome: opForn.nome || opCat.data().nome || '' };
             } catch (e) { console.error(e); }
           }
-          todasOpcoes.push({ ...opFinal, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, supplierId: s.supplierId, supplierName: s.supplierName });
+          todasOpcoes.push({ ...opFinal, serviceName: s.serviceName, serviceParentName: s.serviceParentName, tipoServico: s.tipoServico, supplierId: s.supplierId, supplierName: s.supplierName, opcaoNome: opFinal.nome || '' });
         }
       }
       setOpcoesEspecifico(todasOpcoes);
