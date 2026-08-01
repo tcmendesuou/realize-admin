@@ -483,33 +483,26 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       const perguntaId = cond.verificarDestino.replace('pergunta:', '');
       const valorBruto = dados.respostasGenericas?.[perguntaId];
       const valorTexto = typeof valorBruto === 'boolean' ? (valorBruto ? 'sim' : 'nao') : String(valorBruto || '');
-      const resultado = normalize(valorTexto).includes(alvo);
-      console.log('[DEBUG CONDICIONAL]', pergunta.texto, '| verificando pergunta solta', perguntaId, '| valor:', valorBruto, '| alvo:', alvo, '| resultado:', resultado);
-      return resultado;
+      return normalize(valorTexto).includes(alvo);
     }
     const campoSel = DESTINO_PARA_CAMPO_SEL[cond.verificarDestino];
     if (campoSel) {
       // destino de catálogo: procura entre os itens escolhidos (serviceName)
       const selecionados = dados[campoSel] || [];
-      const resultado = selecionados.some(s => normalize(s.serviceName || s.nome || '').includes(alvo));
-      console.log('[DEBUG CONDICIONAL]', pergunta.texto, '| verificando catálogo', cond.verificarDestino, '(campo', campoSel, ') | selecionados:', selecionados.map(s => s.serviceName || s.nome), '| alvo:', alvo, '| resultado:', resultado);
-      return resultado;
+      return selecionados.some(s => normalize(s.serviceName || s.nome || '').includes(alvo));
     }
     // destino de múltipla escolha / sim-não: valor único salvo em "dados"
     const campo = campoDoDestino(cond.verificarDestino);
     const valorBruto = dados[campo];
     // Sim/Não fica salvo como true/false — converte pra texto antes de comparar
     const valorTexto = typeof valorBruto === 'boolean' ? (valorBruto ? 'sim' : 'nao') : String(valorBruto || '');
-    const resultado = normalize(valorTexto).includes(alvo);
-    console.log('[DEBUG CONDICIONAL]', pergunta.texto, '| verificando destino', cond.verificarDestino, '| valor:', valorBruto, '| alvo:', alvo, '| resultado:', resultado);
-    return resultado;
+    return normalize(valorTexto).includes(alvo);
   };
 
   // Avança pra próxima pergunta de topo (ou revisão, se acabou a lista)
   const proximoTopo = (novoIdx) => {
     const tipo = tiposEvento.find(t => t.id === tipoEscolhidoId);
     const lista = tipo?.perguntasIds || [];
-    console.log('[DEBUG CONDICIONAL] proximoTopo — lista de perguntas do tipo:', lista.map(id => perguntasMap[id]?.texto || `(id ${id} não encontrado)`));
     // pula perguntas que não se aplicam a este perfil (quemResponde) ou cuja
     // condição de exibição (pergunta condicional) não foi atendida
     let i = novoIdx;
