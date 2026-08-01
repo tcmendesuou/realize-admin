@@ -79,11 +79,14 @@ export default function TiposEvento() {
   const adicionar = (perguntaId) => salvarOrdem([...(selecionado.perguntasIds || []), perguntaId]);
   const remover    = (perguntaId) => salvarOrdem((selecionado.perguntasIds || []).filter(id => id !== perguntaId));
   const mover = (idx, direcao) => {
-    const lista = [...(selecionado.perguntasIds || [])];
+    // Usa a MESMA lista já filtrada (sem ids fantasma de perguntas apagadas/
+    // desativadas) que aparece na tela — assim o índice da seta bate certinho
+    // com o item visível. Salvar essa lista também limpa os fantasmas de vez.
+    const listaLimpa = perguntasIncluidas.map(p => p.id);
     const novoIdx = idx + direcao;
-    if (novoIdx < 0 || novoIdx >= lista.length) return;
-    [lista[idx], lista[novoIdx]] = [lista[novoIdx], lista[idx]];
-    salvarOrdem(lista);
+    if (novoIdx < 0 || novoIdx >= listaLimpa.length) return;
+    [listaLimpa[idx], listaLimpa[novoIdx]] = [listaLimpa[novoIdx], listaLimpa[idx]];
+    salvarOrdem(listaLimpa);
   };
 
   // ── Tela de edição do fluxo de um tipo específico ──────────────────────────
