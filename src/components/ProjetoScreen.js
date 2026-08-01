@@ -3104,7 +3104,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Arquivos / Fotos *</label>
               <input type="file" multiple accept="image/*,.pdf,.doc,.docx"
-                onChange={e => { setAprovacaoArquivos(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = ''; }}
+                onChange={e => {
+                  const novosArquivos = Array.from(e.target.files);
+                  setAprovacaoArquivos(prev => [...prev, ...novosArquivos]);
+                  e.target.value = '';
+                }}
                 style={{ width: '100%', fontSize: 12, fontFamily: 'Outfit, sans-serif' }} />
               {aprovacaoArquivos.length > 0 && (
                 <div style={{ marginTop: 8 }}>
