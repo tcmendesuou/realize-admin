@@ -38,8 +38,24 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
   const [aprovando, setAprovando]             = useState(false);
   const [fotoAmpliada, setFotoAmpliada]       = useState(null);
   const [chatAberto, setChatAberto]           = useState(false);
-  const [demandaTask, setDemandaTask]         = useState(null); // task cuja Demanda está aberta
+  const [demandaTask, setDemandaTask]         = useState(null); // task cuja Demanda está aberta (via card de aprovação)
   const [chatNaoLidas, setChatNaoLidas]       = useState(0);
+  const [listaDemandasCliente, setListaDemandasCliente] = useState([]); // todas as demandas abertas do projeto
+  const [demandasAbertoCliente, setDemandasAbertoCliente] = useState(false);
+  const [demandaSelecionadaCliente, setDemandaSelecionadaCliente] = useState(null);
+
+  // Lista de Demandas do projeto — o Cliente precisa ver TODAS as demandas
+  // abertas (não só as ligadas a tarefas que já estão aguardando aprovação
+  // dele), senão fica sem acesso a uma Demanda aberta pelo Fornecedor numa
+  // tarefa que ainda está em andamento.
+  useEffect(() => {
+    if (!project?.id) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'demandas'), where('budgetId', '==', project.id), where('status', '==', 'aberta')),
+      snap => setListaDemandasCliente(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [project?.id]);
 
   // Escuta naoLidas do chat com o coordenador
   useEffect(() => {
@@ -735,7 +751,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     )}
 
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setDemandaTask(task)} disabled={aprovandoTask}
+                      <button onClick={() => { setDemandasAbertoCliente(false); setDemandaSelecionadaCliente(null); setDemandaTask(task); }} disabled={aprovandoTask}
                         style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.3)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         📋 Demanda
                       </button>
@@ -932,7 +948,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         );
       })()}
 
-      {/* ── DEMANDA FLUTUANTE (Cliente) — pedido vinculado a uma tarefa específica ── */}
+      {/* ── DEMANDA FLUTUANTE (Cliente) — pedido vinculado a uma tarefa específica, aberto direto pelo card ── */}
       {demandaTask && project && (
         <div style={{ position: 'fixed', bottom: 90, right: 96, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(102,126,234,0.4)', borderRadius: 14, zIndex: 1002, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <DemandaPanel
@@ -945,6 +961,63 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
             onClose={() => setDemandaTask(null)}
           />
         </div>
+      )}
+
+      {/* ── DEMANDAS (Cliente) — botão global, pra ver Demandas de tarefas que
+           ainda não chegaram na etapa de aprovação (senão ficaria sem acesso) ── */}
+      {project && (
+        <>
+          <button onClick={() => setDemandasAbertoCliente(o => !o)}
+            style={{ position: 'fixed', bottom: 28, right: 96, width: 52, height: 52, borderRadius: '50%', border: 'none', background: '#667eea', color: 'white', fontSize: 20, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(102,126,234,0.4)' }}>
+            📋
+            {!demandasAbertoCliente && listaDemandasCliente.some(d => (d.naoLidasCliente || 0) > 0) && (
+              <span style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', background: '#ef4444', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: '2px solid white' }}>
+                {listaDemandasCliente.reduce((acc, d) => acc + (d.naoLidasCliente || 0), 0)}
+              </span>
+            )}
+          </button>
+          {demandasAbertoCliente && (
+            <div style={{ position: 'fixed', bottom: 90, right: 96, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(102,126,234,0.4)', borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {demandaSelecionadaCliente ? (
+                <DemandaPanel
+                  taskId={demandaSelecionadaCliente.taskId}
+                  budgetId={project.id}
+                  supplierId={demandaSelecionadaCliente.supplierId}
+                  taskNome={demandaSelecionadaCliente.taskNome}
+                  coordenadorId={project.assignedTo}
+                  userData={userData}
+                  onClose={() => setDemandaSelecionadaCliente(null)}
+                />
+              ) : (
+                <>
+                  <div style={{ padding: '14px 16px', borderBottom: '3px solid #667eea', background: 'rgba(10,22,38,0.98)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>📋 Demandas</div>
+                    <button onClick={() => setDemandasAbertoCliente(false)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {listaDemandasCliente.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: 'rgba(123,175,212,0.4)', fontSize: 12, marginTop: 30 }}>Nenhuma Demanda aberta.</div>
+                    ) : listaDemandasCliente.map(d => (
+                      <div key={d.id} onClick={() => setDemandaSelecionadaCliente(d)}
+                        style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(102,126,234,0.15)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 12.5, color: '#E8F4FF', fontWeight: 600 }}>{d.taskNome || 'Tarefa'}</div>
+                          {d.ultimaMsg && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2 }}>{d.ultimaMsg}</div>}
+                        </div>
+                        {(d.naoLidasCliente || 0) > 0 && (
+                          <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#ef4444', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
+                            {d.naoLidasCliente > 9 ? '9+' : d.naoLidasCliente}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
       )}
       })()}
     </>
