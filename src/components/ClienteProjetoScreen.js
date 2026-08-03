@@ -7,6 +7,7 @@ import { criarNotificacao } from '../hooks/useNotificacoes';
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
 import DemandaPanel from './DemandaPanel';
+import EtapasTimeline from './EtapasTimeline';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em analise',           color: '#FFA726' },
@@ -810,6 +811,13 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                   );})}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── ETAPAS (linha do tempo com fotos, dentro da mesma aba Cronograma) ── */}
+          {activeTab === 'cronograma' && (
+            <div style={{ marginTop: 20 }}>
+              <EtapasTimeline project={project} userData={userData} isFornecedor={false} />
             </div>
           )}
 

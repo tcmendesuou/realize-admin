@@ -619,6 +619,11 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         });
       } catch (e) { console.error(e); }
 
+      // Etapas do evento — cópia fixa do Tipo de Evento no momento da criação
+      // (se o Tipo for editado depois, projetos já criados não mudam).
+      const tipoEscolhido = tiposEvento.find(t => t.id === tipoEscolhidoId);
+      const etapasProjeto = (tipoEscolhido?.etapas || []).map(e => ({ id: e.id, nome: e.nome }));
+
       const budgetRef = await addDoc(collection(db, 'budgets'), {
         clientUserId: userId, clientName: userName,
         eventName: bj.evento?.nome || bj.evento?.tipo || 'Novo Evento', eventTypeName: bj.evento?.tipo || '',
@@ -629,6 +634,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         financeiro: { formaPagamento: dados.formaPagamento },
         assignedTo, assignedToName, assignedAt: assignedTo ? serverTimestamp() : null,
         tenantId: tenantId || null,
+        etapasProjeto,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
 

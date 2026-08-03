@@ -4,6 +4,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
 import DemandaPanel from './DemandaPanel';
+import EtapasTimeline from './EtapasTimeline';
 import { criarNotificacao } from '../hooks/useNotificacoes';
 
 const STATUS_MAP = {
@@ -1715,6 +1716,13 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
               </div>
             );
           })()}
+
+          {/* ── ETAPAS (linha do tempo com fotos, dentro da mesma aba Cronograma) ── */}
+          {activeTab === 'cronograma' && (
+            <div style={{ marginTop: 20 }}>
+              <EtapasTimeline project={project} userData={userData} isFornecedor={isFornecedor} />
+            </div>
+          )}
 
           {/* ── BRIEFING ── */}
           {/* ── MINHA TAREFA (fornecedor) ── */}

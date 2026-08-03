@@ -76,6 +76,28 @@ export default function TiposEvento() {
     setTipos(prev => prev.map(t => t.id === selecionado.id ? { ...t, perguntasIds: novaLista } : t));
   };
 
+  const [novaEtapaNome, setNovaEtapaNome] = useState('');
+
+  const salvarEtapas = async (novaLista) => {
+    setSelecionado(p => ({ ...p, etapas: novaLista }));
+    await updateDoc(doc(db, 'tiposEvento', selecionado.id), { etapas: novaLista, updatedAt: serverTimestamp() });
+    setTipos(prev => prev.map(t => t.id === selecionado.id ? { ...t, etapas: novaLista } : t));
+  };
+  const adicionarEtapa = () => {
+    if (!novaEtapaNome.trim()) return;
+    const nova = { id: `etapa_${Date.now()}`, nome: novaEtapaNome.trim() };
+    salvarEtapas([...(selecionado.etapas || []), nova]);
+    setNovaEtapaNome('');
+  };
+  const removerEtapa = (etapaId) => salvarEtapas((selecionado.etapas || []).filter(e => e.id !== etapaId));
+  const moverEtapa = (idx, direcao) => {
+    const lista = [...(selecionado.etapas || [])];
+    const novoIdx = idx + direcao;
+    if (novoIdx < 0 || novoIdx >= lista.length) return;
+    [lista[idx], lista[novoIdx]] = [lista[novoIdx], lista[idx]];
+    salvarEtapas(lista);
+  };
+
   const adicionar = (perguntaId) => salvarOrdem([...(selecionado.perguntasIds || []), perguntaId]);
   const remover    = (perguntaId) => salvarOrdem((selecionado.perguntasIds || []).filter(id => id !== perguntaId));
   const mover = (idx, direcao) => {
@@ -130,6 +152,33 @@ export default function TiposEvento() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* ── ETAPAS (separado do Fluxo de perguntas) ── */}
+        <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Etapas do Evento</div>
+          <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>Marcos simples pra linha do tempo de fotos dentro do projeto — sem vínculo com tarefa ou fornecedor por enquanto.</p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, maxWidth: 480 }}>
+            <input value={novaEtapaNome} onChange={e => setNovaEtapaNome(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && adicionarEtapa()}
+              placeholder="Nome da etapa (ex: Montagem do estande)" style={{ ...inp, flex: 1 }} />
+            <button onClick={adicionarEtapa} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
+              + Adicionar
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 480 }}>
+            {(selecionado.etapas || []).length === 0 ? (
+              <div style={{ fontSize: 12, color: '#94a3b8', padding: 16, textAlign: 'center', border: '2px dashed #e2e8f0', borderRadius: 8 }}>Nenhuma etapa ainda.</div>
+            ) : (selecionado.etapas || []).map((etapa, i) => (
+              <div key={etapa.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: '#94a3b8', width: 18 }}>{i + 1}</span>
+                <span style={{ fontSize: 12.5, color: '#1e293b', flex: 1 }}>{etapa.nome}</span>
+                <button onClick={() => moverEtapa(i, -1)} disabled={i === 0} style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#e2e8f0' : '#64748b', fontSize: 13 }}>▲</button>
+                <button onClick={() => moverEtapa(i, 1)} disabled={i === (selecionado.etapas || []).length - 1} style={{ background: 'none', border: 'none', cursor: i === (selecionado.etapas || []).length - 1 ? 'default' : 'pointer', color: i === (selecionado.etapas || []).length - 1 ? '#e2e8f0' : '#64748b', fontSize: 13 }}>▼</button>
+                <button onClick={() => removerEtapa(etapa.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 13 }}>✕</button>
+              </div>
+            ))}
           </div>
         </div>
       </div>
