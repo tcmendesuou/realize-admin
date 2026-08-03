@@ -6,6 +6,7 @@ import {
 import { criarNotificacao } from '../hooks/useNotificacoes';
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
+import DemandaPanel from './DemandaPanel';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em analise',           color: '#FFA726' },
@@ -37,6 +38,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
   const [aprovando, setAprovando]             = useState(false);
   const [fotoAmpliada, setFotoAmpliada]       = useState(null);
   const [chatAberto, setChatAberto]           = useState(false);
+  const [demandaTask, setDemandaTask]         = useState(null); // task cuja Demanda está aberta
   const [chatNaoLidas, setChatNaoLidas]       = useState(0);
 
   // Escuta naoLidas do chat com o coordenador
@@ -733,6 +735,10 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     )}
 
                     <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => setDemandaTask(task)} disabled={aprovandoTask}
+                        style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.3)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                        📋 Demanda
+                      </button>
                       <button onClick={() => handleAprovarTask(task, false)} disabled={aprovandoTask}
                         style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                         Solicitar Ajuste
@@ -924,6 +930,22 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
             )}
           </>
         );
+      })()}
+
+      {/* ── DEMANDA FLUTUANTE (Cliente) — pedido vinculado a uma tarefa específica ── */}
+      {demandaTask && project && (
+        <div style={{ position: 'fixed', bottom: 90, right: 96, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(102,126,234,0.4)', borderRadius: 14, zIndex: 1002, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <DemandaPanel
+            taskId={demandaTask.id}
+            budgetId={project.id}
+            supplierId={demandaTask.supplierId}
+            taskNome={demandaTask.nome || demandaTask.serviceName}
+            coordenadorId={project.assignedTo}
+            userData={userData}
+            onClose={() => setDemandaTask(null)}
+          />
+        </div>
+      )}
       })()}
     </>
   );

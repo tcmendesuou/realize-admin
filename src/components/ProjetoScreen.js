@@ -3,6 +3,7 @@ import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, 
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 import ChatPanel from './ChatPanel';
+import DemandaPanel from './DemandaPanel';
 import { criarNotificacao } from '../hooks/useNotificacoes';
 
 const STATUS_MAP = {
@@ -359,6 +360,11 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const isFornecedor = userData?.systemRole === 'fornecedor';
   const [coordChatId, setCoordChatId]   = useState(null);
   const [coordChatInfo, setCoordChatInfo] = useState(null);
+  // Demanda — pedido formal vinculado a uma tarefa, mediado pelo Coordenador
+  const [demandaTask, setDemandaTask]   = useState(null); // task cuja Demanda está aberta (fornecedor)
+  const [listaDemandas, setListaDemandas] = useState(null); // lista de demandas do projeto (coordenador)
+  const [demandaSelecionadaCoord, setDemandaSelecionadaCoord] = useState(null); // qual demanda o coordenador está vendo
+  const [demandasAbertoCoord, setDemandasAbertoCoord] = useState(false);
 
   const handleEnviarCotacao = async () => {
     setEnviandoCotacao(true);
@@ -742,6 +748,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     });
     return () => unsub();
   }, [projectId, isFornecedor, userData?.id]);
+
+  // Lista de Demandas do projeto — só o Coordenador vê essa lista (ele modera
+  // todas). Precisa ficar antes dos "returns" de loading, pra não violar as
+  // Rules of Hooks (mesmo número/ordem de hooks em todo render).
+  useEffect(() => {
+    const souCoordAqui = userData?.systemRole === 'workspace' || userData?.systemRole === 'equipe';
+    if (!projectId || !souCoordAqui) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'demandas'), where('budgetId', '==', projectId), where('status', '==', 'aberta')),
+      snap => setListaDemandas(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [projectId, userData?.systemRole]);
 
   const handleGerarOrcamento = async () => {
     setGerandoOrcamento(true);
@@ -1864,6 +1883,10 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               ⚠ Ajuste solicitado — revise e envie novamente
                             </div>
                           )}
+                          <button onClick={() => setDemandaTask(task)}
+                            style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.35)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                            📋 Demanda
+                          </button>
                           <button onClick={() => handleConcluirTask(task)}
                             style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
                             {task.status === 'ajuste' ? 'Reenviar para aprovação' : 'Concluir'}
@@ -1871,6 +1894,12 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                         </div>
                       ) : (task.status === 'aguardando_pre_aprovacao' || task.status === 'aguardando_aprovacao_execucao' || task.status === 'aguardando_aprovacao_entrega') ? (
                         <div style={{ padding: '0 16px 14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                            <button onClick={() => setDemandaTask(task)}
+                              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(102,126,234,0.35)', background: 'rgba(102,126,234,0.06)', color: '#667eea', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                              📋 Demanda
+                            </button>
+                          </div>
                           <div style={{ background: 'rgba(255,167,38,0.08)', borderRadius: 8, padding: '10px 14px', border: '1px solid rgba(255,167,38,0.2)', fontSize: 12, color: '#FFA726', fontWeight: 500 }}>
                             ⏳ Aguardando aprovação do cliente...
                             {task.aprovacaoArquivos?.length > 0 && (
@@ -3214,6 +3243,76 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
           </>
         );
       })()}
+
+      {/* ── DEMANDA FLUTUANTE (fornecedor) — pedido vinculado a uma tarefa específica ── */}
+      {isFornecedor && demandaTask && project && (
+        <div style={{ position: 'fixed', bottom: 90, right: 96, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(102,126,234,0.4)', borderRadius: 14, zIndex: 1002, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <DemandaPanel
+            taskId={demandaTask.id}
+            budgetId={projectId}
+            supplierId={userData?.supplierId || userData?.id}
+            taskNome={demandaTask.nome || demandaTask.serviceName}
+            coordenadorId={project.assignedTo}
+            userData={userData}
+            onClose={() => setDemandaTask(null)}
+          />
+        </div>
+      )}
+
+      {/* ── DEMANDAS (Coordenador) — botão global que lista e modera todas as Demandas do projeto ── */}
+      {isCoord && project && (
+        <>
+          <button onClick={() => setDemandasAbertoCoord(o => !o)}
+            style={{ position: 'fixed', bottom: 28, right: 96, width: 52, height: 52, borderRadius: '50%', border: 'none', background: '#667eea', color: 'white', fontSize: 20, cursor: 'pointer', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(102,126,234,0.4)' }}>
+            📋
+            {!demandasAbertoCoord && (listaDemandas || []).some(d => (d.naoLidasCoordenador || 0) > 0) && (
+              <span style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', background: '#ef4444', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: '2px solid #0D1B2A' }}>
+                {(listaDemandas || []).reduce((acc, d) => acc + (d.naoLidasCoordenador || 0), 0)}
+              </span>
+            )}
+          </button>
+          {demandasAbertoCoord && (
+            <div style={{ position: 'fixed', bottom: 90, right: 96, width: 340, height: 480, background: 'rgba(10,22,38,0.98)', border: '1px solid rgba(102,126,234,0.4)', borderRadius: 14, zIndex: 1001, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {demandaSelecionadaCoord ? (
+                <DemandaPanel
+                  taskId={demandaSelecionadaCoord.taskId}
+                  budgetId={projectId}
+                  supplierId={demandaSelecionadaCoord.supplierId}
+                  taskNome={demandaSelecionadaCoord.taskNome}
+                  coordenadorId={project.assignedTo}
+                  userData={userData}
+                  onClose={() => setDemandaSelecionadaCoord(null)}
+                />
+              ) : (
+                <>
+                  <div style={{ padding: '14px 16px', borderBottom: '3px solid #667eea', background: 'rgba(10,22,38,0.98)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#E8F4FF' }}>📋 Demandas abertas</div>
+                    <button onClick={() => setDemandasAbertoCoord(false)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(listaDemandas || []).length === 0 ? (
+                      <div style={{ textAlign: 'center', color: 'rgba(123,175,212,0.4)', fontSize: 12, marginTop: 30 }}>Nenhuma Demanda aberta nesse projeto.</div>
+                    ) : listaDemandas.map(d => (
+                      <div key={d.id} onClick={() => setDemandaSelecionadaCoord(d)}
+                        style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(102,126,234,0.15)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 12.5, color: '#E8F4FF', fontWeight: 600 }}>{d.taskNome || 'Tarefa'}</div>
+                          {d.ultimaMsg && <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginTop: 2 }}>{d.ultimaMsg}</div>}
+                        </div>
+                        {(d.naoLidasCoordenador || 0) > 0 && (
+                          <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#ef4444', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
+                            {d.naoLidasCoordenador > 9 ? '9+' : d.naoLidasCoordenador}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Modal de foto ampliada — galeria navegável + baixar */}
       {fotoAmpliada && (
