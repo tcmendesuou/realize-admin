@@ -229,7 +229,7 @@ const StepOpcoes = ({ servicos, onConfirm }) => {
       tipoServico: servAtual.tipoServico, id: servAtual.id,
       opcaoCatalogoId: op.id || '', opcaoNome: op.nome || '',
       valor: op.valor || 0, unidade: op.unidade || '',
-      diasPreparo: servAtual.diasPreparo || 0, diasMontagem: servAtual.diasMontagem || 0,
+      diasPreparo: op.diasPreparo || 0, diasMontagem: op.diasMontagem || 0,
     }] : sels;
     if (idx + 1 < servicos.length) { setSels(novo); setIdx(i => i + 1); }
     else onConfirm(novo);
