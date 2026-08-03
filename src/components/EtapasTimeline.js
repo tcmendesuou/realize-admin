@@ -89,7 +89,7 @@ export default function EtapasTimeline({ project, userData, isFornecedor }) {
                 <label style={{ display: 'inline-block', padding: '6px 14px', borderRadius: 8, background: enviandoEtapaId === etapa.id ? '#f1f5f9' : 'rgba(0,229,196,0.1)', color: enviandoEtapaId === etapa.id ? '#94a3b8' : '#00b894', fontSize: 12, fontWeight: 600, cursor: enviandoEtapaId === etapa.id ? 'not-allowed' : 'pointer', border: '1px solid rgba(0,229,196,0.3)' }}>
                   {enviandoEtapaId === etapa.id ? 'Enviando...' : '+ Adicionar foto(s)'}
                   <input type="file" multiple accept="image/*" style={{ display: 'none' }} disabled={enviandoEtapaId === etapa.id}
-                    onChange={e => { const fs = e.target.files; e.target.value = ''; handleUpload(etapa.id, fs); }} />
+                    onChange={e => { const fs = Array.from(e.target.files); e.target.value = ''; handleUpload(etapa.id, fs); }} />
                 </label>
               )}
             </div>
