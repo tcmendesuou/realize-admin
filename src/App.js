@@ -26,6 +26,7 @@ import TenantManager from './components/TenantManager';
 import TenantAdmin from './components/TenantAdmin';
 import FinanceiroHome from './components/FinanceiroHome';
 import Planos from './components/Planos';
+import Clientes from './components/Clientes';
 import { useTenant } from './hooks/useTenant';
 import ChatWidget from './components/ChatWidget';
 import './App.css';
@@ -349,6 +350,9 @@ function App() {
             <button className={activeView === 'tenants' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tenants')}>
               <span className="nav-text">Empresas</span>
             </button>
+            <button className={activeView === 'clientes' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('clientes')}>
+              <span className="nav-text">Clientes</span>
+            </button>
             <button className={activeView === 'suppliers' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('suppliers')}>
               <span className="nav-text">Fornecedores</span>
             </button>
@@ -391,6 +395,7 @@ function App() {
                 {activeView === 'financeiro' && 'Financeiro'}
                 {activeView === 'planos'    && 'Planos'}
                 {activeView === 'tenants'   && 'Empresas'}
+                {activeView === 'clientes'  && 'Clientes'}
               </h2>
             </div>
             <div style={{ textAlign: 'center' }}>
@@ -419,6 +424,7 @@ function App() {
             {activeView === 'financeiro' && <FinanceiroManager />}
             {activeView === 'planos'    && <Planos />}
             {activeView === 'tenants'    && <TenantManager />}
+            {activeView === 'clientes'   && <Clientes />}
           </div>
         </main>
       </div>
