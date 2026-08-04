@@ -2031,20 +2031,44 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                           {/* Detalhes expansíveis */}
                           {sjExp && (
                             <>
-                              <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
-                                {sj.opcaoNome && <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(102,126,234,0.15)', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Opção solicitada</div><div style={{ fontSize: 14, fontWeight: 600, color: '#667eea' }}>{sj.opcaoNome}</div></div>}
-                                {(sj.quantidade || sj.horasPorDia || sj.diasServico || sj.observacoes) && <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.1)', gridColumn: '1/-1' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 5 }}>Solicitação do cliente</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{sj.quantidade && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.quantidade}</strong> profissional(is)</span>}{sj.horasPorDia && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.horasPorDia}h</strong>/dia</span>}{sj.diasServico && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.diasServico}</strong> dia(s)</span>}{sj.observacoes && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>&#x201c;{sj.observacoes}&#x201d;</span>}</div></div>}
-                                {valorTotal && <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.15)' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Seu valor</div><div style={{ fontSize: 15, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>{sj.unidade || ''}</div></div>}
-                                {sj.eventDate && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Data do evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventDate.split('-').reverse().join('/')}{sj.eventDateFim && sj.eventDateFim !== sj.eventDate ? ` a ${sj.eventDateFim.split('-').reverse().join('/')}` : ''}</div></div>}
-                                {(sj.eventHorarioInicio || ev.horarioInicio) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Horário</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventHorarioInicio || ev.horarioInicio}{(sj.eventHorarioFim || ev.horarioFim) ? ` às ${sj.eventHorarioFim || ev.horarioFim}` : ''}</div></div>}
-                                {(sj.eventLocal || sj.eventCidade || ev.local || ev.cidade) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Local</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventLocal || ev.local || ''}{(sj.eventCidade || ev.cidade) ? ` — ${sj.eventCidade || ev.cidade}` : ''}</div></div>}
-                                {(sj.eventVisitantes || ev.visitantesPorDia) > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Participantes</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventVisitantes || ev.visitantesPorDia} pessoas</div></div>}
-                                {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
-                                {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
-                                <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Duração</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dia(s)</div></div>
+                              <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {sj.opcaoNome && (
+                                  <div style={{ background: 'rgba(102,126,234,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(102,126,234,0.15)' }}>
+                                    <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Opção solicitada</div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#667eea' }}>{sj.opcaoNome}</div>
+                                  </div>
+                                )}
+                                {(sj.quantidade || sj.horasPorDia || sj.diasServico || sj.observacoes) && (
+                                  <div style={{ background: 'rgba(0,229,196,0.04)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(0,229,196,0.1)' }}>
+                                    <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Solicitação do cliente</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                                      {sj.quantidade && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.quantidade}</strong> profissional(is)</span>}
+                                      {sj.horasPorDia && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.horasPorDia}h</strong>/dia</span>}
+                                      {sj.diasServico && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.diasServico}</strong> dia(s)</span>}
+                                      {sj.observacoes && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>&#x201c;{sj.observacoes}&#x201d;</span>}
+                                    </div>
+                                  </div>
+                                )}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+                                  {valorTotal && (
+                                    <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
+                                      <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Seu valor</div>
+                                      <div style={{ fontSize: 14, fontWeight: 700, color: '#00E5C4' }}>R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                      <div style={{ fontSize: 9, color: '#94a3b8' }}>{sj.unidade || ''}</div>
+                                    </div>
+                                  )}
+                                  {sj.diasPreparo > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Preparo</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasPreparo} dias</div></div>}
+                                  {sj.diasMontagem > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Montagem</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.diasMontagem} dias</div></div>}
+                                  <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Evento</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{diasEvento} dia(s)</div></div>
+                                  {(sj.eventVisitantes || ev.visitantesPorDia) > 0 && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Visitantes/dia</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventVisitantes || ev.visitantesPorDia}</div></div>}
+                                  {(sj.eventCidade || ev.cidade) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Cidade</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{sj.eventCidade || ev.cidade}</div></div>}
+                                  {(sj.eventLocal || ev.local) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Local</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventLocal || ev.local}</div></div>}
+                                  {sj.eventDate && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Data do evento</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventDate.split('-').reverse().join('/')}{sj.eventDateFim && sj.eventDateFim !== sj.eventDate ? ` → ${sj.eventDateFim.split('-').reverse().join('/')}` : ''}</div></div>}
+                                  {(sj.eventHorarioInicio || ev.horarioInicio) && <div style={{ background: '#f8faff', borderRadius: 8, padding: '7px 10px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Horário</div><div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{sj.eventHorarioInicio || ev.horarioInicio}{(sj.eventHorarioFim || ev.horarioFim) ? ` às ${sj.eventHorarioFim || ev.horarioFim}` : ''}</div></div>}
+                                </div>
                                 {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) && (
-                                  <div style={{ background: 'rgba(255,167,38,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(255,167,38,0.2)', gridColumn: '1/-1' }}>
-                                    <div style={{ fontSize: 10, color: '#FFA726', textTransform: 'uppercase', marginBottom: 3, fontWeight: 700 }}>Forma de Pagamento</div>
+                                  <div style={{ background: 'rgba(255,167,38,0.06)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(255,167,38,0.2)' }}>
+                                    <div style={{ fontSize: 9, color: '#FFA726', textTransform: 'uppercase', marginBottom: 3, fontWeight: 700 }}>Forma de Pagamento</div>
                                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
                                       {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) === '50_50' && '50% na entrada + 50% no final do evento'}
                                       {(project.financeiro?.formaPagamento || project.briefingData?.formaPagamento) === '30_60_90' && '30, 60 e 90 dias'}
@@ -2052,7 +2076,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                     </div>
                                   </div>
                                 )}
-                                {sj.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px', gridColumn: '1/-1' }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observacao</div><div style={{ fontSize: 12, color: '#475569' }}>{sj.observacao}</div></div>}
+                                {sj.observacao && <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 3 }}>Observação</div><div style={{ fontSize: 12, color: '#475569' }}>{sj.observacao}</div></div>}
                               </div>
 
                               {/* Observações do Cliente — mapeadas do briefingData */}
