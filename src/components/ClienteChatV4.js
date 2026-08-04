@@ -744,7 +744,24 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
           }
         }
         if (dados.tipoEstande === 'personalizado') {
-          await addDoc(collection(db, 'supplierJobs'), { supplierId: '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente solicitou atendimento.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+          // Busca fornecedor(es) cadastrados pra "Desenvolvimento de Stand" —
+          // antes disso era sempre criado sem fornecedor (supplierId vazio),
+          // mesmo quando já existia alguém cadastrado pra isso.
+          const ss = await getDocs(collection(db, 'supplierServices'));
+          const fornecedoresStand = ss.docs.map(d => ({ id: d.id, ...d.data() }))
+            .filter(s => s.ativo !== false && normalize(s.serviceName || '').includes('desenvolvimento') && normalize(s.serviceName || '').includes('stand'));
+          if (fornecedoresStand.length > 0) {
+            for (const fs of fornecedoresStand) {
+              const colabSnap = await getDocs(query(collection(db, 'users'), where('supplierId', '==', fs.supplierId), where('systemRole', '==', 'fornecedor'), where('active', '==', true)));
+              for (const colab of colabSnap.docs.map(d => ({ id: d.id, ...d.data() }))) {
+                await addDoc(collection(db, 'supplierJobs'), { supplierId: colab.id, supplierName: fs.supplierName || colab.companyName || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: fs.serviceParentName || 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente solicitou atendimento.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+              }
+            }
+          } else {
+            // Fallback: nenhum fornecedor cadastrado ainda — cria sem atribuição,
+            // pro coordenador escolher manualmente depois (botão "Trocar").
+            await addDoc(collection(db, 'supplierJobs'), { supplierId: '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente solicitou atendimento.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+          }
         }
       } catch (e) { console.error('Erro supplierJobs:', e); }
 
