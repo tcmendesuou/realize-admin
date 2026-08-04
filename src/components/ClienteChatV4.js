@@ -188,41 +188,58 @@ const StepLocalInline = ({ onConfirm }) => {
   );
 };
 
-// Data em 3 selects (Dia/Mês/Ano) — não depende do navegador nem do sistema
-// operacional pra decidir o formato de exibição (o input nativo type="date"
-// mostra no formato do idioma do aparelho, então não dava pra garantir
-// dia/mês/ano só com CSS/atributo — aqui a ordem é sempre fixa).
+// Calendário visual — clica no dia e já confirma, sem depender do navegador
+// nem do sistema operacional pro formato (o input nativo type="date" mostra
+// no idioma do aparelho, então não dava pra garantir dia/mês/ano só com
+// CSS/atributo).
 const MESES_BR = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const StepDataBR = ({ onConfirm, autoFocus }) => {
-  const anoAtual = new Date().getFullYear();
-  const [dia, setDia] = useState('');
-  const [mes, setMes] = useState('');
-  const [ano, setAno] = useState('');
-  const selStyle = { width: '100%', padding: '14px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(10,22,38,0.95)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', outline: 'none', cursor: 'pointer' };
-  const anos = Array.from({ length: 6 }, (_, i) => anoAtual + i);
-  const dias = Array.from({ length: 31 }, (_, i) => i + 1);
-  const confirmar = () => {
-    if (!dia || !mes || !ano) return;
-    onConfirm(`${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`);
+const DIAS_SEMANA_BR = ['D','S','T','Q','Q','S','S'];
+const StepCalendarBR = ({ onConfirm }) => {
+  const hoje = new Date();
+  const [mesAtual, setMesAtual] = useState(hoje.getMonth());
+  const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
+  const [selecionado, setSelecionado] = useState(null);
+
+  const primeiroDiaSemana = new Date(anoAtual, mesAtual, 1).getDay();
+  const diasNoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
+  const celulas = [...Array(primeiroDiaSemana).fill(null), ...Array.from({ length: diasNoMes }, (_, i) => i + 1)];
+
+  const mudarMes = (delta) => {
+    let m = mesAtual + delta, a = anoAtual;
+    if (m < 0) { m = 11; a--; } else if (m > 11) { m = 0; a++; }
+    setMesAtual(m); setAnoAtual(a);
   };
+
+  const escolherDia = (d) => {
+    if (!d) return;
+    const valor = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    setSelecionado(valor);
+    onConfirm(valor);
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <select value={dia} onChange={e => setDia(e.target.value)} style={{ ...selStyle, flex: 0.8 }} autoFocus={autoFocus}>
-          <option value="">Dia</option>
-          {dias.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select value={mes} onChange={e => setMes(e.target.value)} style={{ ...selStyle, flex: 1.6 }}>
-          <option value="">Mês</option>
-          {MESES_BR.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-        </select>
-        <select value={ano} onChange={e => setAno(e.target.value)} style={{ ...selStyle, flex: 1 }}>
-          <option value="">Ano</option>
-          {anos.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
+    <div style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(0,180,255,0.2)', borderRadius: 14, padding: 16, boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <button onClick={() => mudarMes(-1)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 20, cursor: 'pointer', padding: '4px 10px' }}>‹</button>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#E8F4FF' }}>{MESES_BR[mesAtual]} {anoAtual}</div>
+        <button onClick={() => mudarMes(1)} style={{ background: 'none', border: 'none', color: '#7BAFD4', fontSize: 20, cursor: 'pointer', padding: '4px 10px' }}>›</button>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <BtnAvancar onClick={confirmar} disabled={!dia || !mes || !ano} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
+        {DIAS_SEMANA_BR.map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: 11, color: 'rgba(123,175,212,0.55)' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {celulas.map((d, i) => {
+          const valorCel = d ? `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null;
+          const isSel = !!valorCel && valorCel === selecionado;
+          return (
+            <div key={i} onClick={() => escolherDia(d)}
+              style={{ aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, cursor: d ? 'pointer' : 'default', fontSize: 13, color: !d ? 'transparent' : (isSel ? '#0D1B2A' : '#E8F4FF'), background: isSel ? '#00E5C4' : 'transparent', fontWeight: isSel ? 700 : 400 }}>
+              {d || '·'}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -795,7 +812,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
-          <StepDataBR autoFocus
+          <StepCalendarBR
             onConfirm={val => responder(p.id, val, { [campoDoDestino(p.destino)]: val })} />
         </div>
       );
