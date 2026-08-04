@@ -188,6 +188,46 @@ const StepLocalInline = ({ onConfirm }) => {
   );
 };
 
+// Data em 3 selects (Dia/Mês/Ano) — não depende do navegador nem do sistema
+// operacional pra decidir o formato de exibição (o input nativo type="date"
+// mostra no formato do idioma do aparelho, então não dava pra garantir
+// dia/mês/ano só com CSS/atributo — aqui a ordem é sempre fixa).
+const MESES_BR = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const StepDataBR = ({ onConfirm, autoFocus }) => {
+  const anoAtual = new Date().getFullYear();
+  const [dia, setDia] = useState('');
+  const [mes, setMes] = useState('');
+  const [ano, setAno] = useState('');
+  const selStyle = { width: '100%', padding: '14px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(10,22,38,0.95)', color: '#E8F4FF', fontSize: 15, fontFamily: 'Outfit, sans-serif', outline: 'none', cursor: 'pointer' };
+  const anos = Array.from({ length: 6 }, (_, i) => anoAtual + i);
+  const dias = Array.from({ length: 31 }, (_, i) => i + 1);
+  const confirmar = () => {
+    if (!dia || !mes || !ano) return;
+    onConfirm(`${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <select value={dia} onChange={e => setDia(e.target.value)} style={{ ...selStyle, flex: 0.8 }} autoFocus={autoFocus}>
+          <option value="">Dia</option>
+          {dias.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select value={mes} onChange={e => setMes(e.target.value)} style={{ ...selStyle, flex: 1.6 }}>
+          <option value="">Mês</option>
+          {MESES_BR.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+        </select>
+        <select value={ano} onChange={e => setAno(e.target.value)} style={{ ...selStyle, flex: 1 }}>
+          <option value="">Ano</option>
+          {anos.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <BtnAvancar onClick={confirmar} disabled={!dia || !mes || !ano} />
+      </div>
+    </div>
+  );
+};
+
 const StepDescricaoInline = ({ onConfirm }) => {
   const [desc, setDesc] = useState('');
   return (
@@ -755,7 +795,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
-          <StepInputSimples type="date" autoFocus
+          <StepDataBR autoFocus
             onConfirm={val => responder(p.id, val, { [campoDoDestino(p.destino)]: val })} />
         </div>
       );
