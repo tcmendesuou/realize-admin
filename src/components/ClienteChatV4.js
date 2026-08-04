@@ -68,7 +68,7 @@ const BtnAvancar = ({ onClick, disabled, children = 'Continuar →', submitting 
 );
 
 const Inp = ({ value, onChange, placeholder, type = 'text', min, max, onKeyDown, autoFocus }) => (
-  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} min={min} max={max} autoFocus={autoFocus}
+  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} min={min} max={max} autoFocus={autoFocus} lang="pt-BR"
     style={{ width: '100%', padding: '14px 18px', borderRadius: 12, border: '1.5px solid rgba(0,180,255,0.25)', background: 'rgba(255,255,255,0.05)', color: '#E8F4FF', fontSize: 16, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
 );
 
@@ -980,7 +980,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     } else if (p.destino === 'stand.temStand' || p.destino === 'produtor.temProdutor') {
       conteudo = (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-          <Pergunta subtitulo={p.subtitulo}>{p.destino === 'stand.temStand' ? `Olá, **${userName}**! 😊\n\n${p.texto}` : p.texto}</Pergunta>
+          <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
           {p.opcoes.map(op => <OpcaoBtn key={op.valor} onClick={() => responderComBooleano(p, op.valor)}>{op.label}</OpcaoBtn>)}
         </div>
       );
