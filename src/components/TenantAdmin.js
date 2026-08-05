@@ -6,6 +6,7 @@ import {
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { usePermissoes } from '../hooks/usePermissoes';
 import PermissoesOverride from './PermissoesOverride';
 
@@ -74,6 +75,67 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
   const [showGerenciarVerba, setShowGerenciarVerba] = useState(null);
   const [valorAtribuir, setValorAtribuir] = useState('');
   const [periodoAtribuir, setPeriodoAtribuir] = useState('');
+
+  // Marketing — campanhas com documentos/fotos/vídeos
+  const [campanhas, setCampanhas] = useState([]);
+  const [showNovaCampanha, setShowNovaCampanha] = useState(false);
+  const [nomeCampanha, setNomeCampanha] = useState('');
+  const [savingCampanha, setSavingCampanha] = useState(false);
+  const [uploadingCampanhaId, setUploadingCampanhaId] = useState(null);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'tenants', tenantId, 'campanhas'), orderBy('createdAt', 'desc')),
+      snap => setCampanhas(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [tenantId]);
+
+  const criarCampanha = async () => {
+    if (!nomeCampanha.trim()) return;
+    setSavingCampanha(true);
+    try {
+      await addDoc(collection(db, 'tenants', tenantId, 'campanhas'), {
+        nome: nomeCampanha.trim(), ativa: false, arquivos: [], createdAt: serverTimestamp(),
+      });
+      setNomeCampanha(''); setShowNovaCampanha(false);
+    } catch (e) { console.error(e); alert('Erro ao criar campanha.'); }
+    finally { setSavingCampanha(false); }
+  };
+
+  const uploadArquivosCampanha = async (campanhaId, files, tipo) => {
+    setUploadingCampanhaId(campanhaId);
+    try {
+      const storage = getStorage();
+      const novos = [];
+      for (const file of Array.from(files)) {
+        const storageRef = ref(storage, `marketing/${tenantId}/${campanhaId}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        novos.push({ tipo, nome: file.name, url });
+      }
+      const campanha = campanhas.find(c => c.id === campanhaId);
+      await updateDoc(doc(db, 'tenants', tenantId, 'campanhas', campanhaId), {
+        arquivos: [...(campanha?.arquivos || []), ...novos],
+      });
+    } catch (e) { console.error(e); alert('Erro ao enviar arquivo(s).'); }
+    finally { setUploadingCampanhaId(null); }
+  };
+
+  const toggleAtivaCampanha = async (campanha) => {
+    await updateDoc(doc(db, 'tenants', tenantId, 'campanhas', campanha.id), { ativa: !campanha.ativa });
+  };
+
+  const excluirCampanha = async (campanhaId) => {
+    if (!window.confirm('Excluir essa campanha e todos os arquivos dela?')) return;
+    await deleteDoc(doc(db, 'tenants', tenantId, 'campanhas', campanhaId));
+  };
+
+  const removerArquivoCampanha = async (campanha, idx) => {
+    const novosArquivos = campanha.arquivos.filter((_, i) => i !== idx);
+    await updateDoc(doc(db, 'tenants', tenantId, 'campanhas', campanha.id), { arquivos: novosArquivos });
+  };
 
   useEffect(() => {
     if (!tenantId) return;
@@ -315,6 +377,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  { id: 'unidades', label: 'Unidades' },
  { id: 'eventos', label: 'Eventos' },
  { id: 'verbas', label: 'Verbas' },
+ { id: 'marketing', label: 'Marketing' },
  ].map(item => (
  <button key={item.id} className={view === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setView(item.id)}>
  <span className="nav-text">{item.label}</span>
@@ -975,6 +1038,97 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <button onClick={handleAtribuirVerba} disabled={savingVerba || !valorAtribuir}
                   style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: !valorAtribuir || savingVerba ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: !valorAtribuir ? 0.5 : 1 }}>
                   {savingVerba ? 'Salvando...' : 'Atribuir verba'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MARKETING ────────────────────────────────────────────────────── */}
+      {view === 'marketing' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Marketing</div>
+            <button onClick={() => setShowNovaCampanha(true)}
+              style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              + Nova Campanha
+            </button>
+          </div>
+
+          {campanhas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
+              Nenhuma campanha criada ainda.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {campanhas.map(camp => (
+                <div key={camp.id} style={{ ...card }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{camp.nome}</div>
+                      <button onClick={() => toggleAtivaCampanha(camp)}
+                        style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', background: camp.ativa ? 'rgba(102,187,106,0.12)' : 'rgba(148,163,184,0.15)', color: camp.ativa ? '#16a34a' : '#64748b' }}>
+                        {camp.ativa ? 'ATIVA' : 'INATIVA'}
+                      </button>
+                    </div>
+                    <button onClick={() => excluirCampanha(camp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>🗑️</button>
+                  </div>
+
+                  {camp.arquivos?.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                      {camp.arquivos.map((a, i) => (
+                        <div key={i} style={{ position: 'relative', width: 90 }}>
+                          {a.tipo === 'foto' ? (
+                            <img src={a.url} alt={a.nome} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                          ) : (
+                            <a href={a.url} target="_blank" rel="noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 90, height: 90, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8faff', textDecoration: 'none', padding: 6, boxSizing: 'border-box' }}>
+                              <span style={{ fontSize: 22 }}>{a.tipo === 'video' ? '🎬' : '📄'}</span>
+                              <span style={{ fontSize: 9, color: '#64748b', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', marginTop: 4 }}>{a.nome}</span>
+                            </a>
+                          )}
+                          <button onClick={() => removerArquivoCampanha(camp, i)}
+                            style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[['documento', '📄 Documentos', '.pdf,.doc,.docx,.ppt,.pptx'], ['foto', '🖼️ Fotos', 'image/*'], ['video', '🎬 Vídeos', 'video/*']].map(([tipo, label, accept]) => (
+                      <label key={tipo} style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px dashed #cbd5e1', background: uploadingCampanhaId === camp.id ? '#f1f5f9' : 'white', color: uploadingCampanhaId === camp.id ? '#94a3b8' : '#475569', fontSize: 12, fontWeight: 600, cursor: uploadingCampanhaId === camp.id ? 'not-allowed' : 'pointer' }}>
+                        {uploadingCampanhaId === camp.id ? 'Enviando...' : `+ ${label}`}
+                        <input type="file" multiple accept={accept} style={{ display: 'none' }} disabled={uploadingCampanhaId === camp.id}
+                          onChange={e => { const fs = Array.from(e.target.files); e.target.value = ''; uploadArquivosCampanha(camp.id, fs, tipo); }} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Modal Nova Campanha ──────────────────────────────────────────── */}
+      {showNovaCampanha && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowNovaCampanha(false); }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 420, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Nova Campanha</div>
+              <button onClick={() => setShowNovaCampanha(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={lbl}>Nome da campanha *</label>
+                <input value={nomeCampanha} onChange={e => setNomeCampanha(e.target.value)} style={inp} placeholder="Ex: Campanha Verão 2026" autoFocus onKeyDown={e => e.key === 'Enter' && criarCampanha()} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
+                <button onClick={() => setShowNovaCampanha(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={criarCampanha} disabled={savingCampanha || !nomeCampanha.trim()}
+                  style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingCampanha ? 'not-allowed' : 'pointer', opacity: !nomeCampanha.trim() ? 0.5 : 1 }}>
+                  {savingCampanha ? 'Criando...' : 'Criar'}
                 </button>
               </div>
             </div>
