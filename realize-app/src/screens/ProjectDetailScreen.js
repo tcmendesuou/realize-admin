@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Linking, Platform,
+  ActivityIndicator, Alert, Linking, Platform, Image, Modal,
 } from 'react-native';
 import {
   doc, onSnapshot, collection, getDocs, query,
@@ -9,6 +9,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import DemandaPanelMobile from './DemandaPanelMobile';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em análise',            color: '#FFA726' },
@@ -26,6 +28,10 @@ export default function ProjectDetailScreen({ route, navigation }) {
   const [loading, setLoading]   = useState(true);
   const [aprovando, setAprovando] = useState(false);
   const [user, setUser]         = useState(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null); // { fotos: [], idx: 0 }
+  const [etapaFotos, setEtapaFotos] = useState([]);
+  const [demandasAbertas, setDemandasAbertas] = useState([]);
+  const [demandaAberta, setDemandaAberta] = useState(null); // demanda sendo vista no momento
 
   useEffect(() => {
     AsyncStorage.getItem('loggedUser').then(s => { if (s) setUser(JSON.parse(s)); });
@@ -43,6 +49,25 @@ export default function ProjectDetailScreen({ route, navigation }) {
     const unsub = onSnapshot(
       query(collection(db, 'tasks'), where('budgetId', '==', budgetId)),
       snap => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [budgetId]);
+
+  // Fotos das Etapas do Evento — só leitura no mobile por enquanto (quem sobe é
+  // o Fornecedor, que ainda não tem tela própria no celular).
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'budgets', budgetId, 'etapaFotos'),
+      snap => setEtapaFotos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+    return () => unsub();
+  }, [budgetId]);
+
+  // Demandas abertas desse projeto — o Cliente vê e responde pelo celular.
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, 'demandas'), where('budgetId', '==', budgetId), where('status', '==', 'aberta')),
+      snap => setDemandasAbertas(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
     return () => unsub();
   }, [budgetId]);
@@ -125,6 +150,8 @@ export default function ProjectDetailScreen({ route, navigation }) {
     return `${d}/${m}/${y}`;
   };
 
+  const isImageFile = nome => /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(nome || '');
+
   if (loading) return (
     <View style={styles.center}>
       <ActivityIndicator size="large" color="#00E5C4" />
@@ -203,16 +230,25 @@ export default function ProjectDetailScreen({ route, navigation }) {
                   <Text style={styles.aprovNome}>{task.nome || task.serviceName}</Text>
                   {task.supplierName && <Text style={styles.aprovSupplier}>{task.supplierName}</Text>}
                   {task.aprovacaoObs ? <Text style={styles.aprovObs}>{task.aprovacaoObs}</Text> : null}
-                  {task.aprovacaoArquivos?.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
-                      {task.aprovacaoArquivos.map((f, i) => (
-                        <TouchableOpacity key={i} onPress={() => Linking.openURL(f.url)}
-                          style={styles.fileBtn}>
-                          <Text style={styles.fileBtnText}>📎 {f.nome}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
+                  {task.aprovacaoArquivos?.length > 0 && (() => {
+                    const fotos = task.aprovacaoArquivos.filter(f => isImageFile(f.nome));
+                    const outros = task.aprovacaoArquivos.filter(f => !isImageFile(f.nome));
+                    return (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+                        {fotos.map((f, i) => (
+                          <TouchableOpacity key={`foto-${i}`} onPress={() => setFotoAmpliada({ fotos: fotos.map(x => x.url), idx: i })}>
+                            <Image source={{ uri: f.url }} style={styles.aprovThumb} />
+                          </TouchableOpacity>
+                        ))}
+                        {outros.map((f, i) => (
+                          <TouchableOpacity key={`arq-${i}`} onPress={() => Linking.openURL(f.url)}
+                            style={styles.fileBtn}>
+                            <Text style={styles.fileBtnText}>📎 {f.nome}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    );
+                  })()}
                   <View style={styles.aprovBtns}>
                     <TouchableOpacity onPress={() => handleAprovarTask(task, false)} style={styles.btnRecusar}>
                       <Text style={styles.btnRecusarText}>Solicitar ajuste</Text>
@@ -312,7 +348,95 @@ export default function ProjectDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* Etapas do Evento — linha do tempo com fotos (só leitura no celular) */}
+        {(project.etapasProjeto || []).length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Etapas do Evento</Text>
+            {project.etapasProjeto.map((etapa, i) => {
+              const fotosEtapa = etapaFotos.filter(f => f.etapaId === etapa.id);
+              const temFoto = fotosEtapa.length > 0;
+              return (
+                <View key={etapa.id} style={styles.etapaRow}>
+                  <View style={styles.etapaLinhaCol}>
+                    <View style={[styles.etapaDot, temFoto && styles.etapaDotAtivo]} />
+                    {i < project.etapasProjeto.length - 1 && <View style={styles.etapaLinha} />}
+                  </View>
+                  <View style={{ flex: 1, paddingBottom: 16 }}>
+                    <Text style={styles.etapaNome}>{etapa.nome}</Text>
+                    {!temFoto ? (
+                      <Text style={styles.etapaSemFoto}>Nenhuma foto ainda.</Text>
+                    ) : (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                        {fotosEtapa.map((f, idx) => (
+                          <TouchableOpacity key={f.id} onPress={() => setFotoAmpliada({ fotos: fotosEtapa.map(x => x.url), idx })}>
+                            <Image source={{ uri: f.url }} style={styles.aprovThumb} />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Demandas abertas — pedido formal mediado pelo Coordenador */}
+        {demandasAbertas.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>📋 Demandas</Text>
+            {demandasAbertas.map(d => (
+              <TouchableOpacity key={d.id} onPress={() => setDemandaAberta(d)} style={styles.demandaRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.taskName}>{d.taskNome || 'Tarefa'}</Text>
+                  {d.ultimaMsg && <Text style={styles.taskSub}>{d.ultimaMsg}</Text>}
+                </View>
+                {(d.naoLidasCliente || 0) > 0 && (
+                  <View style={styles.demandaBadge}>
+                    <Text style={styles.demandaBadgeText}>{d.naoLidasCliente > 9 ? '9+' : d.naoLidasCliente}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
       </ScrollView>
+
+      {/* Demanda — thread de mensagens em tela cheia */}
+      <Modal visible={!!demandaAberta} animationType="slide" onRequestClose={() => setDemandaAberta(null)}>
+        {demandaAberta && (
+          <DemandaPanelMobile
+            demanda={demandaAberta}
+            budgetId={budgetId}
+            coordenadorId={project.assignedTo}
+            userData={user}
+            onClose={() => setDemandaAberta(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Visualizador de foto em tela cheia */}
+      <Modal visible={!!fotoAmpliada} transparent animationType="fade" onRequestClose={() => setFotoAmpliada(null)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setFotoAmpliada(null)}>
+          {fotoAmpliada && (
+            <>
+              <Image source={{ uri: fotoAmpliada.fotos[fotoAmpliada.idx] }} style={styles.modalImage} resizeMode="contain" />
+              {fotoAmpliada.fotos.length > 1 && (
+                <View style={styles.modalNav}>
+                  <TouchableOpacity onPress={() => setFotoAmpliada(f => ({ ...f, idx: (f.idx - 1 + f.fotos.length) % f.fotos.length }))} style={styles.modalNavBtn}>
+                    <Text style={styles.modalNavText}>‹</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.modalNavCount}>{fotoAmpliada.idx + 1} / {fotoAmpliada.fotos.length}</Text>
+                  <TouchableOpacity onPress={() => setFotoAmpliada(f => ({ ...f, idx: (f.idx + 1) % f.fotos.length }))} style={styles.modalNavBtn}>
+                    <Text style={styles.modalNavText}>›</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -350,6 +474,13 @@ const styles = StyleSheet.create({
   aprovObs: { fontSize: 12, color: '#7BAFD4', marginBottom: 8, fontStyle: 'italic' },
   fileBtn: { padding: '6px 12px', borderRadius: 6, backgroundColor: 'rgba(102,126,234,0.1)', borderWidth: 1, borderColor: 'rgba(102,126,234,0.3)', marginRight: 8 },
   fileBtnText: { fontSize: 12, color: '#667eea' },
+  aprovThumb: { width: 72, height: 72, borderRadius: 8, marginRight: 8, backgroundColor: 'rgba(255,255,255,0.06)' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  modalImage: { width: '92%', height: '75%' },
+  modalNav: { position: 'absolute', bottom: 40, flexDirection: 'row', alignItems: 'center', gap: 20 },
+  modalNavBtn: { paddingHorizontal: 16, paddingVertical: 8 },
+  modalNavText: { color: 'white', fontSize: 32, fontWeight: '300' },
+  modalNavCount: { color: 'white', fontSize: 13 },
   aprovBtns: { flexDirection: 'row', gap: 8, marginTop: 8 },
   // Orçamento
   orcItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
@@ -374,4 +505,16 @@ const styles = StyleSheet.create({
   taskDate: { fontSize: 10, color: '#7BAFD4', marginTop: 2 },
   taskStatus: { fontSize: 10, fontWeight: '700' },
   neutralText: { fontSize: 13, color: '#7BAFD4', lineHeight: 20, textAlign: 'center', paddingVertical: 8 },
+  // Etapas
+  etapaRow: { flexDirection: 'row' },
+  etapaLinhaCol: { alignItems: 'center', width: 20 },
+  etapaDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 2, borderColor: 'rgba(123,175,212,0.4)' },
+  etapaDotAtivo: { backgroundColor: '#00E5C4', borderColor: '#00E5C4' },
+  etapaLinha: { flex: 1, width: 2, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 2 },
+  etapaNome: { fontSize: 13, fontWeight: '600', color: '#E8F4FF', marginBottom: 2 },
+  etapaSemFoto: { fontSize: 11, color: 'rgba(123,175,212,0.5)' },
+  // Demandas
+  demandaRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)' },
+  demandaBadge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  demandaBadgeText: { fontSize: 10, fontWeight: '700', color: 'white' },
 });

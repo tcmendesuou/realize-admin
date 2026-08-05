@@ -12,10 +12,23 @@
       "package": "com.realize.app",
       "permissions": []
     },
+    "ios": {
+      "bundleIdentifier": "com.realizehub.app",
+      "buildNumber": "1.0.0",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "extra": {
       "eas": {
         "projectId": "4c600b9d-8dfd-4c6b-a438-7c00fde54ac7"
       }
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      "expo-web-browser"
+    ]
   }
 }

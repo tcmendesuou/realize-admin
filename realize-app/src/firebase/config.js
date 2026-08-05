@@ -1,7 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth";
 import { getStorage } from "firebase/storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB8hJrvgrc3W5tHqrf1iWVdGQ0IQDBpytY",
@@ -17,5 +18,11 @@ const app = initializeApp(firebaseConfig);
 
 // Inicializar serviços
 export const db = getFirestore(app);
-export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+// IMPORTANTE: no Expo/React Native, o Auth precisa de uma persistência
+// explícita (AsyncStorage) — sem isso, a sessão não fica salva entre
+// aberturas do app e a pessoa teria que logar toda vez.
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});

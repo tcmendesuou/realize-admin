@@ -1,132 +1,100 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LoginScreen — Fase 1 (reconstrução): usa Firebase Auth de verdade (igual a
+// web), em vez de comparar senha em texto puro direto no Firestore. Depois de
+// autenticar, busca o documento em "users" pelo uid — não mais só por email
+// com senha solta.
+// ─────────────────────────────────────────────────────────────────────────────
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const buscarUserDoc = async (uid, emailBusca) => {
+    // Prioridade: acha pelo uid (identidade real do Firebase Auth). Só cai
+    // pra busca por email se, por algum motivo, o campo uid ainda não
+    // estiver gravado no documento (conta bem antiga).
+    const porUid = await getDocs(query(collection(db, 'users'), where('uid', '==', uid)));
+    if (!porUid.empty) return { id: porUid.docs[0].id, ...porUid.docs[0].data() };
+    const porEmail = await getDocs(query(collection(db, 'users'), where('email', '==', emailBusca)));
+    if (!porEmail.empty) return { id: porEmail.docs[0].id, ...porEmail.docs[0].data() };
+    return null;
+  };
+
   const handleLogin = async () => {
-    // Validações
     if (!email.trim() || !password.trim()) {
       Alert.alert('Atenção', 'Preencha email e senha');
       return;
     }
-
     setLoading(true);
-
     try {
-      // Buscar usuário no Firebase
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email.trim().toLowerCase()));
-      const snapshot = await getDocs(q);
+      const emailLimpo = email.trim().toLowerCase();
+      const cred = await signInWithEmailAndPassword(auth, emailLimpo, password);
+      const userDoc = await buscarUserDoc(cred.user.uid, emailLimpo);
 
-      if (snapshot.empty) {
-        Alert.alert('Erro', 'Email não encontrado');
+      if (!userDoc) {
+        Alert.alert('Erro', 'Não encontramos seu cadastro. Fale com o administrador.');
         setLoading(false);
         return;
       }
-
-      const userData = snapshot.docs[0].data();
-      const userId = snapshot.docs[0].id;
-
-      // Verificar se usuário está ativo
-      if (!userData.active) {
+      if (userDoc.active === false) {
         Alert.alert('Acesso Negado', 'Seu usuário está inativo. Entre em contato com o administrador.');
         setLoading(false);
         return;
       }
 
-      // Verificar senha (ATENÇÃO: Em produção, use hash!)
-      if (userData.password !== password) {
-        Alert.alert('Erro', 'Senha incorreta');
-        setLoading(false);
-        return;
+      // Se o usuário for do tipo Cliente (empresa-mãe ou franqueado), busca
+      // também os dados da Empresa (nome/logo) e — se tiver unidade — os
+      // dados da própria unidade, pra já deixar tudo pronto pro Home.
+      let tenantData = null;
+      if (userDoc.tipoConta === 'cliente' && userDoc.tenantId) {
+        try {
+          const tenantSnap = await getDoc(doc(db, 'tenants', userDoc.tenantId));
+          if (tenantSnap.exists()) tenantData = { id: tenantSnap.id, ...tenantSnap.data() };
+        } catch (e) { console.error('Erro ao buscar empresa:', e); }
       }
 
-      // Salvar dados do usuário logado
-      const loggedUser = {
-        id: userId,
-        name: userData.name,
-        email: userData.email,
-        userType: userData.systemRole,
-        companyId: userData.companyId,
-        companyName: userData.companyName,
-        roleId: userData.roleId,
-        roleName: userData.roleName,
-        permissions: userData.permissions || {},
-        projects: userData.projects || []
-      };
+      await AsyncStorage.setItem('loggedUser', JSON.stringify(userDoc));
+      if (tenantData) await AsyncStorage.setItem('tenantData', JSON.stringify(tenantData));
+      else await AsyncStorage.removeItem('tenantData');
 
-      await AsyncStorage.setItem('loggedUser', JSON.stringify(loggedUser));
-
-      // DEBUG: Ver o que está acontecendo
-      console.log('==== LOGIN DEBUG ====');
-      console.log('User Type:', userData.userType);
-      console.log('User Type (tipo):', typeof userData.userType);
-      console.log('É cliente?', userData.systemRole === 'cliente');
-      console.log('====================');
-
-      // Redirecionar baseado no tipo de usuário e cargo
-      if (userData.systemRole === 'cliente') {
-        // Cliente vai para ClientHome
-        console.log('→ Redirecionando para ClientHome');
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'ClientHome' }]
-        });
-      } else if (userData.systemRole === 'equipe' || userData.userTypeName === 'Equipe') {
-        // Verificar se é Diretora ou Atendimento
-        const cargo = userData.roleName?.toLowerCase() || '';
-        
-        if (cargo.includes('diretora')) {
-          // Diretora vai para DiretoraPainel
-          console.log('→ Redirecionando para DiretoraPainel');
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'DiretoraPainel' }]
-          });
-        } else {
-          // Atendimento vai para AtendimentoHome
-          console.log('→ Redirecionando para AtendimentoHome');
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'AtendimentoHome' }]
-          });
-        }
+      // Fase 1: só o fluxo de Cliente/Franqueado está pronto no celular.
+      // Os outros perfis (Fornecedor, Realize) ainda vão pra tela antiga,
+      // até serem reconstruídos nas próximas fases.
+      if (userDoc.tipoConta === 'cliente' || userDoc.systemRole === 'cliente') {
+        navigation.reset({ index: 0, routes: [{ name: 'ClientHome' }] });
       } else {
-        // Outros tipos (fornecedor, etc) vão para AtendimentoHome por padrão
-        console.log('→ Redirecionando para AtendimentoHome');
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'AtendimentoHome' }]
-        });
+        navigation.reset({ index: 0, routes: [{ name: 'AtendimentoHome' }] });
       }
-
     } catch (error) {
       console.error('Erro no login:', error);
-      Alert.alert('Erro', 'Não foi possível fazer login. Tente novamente.');
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        Alert.alert('Erro', 'Email ou senha incorretos.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível fazer login. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        {/* LOGO */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logo}>realize</Text>
+          <Text style={styles.logo}>realize<Text style={styles.logoAccent}>hub</Text></Text>
           <Text style={styles.tagline}>Gestão de Eventos</Text>
         </View>
 
-        {/* FORMULÁRIO */}
         <View style={styles.form}>
           <Text style={styles.formTitle}>Login</Text>
 
@@ -155,19 +123,16 @@ export default function LoginScreen({ navigation }) {
               onChangeText={setPassword}
               secureTextEntry
               editable={!loading}
+              onSubmitEditing={handleLogin}
             />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.loginButton, loading && styles.loginButtonDisabled]}
             onPress={handleLogin}
             disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.loginButtonText}>Entrar</Text>
-            )}
+            {loading ? <ActivityIndicator color="#0A1626" /> : <Text style={styles.loginButtonText}>Entrar</Text>}
           </TouchableOpacity>
 
           <Text style={styles.helpText}>
@@ -180,91 +145,28 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a2332',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 60,
-  },
-  logo: {
-    fontSize: 64,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    letterSpacing: 4,
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 16,
-    color: '#00D9FF',
-    letterSpacing: 1,
-  },
+  container: { flex: 1, backgroundColor: '#0A1626' },
+  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 32 },
+  logoContainer: { alignItems: 'center', marginBottom: 48 },
+  logo: { fontSize: 34, fontWeight: '300', color: '#E8F4FF', letterSpacing: 2 },
+  logoAccent: { color: '#00E5C4', fontWeight: '600' },
+  tagline: { fontSize: 14, color: '#7BAFD4', marginTop: 8, letterSpacing: 1 },
   form: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 28,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
   },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 8,
-  },
+  formTitle: { fontSize: 22, fontWeight: '700', color: '#1e293b', marginBottom: 24, textAlign: 'center' },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 13, fontWeight: '600', color: '#1e293b', marginBottom: 8 },
   input: {
-    backgroundColor: '#F5F7FA',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#2c3e50',
+    backgroundColor: '#F5F7FA', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 12,
+    padding: 16, fontSize: 16, color: '#1e293b',
   },
   loginButton: {
-    backgroundColor: '#00D9FF',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#00D9FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    backgroundColor: '#00E5C4', borderRadius: 12, padding: 18, alignItems: 'center', marginTop: 12,
+    shadowColor: '#00E5C4', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
   },
-  loginButtonDisabled: {
-    backgroundColor: '#95a5a6',
-    shadowColor: '#000',
-  },
-  loginButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  helpText: {
-    fontSize: 13,
-    color: '#7f8c8d',
-    textAlign: 'center',
-    marginTop: 20,
-  },
+  loginButtonDisabled: { backgroundColor: '#94a3b8', shadowColor: '#000' },
+  loginButtonText: { fontSize: 17, fontWeight: '700', color: '#0A1626' },
+  helpText: { fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 20 },
 });

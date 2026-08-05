@@ -1,211 +1,161 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Image } from 'react-native';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase/config';
+import { signOut } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePermissoes } from '../hooks/usePermissoes';
 
+const STATUS_CONFIG = {
+  analyzing:       { label: 'Em Análise',           color: '#FFA726' },
+  pendingApproval: { label: 'Orçamento disponível', color: '#0080FF' },
+  approved:        { label: 'Aprovado',             color: '#00E5C4' },
+  inProgress:      { label: 'Em andamento',         color: '#0080FF' },
+  completed:       { label: 'Concluído',            color: '#66BB6A' },
+  rejected:        { label: 'Cancelado',            color: '#EF5350' },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ClientHomeScreen — Fase 1 (reconstrução): Home do Cliente/Franqueado no
+// celular. Mesma cara/estrutura do Workspace da web (ClienteHome.js) —
+// header grande/centralizado, eventos ativos, permissão real do cargo.
+//
+// Escopo dessa fase: só Workspace (ver + criar evento). Histórico, Financeiro
+// e Agenda ficam pra próxima leva. A visão "matriz vê tudo das unidades"
+// também fica pra depois — por ora mostra só os eventos da própria pessoa.
+// ─────────────────────────────────────────────────────────────────────────────
 export default function ClientHomeScreen({ navigation }) {
-  const [myProjects, setMyProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [userData, setUserData]   = useState(null);
+  const [tenantData, setTenantData] = useState(null);
+  const [events, setEvents]       = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userInitials, setUserInitials] = useState('');
 
-  useEffect(() => {
-    loadUserAndProjects();
-  }, []);
+  const { pode, loadingCargo } = usePermissoes(userData);
 
-  const getInitials = (name) => {
-    const names = name.split(' ');
-    if (names.length === 1) return names[0].charAt(0).toUpperCase();
-    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+  useEffect(() => { init(); }, []);
+
+  const init = async () => {
+    const userStr = await AsyncStorage.getItem('loggedUser');
+    if (!userStr) { navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); return; }
+    const user = JSON.parse(userStr);
+    setUserData(user);
+
+    const tenantStr = await AsyncStorage.getItem('tenantData');
+    if (tenantStr) setTenantData(JSON.parse(tenantStr));
+
+    await carregarEventos(user);
   };
 
-  const loadUserAndProjects = async () => {
+  const carregarEventos = async (user) => {
     try {
-      const userStr = await AsyncStorage.getItem('loggedUser');
-      if (!userStr) {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Login' }]
+      const q = query(collection(db, 'budgets'), where('clientUserId', '==', user.uid || user.id));
+      const snap = await getDocs(q);
+      const lista = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(e => e.isMae !== false)
+        .filter(e => e.status !== 'completed' && e.status !== 'rejected')
+        .sort((a, b) => {
+          const dA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+          const dB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+          return dB - dA;
         });
-        return;
-      }
-
-      const user = JSON.parse(userStr);
-      setUserName(user.name);
-      setUserInitials(getInitials(user.name));
-
-      // Buscar projetos do cliente
-      const budgetsRef = collection(db, 'budgets');
-      const [snap1, snap2] = await Promise.all([
-        getDocs(query(budgetsRef, where('clientUserId', '==', user.id))),
-        getDocs(query(budgetsRef, where('clientEmail', '==', user.email))),
-      ]);
-      const ids = new Set();
-      const allDocs = [...snap1.docs, ...snap2.docs].filter(d => !ids.has(d.id) && ids.add(d.id));
-      // Filtra apenas budgets mãe (não sub-budgets)
-      const projectsData = allDocs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(p => p.isMae !== false);
-
-      // Ordenar por data (mais recente primeiro)
-      projectsData.sort((a, b) => {
-        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-        return dateB - dateA;
-      });
-
-      setMyProjects(projectsData);
-    } catch (error) {
-      console.error('Erro ao carregar projetos:', error);
+      setEvents(lista);
+    } catch (e) {
+      console.error('Erro ao carregar eventos:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadUserAndProjects();
-  };
+    if (userData) carregarEventos(userData);
+  }, [userData]);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('loggedUser');
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }]
-    });
+    try { await signOut(auth); } catch (e) { /* já pode estar deslogado */ }
+    await AsyncStorage.multiRemove(['loggedUser', 'tenantData']);
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
-  const STATUS_CONFIG = {
-    analyzing:       { label: 'Em Análise',           color: '#FFA726' },
-    pendingApproval: { label: 'Orçamento disponível', color: '#0080FF' },
-    approved:        { label: 'Aprovado',              color: '#00E5C4' },
-    inProgress:      { label: 'Em andamento',          color: '#0080FF' },
-    completed:       { label: 'Concluído',             color: '#66BB6A' },
-    rejected:        { label: 'Cancelado',             color: '#EF5350' },
-  };
-  const getStatusColor = (s) => (STATUS_CONFIG[s] || { color: '#78909C' }).color;
-  const getStatusText  = (s) => (STATUS_CONFIG[s] || { label: 'Aguardando' }).label;
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const getProjectName = (e) => e.eventName || e.briefingData?.evento?.nome || e.eventTypeName || 'Evento';
+  const formatDate = (ts) => {
+    if (!ts) return '';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
     return date.toLocaleDateString('pt-BR');
   };
 
-  const getProjectName = (project) => {
-    // Prioridade: Nome personalizado > Nome do tipo de evento > "Evento"
-    if (project.answers && project.answers['GApo1hcglkgdpAQGuSnn']) {
-      return project.answers['GApo1hcglkgdpAQGuSnn']; // ID da pergunta "Nome do Evento"
-    }
-    return project.eventTypeName || 'Evento';
-  };
-
-  if (loading) {
+  if (loading || loadingCargo) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#00D9FF" />
+        <ActivityIndicator size="large" color="#00E5C4" />
         <Text style={styles.loadingText}>Carregando...</Text>
       </View>
     );
   }
 
+  const empresa = tenantData?.nome || userData?.companyName || '';
+  const cargo = userData?.roleName || '';
+
   return (
     <View style={styles.container}>
-      {/* HEADER COM PERFIL */}
+      {/* Header — nome grande e centralizado, igual a web */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <View style={styles.logoContainer}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logoImage}
-              />
-            </View>
-          </View>
-          
-          <TouchableOpacity onPress={handleLogout} style={styles.profileButton}>
-            <View style={styles.profileCircle}>
-              <Text style={styles.profileInitials}>{userInitials}</Text>
-            </View>
-          </TouchableOpacity>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>Sair</Text>
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.userName}>{userData?.name}</Text>
+          <Text style={styles.userMeta}>
+            {empresa}{empresa && cargo ? ' · ' : ''}{cargo}
+          </Text>
         </View>
-
-        <Text style={styles.greeting}>Olá, {userName}!</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
         style={styles.content}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh}
-            tintColor="#00D9FF"
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5C4" />}
       >
-        {/* BOTÃO NOVO ORÇAMENTO */}
-        <TouchableOpacity
-          style={styles.newBudgetButton}
-          onPress={() => navigation.navigate('ChatIA')}
-        >
-          <LinearGradient
-            colors={['#00FFAA', '#00BFFF', '#0040FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.newBudgetGradient}
-          >
-            <Text style={styles.newBudgetIcon}>+</Text>
-            <Text style={styles.newBudgetText}>+ Novo Evento com IA</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        {pode('meus_eventos', 'C') && (
+          <TouchableOpacity style={styles.newButton} onPress={() => navigation.navigate('ChatIA')}>
+            <Text style={styles.newButtonText}>+ Novo Evento</Text>
+          </TouchableOpacity>
+        )}
 
-        {/* MEUS PROJETOS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Meus Projetos</Text>
-          <Text style={styles.sectionSubtitle}>{myProjects.length} projeto(s)</Text>
+          <Text style={styles.sectionTitle}>Workspace</Text>
+          <Text style={styles.sectionSubtitle}>{events.length} evento(s) ativo(s)</Text>
 
-          {myProjects.length === 0 ? (
+          {events.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>Nenhum projeto ainda</Text>
-              <Text style={styles.emptyText}>
-                Clique em "+ Novo Evento com IA" para começar
-              </Text>
+              <Text style={styles.emptyTitle}>Nenhum evento ainda</Text>
+              <Text style={styles.emptyText}>Toque em "+ Novo Evento" para começar</Text>
             </View>
           ) : (
-            myProjects.map((project) => (
-              <TouchableOpacity
-                key={project.id}
-                style={styles.projectCard}
-                onPress={() => navigation.navigate('ProjectDetail', { budgetId: project.id })}
-              >
-                <View style={styles.projectHeader}>
-                  <View style={styles.projectTitleRow}>
-                    <Text style={styles.projectName}>{getProjectName(project)}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(project.status) }]}>
-                      <Text style={styles.statusText}>{getStatusText(project.status)}</Text>
+            events.map(ev => {
+              const st = STATUS_CONFIG[ev.status] || { label: 'Aguardando', color: '#78909C' };
+              return (
+                <TouchableOpacity
+                  key={ev.id}
+                  style={styles.card}
+                  onPress={() => navigation.navigate('ProjectDetail', { budgetId: ev.id })}
+                >
+                  <View style={styles.cardTop}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>{getProjectName(ev)}</Text>
+                    <View style={[styles.badge, { backgroundColor: st.color }]}>
+                      <Text style={styles.badgeText}>{st.label}</Text>
                     </View>
                   </View>
-                </View>
-
-                <Text style={styles.projectType}>{project.eventTypeName}</Text>
-                <Text style={styles.projectNumber}>#{project.budgetNumber}</Text>
-
-                <View style={styles.projectInfo}>
-                  <Text style={styles.projectInfoText}>
-                    Solicitado em: {formatDate(project.createdAt)}
-                  </Text>
-                </View>
-
-                <View style={styles.projectFooter}>
-                  <Text style={styles.viewDetails}>Ver detalhes →</Text>
-                </View>
-              </TouchableOpacity>
-            ))
+                  {ev.eventTypeName && <Text style={styles.cardSub}>{ev.eventTypeName}</Text>}
+                  {ev.numeroPedido && <Text style={styles.cardNumber}>{ev.numeroPedido}</Text>}
+                  <Text style={styles.cardDate}>Criado em {formatDate(ev.createdAt)}</Text>
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -214,205 +164,50 @@ export default function ClientHomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1A2E40',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1A2E40',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#8BA4B8',
-  },
-  
-  // HEADER
+  container: { flex: 1, backgroundColor: '#0A1626' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A1626' },
+  loadingText: { marginTop: 12, fontSize: 14, color: '#7BAFD4' },
+
   header: {
-    paddingTop: 60,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
-    backgroundColor: '#1A2E40',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,180,255,0.08)',
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 32,
+  headerCenter: { alignItems: 'center', flex: 1 },
+  userName: { fontSize: 19, fontWeight: '600', color: '#E8F4FF' },
+  userMeta: { fontSize: 12, color: '#7BAFD4', marginTop: 2 },
+  logoutBtn: { padding: 6, width: 40 },
+  logoutText: { color: '#EF5350', fontSize: 13 },
+
+  content: { flex: 1, paddingHorizontal: 20 },
+
+  newButton: {
+    marginTop: 20, marginBottom: 8, borderRadius: 12, padding: 16, alignItems: 'center',
+    backgroundColor: '#00E5C4',
   },
-  logoContainer: {
-    marginBottom: 8,
-  },
-  logoImage: {
-    width: 80,
-    height: 80,
-    resizeMode: 'contain',
-  },
-  profileButton: {
-    padding: 4,
-  },
-  profileCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2A4256',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#00BFFF',
-  },
-  profileInitials: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#00D9FF',
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  
-  // CONTENT
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  
-  // NOVO ORÇAMENTO
-  newBudgetButton: {
-    marginTop: 24,
-    marginBottom: 32,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#00BFFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  newBudgetGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  newBudgetIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    marginRight: 10,
-    fontWeight: 'bold',
-  },
-  newBudgetText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  
-  // SECTION
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#8BA4B8',
-    marginBottom: 16,
-  },
-  
-  // EMPTY STATE
+  newButtonText: { fontSize: 15, fontWeight: '700', color: '#0A1626' },
+
+  section: { marginTop: 24, marginBottom: 24 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#E8F4FF' },
+  sectionSubtitle: { fontSize: 13, color: '#7BAFD4', marginTop: 2, marginBottom: 14 },
+
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 48,
-    backgroundColor: '#2A3E50',
-    borderRadius: 16,
-    marginTop: 16,
+    alignItems: 'center', padding: 40, backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(0,180,255,0.1)', borderStyle: 'dashed',
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  emptyIcon: { fontSize: 40, marginBottom: 10 },
+  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#E8F4FF', marginBottom: 4 },
+  emptyText: { fontSize: 13, color: '#7BAFD4', textAlign: 'center' },
+
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: 'rgba(0,180,255,0.1)',
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#8BA4B8',
-    textAlign: 'center',
-  },
-  
-  // PROJECT CARD
-  projectCard: {
-    backgroundColor: '#2A3E50',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#3A4E60',
-  },
-  projectHeader: {
-    marginBottom: 8,
-  },
-  projectTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  projectName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    flex: 1,
-    marginRight: 12,
-  },
-  projectType: {
-    fontSize: 13,
-    color: '#8BA4B8',
-    marginBottom: 2,
-  },
-  projectNumber: {
-    fontSize: 12,
-    color: '#6B8499',
-    marginBottom: 10,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  projectInfo: {
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#3A4E60',
-  },
-  projectInfoText: {
-    fontSize: 12,
-    color: '#8BA4B8',
-  },
-  projectFooter: {
-    marginTop: 10,
-    alignItems: 'flex-end',
-  },
-  viewDetails: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#00D9FF',
-  },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  cardTitle: { fontSize: 15, fontWeight: '600', color: '#E8F4FF', flex: 1, marginRight: 8 },
+  badge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 },
+  badgeText: { fontSize: 10, fontWeight: '700', color: 'white' },
+  cardSub: { fontSize: 12, color: '#7BAFD4', marginBottom: 2 },
+  cardNumber: { fontSize: 11, color: 'rgba(123,175,212,0.5)', marginBottom: 6 },
+  cardDate: { fontSize: 11, color: 'rgba(123,175,212,0.5)' },
 });
