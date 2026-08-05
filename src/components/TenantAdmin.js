@@ -707,6 +707,72 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             </div>
           </>
         )}
+
+      {/* ── MARKETING ────────────────────────────────────────────────────── */}
+      {view === 'marketing' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Marketing</div>
+            <button onClick={() => setShowNovaCampanha(true)}
+              style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+              + Nova Campanha
+            </button>
+          </div>
+
+          {campanhas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
+              Nenhuma campanha criada ainda.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {campanhas.map(camp => (
+                <div key={camp.id} style={{ ...card }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{camp.nome}</div>
+                      <button onClick={() => toggleAtivaCampanha(camp)}
+                        style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', background: camp.ativa ? 'rgba(102,187,106,0.12)' : 'rgba(148,163,184,0.15)', color: camp.ativa ? '#16a34a' : '#64748b' }}>
+                        {camp.ativa ? 'ATIVA' : 'INATIVA'}
+                      </button>
+                    </div>
+                    <button onClick={() => excluirCampanha(camp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>🗑️</button>
+                  </div>
+
+                  {camp.arquivos?.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                      {camp.arquivos.map((a, i) => (
+                        <div key={i} style={{ position: 'relative', width: 90 }}>
+                          {a.tipo === 'foto' ? (
+                            <img src={a.url} alt={a.nome} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                          ) : (
+                            <a href={a.url} target="_blank" rel="noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 90, height: 90, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8faff', textDecoration: 'none', padding: 6, boxSizing: 'border-box' }}>
+                              <span style={{ fontSize: 22 }}>{a.tipo === 'video' ? '🎬' : '📄'}</span>
+                              <span style={{ fontSize: 9, color: '#64748b', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', marginTop: 4 }}>{a.nome}</span>
+                            </a>
+                          )}
+                          <button onClick={() => removerArquivoCampanha(camp, i)}
+                            style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[['documento', '📄 Documentos', '.pdf,.doc,.docx,.ppt,.pptx'], ['foto', '🖼️ Fotos', 'image/*'], ['video', '🎬 Vídeos', 'video/*']].map(([tipo, label, accept]) => (
+                      <label key={tipo} style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px dashed #cbd5e1', background: uploadingCampanhaId === camp.id ? '#f1f5f9' : 'white', color: uploadingCampanhaId === camp.id ? '#94a3b8' : '#475569', fontSize: 12, fontWeight: 600, cursor: uploadingCampanhaId === camp.id ? 'not-allowed' : 'pointer' }}>
+                        {uploadingCampanhaId === camp.id ? 'Enviando...' : `+ ${label}`}
+                        <input type="file" multiple accept={accept} style={{ display: 'none' }} disabled={uploadingCampanhaId === camp.id}
+                          onChange={e => { const fs = Array.from(e.target.files); e.target.value = ''; uploadArquivosCampanha(camp.id, fs, tipo); }} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
  </div>
 
  {/* ── Modal Novo Colaborador ─────────────────────────────────────────── */}
@@ -1043,71 +1109,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── MARKETING ────────────────────────────────────────────────────── */}
-      {view === 'marketing' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Marketing</div>
-            <button onClick={() => setShowNovaCampanha(true)}
-              style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-              + Nova Campanha
-            </button>
-          </div>
-
-          {campanhas.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
-              Nenhuma campanha criada ainda.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {campanhas.map(camp => (
-                <div key={camp.id} style={{ ...card }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{camp.nome}</div>
-                      <button onClick={() => toggleAtivaCampanha(camp)}
-                        style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', background: camp.ativa ? 'rgba(102,187,106,0.12)' : 'rgba(148,163,184,0.15)', color: camp.ativa ? '#16a34a' : '#64748b' }}>
-                        {camp.ativa ? 'ATIVA' : 'INATIVA'}
-                      </button>
-                    </div>
-                    <button onClick={() => excluirCampanha(camp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>🗑️</button>
-                  </div>
-
-                  {camp.arquivos?.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-                      {camp.arquivos.map((a, i) => (
-                        <div key={i} style={{ position: 'relative', width: 90 }}>
-                          {a.tipo === 'foto' ? (
-                            <img src={a.url} alt={a.nome} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                          ) : (
-                            <a href={a.url} target="_blank" rel="noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 90, height: 90, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8faff', textDecoration: 'none', padding: 6, boxSizing: 'border-box' }}>
-                              <span style={{ fontSize: 22 }}>{a.tipo === 'video' ? '🎬' : '📄'}</span>
-                              <span style={{ fontSize: 9, color: '#64748b', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', marginTop: 4 }}>{a.nome}</span>
-                            </a>
-                          )}
-                          <button onClick={() => removerArquivoCampanha(camp, i)}
-                            style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✕</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {[['documento', '📄 Documentos', '.pdf,.doc,.docx,.ppt,.pptx'], ['foto', '🖼️ Fotos', 'image/*'], ['video', '🎬 Vídeos', 'video/*']].map(([tipo, label, accept]) => (
-                      <label key={tipo} style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px dashed #cbd5e1', background: uploadingCampanhaId === camp.id ? '#f1f5f9' : 'white', color: uploadingCampanhaId === camp.id ? '#94a3b8' : '#475569', fontSize: 12, fontWeight: 600, cursor: uploadingCampanhaId === camp.id ? 'not-allowed' : 'pointer' }}>
-                        {uploadingCampanhaId === camp.id ? 'Enviando...' : `+ ${label}`}
-                        <input type="file" multiple accept={accept} style={{ display: 'none' }} disabled={uploadingCampanhaId === camp.id}
-                          onChange={e => { const fs = Array.from(e.target.files); e.target.value = ''; uploadArquivosCampanha(camp.id, fs, tipo); }} />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
       )}
 
       {/* ── Modal Nova Campanha ──────────────────────────────────────────── */}
