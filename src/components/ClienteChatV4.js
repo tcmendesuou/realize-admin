@@ -388,10 +388,13 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   const [opcoesEspecifico, setOpcoesEspecifico] = useState(null); // null = ainda não carregou; [] = carregou e não achou nada
   const [loadingEspecifico, setLoadingEspecifico] = useState(false);
   const [faseEspecifico, setFaseEspecifico] = useState('pergunta'); // 'pergunta' (Sim/Não) | 'opcoes' (mostra o catálogo)
+  const [campanhaAtiva, setCampanhaAtiva] = useState(undefined); // undefined = ainda não carregou; null = carregou e não tem nenhuma ativa
+  const [loadingCampanha, setLoadingCampanha] = useState(false);
 
   const [dados, setDados] = useState({
     temStand: null, tipoEstande: null, standDescricao: '', standImagensUrls: [],
     areaM2: '', alturaTeto: '', diasMontagem: '', restricoes: '', identidadeVisual: null, identidadeImagensUrls: [],
+    usarCampanhaMarketing: null, identidadeCampanhaId: null, identidadeCampanhaNome: '',
     nomeEmpresa: tenantId ? (userData?.companyName || '') : '', tipoEvento: '', nomeEvento: '', dataInicio: '', dataFim: '',
     horarioInicio: '', horarioFim: '', cidade: '', estado: '', local: '', visitantesPorDia: '',
     temProdutor: null,
@@ -411,6 +414,18 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       setModelosEspeciais(tenantId ? todos.filter(m => !m.exclusiveTenants?.length || m.exclusiveTenants.includes(tenantId)) : todos);
     }).catch(console.error);
   }, [tenantId]);
+
+  // Se a pergunta atual for "usar campanha de marketing" e ficou claro que não
+  // tem campanha ativa pra mostrar, avança sozinha — não faz sentido perguntar
+  // sem ter nada real pra oferecer.
+  useEffect(() => {
+    if (campanhaAtiva !== null) return;
+    const p = perguntasMap[stepAtualId];
+    if (p?.tipo === 'campanha_marketing') {
+      responder(p.id, null, { usarCampanhaMarketing: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campanhaAtiva, stepAtualId]);
 
   const set = (key, val) => setDados(p => ({ ...p, [key]: val }));
 
@@ -485,6 +500,22 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       setOpcoesEspecifico(todasOpcoes);
     } catch (e) { console.error(e); setOpcoesEspecifico([]); }
     finally { setLoadingEspecifico(false); }
+  };
+
+  // Busca a campanha de marketing ATIVA do tenant (se o cliente for
+  // franqueado) — usada pela pergunta "Usar identidade da campanha atual?".
+  // Se não tiver tenantId (cliente_comum) ou nenhuma campanha ativa, fica
+  // null e a pergunta se auto-pula (não faz sentido perguntar sem ter o que
+  // mostrar).
+  const carregarCampanhaAtiva = async () => {
+    if (!tenantId) { setCampanhaAtiva(null); return; }
+    setLoadingCampanha(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'tenants', tenantId, 'campanhas'), where('ativa', '==', true)));
+      const ativas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCampanhaAtiva(ativas.length > 0 ? ativas[0] : null);
+    } catch (e) { console.error(e); setCampanhaAtiva(null); }
+    finally { setLoadingCampanha(false); }
   };
 
   const handleUpload = async (files, campo) => {
@@ -961,6 +992,54 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         </div>
       );
     }
+    if (p.tipo === 'campanha_marketing') {
+      // Se não tem tenant ou não tem campanha ativa, pula sozinha — não faz
+      // sentido perguntar sem ter uma identidade real pra mostrar.
+      if (campanhaAtiva === undefined && !loadingCampanha) {
+        carregarCampanhaAtiva();
+      }
+      if (loadingCampanha || campanhaAtiva === undefined) {
+        return <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 20 }}>Carregando...</div>;
+      }
+      if (campanhaAtiva === null) {
+        // Sem campanha ativa — o useEffect abaixo já cuida de avançar sozinho.
+        return <div style={{ fontSize: 13, color: 'rgba(123,175,212,0.5)', textAlign: 'center', padding: 20 }}>Carregando...</div>;
+      }
+      const fotosCampanha = (campanhaAtiva.arquivos || []).filter(a => a.tipo === 'foto');
+      const outrosCampanha = (campanhaAtiva.arquivos || []).filter(a => a.tipo !== 'foto');
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+          <Pergunta subtitulo={p.subtitulo}>{p.texto || 'Você gostaria de utilizar a identidade visual da campanha atual da marca?'}</Pergunta>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#00E5C4' }}>{campanhaAtiva.nome}</div>
+          {fotosCampanha.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {fotosCampanha.map((f, i) => (
+                <img key={i} src={f.url} alt={f.nome} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(0,180,255,0.15)' }} />
+              ))}
+            </div>
+          )}
+          {outrosCampanha.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {outrosCampanha.map((a, i) => (
+                <a key={i} href={a.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#00E5C4', textDecoration: 'underline' }}>
+                  {a.tipo === 'video' ? '🎬' : '📄'} {a.nome}
+                </a>
+              ))}
+            </div>
+          )}
+          <OpcaoBtn onClick={() => {
+            setDados(prev => ({ ...prev, identidadeVisual: true, usarCampanhaMarketing: true, identidadeCampanhaId: campanhaAtiva.id, identidadeCampanhaNome: campanhaAtiva.nome }));
+            setCampanhaAtiva(undefined);
+            responder(p.id, 'sim');
+          }}>Sim, usar essa identidade</OpcaoBtn>
+          <OpcaoBtn onClick={() => {
+            setDados(prev => ({ ...prev, usarCampanhaMarketing: false }));
+            setCampanhaAtiva(undefined);
+            responder(p.id, 'nao');
+          }}>Não, quero outra coisa</OpcaoBtn>
+        </div>
+      );
+    }
     return <div style={{ color: '#7BAFD4', textAlign: 'center' }}>Tipo de pergunta não suportado: {p.tipo}</div>;
   };
 
@@ -973,6 +1052,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       'stand.areaM2': 'areaM2', 'stand.alturaTeto': 'alturaTeto', 'stand.diasMontagem': 'diasMontagem',
       'stand.restricoes': 'restricoes', 'stand.identidadeVisual': 'identidadeVisual',
       'stand.identidadeImagensUrls': 'identidadeImagensUrls', 'extra.infoExtra': 'infoExtra',
+      'stand.usarCampanha': 'usarCampanhaMarketing',
     };
     return MAPA[destino] || 'generico';
   };

@@ -59,6 +59,7 @@ const DESTINOS_FIXOS = {
   'stand.restricoes':       { label: 'Restrições de Acesso ao Local', tipo: 'texto_livre', grupo: 'Stand' },
   'stand.identidadeVisual': { label: 'Já tem Identidade Visual?', tipo: 'sim_nao', grupo: 'Stand' },
   'stand.identidadeImagensUrls': { label: 'Upload — Arquivos de Identidade Visual', tipo: 'upload', grupo: 'Stand' },
+  'stand.usarCampanha':     { label: 'Usar Identidade de Campanha de Marketing Ativa', tipo: 'campanha_marketing', grupo: 'Stand' },
 
   'produtor.temProdutor':   { label: 'Precisa de Produtor?', tipo: 'sim_nao', grupo: 'Produtor' },
 
@@ -107,7 +108,7 @@ const PERGUNTA_VAZIA = {
 // Destinos cuja resposta dá pra checar numa condição (catálogos = lista de itens
 // escolhidos; múltipla escolha/sim-não = valor único). "generico" fica de fora
 // porque seu tipo varia livremente.
-const DESTINOS_CHECAVEIS = Object.entries(DESTINOS_FIXOS).filter(([k, v]) => k !== 'generico' && (v.tipo === 'catalogo' || v.tipo === 'multipla_escolha' || v.tipo === 'sim_nao'));
+const DESTINOS_CHECAVEIS = Object.entries(DESTINOS_FIXOS).filter(([k, v]) => k !== 'generico' && (v.tipo === 'catalogo' || v.tipo === 'multipla_escolha' || v.tipo === 'sim_nao' || v.tipo === 'campanha_marketing'));
 
 const inp = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', outline: 'none', boxSizing: 'border-box', color: '#1e293b' };
 const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 };
@@ -219,6 +220,10 @@ export default function BancoPerguntas() {
 
   const categoriasDoTipoSel = selTipo ? catalogoServicos.filter(s => !s.parentId && s.tipo === selTipo && s.active !== false) : [];
   const subsDaCategoriaSel  = selCategoria ? catalogoServicos.filter(s => s.parentId === selCategoria && s.active !== false) : [];
+  // Perguntas "soltas" (destino genérico) do tipo Sim/Não ou Múltipla Escolha
+  // — essas não têm um destino fixo pra identificar, então aparecem pelo
+  // próprio texto no seletor de condição ("Verificar resposta de").
+  const perguntasGenericasCheaveis = perguntas.filter(p => p.destino === 'generico' && (p.tipo === 'sim_nao' || p.tipo === 'multipla_escolha') && p.id !== editando?.id);
 
   const setOpcaoLabel = (idx, label) => {
     setForm(p => ({ ...p, opcoes: p.opcoes.map((o, i) => i === idx ? { ...o, label } : o) }));
@@ -343,11 +348,17 @@ export default function BancoPerguntas() {
                 </span>
               )}
               {p.ativo === false && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>INATIVA</span>}
-              {p.condicaoExibicao && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: 'rgba(102,126,234,0.1)', color: '#667eea' }} title={`Só aparece se "${DESTINOS_FIXOS[p.condicaoExibicao.verificarDestino]?.label || p.condicaoExibicao.verificarDestino}" contiver "${p.condicaoExibicao.contemTexto}"`}>
-                  ⚡ CONDICIONAL
-                </span>
-              )}
+              {p.condicaoExibicao && (() => {
+                const vd = p.condicaoExibicao.verificarDestino;
+                const labelVerificado = vd?.startsWith('pergunta:')
+                  ? (perguntas.find(pp => pp.id === vd.replace('pergunta:', ''))?.texto || 'pergunta removida')
+                  : (DESTINOS_FIXOS[vd]?.label || vd);
+                return (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: 'rgba(102,126,234,0.1)', color: '#667eea' }} title={`Só aparece se "${labelVerificado}" contiver "${p.condicaoExibicao.contemTexto}"`}>
+                    ⚡ CONDICIONAL
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
               {info?.label || p.destino}
@@ -451,7 +462,14 @@ export default function BancoPerguntas() {
                     <label style={lbl}>Verificar resposta de</label>
                     <select value={form.condicaoExibicao.verificarDestino} onChange={e => setCondicao('verificarDestino', e.target.value)} style={{ ...inp, background: 'white' }}>
                       <option value="">Selecione...</option>
-                      {DESTINOS_CHECAVEIS.map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      <optgroup label="Catálogos">
+                        {DESTINOS_CHECAVEIS.map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      </optgroup>
+                      {perguntasGenericasCheaveis.length > 0 && (
+                        <optgroup label="Perguntas Sim/Não e Múltipla Escolha (avulsas)">
+                          {perguntasGenericasCheaveis.map(p => <option key={p.id} value={`pergunta:${p.id}`}>{p.texto}</option>)}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                   <div>
