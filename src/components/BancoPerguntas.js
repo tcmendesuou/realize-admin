@@ -103,6 +103,7 @@ const PERGUNTA_VAZIA = {
   condicaoExibicao: null, // { verificarDestino, contemTexto } — pergunta condicional (ver DESTINOS que aceitam checagem abaixo)
   // Preenchidos só quando destino === 'catalogo.especifico' (ver seletor Área > Categoria > Sub-Serviço)
   servicoId: null, servicoNome: '', servicoCategoriaId: null, servicoCategoriaNome: '', servicoTipoServico: null,
+  mostrarNoBriefingStand: false, // pergunta genérica cuja resposta deve aparecer no briefing (seção Stand)
 };
 
 // Destinos cuja resposta dá pra checar numa condição (catálogos = lista de itens
@@ -272,6 +273,7 @@ export default function BancoPerguntas() {
         servicoCategoriaId: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaId : null,
         servicoCategoriaNome: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaNome : '',
         servicoTipoServico: form.tipo === 'catalogo_especifico' ? form.servicoTipoServico : null,
+        mostrarNoBriefingStand: form.destino === 'generico' && (form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha') ? !!form.mostrarNoBriefingStand : false,
         ordem: form.ordem ?? Date.now(),
         updatedAt: serverTimestamp(),
       };
@@ -359,6 +361,11 @@ export default function BancoPerguntas() {
                   </span>
                 );
               })()}
+              {p.mostrarNoBriefingStand && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: 'rgba(0,229,196,0.1)', color: '#00b894' }} title="A resposta aparece no briefing, na seção Stand">
+                  📋 NO BRIEFING (STAND)
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
               {info?.label || p.destino}
@@ -532,6 +539,12 @@ export default function BancoPerguntas() {
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
+                  {(form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!form.mostrarNoBriefingStand} onChange={e => setForm(p => ({ ...p, mostrarNoBriefingStand: e.target.checked }))} />
+                      Mostrar a resposta no briefing, na seção Stand
+                    </label>
+                  )}
                 </div>
               )}
 

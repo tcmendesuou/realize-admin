@@ -1207,6 +1207,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             ? <div className="ps-info-item full"><span className="ps-info-label">Restrições de acesso</span><span className="ps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</span></div>
                             : est2.tipoEstande && <InfoRow label="Restrições" value="Sem restrições" />}
                           <InfoRow label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim, enviada' : est2.identidadeVisual === 'nao' ? '✗ Não definida' : null} />
+                          {est2.respostasExtras?.map((r, i) => (
+                            <InfoRow key={i} label={r.pergunta} value={r.resposta} />
+                          ))}
                           {est2.standDescricao && <div className="ps-info-item full"><span className="ps-info-label">Descrição do stand</span><span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</span></div>}
                           {est2.standImagensUrls?.length > 0 && (
                             <div className="ps-info-item full">
@@ -1374,6 +1377,9 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                             ? <div className="ps-info-item full"><span className="ps-info-label">Restrições de acesso</span><span className="ps-info-value" style={{ color: '#ef4444' }}>{est2.restricoes}</span></div>
                             : est2.tipoEstande && <InfoRow label="Restrições" value="Sem restrições" />}
                           <InfoRow label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim, enviada' : est2.identidadeVisual === 'nao' ? '✗ Não definida' : null} />
+                          {est2.respostasExtras?.map((r, i) => (
+                            <InfoRow key={i} label={r.pergunta} value={r.resposta} />
+                          ))}
                           {est2.standDescricao && <div className="ps-info-item full"><span className="ps-info-label">Descrição do stand</span><span className="ps-info-value" style={{ whiteSpace: 'pre-wrap' }}>{est2.standDescricao}</span></div>}
                           {est2.standImagensUrls?.length > 0 && (
                             <div className="ps-info-item full">

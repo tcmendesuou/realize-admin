@@ -529,6 +529,9 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     <InfoItem label="Dias de montagem" value={est2.diasMontagem > 0 ? `${est2.diasMontagem} dias antes` : null} />
                     <InfoItem label="Restrições" value={est2.restricoes || (est2.restricoes === '' ? 'Sem restrições' : null)} />
                     <InfoItem label="Identidade visual" value={est2.identidadeVisual === 'sim' ? '✓ Sim' : est2.identidadeVisual === 'nao' ? 'Não definida ainda' : null} />
+                    {est2.respostasExtras?.map((r, i) => (
+                      <InfoItem key={i} label={r.pergunta} value={r.resposta} />
+                    ))}
                     {est2.standDescricao && (
                       <div style={{ gridColumn: '1/-1' }}>
                         <div className="cps-info-label">Descrição do stand</div>

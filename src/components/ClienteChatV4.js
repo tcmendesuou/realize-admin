@@ -674,10 +674,19 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   // ── Envio final — idêntico ao ClienteChat.js original ───────────────────────
   const montarBriefingJson = () => {
     const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
+    // Perguntas soltas (Sim/Não ou Múltipla Escolha, destino genérico) marcadas
+    // no Banco de Perguntas pra aparecer no briefing, na seção Stand.
+    const respostasExtrasStand = Object.values(perguntasMap)
+      .filter(p => p.mostrarNoBriefingStand && dados.respostasGenericas?.[p.id] !== undefined)
+      .map(p => {
+        const valorBruto = dados.respostasGenericas[p.id];
+        const resposta = typeof valorBruto === 'boolean' ? (valorBruto ? 'Sim' : 'Não') : String(valorBruto);
+        return { pergunta: p.texto, resposta };
+      });
     return {
       evento: { tipo: dados.tipoEvento, nome: dados.nomeEvento, dataInicio: dados.dataInicio, dataFim: dados.dataFim, horario: `${dados.horarioInicio} às ${dados.horarioFim}`, horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim, cidade: dados.cidade, estado: dados.estado, local: dados.local, endereco: dados.local, visitantesPorDia: parseInt(dados.visitantesPorDia) || 0, nomeEmpresa: dados.nomeEmpresa,
         diasDuracao: (() => { if (dados.dataInicio && dados.dataFim) { const d = Math.round((new Date(dados.dataFim+'T12:00:00') - new Date(dados.dataInicio+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return 1; })() },
-      estrutura: { ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '', areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto, diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes, identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao', identidadeImagensUrls: dados.identidadeImagensUrls, standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls, observacoes: '' },
+      estrutura: { ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '', areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto, diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes, identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao', identidadeImagensUrls: dados.identidadeImagensUrls, standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls, observacoes: '', respostasExtras: respostasExtrasStand },
       tipoEstande: dados.tipoEstande || '', modeloEstande: modeloSelecionado || null,
       equipe: { produtor: { ativo: dados.temProdutor === true, dias: 0, observacoes: '' }, itens: dados.equipeSelecionada.map(s => ({ tipo: s.serviceName, quantidade: parseInt(dados.equipeDetalhes[s.serviceName]?.quantidade) || 1, horasPorDia: parseFloat(dados.equipeDetalhes[s.serviceName]?.horasPorDia) || 0, dias: parseInt(dados.equipeDetalhes[s.serviceName]?.dias) || 0, observacoes: dados.equipeDetalhes[s.serviceName]?.observacoes || '' })) },
       gastronomia: { alimentos: { ativo: dados.gastronomeSelecionada.length > 0, formato: dados.gastronomeSelecionada.map(s => s.serviceName).join(', '), pessoas: parseInt(dados.visitantesPorDia) || 0, restricoes: '', cozinha: false, observacoes: '' }, bar: { ativo: false } },
