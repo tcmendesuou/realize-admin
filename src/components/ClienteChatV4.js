@@ -561,7 +561,8 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   // olha o campo já respondido (via DESTINO_PARA_CAMPO_SEL, se for catálogo,
   // ou o valor direto salvo em "dados", se for múltipla escolha/sim-não) e
   // procura o texto configurado (contemTexto) dentro dele.
-  const condicaoAtendida = (pergunta) => {
+  const condicaoAtendida = (pergunta, dadosOverride = {}) => {
+    const dadosAtuais = { ...dados, ...dadosOverride };
     const cond = pergunta.condicaoExibicao;
     if (!cond || !cond.verificarDestino) return true;
     const alvo = normalize(cond.contemTexto || '');
@@ -569,26 +570,30 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     // tem seu próprio espaço em dados.respostasGenericas, guardado pelo ID.
     if (cond.verificarDestino.startsWith('pergunta:')) {
       const perguntaId = cond.verificarDestino.replace('pergunta:', '');
-      const valorBruto = dados.respostasGenericas?.[perguntaId];
+      const valorBruto = dadosAtuais.respostasGenericas?.[perguntaId];
       const valorTexto = typeof valorBruto === 'boolean' ? (valorBruto ? 'sim' : 'nao') : String(valorBruto || '');
       return normalize(valorTexto).includes(alvo);
     }
     const campoSel = DESTINO_PARA_CAMPO_SEL[cond.verificarDestino];
     if (campoSel) {
       // destino de catálogo: procura entre os itens escolhidos (serviceName)
-      const selecionados = dados[campoSel] || [];
+      const selecionados = dadosAtuais[campoSel] || [];
       return selecionados.some(s => normalize(s.serviceName || s.nome || '').includes(alvo));
     }
     // destino de múltipla escolha / sim-não: valor único salvo em "dados"
     const campo = campoDoDestino(cond.verificarDestino);
-    const valorBruto = dados[campo];
+    const valorBruto = dadosAtuais[campo];
     // Sim/Não fica salvo como true/false — converte pra texto antes de comparar
     const valorTexto = typeof valorBruto === 'boolean' ? (valorBruto ? 'sim' : 'nao') : String(valorBruto || '');
     return normalize(valorTexto).includes(alvo);
   };
 
-  // Avança pra próxima pergunta de topo (ou revisão, se acabou a lista)
-  const proximoTopo = (novoIdx) => {
+  // Avança pra próxima pergunta de topo (ou revisão, se acabou a lista).
+  // dadosOverride: respostas que acabaram de ser dadas NESTE clique, mas que
+  // ainda não foram aplicadas no estado "dados" (o React só atualiza depois
+  // que a função toda termina) — sem isso, uma condição que depende da
+  // resposta imediatamente anterior checaria o valor antigo, de antes do clique.
+  const proximoTopo = (novoIdx, dadosOverride = {}) => {
     const tipo = tiposEvento.find(t => t.id === tipoEscolhidoId);
     const lista = tipo?.perguntasIds || [];
     // pula perguntas que não se aplicam a este perfil (quemResponde) ou cuja
@@ -596,7 +601,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     let i = novoIdx;
     while (i < lista.length) {
       const p = perguntasMap[lista[i]];
-      if (p && p.ativo !== false && (p.quemResponde === 'todos' || p.quemResponde === perfilQuemResponde) && condicaoAtendida(p)) break;
+      if (p && p.ativo !== false && (p.quemResponde === 'todos' || p.quemResponde === perfilQuemResponde) && condicaoAtendida(p, dadosOverride)) break;
       i++;
     }
     setTopoIdx(i);
@@ -627,11 +632,13 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       setStepAtualId(filhos[0].id);
       return;
     }
-    avancarNaPilha();
+    avancarNaPilha(dadosExtra || {});
   };
 
-  // Sobe a pilha de sub-perguntas procurando o próximo irmão pendente
-  const avancarNaPilha = () => {
+  // Sobe a pilha de sub-perguntas procurando o próximo irmão pendente.
+  // dadosOverride: ver comentário em proximoTopo — respostas do clique atual
+  // que ainda não refletiram no estado "dados".
+  const avancarNaPilha = (dadosOverride = {}) => {
     setPilha(pAtual => {
       let p = [...pAtual];
       while (p.length > 0) {
@@ -645,7 +652,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         p = p.slice(0, -1);
       }
       // acabou a subárvore inteira desta pergunta de topo
-      proximoTopo(topoIdx + 1);
+      proximoTopo(topoIdx + 1, dadosOverride);
       return [];
     });
   };
@@ -1028,14 +1035,12 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
             </div>
           )}
           <OpcaoBtn onClick={() => {
-            setDados(prev => ({ ...prev, identidadeVisual: true, usarCampanhaMarketing: true, identidadeCampanhaId: campanhaAtiva.id, identidadeCampanhaNome: campanhaAtiva.nome }));
             setCampanhaAtiva(undefined);
-            responder(p.id, 'sim');
+            responder(p.id, 'sim', { identidadeVisual: true, usarCampanhaMarketing: true, identidadeCampanhaId: campanhaAtiva.id, identidadeCampanhaNome: campanhaAtiva.nome });
           }}>Sim, usar essa identidade</OpcaoBtn>
           <OpcaoBtn onClick={() => {
-            setDados(prev => ({ ...prev, usarCampanhaMarketing: false }));
             setCampanhaAtiva(undefined);
-            responder(p.id, 'nao');
+            responder(p.id, 'nao', { usarCampanhaMarketing: false });
           }}>Não, quero outra coisa</OpcaoBtn>
         </div>
       );
