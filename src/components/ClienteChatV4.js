@@ -400,6 +400,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     temProdutor: null,
     estruturaSelecionada: [], equipeSelecionada: [], gastronomeSelecionada: [], servicosSelecionados: [], especificosSelecionados: [],
     respostasGenericas: {}, // { [perguntaId]: valor } — respostas de perguntas soltas (Sim/Não, Múltipla Escolha sem destino fixo)
+    uploadsGenericos: {}, // { [perguntaId]: [urls] } — arquivos de perguntas de upload soltas (mesmo padrão)
     equipeDetalhes: {}, infoExtra: '', formaPagamento: '',
   });
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
@@ -518,7 +519,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     finally { setLoadingCampanha(false); }
   };
 
-  const handleUpload = async (files, campo) => {
+  const handleUpload = async (files, campo, perguntaId) => {
     if (!files?.length) return;
     setUploadingArquivo(true);
     try {
@@ -528,7 +529,13 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         await uploadBytes(r, file);
         urls.push(await getDownloadURL(r));
       }
-      set(campo, urls);
+      if (campo === 'generico' && perguntaId) {
+        // Genérico: cada pergunta guarda os arquivos dela mesma (por ID), senão
+        // duas perguntas de upload genérico se sobrescreveriam.
+        setDados(prev => ({ ...prev, uploadsGenericos: { ...prev.uploadsGenericos, [perguntaId]: urls } }));
+      } else {
+        set(campo, urls);
+      }
     } catch (e) { console.error(e); alert('Erro ao enviar imagens.'); }
     finally { setUploadingArquivo(false); }
   };
@@ -672,21 +679,42 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
   };
 
   // ── Envio final — idêntico ao ClienteChat.js original ───────────────────────
-  const montarBriefingJson = () => {
-    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
-    // Perguntas soltas (Sim/Não ou Múltipla Escolha, destino genérico) marcadas
-    // no Banco de Perguntas pra aparecer no briefing, na seção Stand.
-    const respostasExtrasStand = Object.values(perguntasMap)
-      .filter(p => p.mostrarNoBriefingStand && dados.respostasGenericas?.[p.id] !== undefined)
+  // Pacote com TUDO relacionado ao Stand — usado tanto no briefing quanto
+  // copiado pra cada supplierJob de Estrutura/Operação, pra o fornecedor ver
+  // essas respostas direto na proposta/tarefa dele, sem precisar ir atrás no
+  // briefing. Sempre que uma pergunta nova (Sim/Não, Múltipla Escolha ou
+  // Upload) for marcada "Mostrar no briefing — Stand" no Banco de Perguntas,
+  // ela cai automaticamente aqui — não precisa mexer em código de novo.
+  const montarInfoStand = () => {
+    const respostasExtras = Object.values(perguntasMap)
+      .filter(p => p.mostrarNoBriefingStand && (p.tipo === 'sim_nao' || p.tipo === 'multipla_escolha') && dados.respostasGenericas?.[p.id] !== undefined)
       .map(p => {
         const valorBruto = dados.respostasGenericas[p.id];
         const resposta = typeof valorBruto === 'boolean' ? (valorBruto ? 'Sim' : 'Não') : String(valorBruto);
         return { pergunta: p.texto, resposta };
       });
+    const uploadsExtras = Object.values(perguntasMap)
+      .filter(p => p.mostrarNoBriefingStand && p.tipo === 'upload' && dados.uploadsGenericos?.[p.id]?.length > 0)
+      .map(p => ({ pergunta: p.texto, urls: dados.uploadsGenericos[p.id] }));
+    return {
+      ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '',
+      areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto, diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes,
+      identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao',
+      usouCampanhaMarketing: dados.usarCampanhaMarketing === true,
+      identidadeCampanhaNome: dados.identidadeCampanhaNome || '',
+      identidadeImagensUrls: dados.identidadeImagensUrls || [],
+      standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls,
+      respostasExtras, uploadsExtras,
+    };
+  };
+
+  const montarBriefingJson = () => {
+    const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
+    const infoStand = montarInfoStand();
     return {
       evento: { tipo: dados.tipoEvento, nome: dados.nomeEvento, dataInicio: dados.dataInicio, dataFim: dados.dataFim, horario: `${dados.horarioInicio} às ${dados.horarioFim}`, horarioInicio: dados.horarioInicio, horarioFim: dados.horarioFim, cidade: dados.cidade, estado: dados.estado, local: dados.local, endereco: dados.local, visitantesPorDia: parseInt(dados.visitantesPorDia) || 0, nomeEmpresa: dados.nomeEmpresa,
         diasDuracao: (() => { if (dados.dataInicio && dados.dataFim) { const d = Math.round((new Date(dados.dataFim+'T12:00:00') - new Date(dados.dataInicio+'T12:00:00'))/(864e5))+1; return d > 0 ? d : 1; } return 1; })() },
-      estrutura: { ativo: dados.temStand === true, tipoEstande: dados.tipoEstande || '', areaM2: parseFloat(dados.areaM2) || 0, alturaTeto: dados.alturaTeto, diasMontagem: parseInt(dados.diasMontagem) || 0, restricoes: dados.restricoes, identidadeVisual: dados.identidadeVisual ? 'sim' : 'nao', identidadeImagensUrls: dados.identidadeImagensUrls, standDescricao: dados.standDescricao, standImagensUrls: dados.standImagensUrls, observacoes: '', respostasExtras: respostasExtrasStand },
+      estrutura: { ...infoStand, observacoes: '' },
       tipoEstande: dados.tipoEstande || '', modeloEstande: modeloSelecionado || null,
       equipe: { produtor: { ativo: dados.temProdutor === true, dias: 0, observacoes: '' }, itens: dados.equipeSelecionada.map(s => ({ tipo: s.serviceName, quantidade: parseInt(dados.equipeDetalhes[s.serviceName]?.quantidade) || 1, horasPorDia: parseFloat(dados.equipeDetalhes[s.serviceName]?.horasPorDia) || 0, dias: parseInt(dados.equipeDetalhes[s.serviceName]?.dias) || 0, observacoes: dados.equipeDetalhes[s.serviceName]?.observacoes || '' })) },
       gastronomia: { alimentos: { ativo: dados.gastronomeSelecionada.length > 0, formato: dados.gastronomeSelecionada.map(s => s.serviceName).join(', '), pessoas: parseInt(dados.visitantesPorDia) || 0, restricoes: '', cozinha: false, observacoes: '' }, bar: { ativo: false } },
@@ -744,6 +772,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
 
       try {
         const todas = [...dados.estruturaSelecionada, ...dados.equipeSelecionada, ...dados.gastronomeSelecionada, ...dados.servicosSelecionados, ...dados.especificosSelecionados];
+        const infoStandParaJobs = montarInfoStand();
         const vistos = new Set();
         for (const sel of todas) {
           const key = `${sel.supplierId}__${sel.serviceName}`;
@@ -767,13 +796,18 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
             horasPorDia: detEquipe.horasPorDia ? parseFloat(detEquipe.horasPorDia) : null,
             diasServico: detEquipe.dias ? parseInt(detEquipe.dias) : null,
             observacoes: detEquipe.observacoes || '',
+            // Info do Stand (identidade visual/campanha, dias de montagem,
+            // perguntas extras marcadas etc.) — só pra quem realmente monta o
+            // espaço físico do evento (Estrutura/Operação), pra não poluir
+            // a proposta de quem não precisa disso (ex: Gastronomia).
+            infoStand: (sel.tipoServico === 'estrutura' || sel.tipoServico === 'operacao') ? infoStandParaJobs : null,
             stage: 'proposta', status: 'draft', createdAt: serverTimestamp(),
           });
         }
         if (dados.temProdutor) {
           const ps = await getDocs(collection(db, 'supplierServices'));
           for (const p of ps.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => normalize(s.serviceName).includes('produtor') && s.ativo !== false)) {
-            await addDoc(collection(db, 'supplierJobs'), { supplierId: p.supplierId, budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: p.serviceName, serviceParentName: p.serviceParentName || '', tipoServico: p.tipoServico || 'operacao', preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+            await addDoc(collection(db, 'supplierJobs'), { supplierId: p.supplierId, budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: p.serviceName, serviceParentName: p.serviceParentName || '', tipoServico: p.tipoServico || 'operacao', preco: 0, unidade: '', infoStand: infoStandParaJobs, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
           }
         }
         if (dados.tipoEstande === 'modular' && modeloSelecionado) {
@@ -786,7 +820,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
             const colabSnap = await getDocs(query(collection(db, 'users'), where('supplierId', '==', f.id), where('systemRole', '==', 'fornecedor'), where('active', '==', true)));
             const colaboradores = colabSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             for (const colab of colaboradores) {
-              await addDoc(collection(db, 'supplierJobs'), { supplierId: colab.id, supplierName: f.nome || colab.companyName || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: modeloSelecionado.nome, serviceParentName: tm?.nome || 'Estande Modular', tipoServico: 'estrutura', modeloEspecialId: modeloSelecionado.id, preco: modeloSelecionado.precoBase || 0, unidade: 'por evento', diasPreparo: modeloSelecionado.diasProducao || 0, diasMontagem: 0, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+              await addDoc(collection(db, 'supplierJobs'), { supplierId: colab.id, supplierName: f.nome || colab.companyName || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: modeloSelecionado.nome, serviceParentName: tm?.nome || 'Estande Modular', tipoServico: 'estrutura', modeloEspecialId: modeloSelecionado.id, preco: modeloSelecionado.precoBase || 0, unidade: 'por evento', diasPreparo: modeloSelecionado.diasProducao || 0, diasMontagem: 0, infoStand: infoStandParaJobs, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
             }
           }
         }
@@ -801,13 +835,13 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
             for (const fs of fornecedoresStand) {
               const colabSnap = await getDocs(query(collection(db, 'users'), where('supplierId', '==', fs.supplierId), where('systemRole', '==', 'fornecedor'), where('active', '==', true)));
               for (const colab of colabSnap.docs.map(d => ({ id: d.id, ...d.data() }))) {
-                await addDoc(collection(db, 'supplierJobs'), { supplierId: colab.id, supplierName: fs.supplierName || colab.companyName || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: fs.serviceParentName || 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente ainda não sabe como quer o stand — abra uma Demanda pra conversar com ele e entender o que precisa antes de montar a proposta.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'supplierJobs'), { supplierId: colab.id, supplierName: fs.supplierName || colab.companyName || '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: fs.serviceParentName || 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente ainda não sabe como quer o stand — abra uma Demanda pra conversar com ele e entender o que precisa antes de montar a proposta.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', infoStand: infoStandParaJobs, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
               }
             }
           } else {
             // Fallback: nenhum fornecedor cadastrado ainda — cria sem atribuição,
             // pro coordenador escolher manualmente depois (botão "Trocar").
-            await addDoc(collection(db, 'supplierJobs'), { supplierId: '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente ainda não sabe como quer o stand — abra uma Demanda pra conversar com ele e entender o que precisa antes de montar a proposta.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
+            await addDoc(collection(db, 'supplierJobs'), { supplierId: '', budgetId: budgetRef.id, eventName: bj.evento?.nome || 'Novo Evento', eventTypeName: bj.evento?.tipo || '', clientName: userName, eventDate: bj.evento?.dataInicio || '', eventDateFim: bj.evento?.dataFim || '', eventLocal: bj.evento?.local || bj.evento?.cidade || '', eventCidade: bj.evento?.cidade || '', eventHorarioInicio: bj.evento?.horarioInicio || '', eventHorarioFim: bj.evento?.horarioFim || '', eventDiasDuracao: bj.evento?.diasDuracao || 1, eventVisitantes: bj.evento?.visitantesPorDia || 0, serviceName: 'Desenvolvimento de Stand', serviceParentName: 'Estandes Personalizados', tipoServico: 'estrutura', observacoes: dados.standDescricao || 'Cliente ainda não sabe como quer o stand — abra uma Demanda pra conversar com ele e entender o que precisa antes de montar a proposta.', standImagensUrls: dados.standImagensUrls || [], preco: 0, unidade: '', infoStand: infoStandParaJobs, stage: 'proposta', status: 'draft', createdAt: serverTimestamp() });
           }
         }
       } catch (e) { console.error('Erro supplierJobs:', e); }
@@ -898,17 +932,18 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
       );
     }
     if (p.tipo === 'upload') {
+      const arquivosDoCampo = p.destino === 'generico' ? (dados.uploadsGenericos?.[p.id] || []) : (dados[campoDoDestino(p.destino)] || []);
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
           <input ref={fileInputRef} type="file" accept="image/*,.pdf,.ai,.eps" multiple style={{ display: 'none' }}
-            onChange={e => handleUpload(e.target.files, campoDoDestino(p.destino))} />
+            onChange={e => handleUpload(e.target.files, campoDoDestino(p.destino), p.id)} />
           <button onClick={() => fileInputRef.current.click()} disabled={uploadingArquivo}
             style={{ padding: '16px', borderRadius: 12, border: '1.5px dashed rgba(0,180,255,0.3)', background: 'none', color: '#7BAFD4', fontSize: 14, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textAlign: 'center' }}>
-            {uploadingArquivo ? 'Enviando...' : (dados[campoDoDestino(p.destino)]?.length > 0 ? `✓ ${dados[campoDoDestino(p.destino)].length} arquivo(s) — Adicionar mais` : '+ Selecionar arquivos')}
+            {uploadingArquivo ? 'Enviando...' : (arquivosDoCampo.length > 0 ? `✓ ${arquivosDoCampo.length} arquivo(s) — Adicionar mais` : '+ Selecionar arquivos')}
           </button>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <BtnAvancar onClick={() => responder(p.id, null)}>{dados[campoDoDestino(p.destino)]?.length > 0 ? 'Continuar →' : 'Pular →'}</BtnAvancar>
+            <BtnAvancar onClick={() => responder(p.id, null)}>{arquivosDoCampo.length > 0 ? 'Continuar →' : 'Pular →'}</BtnAvancar>
           </div>
         </div>
       );
@@ -1045,7 +1080,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
           )}
           <OpcaoBtn onClick={() => {
             setCampanhaAtiva(undefined);
-            responder(p.id, 'sim', { identidadeVisual: true, usarCampanhaMarketing: true, identidadeCampanhaId: campanhaAtiva.id, identidadeCampanhaNome: campanhaAtiva.nome });
+            responder(p.id, 'sim', { identidadeVisual: true, usarCampanhaMarketing: true, identidadeCampanhaId: campanhaAtiva.id, identidadeCampanhaNome: campanhaAtiva.nome, identidadeImagensUrls: fotosCampanha.map(f => f.url) });
           }}>Sim, usar essa identidade</OpcaoBtn>
           <OpcaoBtn onClick={() => {
             setCampanhaAtiva(undefined);

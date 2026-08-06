@@ -2055,6 +2055,40 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                     </div>
                                   </div>
                                 )}
+                                {sj.infoStand && (
+                                  <div style={{ background: 'rgba(255,167,38,0.05)', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(255,167,38,0.15)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <div style={{ fontSize: 9, color: '#FFA726', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>Informações do Stand</div>
+                                    <div style={{ fontSize: 12, color: '#1e293b' }}>
+                                      {sj.infoStand.usouCampanhaMarketing
+                                        ? <>Cliente vai usar a identidade da campanha <strong>"{sj.infoStand.identidadeCampanhaNome}"</strong></>
+                                        : sj.infoStand.identidadeVisual === 'sim'
+                                          ? 'Cliente já tem identidade visual definida'
+                                          : 'Cliente ainda não tem identidade visual definida'}
+                                    </div>
+                                    {sj.infoStand.identidadeImagensUrls?.length > 0 && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {sj.infoStand.identidadeImagensUrls.map((u, i) => (
+                                          <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(0,0,0,0.08)' }} /></a>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {sj.infoStand.diasMontagem > 0 && <div style={{ fontSize: 12, color: '#1e293b' }}>Dias de montagem: <strong>{sj.infoStand.diasMontagem}</strong></div>}
+                                    {sj.infoStand.restricoes && <div style={{ fontSize: 12, color: '#1e293b' }}>Restrições: {sj.infoStand.restricoes}</div>}
+                                    {sj.infoStand.respostasExtras?.map((r, i) => (
+                                      <div key={i} style={{ fontSize: 12, color: '#1e293b' }}>{r.pergunta}: <strong>{r.resposta}</strong></div>
+                                    ))}
+                                    {sj.infoStand.uploadsExtras?.map((u, i) => (
+                                      <div key={i}>
+                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{u.pergunta}</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                          {u.urls.map((url, j) => (
+                                            <a key={j} href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(0,0,0,0.08)' }} /></a>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
                                   {valorTotal && (
                                     <div style={{ background: 'rgba(0,229,196,0.06)', borderRadius: 8, padding: '7px 10px', border: '1px solid rgba(0,229,196,0.15)' }}>
@@ -2499,6 +2533,41 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                   {sj.diasServico && <span style={{ fontSize: 12, color: '#1e293b' }}><strong>{sj.diasServico}</strong> dia(s)</span>}
                                   {sj.observacoes && <span style={{ fontSize: 12, color: '#475569', fontStyle: 'italic' }}>"{sj.observacoes}"</span>}
                                 </div>
+                              </div>
+                            )}
+                            {/* Info do Stand — identidade visual/campanha, dias de montagem, perguntas extras */}
+                            {sj.infoStand && (
+                              <div style={{ background: 'rgba(255,167,38,0.05)', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(255,167,38,0.15)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ fontSize: 9, color: '#FFA726', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>Informações do Stand</div>
+                                <div style={{ fontSize: 12, color: '#1e293b' }}>
+                                  {sj.infoStand.usouCampanhaMarketing
+                                    ? <>Cliente vai usar a identidade da campanha <strong>"{sj.infoStand.identidadeCampanhaNome}"</strong></>
+                                    : sj.infoStand.identidadeVisual === 'sim'
+                                      ? 'Cliente já tem identidade visual definida'
+                                      : 'Cliente ainda não tem identidade visual definida'}
+                                </div>
+                                {sj.infoStand.identidadeImagensUrls?.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {sj.infoStand.identidadeImagensUrls.map((u, i) => (
+                                      <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(0,0,0,0.08)' }} /></a>
+                                    ))}
+                                  </div>
+                                )}
+                                {sj.infoStand.diasMontagem > 0 && <div style={{ fontSize: 12, color: '#1e293b' }}>Dias de montagem: <strong>{sj.infoStand.diasMontagem}</strong></div>}
+                                {sj.infoStand.restricoes && <div style={{ fontSize: 12, color: '#1e293b' }}>Restrições: {sj.infoStand.restricoes}</div>}
+                                {sj.infoStand.respostasExtras?.map((r, i) => (
+                                  <div key={i} style={{ fontSize: 12, color: '#1e293b' }}>{r.pergunta}: <strong>{r.resposta}</strong></div>
+                                ))}
+                                {sj.infoStand.uploadsExtras?.map((u, i) => (
+                                  <div key={i}>
+                                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{u.pergunta}</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                      {u.urls.map((url, j) => (
+                                        <a key={j} href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(0,0,0,0.08)' }} /></a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             )}
                             {/* Grid de infos numéricas */}

@@ -273,7 +273,7 @@ export default function BancoPerguntas() {
         servicoCategoriaId: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaId : null,
         servicoCategoriaNome: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaNome : '',
         servicoTipoServico: form.tipo === 'catalogo_especifico' ? form.servicoTipoServico : null,
-        mostrarNoBriefingStand: form.destino === 'generico' && (form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha') ? !!form.mostrarNoBriefingStand : false,
+        mostrarNoBriefingStand: form.destino === 'generico' && (form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha' || form.tipo === 'upload') ? !!form.mostrarNoBriefingStand : false,
         ordem: form.ordem ?? Date.now(),
         updatedAt: serverTimestamp(),
       };
@@ -539,7 +539,7 @@ export default function BancoPerguntas() {
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
-                  {(form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha') && (
+                  {(form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha' || form.tipo === 'upload') && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!form.mostrarNoBriefingStand} onChange={e => setForm(p => ({ ...p, mostrarNoBriefingStand: e.target.checked }))} />
                       Mostrar a resposta no briefing, na seção Stand
