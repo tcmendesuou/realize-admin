@@ -713,26 +713,36 @@ export default function ChatIAScreen({ navigation }) {
             const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
             const sel = modeloSelecionado?.id === m.id;
             return (
-              <TouchableOpacity key={m.id} onPress={() => setModeloSelecionado(m)} style={[styles.modeloCard, sel && styles.modeloCardSel]}>
-                <View style={styles.modeloImgWrap}>
-                  {fotos.length > 0 ? (
-                    <ModeloCarrosselMobile
-                      fotos={fotos}
-                      idx={carrosselIdx[m.id] || 0}
-                      onPrev={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id] || 0) - 1 + fotos.length) % fotos.length }))}
-                      onNext={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id] || 0) + 1) % fotos.length }))}
-                      onDot={i => setCarrosselIdx(p2 => ({ ...p2, [m.id]: i }))}
-                    />
-                  ) : (
-                    <Text style={styles.semFotoTexto}>Sem foto</Text>
-                  )}
-                  {sel && <View style={styles.modeloSelBadge}><Text style={styles.modeloSelBadgeTexto}>✓</Text></View>}
-                </View>
-                <View style={{ padding: 12 }}>
-                  <Text style={styles.modeloNome}>{m.nome}</Text>
-                  {m.descricao ? <Text style={styles.modeloDescricao}>{m.descricao}</Text> : null}
-                </View>
-              </TouchableOpacity>
+              <View key={m.id}>
+                <TouchableOpacity onPress={() => setModeloSelecionado(m)} style={[styles.modeloCard, sel && styles.modeloCardSel]}>
+                  <View style={styles.modeloImgWrap}>
+                    {fotos.length > 0 ? (
+                      <ModeloCarrosselMobile
+                        fotos={fotos}
+                        idx={carrosselIdx[m.id] || 0}
+                        onPrev={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id] || 0) - 1 + fotos.length) % fotos.length }))}
+                        onNext={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id] || 0) + 1) % fotos.length }))}
+                        onDot={i => setCarrosselIdx(p2 => ({ ...p2, [m.id]: i }))}
+                      />
+                    ) : (
+                      <Text style={styles.semFotoTexto}>Sem foto</Text>
+                    )}
+                    {sel && <View style={styles.modeloSelBadge}><Text style={styles.modeloSelBadgeTexto}>✓</Text></View>}
+                  </View>
+                  <View style={{ padding: 12 }}>
+                    <Text style={styles.modeloNome}>{m.nome}</Text>
+                  </View>
+                </TouchableOpacity>
+                {sel && (
+                  <View style={styles.modeloInfoBox}>
+                    {m.descricao ? <Text style={styles.modeloDescricao}>{m.descricao}</Text> : null}
+                    <View style={styles.modeloInfoLinha}>
+                      {m.precoBase > 0 && <Text style={styles.modeloInfoItem}>Valor base: R$ {parseFloat(m.precoBase).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>}
+                      {m.diasProducao > 0 && <Text style={styles.modeloInfoItem}>Produção: {m.diasProducao} dia(s)</Text>}
+                    </View>
+                  </View>
+                )}
+              </View>
             );
           })}
           <BtnAvancar onPress={() => responder(p.id, null)} disabled={!modeloSelecionado} texto={modeloSelecionado ? `${modeloSelecionado.nome} →` : 'Selecione um modelo'} />
@@ -1051,6 +1061,9 @@ const styles = StyleSheet.create({
   modeloSelBadgeTexto: { color: '#0A1626', fontSize: 11, fontWeight: '700' },
   modeloNome: { color: '#E8F4FF', fontSize: 14, fontWeight: '600' },
   modeloDescricao: { color: '#7BAFD4', fontSize: 11, marginTop: 3 },
+  modeloInfoBox: { backgroundColor: 'rgba(0,229,196,0.06)', borderWidth: 1, borderColor: 'rgba(0,229,196,0.2)', borderRadius: 10, padding: 12, marginTop: -6, marginBottom: 12 },
+  modeloInfoLinha: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 },
+  modeloInfoItem: { color: '#E8F4FF', fontSize: 12, fontWeight: '600' },
   carrosselSeta: { position: 'absolute', top: '50%', marginTop: -14, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(10,22,38,0.6)', alignItems: 'center', justifyContent: 'center' },
   carrosselSetaTexto: { color: 'white', fontSize: 18, lineHeight: 20 },
   carrosselDots: { position: 'absolute', bottom: 6, flexDirection: 'row', alignSelf: 'center', gap: 5 },
