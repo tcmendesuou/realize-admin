@@ -144,6 +144,28 @@ const CalendarioMobile = ({ valorInicial, onSelecionar }) => {
   );
 };
 
+// Carrossel de fotos do modelo de Estande — setas + bolinhas, igual a web.
+const ModeloCarrosselMobile = ({ fotos, idx, onPrev, onNext, onDot }) => (
+  <View style={{ width: '100%', height: '100%' }}>
+    <Image source={{ uri: fotos[idx] }} style={styles.modeloImg} />
+    {fotos.length > 1 && (
+      <>
+        <TouchableOpacity onPress={onPrev} style={[styles.carrosselSeta, { left: 4 }]}>
+          <Text style={styles.carrosselSetaTexto}>‹</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onNext} style={[styles.carrosselSeta, { right: 4 }]}>
+          <Text style={styles.carrosselSetaTexto}>›</Text>
+        </TouchableOpacity>
+        <View style={styles.carrosselDots}>
+          {fotos.map((_, i) => (
+            <TouchableOpacity key={i} onPress={() => onDot(i)} style={[styles.carrosselDot, i === idx && styles.carrosselDotAtivo]} />
+          ))}
+        </View>
+      </>
+    )}
+  </View>
+);
+
 export default function ChatIAScreen({ navigation }) {
   const [userData, setUserData] = useState(null);
   const [tenantData, setTenantData] = useState(null);
@@ -198,6 +220,7 @@ export default function ChatIAScreen({ navigation }) {
   const [faseCatalogo, setFaseCatalogo] = useState('selecao');
   const [modelosEspeciais, setModelosEspeciais] = useState([]);
   const [modeloSelecionado, setModeloSelecionado] = useState(null);
+  const [carrosselIdx, setCarrosselIdx] = useState({});
   const [uploadingArquivo, setUploadingArquivo] = useState(false);
   const [opcoesEspecifico, setOpcoesEspecifico] = useState(null);
   const [loadingEspecifico, setLoadingEspecifico] = useState(false);
@@ -608,7 +631,7 @@ export default function ChatIAScreen({ navigation }) {
       return (
         <View>
           <Pergunta texto={p.texto} subtitulo={p.subtitulo} />
-          <TextInput
+          <TextInput placeholderTextColor="rgba(232,244,255,0.35)"
             style={p.tipo === 'texto_longo' ? styles.inputArea : styles.input}
             value={valLocal}
             onChangeText={setValLocal}
@@ -628,11 +651,11 @@ export default function ChatIAScreen({ navigation }) {
         <View>
           <Pergunta texto={p.texto} subtitulo={p.subtitulo} />
           <Text style={styles.miniLabel}>Início</Text>
-          <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false}>
+          <ScrollView style={styles.scrollVertical} showsVerticalScrollIndicator={false}>
             {HORARIOS.map(h => <OpcaoBtn key={h} label={h} selected={ini === h} onPress={() => setIni(h)} />)}
           </ScrollView>
           <Text style={styles.miniLabel}>Término</Text>
-          <ScrollView horizontal style={{ marginBottom: 16 }} showsHorizontalScrollIndicator={false}>
+          <ScrollView style={styles.scrollVertical} showsVerticalScrollIndicator={false}>
             {HORARIOS.filter(h => !ini || h > ini).map(h => <OpcaoBtn key={h} label={h} selected={fim === h} onPress={() => setFim(h)} />)}
           </ScrollView>
           <BtnAvancar onPress={() => responder(p.id, null, { horarioInicio: ini, horarioFim: fim })} disabled={!ini || !fim} />
@@ -646,12 +669,12 @@ export default function ChatIAScreen({ navigation }) {
       return (
         <View>
           <Pergunta texto={p.texto} subtitulo={p.subtitulo} />
-          <TextInput style={styles.input} value={cid} onChangeText={setCid} placeholder="Cidade" autoFocus />
+          <TextInput placeholderTextColor="rgba(232,244,255,0.35)" style={styles.input} value={cid} onChangeText={setCid} placeholder="Cidade" autoFocus />
           <Text style={styles.miniLabel}>Estado</Text>
-          <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false}>
+          <ScrollView style={styles.scrollVertical} showsVerticalScrollIndicator={false}>
             {ESTADOS_BR.map(e => <OpcaoBtn key={e} label={e} selected={uf === e} onPress={() => setUf(e)} />)}
           </ScrollView>
-          <TextInput style={styles.input} value={loc} onChangeText={setLoc} placeholder="Local / endereço (opcional)" />
+          <TextInput placeholderTextColor="rgba(232,244,255,0.35)" style={styles.input} value={loc} onChangeText={setLoc} placeholder="Local / endereço (opcional)" />
           <BtnAvancar onPress={() => responder(p.id, null, { cidade: cid, estado: uf, local: loc })} disabled={!cid || !uf} />
         </View>
       );
@@ -677,12 +700,28 @@ export default function ChatIAScreen({ navigation }) {
         <View>
           <Pergunta texto={p.texto} />
           {modelosEspeciais.map(m => {
-            const foto = m.fotos?.[0]?.url || m.fotoUrl;
+            const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
             const sel = modeloSelecionado?.id === m.id;
             return (
               <TouchableOpacity key={m.id} onPress={() => setModeloSelecionado(m)} style={[styles.modeloCard, sel && styles.modeloCardSel]}>
-                {foto && <Image source={{ uri: foto }} style={styles.modeloImg} />}
-                <Text style={styles.modeloNome}>{m.nome}{sel ? '  ✓' : ''}</Text>
+                <View style={styles.modeloImgWrap}>
+                  {fotos.length > 0 ? (
+                    <ModeloCarrosselMobile
+                      fotos={fotos}
+                      idx={carrosselIdx[m.id] || 0}
+                      onPrev={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id] || 0) - 1 + fotos.length) % fotos.length }))}
+                      onNext={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id] || 0) + 1) % fotos.length }))}
+                      onDot={i => setCarrosselIdx(p2 => ({ ...p2, [m.id]: i }))}
+                    />
+                  ) : (
+                    <Text style={styles.semFotoTexto}>Sem foto</Text>
+                  )}
+                  {sel && <View style={styles.modeloSelBadge}><Text style={styles.modeloSelBadgeTexto}>✓</Text></View>}
+                </View>
+                <View style={{ padding: 12 }}>
+                  <Text style={styles.modeloNome}>{m.nome}</Text>
+                  {m.descricao ? <Text style={styles.modeloDescricao}>{m.descricao}</Text> : null}
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -863,12 +902,12 @@ export default function ChatIAScreen({ navigation }) {
       <View>
         <Pergunta texto={`Detalhes para ${serv.serviceName}${dados.equipeSelecionada.length > 1 ? ` (${equipeIdx+1}/${dados.equipeSelecionada.length})` : ''}`} />
         <Text style={styles.miniLabel}>Quantos?</Text>
-        <TextInput style={styles.input} keyboardType="numeric" value={equipeForm.quantidade} onChangeText={v => setEquipeForm(f => ({ ...f, quantidade: v }))} placeholder="2" />
+        <TextInput placeholderTextColor="rgba(232,244,255,0.35)" style={styles.input} keyboardType="numeric" value={equipeForm.quantidade} onChangeText={v => setEquipeForm(f => ({ ...f, quantidade: v }))} placeholder="2" />
         <Text style={styles.miniLabel}>Horas/dia</Text>
-        <TextInput style={styles.input} keyboardType="numeric" value={equipeForm.horasPorDia} onChangeText={v => setEquipeForm(f => ({ ...f, horasPorDia: v }))} placeholder="8" />
+        <TextInput placeholderTextColor="rgba(232,244,255,0.35)" style={styles.input} keyboardType="numeric" value={equipeForm.horasPorDia} onChangeText={v => setEquipeForm(f => ({ ...f, horasPorDia: v }))} placeholder="8" />
         <Text style={styles.miniLabel}>Dias</Text>
-        <TextInput style={styles.input} keyboardType="numeric" value={equipeForm.dias} onChangeText={v => setEquipeForm(f => ({ ...f, dias: v }))} placeholder="3" />
-        <TextInput style={styles.input} value={equipeForm.observacoes} onChangeText={v => setEquipeForm(f => ({ ...f, observacoes: v }))} placeholder="Preferência específica (opcional)" />
+        <TextInput placeholderTextColor="rgba(232,244,255,0.35)" style={styles.input} keyboardType="numeric" value={equipeForm.dias} onChangeText={v => setEquipeForm(f => ({ ...f, dias: v }))} placeholder="3" />
+        <TextInput placeholderTextColor="rgba(232,244,255,0.35)" style={styles.input} value={equipeForm.observacoes} onChangeText={v => setEquipeForm(f => ({ ...f, observacoes: v }))} placeholder="Preferência específica (opcional)" />
         <BtnAvancar onPress={finalizarEquipeItem} disabled={!equipeForm.quantidade && !equipeForm.horasPorDia} />
       </View>
     );
@@ -936,6 +975,7 @@ const styles = StyleSheet.create({
   backTexto: { color: '#7BAFD4', fontSize: 13 },
   headerTitulo: { color: '#7BAFD4', fontSize: 13 },
   scroll: { flex: 1 },
+  scrollVertical: { maxHeight: 190, marginBottom: 14 },
   scrollConteudo: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20, paddingBottom: 60 },
   conteudoCentralizado: { width: '100%', maxWidth: 440, alignSelf: 'center' },
 
@@ -993,8 +1033,18 @@ const styles = StyleSheet.create({
 
   modeloCard: { borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.15)', marginBottom: 12, overflow: 'hidden' },
   modeloCardSel: { borderColor: '#00E5C4' },
+  modeloImgWrap: { width: '100%', height: 140, backgroundColor: 'rgba(0,128,255,0.08)', position: 'relative', alignItems: 'center', justifyContent: 'center' },
   modeloImg: { width: '100%', height: 140 },
-  modeloNome: { padding: 10, color: '#E8F4FF', fontSize: 14, fontWeight: '600' },
+  semFotoTexto: { color: 'rgba(123,175,212,0.4)', fontSize: 11 },
+  modeloSelBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: '#00E5C4', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  modeloSelBadgeTexto: { color: '#0A1626', fontSize: 11, fontWeight: '700' },
+  modeloNome: { color: '#E8F4FF', fontSize: 14, fontWeight: '600' },
+  modeloDescricao: { color: '#7BAFD4', fontSize: 11, marginTop: 3 },
+  carrosselSeta: { position: 'absolute', top: '50%', marginTop: -14, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(10,22,38,0.6)', alignItems: 'center', justifyContent: 'center' },
+  carrosselSetaTexto: { color: 'white', fontSize: 18, lineHeight: 20 },
+  carrosselDots: { position: 'absolute', bottom: 6, flexDirection: 'row', alignSelf: 'center', gap: 5 },
+  carrosselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.35)' },
+  carrosselDotAtivo: { backgroundColor: '#00E5C4' },
 
   resumoBox: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(0,180,255,0.12)', borderRadius: 14, padding: 16, marginBottom: 8 },
   resumoLinha: { fontSize: 13, color: '#E8F4FF', marginBottom: 6 },
