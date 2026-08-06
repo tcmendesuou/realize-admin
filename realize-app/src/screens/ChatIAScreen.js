@@ -92,6 +92,58 @@ const BtnAvancar = ({ onPress, disabled, texto = 'Continuar →', loading }) => 
   </TouchableOpacity>
 );
 
+// Calendário visual (Dia/Mês/Ano sempre nessa ordem, não depende do aparelho)
+// — mesmo comportamento do calendário da web (StepCalendarBR).
+const MESES_BR = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA_BR = ['D','S','T','Q','Q','S','S'];
+const CalendarioMobile = ({ valorInicial, onSelecionar }) => {
+  const hoje = new Date();
+  const [mesAtual, setMesAtual] = useState(hoje.getMonth());
+  const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
+  const [selecionado, setSelecionado] = useState(valorInicial || null);
+
+  const primeiroDiaSemana = new Date(anoAtual, mesAtual, 1).getDay();
+  const diasNoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
+  const celulas = [...Array(primeiroDiaSemana).fill(null), ...Array.from({ length: diasNoMes }, (_, i) => i + 1)];
+
+  const mudarMes = (delta) => {
+    let m = mesAtual + delta, a = anoAtual;
+    if (m < 0) { m = 11; a--; } else if (m > 11) { m = 0; a++; }
+    setMesAtual(m); setAnoAtual(a);
+  };
+
+  const escolherDia = (d) => {
+    if (!d) return;
+    const valor = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    setSelecionado(valor);
+    onSelecionar(valor);
+  };
+
+  return (
+    <View style={styles.calendarioBox}>
+      <View style={styles.calendarioHeader}>
+        <TouchableOpacity onPress={() => mudarMes(-1)} style={styles.calendarioNavBtn}><Text style={styles.calendarioNavTexto}>‹</Text></TouchableOpacity>
+        <Text style={styles.calendarioMesAno}>{MESES_BR[mesAtual]} {anoAtual}</Text>
+        <TouchableOpacity onPress={() => mudarMes(1)} style={styles.calendarioNavBtn}><Text style={styles.calendarioNavTexto}>›</Text></TouchableOpacity>
+      </View>
+      <View style={styles.calendarioSemana}>
+        {DIAS_SEMANA_BR.map((d, i) => <Text key={i} style={styles.calendarioDiaSemana}>{d}</Text>)}
+      </View>
+      <View style={styles.calendarioGrid}>
+        {celulas.map((d, i) => {
+          const valorCel = d ? `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null;
+          const isSel = !!valorCel && valorCel === selecionado;
+          return (
+            <TouchableOpacity key={i} disabled={!d} onPress={() => escolherDia(d)} style={[styles.calendarioCel, isSel && styles.calendarioCelSel]}>
+              <Text style={[styles.calendarioCelTexto, isSel && styles.calendarioCelTextoSel]}>{d || ''}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
 export default function ChatIAScreen({ navigation }) {
   const [userData, setUserData] = useState(null);
   const [tenantData, setTenantData] = useState(null);
@@ -543,7 +595,15 @@ export default function ChatIAScreen({ navigation }) {
         </View>
       );
     }
-    if (p.tipo === 'texto_livre' || p.tipo === 'texto_longo' || p.tipo === 'numero' || p.tipo === 'data') {
+    if (p.tipo === 'data') {
+      return (
+        <View>
+          <Pergunta texto={p.texto} subtitulo={p.subtitulo} />
+          <CalendarioMobile onSelecionar={val => responder(p.id, val, { [CAMPO_DESTINO[p.destino] || 'generico']: val })} />
+        </View>
+      );
+    }
+    if (p.tipo === 'texto_livre' || p.tipo === 'texto_longo' || p.tipo === 'numero') {
       const [valLocal, setValLocal] = [dados[`_temp_${p.id}`] || '', v => set(`_temp_${p.id}`, v)];
       return (
         <View>
@@ -552,7 +612,7 @@ export default function ChatIAScreen({ navigation }) {
             style={p.tipo === 'texto_longo' ? styles.inputArea : styles.input}
             value={valLocal}
             onChangeText={setValLocal}
-            placeholder={p.tipo === 'data' ? 'AAAA-MM-DD' : p.subtitulo || 'Sua resposta'}
+            placeholder={p.subtitulo || 'Sua resposta'}
             keyboardType={p.tipo === 'numero' ? 'numeric' : 'default'}
             multiline={p.tipo === 'texto_longo'}
             autoFocus
@@ -856,8 +916,10 @@ export default function ChatIAScreen({ navigation }) {
         <Text style={styles.headerTitulo}>Realize Hub</Text>
         <View style={{ width: 60 }} />
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
-        {conteudo}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollConteudo}>
+        <View style={styles.conteudoCentralizado}>
+          {conteudo}
+        </View>
       </ScrollView>
     </View>
   );
@@ -874,43 +936,58 @@ const styles = StyleSheet.create({
   backTexto: { color: '#7BAFD4', fontSize: 13 },
   headerTitulo: { color: '#7BAFD4', fontSize: 13 },
   scroll: { flex: 1 },
+  scrollConteudo: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20, paddingBottom: 60 },
+  conteudoCentralizado: { width: '100%', maxWidth: 440, alignSelf: 'center' },
 
-  perguntaTexto: { fontSize: 20, fontWeight: '700', color: '#E8F4FF', lineHeight: 28 },
-  perguntaSub: { fontSize: 13, color: '#7BAFD4', marginTop: 8 },
+  perguntaTexto: { fontSize: 19, fontWeight: '700', color: '#E8F4FF', lineHeight: 26, textAlign: 'center' },
+  perguntaSub: { fontSize: 12, color: '#7BAFD4', marginTop: 6, textAlign: 'center' },
   miniLabel: { fontSize: 11, fontWeight: '700', color: '#7BAFD4', textTransform: 'uppercase', marginBottom: 6, marginTop: 4 },
 
   opcaoBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, marginBottom: 8,
     borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.2)', backgroundColor: 'rgba(255,255,255,0.03)',
   },
   opcaoBtnSel: { borderColor: '#00E5C4', backgroundColor: 'rgba(0,229,196,0.08)' },
-  opcaoTexto: { fontSize: 14, fontWeight: '500', color: '#7BAFD4', flexShrink: 1 },
+  opcaoTexto: { fontSize: 13, fontWeight: '500', color: '#7BAFD4', flexShrink: 1 },
   opcaoTextoSel: { color: '#00E5C4' },
-  radioCirc: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: 'rgba(0,180,255,0.3)', alignItems: 'center', justifyContent: 'center' },
+  radioCirc: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: 'rgba(0,180,255,0.3)', alignItems: 'center', justifyContent: 'center' },
   radioCircSel: { borderColor: '#00E5C4', backgroundColor: '#00E5C4' },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0A1626' },
-  checkQuad: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: 'rgba(0,180,255,0.3)', alignItems: 'center', justifyContent: 'center' },
+  radioDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#0A1626' },
+  checkQuad: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, borderColor: 'rgba(0,180,255,0.3)', alignItems: 'center', justifyContent: 'center' },
   checkQuadSel: { borderColor: '#00E5C4', backgroundColor: '#00E5C4' },
-  checkMark: { color: '#0A1626', fontSize: 12, fontWeight: '700' },
+  checkMark: { color: '#0A1626', fontSize: 11, fontWeight: '700' },
 
-  btnAvancar: { padding: 16, borderRadius: 12, backgroundColor: '#00E5C4', alignItems: 'center', marginTop: 8 },
+  btnAvancar: { paddingVertical: 13, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#00E5C4', alignItems: 'center', marginTop: 6, alignSelf: 'center', minWidth: 200 },
   btnAvancarDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  btnAvancarTexto: { fontSize: 15, fontWeight: '700', color: '#0A1626' },
+  btnAvancarTexto: { fontSize: 14, fontWeight: '700', color: '#0A1626' },
 
-  btnSecundario: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(0,180,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  btnSecundario: { flex: 1, padding: 13, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(0,180,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   btnSecundarioTexto: { color: '#7BAFD4', fontSize: 13 },
 
   input: {
     borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.25)', backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12, padding: 14, fontSize: 15, color: '#E8F4FF', marginBottom: 10,
+    borderRadius: 10, paddingVertical: 11, paddingHorizontal: 14, fontSize: 14, color: '#E8F4FF', marginBottom: 8, textAlign: 'center',
   },
   inputArea: {
     borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.25)', backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12, padding: 14, fontSize: 15, color: '#E8F4FF', marginBottom: 10, minHeight: 100, textAlignVertical: 'top',
+    borderRadius: 10, padding: 12, fontSize: 14, color: '#E8F4FF', marginBottom: 8, minHeight: 90, textAlignVertical: 'top', textAlign: 'left',
   },
 
-  galeriaWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  galeriaWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, justifyContent: 'center' },
   thumbImg: { width: 64, height: 64, borderRadius: 8 },
+
+  calendarioBox: { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.2)', borderRadius: 14, padding: 14, marginBottom: 10 },
+  calendarioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  calendarioNavBtn: { paddingHorizontal: 12, paddingVertical: 4 },
+  calendarioNavTexto: { color: '#7BAFD4', fontSize: 20 },
+  calendarioMesAno: { color: '#E8F4FF', fontSize: 14, fontWeight: '600' },
+  calendarioSemana: { flexDirection: 'row', marginBottom: 4 },
+  calendarioDiaSemana: { flexBasis: '14.28%', textAlign: 'center', fontSize: 10, color: 'rgba(123,175,212,0.55)' },
+  calendarioGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarioCel: { flexBasis: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  calendarioCelSel: { backgroundColor: '#00E5C4' },
+  calendarioCelTexto: { fontSize: 13, color: '#E8F4FF' },
+  calendarioCelTextoSel: { color: '#0A1626', fontWeight: '700' },
   uploadBtn: { padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.3)', borderStyle: 'dashed', alignItems: 'center', marginBottom: 12 },
   uploadBtnText: { color: '#7BAFD4', fontSize: 13 },
 
