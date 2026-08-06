@@ -276,7 +276,17 @@ export default function ChatIAScreen({ navigation }) {
         const opSnap = await getDocs(collection(db, 'supplierServices', s.id, 'opcoes'));
         const opsForn = opSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false)
           .filter(o => estadoBateComRegiao(dados.estado, o.regiao));
-        return { ...s, opcoes: opsForn };
+        const opsEnriquecidas = await Promise.all(opsForn.map(async opForn => {
+          if (opForn.opcaoCatalogoId && s.serviceId) {
+            try {
+              const catSnap = await getDocs(collection(db, 'services', s.serviceId, 'opcoes'));
+              const opCat = catSnap.docs.find(cd => cd.id === opForn.opcaoCatalogoId);
+              if (opCat) return { ...opForn, valor: opCat.data().valor ?? 0, unidade: opCat.data().unidade ?? '', nome: opForn.nome || opCat.data().nome || '' };
+            } catch (e) { console.error(e); }
+          }
+          return opForn;
+        }));
+        return { ...s, opcoes: opsEnriquecidas };
       }));
       setListaCatalogo(comOpcoes.filter(s => s.opcoes.length > 0));
     } catch (e) { console.error(e); setListaCatalogo([]); }
