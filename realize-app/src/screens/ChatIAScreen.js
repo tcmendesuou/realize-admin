@@ -1006,7 +1006,7 @@ const styles = StyleSheet.create({
   opcaoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 20, borderRadius: 10, marginBottom: 8,
     borderWidth: 1.5, borderColor: 'rgba(0,180,255,0.2)', backgroundColor: 'rgba(255,255,255,0.03)',
-    alignSelf: 'center', minWidth: 140,
+    alignSelf: 'center', width: '78%',
   },
   opcaoBtnSel: { borderColor: '#00E5C4', backgroundColor: 'rgba(0,229,196,0.08)' },
   opcaoTexto: { fontSize: 13, fontWeight: '500', color: '#7BAFD4', flexShrink: 1 },

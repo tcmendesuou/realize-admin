@@ -90,54 +90,56 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logo}>realize<Text style={styles.logoAccent}>hub</Text></Text>
-          <Text style={styles.tagline}>Gestão de Eventos</Text>
-        </View>
-
-        <View style={styles.form}>
-          <Text style={styles.formTitle}>Login</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="seu@email.com"
-              placeholderTextColor="#95a5a6"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
+        <View style={styles.centralizado}>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logo}>realize<Text style={styles.logoAccent}>hub</Text></Text>
+            <Text style={styles.tagline}>Gestão de Eventos</Text>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Senha</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Digite sua senha"
-              placeholderTextColor="#95a5a6"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!loading}
-              onSubmitEditing={handleLogin}
-            />
+          <View style={styles.form}>
+            <Text style={styles.formTitle}>Login</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="seu@email.com"
+                placeholderTextColor="#95a5a6"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Senha</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Digite sua senha"
+                placeholderTextColor="#95a5a6"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                editable={!loading}
+                onSubmitEditing={handleLogin}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color="#0A1626" /> : <Text style={styles.loginButtonText}>Entrar</Text>}
+            </TouchableOpacity>
+
+            <Text style={styles.helpText}>
+              Não tem cadastro? Entre em contato com o administrador.
+            </Text>
           </View>
-
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#0A1626" /> : <Text style={styles.loginButtonText}>Entrar</Text>}
-          </TouchableOpacity>
-
-          <Text style={styles.helpText}>
-            Não tem cadastro? Entre em contato com o administrador.
-          </Text>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -147,6 +149,7 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A1626' },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: 32 },
+  centralizado: { width: '100%', maxWidth: 380, alignSelf: 'center' },
   logoContainer: { alignItems: 'center', marginBottom: 48 },
   logo: { fontSize: 34, fontWeight: '300', color: '#E8F4FF', letterSpacing: 2 },
   logoAccent: { color: '#00E5C4', fontWeight: '600' },

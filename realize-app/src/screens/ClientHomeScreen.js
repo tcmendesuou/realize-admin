@@ -117,46 +117,49 @@ export default function ClientHomeScreen({ navigation }) {
 
       <ScrollView
         style={styles.content}
+        contentContainerStyle={styles.contentInner}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5C4" />}
       >
-        {pode('meus_eventos', 'C') && (
-          <TouchableOpacity style={styles.newButton} onPress={() => navigation.navigate('ChatIA')}>
-            <Text style={styles.newButtonText}>+ Novo Evento</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Workspace</Text>
-          <Text style={styles.sectionSubtitle}>{events.length} evento(s) ativo(s)</Text>
-
-          {events.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>Nenhum evento ainda</Text>
-              <Text style={styles.emptyText}>Toque em "+ Novo Evento" para começar</Text>
-            </View>
-          ) : (
-            events.map(ev => {
-              const st = STATUS_CONFIG[ev.status] || { label: 'Aguardando', color: '#78909C' };
-              return (
-                <TouchableOpacity
-                  key={ev.id}
-                  style={styles.card}
-                  onPress={() => navigation.navigate('ProjectDetail', { budgetId: ev.id })}
-                >
-                  <View style={styles.cardTop}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>{getProjectName(ev)}</Text>
-                    <View style={[styles.badge, { backgroundColor: st.color }]}>
-                      <Text style={styles.badgeText}>{st.label}</Text>
-                    </View>
-                  </View>
-                  {ev.eventTypeName && <Text style={styles.cardSub}>{ev.eventTypeName}</Text>}
-                  {ev.numeroPedido && <Text style={styles.cardNumber}>{ev.numeroPedido}</Text>}
-                  <Text style={styles.cardDate}>Criado em {formatDate(ev.createdAt)}</Text>
-                </TouchableOpacity>
-              );
-            })
+        <View style={styles.centralizado}>
+          {pode('meus_eventos', 'C') && (
+            <TouchableOpacity style={styles.newButton} onPress={() => navigation.navigate('ChatIA')}>
+              <Text style={styles.newButtonText}>+ Novo Evento</Text>
+            </TouchableOpacity>
           )}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Workspace</Text>
+            <Text style={styles.sectionSubtitle}>{events.length} evento(s) ativo(s)</Text>
+
+            {events.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={styles.emptyTitle}>Nenhum evento ainda</Text>
+                <Text style={styles.emptyText}>Toque em "+ Novo Evento" para começar</Text>
+              </View>
+            ) : (
+              events.map(ev => {
+                const st = STATUS_CONFIG[ev.status] || { label: 'Aguardando', color: '#78909C' };
+                return (
+                  <TouchableOpacity
+                    key={ev.id}
+                    style={styles.card}
+                    onPress={() => navigation.navigate('ProjectDetail', { budgetId: ev.id })}
+                  >
+                    <View style={styles.cardTop}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>{getProjectName(ev)}</Text>
+                      <View style={[styles.badge, { backgroundColor: st.color }]}>
+                        <Text style={styles.badgeText}>{st.label}</Text>
+                      </View>
+                    </View>
+                    {ev.eventTypeName && <Text style={styles.cardSub}>{ev.eventTypeName}</Text>}
+                    {ev.numeroPedido && <Text style={styles.cardNumber}>{ev.numeroPedido}</Text>}
+                    <Text style={styles.cardDate}>Criado em {formatDate(ev.createdAt)}</Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -180,6 +183,8 @@ const styles = StyleSheet.create({
   logoutText: { color: '#EF5350', fontSize: 13 },
 
   content: { flex: 1, paddingHorizontal: 20 },
+  contentInner: { alignItems: 'center' },
+  centralizado: { width: '100%', maxWidth: 480 },
 
   newButton: {
     marginTop: 20, marginBottom: 8, borderRadius: 12, padding: 16, alignItems: 'center',
