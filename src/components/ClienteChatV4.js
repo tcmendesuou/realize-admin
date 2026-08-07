@@ -974,15 +974,13 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
                       </div>
                       {sel && (
                         <div style={{ background: 'rgba(0,229,196,0.05)', border: '1px solid rgba(0,229,196,0.15)', borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: fmtLista(m.caracteristicas) || fmtLista(m.moveisInclusos) || fmtLista(m.tecnologiaInclusa) ? 10 : 0 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: fmtLista(m.caracteristicas) ? 10 : 0 }}>
                             {m.precoBase > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Valor base: R$ {parseFloat(m.precoBase).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
                             {m.diasProducao > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Produção: {m.diasProducao} dia(s)</span>}
                             {m.areaM2 > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Área: {m.areaM2} m²</span>}
                             {m.altura > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Altura: {m.altura} m</span>}
                           </div>
                           {fmtLista(m.caracteristicas) && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4 }}>Características: {fmtLista(m.caracteristicas)}</div>}
-                          {fmtLista(m.moveisInclusos) && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4 }}>Móveis inclusos: {fmtLista(m.moveisInclusos)}</div>}
-                          {fmtLista(m.tecnologiaInclusa) && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4 }}>Tecnologia inclusa: {fmtLista(m.tecnologiaInclusa)}</div>}
                         </div>
                       )}
                     </div>
