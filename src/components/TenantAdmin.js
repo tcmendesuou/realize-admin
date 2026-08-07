@@ -467,33 +467,32 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </button>
  )}
  </div>
- <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+ <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
  {franqueados.map(f => {
  const evsFranq = eventos.filter(e => e.clientUserId === f.id);
  const gastoFranq = evsFranq.filter(e => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
  return (
- <div key={f.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
+ <div key={f.id} style={{ background: '#e3eafa', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ width: 44, height: 44, borderRadius: '50%', background: corPrimary, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
  {(f.name || 'F')[0].toUpperCase()}
  </div>
  <div style={{ flex: 1 }}>
  <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{f.name}</div>
- <div style={{ fontSize: 12, color: '#94a3b8' }}>{f.email} {unidadeDe(f).nome ? `· ${unidadeDe(f).nome}` : ''} {unidadeDe(f).cidade ? `· ${unidadeDe(f).cidade}` : ''}</div>
+ <div style={{ fontSize: 12, color: '#475569' }}>{f.email} {unidadeDe(f).nome ? `· ${unidadeDe(f).nome}` : ''} {unidadeDe(f).cidade ? `· ${unidadeDe(f).cidade}` : ''}</div>
  </div>
  <div style={{ textAlign: 'right', flexShrink: 0 }}>
- <div style={{ fontSize: 12, color: '#94a3b8' }}>{evsFranq.length} evento(s)</div>
+ <div style={{ fontSize: 12, color: '#475569' }}>{evsFranq.length} evento(s)</div>
  <div style={{ fontSize: 13, fontWeight: 700, color: corAccent }}>{formatBRL(gastoFranq)} utilizado</div>
  </div>
  <button onClick={() => abrirPermissoes(f)}
- style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
+ style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.2)', background: 'none', color: '#3d4c6b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
  Permissões
  </button>
  </div>
  );
  })}
  {franqueados.length === 0 && !loading && (
- <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
- <div style={{ fontSize: 36, marginBottom: 10 }}></div>
+ <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>
  <div>Nenhum colaborador cadastrado ainda.</div>
  </div>
  )}
@@ -513,27 +512,27 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20 }}>
  Cada unidade (ex: uma loja/filial) pode ter vários colaboradores vinculados a ela — verba e período de uso ficam na unidade, não em cada pessoa.
  </div>
- <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+ <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
  {unidades.map(u => (
- <div key={u.id} style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, opacity: u.ativo === false ? 0.5 : 1 }}>
+ <div key={u.id} style={{ background: '#e3eafa', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16, opacity: u.ativo === false ? 0.6 : 1 }}>
  <div style={{ flex: 1 }}>
  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
  <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{u.nome}</span>
- {u.cidade && <span style={{ fontSize: 11, color: '#94a3b8' }}>· {u.cidade}</span>}
- {u.ativo === false && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>INATIVA</span>}
+ {u.cidade && <span style={{ fontSize: 11, color: '#475569' }}>· {u.cidade}</span>}
+ {u.ativo === false && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>INATIVA</span>}
  </div>
- <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+ <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
  Verba: {formatBRL(u.saldoVerba || 0)}{u.periodoUso ? ` · ${u.periodoUso}` : ''}
  </div>
  </div>
  <div style={{ display: 'flex', gap: 8 }}>
- <button onClick={() => abrirEditarUnidade(u)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
- <button onClick={() => excluirUnidade(u)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
+ <button onClick={() => abrirEditarUnidade(u)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(61,76,107,0.2)', background: 'none', color: '#3d4c6b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Editar</button>
+ <button onClick={() => excluirUnidade(u)} style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.25)', background: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Excluir</button>
  </div>
  </div>
  ))}
  {unidades.length === 0 && !loading && (
- <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
+ <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>
  <div>Nenhuma unidade cadastrada ainda.</div>
  </div>
  )}
@@ -545,24 +544,24 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {view === 'eventos' && (
  <>
  <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>Todos os Eventos</div>
- <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+ <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
  {eventos.map(ev => {
  const franq = franqueados.find(f => f.id === ev.clientUserId);
  return (
- <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
+ <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', background: '#e3eafa', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ flex: 1 }}>
  <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
- <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+ <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
  {franq?.name || ev.clientName} · {ev.location || ev.briefingData?.evento?.cidade || '—'} · {formatDate(ev.createdAt)}
  </div>
- <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+ <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>
  {ev.startDate ? new Date(ev.startDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
  {ev.endDate && ev.endDate !== ev.startDate ? ` → ${new Date(ev.endDate + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
  </div>
  </div>
  <div style={{ textAlign: 'right', flexShrink: 0 }}>
  <div style={{ fontSize: 15, fontWeight: 700, color: corAccent }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
- <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, padding: '2px 8px', borderRadius: 6, display: 'inline-block', background: ev.status === 'approved' ? 'rgba(102,187,106,0.1)' : ev.status === 'analyzing' ? 'rgba(255,167,38,0.1)' : 'rgba(102,126,234,0.1)', color: ev.status === 'approved' ? '#16a34a' : ev.status === 'analyzing' ? '#d97706' : '#667eea' }}>
+ <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, padding: '2px 8px', borderRadius: 6, display: 'inline-block', background: ev.status === 'approved' ? 'rgba(102,187,106,0.15)' : ev.status === 'analyzing' ? 'rgba(255,167,38,0.15)' : 'rgba(102,126,234,0.15)', color: ev.status === 'approved' ? '#16a34a' : ev.status === 'analyzing' ? '#d97706' : '#667eea' }}>
  {ev.status === 'approved' ? 'APROVADO' : ev.status === 'analyzing' ? 'EM ANÁLISE' : (ev.status || '—').toUpperCase()}
  </div>
  </div>
@@ -570,8 +569,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  );
  })}
  {eventos.length === 0 && !loading && (
- <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 12 }}>
- <div style={{ fontSize: 36, marginBottom: 10 }}></div>
+ <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>
  <div>Nenhum evento ainda.</div>
  </div>
  )}
