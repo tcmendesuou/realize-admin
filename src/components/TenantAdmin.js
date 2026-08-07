@@ -521,6 +521,51 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  ))}
  </div>
+
+ {/* Eventos por Unidade — visão operacional rápida do que está rolando */}
+ <div style={{ marginTop: 28 }}>
+   <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 14 }}>Eventos por Unidade</div>
+   {(() => {
+     const labelStatusVG = { analyzing: 'Em análise', pendingApproval: 'Ag. unidade', pendingAdminApproval: 'Ag. seu aval', approved: 'Aprovado', inProgress: 'Em andamento', completed: 'Concluído', rejected: 'Recusado' };
+     const corStatusVG   = { analyzing: '#FFA726', pendingApproval: '#0080FF', pendingAdminApproval: '#AB47BC', approved: '#66BB6A', inProgress: '#00E5C4', completed: '#94a3b8', rejected: '#ef4444' };
+     const gruposUnidade = [
+       { id: null, nome: 'Empresa-mãe (sem unidade)' },
+       ...unidades.filter(u => u.ativo !== false),
+     ];
+     const eventosAtivosLista = eventos.filter(e => !['completed', 'rejected'].includes(e.status));
+     return gruposUnidade.map(u => {
+       const franqsDaUnidade = franqueados.filter(f => (f.unidadeId || null) === u.id);
+       const idsFranqs = franqsDaUnidade.map(f => f.id);
+       const evsDaUnidade = eventosAtivosLista.filter(e => idsFranqs.includes(e.clientUserId));
+       if (evsDaUnidade.length === 0) return null;
+       return (
+         <div key={u.id || 'matriz'} style={{ marginBottom: 18 }}>
+           <div style={{ fontSize: 12, fontWeight: 700, color: '#3d4c6b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{u.nome}</div>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+             {evsDaUnidade.map(ev => {
+               const franq = franqueados.find(f => f.id === ev.clientUserId);
+               return (
+                 <div key={ev.id} onClick={() => setEventoSelecionado(ev)}
+                   style={{ background: '#e3eafa', borderRadius: 10, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 12 }}>
+                   <div style={{ flex: 1, minWidth: 0 }}>
+                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
+                     <div style={{ fontSize: 11, color: '#475569' }}>{franq?.name || ev.clientName}</div>
+                   </div>
+                   <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: `${corStatusVG[ev.status] || '#94a3b8'}20`, color: corStatusVG[ev.status] || '#94a3b8', flexShrink: 0 }}>
+                     {labelStatusVG[ev.status] || ev.status}
+                   </span>
+                 </div>
+               );
+             })}
+           </div>
+         </div>
+       );
+     });
+   })()}
+   {eventos.filter(e => !['completed', 'rejected'].includes(e.status)).length === 0 && (
+     <div style={{ textAlign: 'center', padding: 30, color: '#475569', fontSize: 13 }}>Nenhum evento ativo no momento.</div>
+   )}
+ </div>
  </>
  )}
 
