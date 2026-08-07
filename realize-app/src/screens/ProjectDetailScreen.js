@@ -11,10 +11,12 @@ import { db } from '../firebase/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import DemandaPanelMobile from './DemandaPanelMobile';
+import { criarTasksParaFornecedores } from './aprovacaoOrcamento';
 
 const STATUS_CONFIG = {
   analyzing:       { label: 'Em análise',            color: '#FFA726' },
   pendingApproval: { label: 'Orçamento disponível',  color: '#0080FF' },
+  pendingAdminApproval: { label: 'Aguardando Admin', color: '#AB47BC' },
   approved:        { label: 'Aprovado',               color: '#00E5C4' },
   inProgress:      { label: 'Em andamento',           color: '#0080FF' },
   completed:       { label: 'Concluído',              color: '#66BB6A' },
@@ -73,44 +75,39 @@ export default function ProjectDetailScreen({ route, navigation }) {
   }, [budgetId]);
 
   const handleAprovarOrcamento = async () => {
-    Alert.alert('Aprovar orçamento', 'Confirmar aprovação do orçamento?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Confirmar', onPress: async () => {
-        setAprovando(true);
-        try {
-          await updateDoc(doc(db, 'budgets', budgetId), {
-            status: 'approved', workspaceStage: 'Aguardando',
-            approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
-            timeline: [...(project.timeline || []), { action: 'approved', description: 'Orçamento aprovado pelo cliente (app)', timestamp: new Date() }],
-          });
-          // Cria tasks dos supplierJobs
-          const sjSnap = await getDocs(query(collection(db, 'supplierJobs'), where('budgetId', '==', budgetId), where('status', '==', 'confirmed')));
-          const sjs = sjSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const diasEvento = project.briefingData?.evento?.diasDuracao || 1;
-          const cronograma = project.cronograma?.etapas || [];
-          for (const sj of sjs) {
-            await updateDoc(doc(db, 'supplierJobs', sj.id), { stage: 'aguardando', updatedAt: serverTimestamp() });
-            const etapa = cronograma.find(e =>
-              (e.nome||'').toLowerCase().includes((sj.serviceName||'').toLowerCase()) ||
-              (sj.serviceName||'').toLowerCase().includes((e.nome||'').toLowerCase())
-            );
-            await addDoc(collection(db, 'tasks'), {
-              budgetId, supplierJobId: sj.id, supplierId: sj.supplierId,
-              supplierName: sj.supplierName || '', serviceName: sj.serviceName || '',
-              serviceParentName: sj.serviceParentName || '', tipoServico: sj.tipoServico || '',
-              nome: sj.serviceName || '', descricao: etapa?.descricao || '',
-              dataInicio: etapa?.dataInicio || '', dataEntrega: etapa?.dataEntrega || '',
-              diasPreparo: sj.diasPreparo || 0, diasMontagem: sj.diasMontagem || 0,
-              diasEvento, valor: sj.preco ? parseFloat(sj.preco) * diasEvento : 0,
-              preco: parseFloat(sj.preco || 0), unidade: sj.unidade || '',
-              status: 'pendente', createdAt: serverTimestamp(),
+    // Empresas com estrutura de franquia (tenantId) passam por uma segunda
+    // aprovação — a do Admin da empresa — antes das tarefas irem pros
+    // fornecedores. Clientes sem tenant seguem direto, como sempre foi.
+    const precisaAprovacaoAdmin = !!project.tenantId;
+    Alert.alert(
+      'Aprovar orçamento',
+      precisaAprovacaoAdmin
+        ? 'Confirmar aprovação? Ainda vai passar pela aprovação do Admin da empresa antes de ir pros fornecedores.'
+        : 'Confirmar aprovação do orçamento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Confirmar', onPress: async () => {
+          setAprovando(true);
+          try {
+            await updateDoc(doc(db, 'budgets', budgetId), {
+              status: precisaAprovacaoAdmin ? 'pendingAdminApproval' : 'approved',
+              workspaceStage: 'Aguardando',
+              approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+              timeline: [...(project.timeline || []), {
+                action: precisaAprovacaoAdmin ? 'approved_by_unit' : 'approved',
+                description: precisaAprovacaoAdmin ? 'Orçamento aprovado pela unidade (app) — aguardando aprovação do Admin' : 'Orçamento aprovado pelo cliente (app)',
+                timestamp: new Date(),
+              }],
             });
-          }
-          Alert.alert('✓ Aprovado!', 'Orçamento aprovado com sucesso.');
-        } catch (e) { console.error(e); Alert.alert('Erro', 'Não foi possível aprovar.'); }
-        finally { setAprovando(false); }
-      }},
-    ]);
+            if (!precisaAprovacaoAdmin) {
+              await criarTasksParaFornecedores(project);
+            }
+            Alert.alert('✓ Aprovado!', precisaAprovacaoAdmin ? 'Aguardando aprovação do Admin da empresa.' : 'Orçamento aprovado com sucesso.');
+          } catch (e) { console.error(e); Alert.alert('Erro', 'Não foi possível aprovar.'); }
+          finally { setAprovando(false); }
+        }},
+      ]
+    );
   };
 
   const handleRecusarOrcamento = async () => {

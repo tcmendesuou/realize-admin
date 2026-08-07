@@ -67,7 +67,11 @@ export default function LoginScreen({ navigation }) {
       // Fase 1: só o fluxo de Cliente/Franqueado está pronto no celular.
       // Os outros perfis (Fornecedor, Realize) ainda vão pra tela antiga,
       // até serem reconstruídos nas próximas fases.
-      if (userDoc.tipoConta === 'cliente' || userDoc.systemRole === 'cliente') {
+      // Admin da Empresa (roleName específico) vai pra tela própria dele,
+      // com Visão Geral, Ação Pendente, Colaboradores, etc — igual a web.
+      if (userDoc.roleName === 'Administrador da Empresa') {
+        navigation.reset({ index: 0, routes: [{ name: 'TenantAdminHome' }] });
+      } else if (userDoc.tipoConta === 'cliente' || userDoc.systemRole === 'cliente') {
         navigation.reset({ index: 0, routes: [{ name: 'ClientHome' }] });
       } else {
         navigation.reset({ index: 0, routes: [{ name: 'AtendimentoHome' }] });
