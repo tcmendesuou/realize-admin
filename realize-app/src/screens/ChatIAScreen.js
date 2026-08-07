@@ -26,6 +26,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const normalize = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Características/móveis/tecnologia do modelo podem estar salvos como lista
+// (array) ou como texto separado por vírgula — aceita os dois formatos.
+const fmtLista = (v) => Array.isArray(v) ? v.join(', ') : (v || '');
 const HORARIOS = ['06:00','06:30','07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30','23:00','23:30'];
 const ESTADOS_BR = [
   'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará', 'Distrito Federal',
@@ -739,7 +742,12 @@ export default function ChatIAScreen({ navigation }) {
                     <View style={styles.modeloInfoLinha}>
                       {m.precoBase > 0 && <Text style={styles.modeloInfoItem}>Valor base: R$ {parseFloat(m.precoBase).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>}
                       {m.diasProducao > 0 && <Text style={styles.modeloInfoItem}>Produção: {m.diasProducao} dia(s)</Text>}
+                      {m.areaM2 > 0 && <Text style={styles.modeloInfoItem}>Área: {m.areaM2} m²</Text>}
+                      {m.altura > 0 && <Text style={styles.modeloInfoItem}>Altura: {m.altura} m</Text>}
                     </View>
+                    {fmtLista(m.caracteristicas) ? <Text style={styles.modeloListaItem}>Características: {fmtLista(m.caracteristicas)}</Text> : null}
+                    {fmtLista(m.moveisInclusos) ? <Text style={styles.modeloListaItem}>Móveis inclusos: {fmtLista(m.moveisInclusos)}</Text> : null}
+                    {fmtLista(m.tecnologiaInclusa) ? <Text style={styles.modeloListaItem}>Tecnologia inclusa: {fmtLista(m.tecnologiaInclusa)}</Text> : null}
                   </View>
                 )}
               </View>
@@ -1064,6 +1072,7 @@ const styles = StyleSheet.create({
   modeloInfoBox: { backgroundColor: 'rgba(0,229,196,0.06)', borderWidth: 1, borderColor: 'rgba(0,229,196,0.2)', borderRadius: 10, padding: 12, marginTop: -6, marginBottom: 12 },
   modeloInfoLinha: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 },
   modeloInfoItem: { color: '#E8F4FF', fontSize: 12, fontWeight: '600' },
+  modeloListaItem: { color: '#7BAFD4', fontSize: 11, marginTop: 6, lineHeight: 16 },
   carrosselSeta: { position: 'absolute', top: '50%', marginTop: -14, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(10,22,38,0.6)', alignItems: 'center', justifyContent: 'center' },
   carrosselSetaTexto: { color: 'white', fontSize: 18, lineHeight: 20 },
   carrosselDots: { position: 'absolute', bottom: 6, flexDirection: 'row', alignSelf: 'center', gap: 5 },
