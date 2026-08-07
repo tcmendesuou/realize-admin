@@ -584,13 +584,13 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
               const pctAlocado   = totalPool > 0 ? Math.min(100, (totalAlocado / totalPool) * 100) : 0;
               const pctUsado     = totalPool > 0 ? Math.min(100, (totalUsado   / totalPool) * 100) : 0;
               return (
-                <div style={{ ...card, marginBottom: 20, borderLeft: `4px solid ${corPrimary}` }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Carteira Geral</div>
+                <div style={{ background: '#e3eafa', borderRadius: 14, padding: '20px 24px', marginBottom: 20, borderLeft: `4px solid ${corPrimary}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#3d4c6b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Carteira Geral</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Total carregado</div><div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalPool)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Alocado (em eventos)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalAlocado)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Utilizado (pago)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{formatBRL(totalUsado)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Livre</div><div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(livre)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Total carregado</div><div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalPool)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Alocado (em eventos)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalAlocado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Utilizado (pago)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{formatBRL(totalUsado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Livre</div><div style={{ fontSize: 18, fontWeight: 700, color: corAccent }}>{formatBRL(livre)}</div></div>
                   </div>
                   {/* Barra dupla: alocado (amarelo) + utilizado (vermelho) */}
                   <div style={{ borderRadius: 6, height: 10, overflow: 'hidden', marginBottom: 6, display: 'flex' }}>
@@ -598,25 +598,25 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                     <div style={{ width: `${pctAlocado}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
                     <div style={{ flex: 1, height: '100%', background: corAccent, opacity: 0.3, transition: 'width 0.5s' }} />
                   </div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#94a3b8', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#475569', marginBottom: 16 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />Utilizado {pctUsado.toFixed(1)}%</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FFA726', display: 'inline-block' }} />Alocado {pctAlocado.toFixed(1)}%</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: corAccent, display: 'inline-block' }} />Livre {(100 - pctUsado - pctAlocado).toFixed(1)}%</span>
                   </div>
                   {verbasGerais.length > 0 && (
-                    <div style={{ borderTop: '1px solid #f0f2f5', paddingTop: 14 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Histórico de cargas</div>
+                    <div style={{ borderTop: '1px solid rgba(61,76,107,0.15)', paddingTop: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#3d4c6b', textTransform: 'uppercase', marginBottom: 8 }}>Histórico de cargas</div>
                       {verbasGerais.map(v => (
-                        <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f8faff' }}>
+                        <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(61,76,107,0.1)' }}>
                           <div>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{formatBRL(v.valor)}</div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                            <div style={{ fontSize: 11, color: '#475569' }}>
                               {v.descricao && `${v.descricao} · `}
                               {v.dataInicio && new Date(v.dataInicio+'T12:00:00').toLocaleDateString('pt-BR')}
                               {v.dataFim && ` → ${new Date(v.dataFim+'T12:00:00').toLocaleDateString('pt-BR')}`}
                             </div>
                           </div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDate(v.createdAt)}</div>
+                          <div style={{ fontSize: 11, color: '#475569' }}>{formatDate(v.createdAt)}</div>
                         </div>
                       ))}
                     </div>
@@ -651,16 +651,16 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                   const pctA  = saldo > 0 ? Math.min(100, (alocBucket  / saldo) * 100) : 0;
                   const pctU  = saldo > 0 ? Math.min(100, (usadoBucket / saldo) * 100) : 0;
                   return (
-                    <div key={b.id} style={card}>
+                    <div key={b.id} style={{ background: '#e3eafa', borderRadius: 12, padding: '16px 20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{b.nome}</div>
-                          <div style={{ fontSize: 12, color: '#94a3b8' }}>{b.tipo === 'matriz' ? 'Vê tudo da empresa' : b.cidade}{b.periodoUso ? ` · ${b.periodoUso}` : ''}</div>
+                          <div style={{ fontSize: 12, color: '#475569' }}>{b.tipo === 'matriz' ? 'Vê tudo da empresa' : b.cidade}{b.periodoUso ? ` · ${b.periodoUso}` : ''}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 15, fontWeight: 700, color: corPrimary }}>{formatBRL(saldo)}</div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>saldo atribuído</div>
+                            <div style={{ fontSize: 11, color: '#475569' }}>saldo atribuído</div>
                           </div>
                           <button onClick={() => { setShowGerenciarVerba(b); setValorAtribuir(''); setPeriodoAtribuir(''); }}
                             style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${corPrimary}`, background: 'none', color: corPrimary, fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
@@ -669,16 +669,16 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Alocado: <strong style={{ color: '#FFA726' }}>{formatBRL(alocBucket)}</strong></div>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoBucket)}</strong></div>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Livre: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - alocBucket - usadoBucket))}</strong></div>
+                        <div style={{ fontSize: 12, color: '#475569' }}>Alocado: <strong style={{ color: '#FFA726' }}>{formatBRL(alocBucket)}</strong></div>
+                        <div style={{ fontSize: 12, color: '#475569' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoBucket)}</strong></div>
+                        <div style={{ fontSize: 12, color: '#475569' }}>Livre: <strong style={{ color: corAccent }}>{formatBRL(Math.max(0, saldo - alocBucket - usadoBucket))}</strong></div>
                       </div>
                       <div style={{ borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
                         <div style={{ width: `${pctU}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
                         <div style={{ width: `${pctA}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
                         <div style={{ flex: 1, height: '100%', background: corAccent, opacity: 0.3, transition: 'width 0.5s' }} />
                       </div>
-                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
+                      <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
                     </div>
                   );
                 });
