@@ -426,10 +426,10 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  { label: 'Total de eventos',value: totalEventos, icon: '', cor: '#667eea' },
  { label: 'Verba utilizada', value: formatBRL(totalGasto), icon: '', cor: '#66BB6A' },
  ].map((m, i) => (
- <div key={i} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
+ <div key={i} style={{ background: '#e3eafa', borderRadius: 14, padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
  <div style={{ fontSize: 22 }}>{m.icon}</div>
  <div style={{ fontSize: 24, fontWeight: 700, color: m.cor }}>{m.value}</div>
- <div style={{ fontSize: 12, color: '#94a3b8' }}>{m.label}</div>
+ <div style={{ fontSize: 12, color: '#475569' }}>{m.label}</div>
  </div>
  ))}
  </div>
