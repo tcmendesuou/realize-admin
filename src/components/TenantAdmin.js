@@ -6,6 +6,8 @@ import {
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
+import SinoNotificacoes from './SinoNotificacoes';
+import { criarTasksParaFornecedores } from './aprovacaoOrcamento';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { usePermissoes } from '../hooks/usePermissoes';
 import PermissoesOverride from './PermissoesOverride';
@@ -399,8 +401,46 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  // ── Métricas ─────────────────────────────────────────────────────────────────
  const totalEventos = eventos.length;
  const eventosAtivos = eventos.filter(e => !['completed', 'rejected'].includes(e.status)).length;
+ const eventosAguardandoAdmin = eventos.filter(e => e.status === 'pendingAdminApproval');
  const totalGasto = eventos.reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
  const totalVerba = franqueados.reduce((acc, f) => acc + (f.verbaMensal || 0) * 12 + (f.verbalAnual || 0), 0);
+ const [processandoAprovacaoAdmin, setProcessandoAprovacaoAdmin] = useState(null);
+
+ const handleAprovarComoAdmin = async (ev) => {
+   if (!window.confirm(`Aprovar o orçamento de "${ev.eventName || 'Sem nome'}"? Isso libera as tarefas pros fornecedores.`)) return;
+   setProcessandoAprovacaoAdmin(ev.id);
+   try {
+     await updateDoc(doc(db, 'budgets', ev.id), {
+       status: 'approved',
+       approvedByAdminAt: serverTimestamp(),
+       updatedAt: serverTimestamp(),
+       timeline: [...(ev.timeline || []), {
+         action: 'approved_by_admin',
+         description: `Orçamento aprovado pelo Admin (${userData?.name || 'Admin'})`,
+         timestamp: new Date(),
+       }],
+     });
+     await criarTasksParaFornecedores(ev);
+   } catch (e) { console.error(e); alert(`Erro ao aprovar: ${e.message}`); }
+   finally { setProcessandoAprovacaoAdmin(null); }
+ };
+
+ const handleRecusarComoAdmin = async (ev) => {
+   if (!window.confirm(`Recusar o orçamento de "${ev.eventName || 'Sem nome'}"? Ele volta pra unidade poder ajustar.`)) return;
+   setProcessandoAprovacaoAdmin(ev.id);
+   try {
+     await updateDoc(doc(db, 'budgets', ev.id), {
+       status: 'pendingApproval',
+       updatedAt: serverTimestamp(),
+       timeline: [...(ev.timeline || []), {
+         action: 'rejected_by_admin',
+         description: `Orçamento recusado pelo Admin (${userData?.name || 'Admin'}) — voltou pra unidade`,
+         timestamp: new Date(),
+       }],
+     });
+   } catch (e) { console.error(e); alert(`Erro: ${e.message}`); }
+   finally { setProcessandoAprovacaoAdmin(null); }
+ };
 
  // ── Render ───────────────────────────────────────────────────────────────────
  return (
@@ -418,6 +458,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <nav className="sidebar-nav">
  {[
  { id: 'overview', label: 'Visão Geral' },
+ { id: 'acao', label: `Ação Pendente${eventosAguardandoAdmin.length > 0 ? ` (${eventosAguardandoAdmin.length})` : ''}` },
  { id: 'franqueados', label: 'Colaboradores' },
  { id: 'unidades', label: 'Unidades' },
  { id: 'eventos', label: 'Eventos' },
@@ -445,16 +486,18 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {/* Conteúdo */}
  <div style={{ marginLeft: 230, padding: '32px 32px' }}>
 
-        {/* Header de boas-vindas */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '0 0 20px 0', marginBottom: 24, borderBottom: '1px solid #e2e8f0' }}>
+        {/* Header de boas-vindas — padrão azul escuro, com sino de notificação */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '16px 32px', margin: '-32px -32px 24px', background: '#0A1628' }}>
           <div />
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>{userData?.name}</div>
-            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#E8F4FF' }}>{userData?.name}</div>
+            <div style={{ fontSize: 13, color: '#7BAFD4', marginTop: 2 }}>
               {tenantNome}{userData?.roleName ? ` · ${userData.roleName}` : ''}
             </div>
           </div>
-          <div />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <SinoNotificacoes userId={userData?.id} tema="escuro" userData={userData} />
+          </div>
         </div>
 
  {/* ── VISÃO GERAL ─────────────────────────────────────────────────── */}
@@ -479,6 +522,55 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  ))}
  </div>
  </>
+ )}
+
+ {/* ── AÇÃO PENDENTE (segunda aprovação) ──────────────────────────────── */}
+ {view === 'acao' && (
+   <>
+     <div style={{ marginBottom: 20 }}>
+       <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Ação Pendente</div>
+       <p style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Orçamentos já aprovados pela unidade, aguardando sua aprovação final antes de ir pros fornecedores.</p>
+     </div>
+     {eventosAguardandoAdmin.length === 0 ? (
+       <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>
+         <div>Nenhum orçamento aguardando aprovação no momento.</div>
+       </div>
+     ) : (
+       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+         {eventosAguardandoAdmin.map(ev => {
+           const franq = franqueados.find(f => f.id === ev.clientUserId);
+           return (
+             <div key={ev.id} style={{ background: '#e3eafa', borderRadius: 12, padding: '16px 20px' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                 <div style={{ flex: 1 }}>
+                   <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
+                   <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                     Pedido por {franq?.name || ev.clientName} {unidadeDe(franq || {}).nome ? `· ${unidadeDe(franq || {}).nome}` : ''}
+                   </div>
+                   <div style={{ fontSize: 12, color: '#475569', marginTop: 1 }}>
+                     {ev.startDate ? new Date(ev.startDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                     {ev.endDate && ev.endDate !== ev.startDate ? ` → ${new Date(ev.endDate + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
+                     {(ev.location || ev.briefingData?.evento?.cidade) ? ` · ${ev.location || ev.briefingData?.evento?.cidade}` : ''}
+                   </div>
+                 </div>
+                 <div style={{ fontSize: 18, fontWeight: 700, color: corAccent, flexShrink: 0 }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
+               </div>
+               <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                 <button onClick={() => handleRecusarComoAdmin(ev)} disabled={processandoAprovacaoAdmin === ev.id}
+                   style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                   Recusar
+                 </button>
+                 <button onClick={() => handleAprovarComoAdmin(ev)} disabled={processandoAprovacaoAdmin === ev.id}
+                   style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: processandoAprovacaoAdmin === ev.id ? '#cbd5e1' : corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: processandoAprovacaoAdmin === ev.id ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                   {processandoAprovacaoAdmin === ev.id ? 'Processando...' : '✓ Aprovar orçamento'}
+                 </button>
+               </div>
+             </div>
+           );
+         })}
+       </div>
+     )}
+   </>
  )}
 
  {/* ── FRANQUEADOS ──────────────────────────────────────────────────── */}
