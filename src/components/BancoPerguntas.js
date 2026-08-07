@@ -154,6 +154,27 @@ export default function BancoPerguntas() {
   const perguntaRaiz  = perguntas.find(p => p.destino === 'raiz.tipoEvento');
   const filhasDe = (paiId) => perguntas.filter(p => p.perguntaPaiId === paiId);
 
+  const moverIrma = async (p, irmas, direcao) => {
+    const lista = [...irmas].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    const idx = lista.findIndex(x => x.id === p.id);
+    const novoIdx = idx + direcao;
+    if (novoIdx < 0 || novoIdx >= lista.length) return;
+    const vizinha = lista[novoIdx];
+    // Troca a "ordem" das duas — se algum dos dois nunca teve ordem definida
+    // (perguntas antigas, antes desse campo existir), usa o índice como base.
+    const ordemP = p.ordem ?? idx;
+    const ordemV = vizinha.ordem ?? novoIdx;
+    try {
+      await updateDoc(doc(db, 'perguntas', p.id), { ordem: ordemV });
+      await updateDoc(doc(db, 'perguntas', vizinha.id), { ordem: ordemP });
+      setPerguntas(prev => prev.map(x => {
+        if (x.id === p.id) return { ...x, ordem: ordemV };
+        if (x.id === vizinha.id) return { ...x, ordem: ordemP };
+        return x;
+      }));
+    } catch (e) { console.error(e); }
+  };
+
   const abrirNova = (destinoPreSelecionado) => {
     setEditando(null);
     setCriandoSubDe(null);
@@ -273,7 +294,7 @@ export default function BancoPerguntas() {
         servicoCategoriaId: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaId : null,
         servicoCategoriaNome: form.tipo === 'catalogo_especifico' ? form.servicoCategoriaNome : '',
         servicoTipoServico: form.tipo === 'catalogo_especifico' ? form.servicoTipoServico : null,
-        mostrarNoBriefingStand: form.destino === 'generico' && (form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha' || form.tipo === 'upload') ? !!form.mostrarNoBriefingStand : false,
+        mostrarNoBriefingStand: form.destino === 'generico' && (form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha' || form.tipo === 'upload' || form.tipo === 'numero' || form.tipo === 'texto_livre' || form.tipo === 'texto_longo') ? !!form.mostrarNoBriefingStand : false,
         ordem: form.ordem ?? Date.now(),
         updatedAt: serverTimestamp(),
       };
@@ -326,11 +347,13 @@ export default function BancoPerguntas() {
   };
 
   // ── Renderiza uma pergunta + suas sub-perguntas recursivamente ────────────
-  const renderPergunta = (p, nivel) => {
+  const renderPergunta = (p, nivel, irmas) => {
     const filhas = filhasDe(p.id);
     const info = DESTINOS_FIXOS[p.destino];
     const temOpcoesParaSub = p.tipo === 'multipla_escolha' || p.tipo === 'sim_nao';
     const expandido = expandidas[p.id] !== false; // default expandido
+    const irmasOrdenadas = [...irmas].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    const idxIrma = irmasOrdenadas.findIndex(x => x.id === p.id);
 
     return (
       <div key={p.id} style={{ marginLeft: nivel * 24 }}>
@@ -340,6 +363,10 @@ export default function BancoPerguntas() {
               {expandido ? '▾' : '▸'}
             </button>
           )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <button onClick={() => moverIrma(p, irmas, -1)} disabled={idxIrma === 0} style={{ background: 'none', border: 'none', cursor: idxIrma === 0 ? 'default' : 'pointer', color: idxIrma === 0 ? '#e2e8f0' : '#64748b', fontSize: 11, lineHeight: 1, padding: 0 }}>▲</button>
+            <button onClick={() => moverIrma(p, irmas, 1)} disabled={idxIrma === irmasOrdenadas.length - 1} style={{ background: 'none', border: 'none', cursor: idxIrma === irmasOrdenadas.length - 1 ? 'default' : 'pointer', color: idxIrma === irmasOrdenadas.length - 1 ? '#e2e8f0' : '#64748b', fontSize: 11, lineHeight: 1, padding: 0 }}>▼</button>
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{p.texto}</span>
@@ -387,7 +414,7 @@ export default function BancoPerguntas() {
           <button onClick={() => abrirEditar(p)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>Editar</button>
           <button onClick={() => excluir(p)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.2)', background: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer' }}>Excluir</button>
         </div>
-        {expandido && filhas.sort((a, b) => (a.ordem||0)-(b.ordem||0)).map(f => renderPergunta(f, nivel + 1))}
+        {expandido && filhas.sort((a, b) => (a.ordem||0)-(b.ordem||0)).map(f => renderPergunta(f, nivel + 1, filhas))}
       </div>
     );
   };
@@ -436,7 +463,7 @@ export default function BancoPerguntas() {
           <div style={{ fontSize: 14, fontWeight: 500 }}>Nenhuma pergunta cadastrada ainda</div>
         </div>
       ) : (
-        <div>{perguntasTopo.map(p => renderPergunta(p, 0))}</div>
+        <div>{perguntasTopo.map(p => renderPergunta(p, 0, perguntasTopo))}</div>
       )}
 
       {/* Modal criar/editar */}
@@ -539,7 +566,7 @@ export default function BancoPerguntas() {
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
-                  {(form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha' || form.tipo === 'upload') && (
+                  {(form.tipo === 'sim_nao' || form.tipo === 'multipla_escolha' || form.tipo === 'upload' || form.tipo === 'numero' || form.tipo === 'texto_livre' || form.tipo === 'texto_longo') && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!form.mostrarNoBriefingStand} onChange={e => setForm(p => ({ ...p, mostrarNoBriefingStand: e.target.checked }))} />
                       Mostrar a resposta no briefing, na seção Stand

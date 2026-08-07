@@ -884,7 +884,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
           <StepInputSimples placeholder={p.subtitulo || 'Sua resposta'} autoFocus optional={p.quemResponde !== 'todos'}
-            onConfirm={val => responder(p.id, val, { [campoDoDestino(p.destino)]: val })} />
+            onConfirm={val => responder(p.id, val, p.destino === 'generico' ? { respostasGenericas: { ...dados.respostasGenericas, [p.id]: val } } : { [campoDoDestino(p.destino)]: val })} />
         </div>
       );
     }
@@ -893,7 +893,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
           <StepTextareaSimples placeholder={p.subtitulo || ''} optional
-            onConfirm={val => responder(p.id, val, { [campoDoDestino(p.destino)]: val })} />
+            onConfirm={val => responder(p.id, val, p.destino === 'generico' ? { respostasGenericas: { ...dados.respostasGenericas, [p.id]: val } } : { [campoDoDestino(p.destino)]: val })} />
         </div>
       );
     }
@@ -902,7 +902,7 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <Pergunta subtitulo={p.subtitulo}>{p.texto}</Pergunta>
           <StepInputSimples type="number" placeholder="0" min="0" autoFocus
-            onConfirm={val => responder(p.id, val, { [campoDoDestino(p.destino)]: val })} />
+            onConfirm={val => responder(p.id, val, p.destino === 'generico' ? { respostasGenericas: { ...dados.respostasGenericas, [p.id]: val } } : { [campoDoDestino(p.destino)]: val })} />
         </div>
       );
     }
