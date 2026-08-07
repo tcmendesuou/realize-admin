@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
  collection, getDocs, addDoc, updateDoc, doc, getDoc, deleteDoc, query,
- where, onSnapshot, serverTimestamp, orderBy
+ where, onSnapshot, serverTimestamp, orderBy, limit,
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -204,6 +204,28 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     const unicos = Array.from(new Map(todos.map(e => [e.id, e])).values());
     setEventos(unicos.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
   }, [eventosComTenant, semTenantBudgets]);
+
+  // Pra cada evento com Etapas cadastradas, busca a foto mais recente pra
+  // saber em qual etapa o evento está agora (mostrado no card de Eventos).
+  const [ultimaEtapaPorEvento, setUltimaEtapaPorEvento] = useState({});
+  useEffect(() => {
+    const comEtapas = eventos.filter(e => e.etapasProjeto?.length > 0);
+    if (comEtapas.length === 0) return;
+    (async () => {
+      const resultado = {};
+      await Promise.all(comEtapas.map(async (ev) => {
+        try {
+          const snap = await getDocs(query(collection(db, 'budgets', ev.id, 'etapaFotos'), orderBy('createdAt', 'desc'), limit(1)));
+          if (!snap.empty) {
+            const foto = snap.docs[0].data();
+            const etapa = ev.etapasProjeto.find(e => e.id === foto.etapaId);
+            if (etapa) resultado[ev.id] = etapa.nome;
+          }
+        } catch (e) { console.error(e); }
+      }));
+      setUltimaEtapaPorEvento(resultado);
+    })();
+  }, [eventos]);
 
 
  const abrirEditarFranq = (f) => {
@@ -709,10 +731,14 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
  {eventos.map(ev => {
  const franq = franqueados.find(f => f.id === ev.clientUserId || f.uid === ev.clientUserId);
+ const nomeUnidade = unidadeDe(franq || {}).nome;
+ const etapaAtual = ultimaEtapaPorEvento[ev.id];
  return (
  <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', background: '#e3eafa', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ flex: 1 }}>
- <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
+ <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+ {ev.eventName || 'Sem nome'}{nomeUnidade ? <span style={{ fontWeight: 500, color: '#475569' }}> · {nomeUnidade}</span> : null}
+ </div>
  <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
  {franq?.name || ev.clientName} · {ev.location || ev.briefingData?.evento?.cidade || '—'} · {formatDate(ev.createdAt)}
  </div>
@@ -721,8 +747,14 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {ev.endDate && ev.endDate !== ev.startDate ? ` → ${new Date(ev.endDate + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
  </div>
  </div>
+ {etapaAtual && (
+ <div style={{ textAlign: 'center', flexShrink: 0, padding: '0 12px' }}>
+ <div style={{ fontSize: 9, fontWeight: 700, color: '#7481a3', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Etapa atual</div>
+ <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{etapaAtual}</div>
+ </div>
+ )}
  <div style={{ textAlign: 'right', flexShrink: 0 }}>
- <div style={{ fontSize: 15, fontWeight: 700, color: corAccent }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
+ <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
  <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, padding: '2px 8px', borderRadius: 6, display: 'inline-block', background: ev.status === 'approved' ? 'rgba(102,187,106,0.15)' : ev.status === 'analyzing' ? 'rgba(255,167,38,0.15)' : 'rgba(102,126,234,0.15)', color: ev.status === 'approved' ? '#16a34a' : ev.status === 'analyzing' ? '#d97706' : '#667eea' }}>
  {ev.status === 'approved' ? 'APROVADO' : ev.status === 'analyzing' ? 'EM ANÁLISE' : (ev.status || '—').toUpperCase()}
  </div>
