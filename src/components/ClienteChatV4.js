@@ -1158,11 +1158,9 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
     conteudo = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
         <Pergunta>{`Olá, **${userName}**! 😊\n\n${raizPergunta.texto}`}</Pergunta>
-        {raizPergunta.opcoes.map(op => {
-          const tipo = tiposEvento.find(t => t.id === op.valor);
-          if (!tipo) return null;
-          return <OpcaoBtn key={op.valor} onClick={() => avancarDaRaiz(op.valor)}>{op.label}</OpcaoBtn>;
-        })}
+        {tiposEvento.filter(t => t.ativo !== false).map(tipo => (
+          <OpcaoBtn key={tipo.id} onClick={() => avancarDaRaiz(tipo.id)}>{tipo.nome}</OpcaoBtn>
+        ))}
       </div>
     );
   } else if (passoEspecial === 'equipe_detalhes') {
