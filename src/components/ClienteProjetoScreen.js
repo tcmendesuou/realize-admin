@@ -399,7 +399,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        .cps-wrap { min-height: 100vh; background: #f0f2f5; font-family: 'Outfit', sans-serif; color: #1a2e40; }
+        .cps-wrap { min-height: 100vh; background: #ccd4ea; font-family: 'Outfit', sans-serif; color: #1a2e40; }
         .cps-topbar { background: #0D1B2A; padding: 0 36px; display: flex; align-items: center; justify-content: space-between; height: 60px; border-bottom: 1px solid rgba(0,180,255,0.1); position: sticky; top: 0; z-index: 10; }
         .cps-back { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #7BAFD4; font-size: 13px; background: none; border: none; font-family: 'Outfit', sans-serif; transition: color 0.15s; }
         .cps-back:hover { color: #00E5C4; }
@@ -416,8 +416,8 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
         .cps-hero-inner { max-width: 860px; margin: 0 auto; text-align: center; }
         .cps-hero-meta { justify-content: center; }
         .cps-tabs { justify-content: center; }
-        .cps-card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e8eaed; }
-        .cps-card-title { font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: #00E5C4; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f2f5; }
+        .cps-card { background: #e3eafa; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .cps-card-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #1e293b; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(61,76,107,0.15); text-align: center; }
         .cps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .cps-info-label { font-size: 11px; color: #8a9bb0; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 3px; }
         .cps-info-value { font-size: 14px; color: #1a2e40; }
@@ -545,9 +545,9 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                       <div className="cps-info-label" style={{ marginBottom: 8 }}>Imagens de referência</div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {est2.standImagensUrls.map((url, i) => (
-                          <a key={i} href={url} target="_blank" rel="noreferrer">
-                            <img src={url} alt={`ref ${i+1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                          </a>
+                          <div key={i} onClick={() => setFotoAmpliada({ fotos: est2.standImagensUrls, idx: i })}>
+                            <img src={url} alt={`ref ${i+1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'zoom-in' }} />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -558,9 +558,9 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                       <div className="cps-info-label" style={{ marginBottom: 8 }}>Arquivos de identidade visual</div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {est2.identidadeImagensUrls.map((url, i) => (
-                          <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0080FF', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, border: '1px solid #e0e8ff', background: '#f0f4ff' }}>
-                            📎 Arquivo {i + 1}
-                          </a>
+                          <div key={i} onClick={() => setFotoAmpliada({ fotos: est2.identidadeImagensUrls, idx: i })}>
+                            <img src={url} alt={`identidade ${i+1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'zoom-in' }} />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -588,7 +588,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                       <div key={tipo} style={{ marginBottom: 16 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{labelTipo}</div>
                         {itens.map((op, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0f2f5', marginBottom: 6, background: '#fafbff' }}>
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.12)', marginBottom: 6, background: 'white' }}>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
                               {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
@@ -731,7 +731,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                     {task.supplierName && <div style={{ fontSize: 12, color: '#667eea', marginBottom: 10 }}>{task.supplierName}</div>}
 
                     {task.aprovacaoObs && (
-                      <div style={{ fontSize: 13, color: '#475569', background: '#f8faff', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, color: '#475569', background: 'white', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
                         {task.aprovacaoObs}
                       </div>
                     )}
@@ -839,7 +839,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                         { label: `Impostos (${fin.impostos || orcamento.pctImpostos || 0}%)`, value: fin.valorImpostos || orcamento.valorImpostos, color: '#ef4444' },
                         { label: 'Total', value: fin.valorTotal || orcamento.total, color: '#0080FF', bold: true },
                       ].map(s => (
-                        <div key={s.label} style={{ background: '#f8faff', borderRadius: 10, padding: '14px 16px', border: s.bold ? '2px solid rgba(0,128,255,0.3)' : '1px solid #e2e8f0' }}>
+                        <div key={s.label} style={{ background: 'white', borderRadius: 10, padding: '14px 16px', border: s.bold ? '2px solid rgba(0,128,255,0.3)' : '1px solid #e2e8f0' }}>
                           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{s.label}</div>
                           <div style={{ fontSize: s.bold ? 18 : 15, fontWeight: 700, color: s.color }}>{formatBRL(s.value)}</div>
                         </div>
