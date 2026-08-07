@@ -342,47 +342,38 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
                 </button>
               </div>
             ) : (
-              <div className="cl-events-grid">
+              <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14 }}>
                 {eventosAtivos.map(event => {
                   const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
                   const temAcaoPendente = event.status === 'pendingApproval' || tasksPendentesAprov.some(t => t.budgetId === event.id);
                   return (
-                    <div key={event.id} className="cl-event-card" onClick={() => setSelectedEvent(event)}
-                      style={{ borderTopColor: st.color }}>
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: st.color, borderRadius: '14px 14px 0 0' }} />
+                    <div key={event.id} onClick={() => setSelectedEvent(event)}
+                      style={{ position: 'relative', display: 'flex', alignItems: 'center', background: '#e3eafa', borderRadius: 12, padding: '14px 16px', marginBottom: 10, cursor: 'pointer' }}>
                       {temAcaoPendente && (
-                        <span title="Ação pendente" style={{ position: 'absolute', top: 12, right: 12, width: 10, height: 10, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
+                        <span title="Ação pendente" style={{ position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
                       )}
 
-                      {/* Status badge */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: st.bg, color: st.color, letterSpacing: 0.5 }}>{st.label}</span>
-                        {event.jobCode && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)' }}>{event.jobCode}</span>}
-                      </div>
-
-                      {/* Nome do evento */}
-                      <div style={{ fontSize: 16, fontWeight: 500, color: '#E8F4FF', marginBottom: 6 }}>
-                        {event.eventName || event.eventTypeName || 'Meu Evento'}
-                      </div>
-
-                      {/* Tipo */}
-                      {event.eventTypeName && (
-                        <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 12 }}>{event.eventTypeName}</div>
-                      )}
-
-                      {/* Datas */}
-                      {(event.startDate || event.endDate) && (
-                        <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 12 }}>
-                          {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` ate ${event.endDate}` : ''}
+                      {/* Info à esquerda */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>
+                          {event.eventName || event.eventTypeName || 'Meu Evento'}
                         </div>
-                      )}
+                        {event.jobCode && <div style={{ fontSize: 11, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{event.jobCode}</div>}
+                        {event.eventTypeName && <div style={{ fontSize: 12, color: '#475569', marginBottom: 1 }}>{event.eventTypeName}</div>}
+                        {(event.startDate || event.endDate) && (
+                          <div style={{ fontSize: 12, color: '#475569' }}>
+                            {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` até ${event.endDate}` : ''}
+                          </div>
+                        )}
+                      </div>
 
-                      {/* Footer */}
-                      <div style={{ paddingTop: 12, borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)' }}>
-                          {event.createdAt?.toDate ? event.createdAt.toDate().toLocaleDateString('pt-BR') : ''}
-                        </span>
-                        <span style={{ fontSize: 11, color: '#00E5C4' }}>Ver detalhes →</span>
+                      {/* Divisor */}
+                      <div style={{ width: 1, height: 44, background: 'rgba(61,76,107,0.15)', margin: '0 16px' }} />
+
+                      {/* Status à direita */}
+                      <div style={{ alignItems: 'center', minWidth: 100, textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#7481a3', letterSpacing: 0.5, marginBottom: 6 }}>STATUS</div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: 10, background: st.color, color: 'white' }}>{st.label}</span>
                       </div>
                     </div>
                   );
