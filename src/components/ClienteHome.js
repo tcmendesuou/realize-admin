@@ -270,11 +270,11 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
 
       {/* Sidebar */}
       <aside className="cl-sidebar">
-        <div className="cl-logo">
+        <div className="cl-logo" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           {tenantData?.logo ? (
             <>
-              <img src={tenantData.logo} alt={tenantData.nome || ''} style={{ height: 32, objectFit: 'contain', display: 'block', marginBottom: 6 }} />
-              <div style={{ fontSize: 10, color: 'rgba(123,175,212,0.5)', letterSpacing: 1.5 }}>REALIZEHUB</div>
+              <img src={tenantData.logo} alt={tenantData.nome || ''} style={{ height: 48, objectFit: 'contain', display: 'block', marginBottom: 8 }} />
+              <div style={{ fontSize: 11, color: 'rgba(232,244,255,0.55)', letterSpacing: 1.5 }}>REALIZE<span style={{ color: '#00E5C4', fontWeight: 600 }}>HUB</span></div>
             </>
           ) : (
             <>realize<span>hub</span></>
@@ -462,7 +462,7 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
             </div>
 
             {/* Custos por evento */}
-            <div style={{ background: '#ccd4ea', margin: '20px -32px -28px', padding: '20px 32px', minHeight: 200 }}>
+            <div style={{ background: '#ccd4ea', margin: '20px -32px -28px', padding: '20px 32px', minHeight: 'calc(100vh - 380px)' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#7481a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Seus eventos</div>
               {events.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>Nenhum evento ainda.</div>
