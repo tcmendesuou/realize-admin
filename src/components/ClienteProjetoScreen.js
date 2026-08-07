@@ -818,7 +818,9 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
           )}
 
           {/* ── ETAPAS (linha do tempo com fotos, dentro da mesma aba Cronograma) ── */}
-          {activeTab === 'cronograma' && (
+          {/* Só aparece depois que a proposta foi aprovada — antes disso não há
+              nada pra mostrar (fornecedores ainda nem foram confirmados). */}
+          {activeTab === 'cronograma' && !['analyzing', 'pendingApproval', 'rejected'].includes(project.status) && (
             <div style={{ marginTop: 20 }}>
               <EtapasTimeline project={project} userData={userData} isFornecedor={false} />
             </div>
