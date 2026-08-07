@@ -363,11 +363,11 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
  {/* Sidebar — mesmo visual do admin principal (App.css: .sidebar, .nav-item, etc.) */}
  <aside className="sidebar">
- <div className="sidebar-header">
+ <div className="sidebar-header" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
  {tenant?.logo
- ? <img src={tenant.logo} alt={tenantNome} style={{ height: 36, objectFit: 'contain', marginBottom: 6 }} />
+ ? <img src={tenant.logo} alt={tenantNome} style={{ height: 48, objectFit: 'contain', marginBottom: 8 }} />
  : <h1 className="logo">{tenantNome}</h1>}
- <p className="logo-subtitle">REALIZEHUB</p>
+ <p className="logo-subtitle" style={{ fontSize: 11, color: 'rgba(232,244,255,0.55)', letterSpacing: 1.5 }}>REALIZE<span style={{ color: '#00E5C4', fontWeight: 600 }}>HUB</span></p>
  </div>
  {/* Nav */}
  <nav className="sidebar-nav">
