@@ -8,6 +8,7 @@ const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block',
 export default function TiposEvento() {
   const [tipos, setTipos]         = useState([]);
   const [perguntas, setPerguntas] = useState([]); // só as de topo (sem pai), do Banco de Perguntas
+  const [todasPerguntasRef, setTodasPerguntasRef] = useState([]); // todas, incluindo sub-perguntas — usado só pra duplicar
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
 
@@ -16,6 +17,7 @@ export default function TiposEvento() {
   const [nomeForm, setNomeForm]   = useState('');
 
   const [selecionado, setSelecionado] = useState(null); // tipo aberto pra editar o fluxo
+  const [duplicando, setDuplicando]   = useState(null); // id do tipo sendo duplicado agora
 
   useEffect(() => { carregar(); }, []);
 
@@ -28,6 +30,7 @@ export default function TiposEvento() {
     setTipos(tiposSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     const todasPerguntas = perguntasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     setPerguntas(todasPerguntas.filter(p => !p.perguntaPaiId && p.destino !== 'raiz.tipoEvento' && p.ativo !== false));
+    setTodasPerguntasRef(todasPerguntas); // sem filtro — usado pra duplicar (precisa ver sub-perguntas também)
     setLoading(false);
   };
 
@@ -58,6 +61,64 @@ export default function TiposEvento() {
     await deleteDoc(doc(db, 'tiposEvento', t.id));
     if (selecionado?.id === t.id) setSelecionado(null);
     await carregar();
+  };
+
+  // Duplica um Tipo de Evento inteiro — incluindo TODAS as perguntas dele
+  // (de topo e sub-perguntas aninhadas), como cópias independentes, com o
+  // vínculo entre pai/filho e as condições ("Pergunta Condicional") remapeados
+  // pra apontar pras cópias novas, não pras perguntas originais. Assim dá pra
+  // editar a cópia sem afetar o fluxo original.
+  const duplicarTipo = async (tipo, e) => {
+    e.stopPropagation();
+    setDuplicando(tipo.id);
+    try {
+      const filhasDe = (paiId) => todasPerguntasRef.filter(p => p.perguntaPaiId === paiId);
+      const mapaIds = {}; // id antigo -> id novo
+
+      // Clona uma pergunta e, recursivamente, todas as filhas dela.
+      const clonarComFilhas = async (perguntaOriginal, novoPaiId) => {
+        const { id: idAntigo, ...dados } = perguntaOriginal;
+        const novaCond = dados.condicaoExibicao && dados.condicaoExibicao.verificarDestino?.startsWith('pergunta:')
+          ? { ...dados.condicaoExibicao, verificarDestino: `pergunta:${mapaIds[dados.condicaoExibicao.verificarDestino.replace('pergunta:', '')] || dados.condicaoExibicao.verificarDestino.replace('pergunta:', '')}` }
+          : dados.condicaoExibicao || null;
+        const novoRef = await addDoc(collection(db, 'perguntas'), {
+          ...dados,
+          perguntaPaiId: novoPaiId,
+          condicaoExibicao: novaCond,
+          createdAt: serverTimestamp(),
+        });
+        mapaIds[idAntigo] = novoRef.id;
+        const filhas = filhasDe(idAntigo);
+        for (const filha of filhas) {
+          await clonarComFilhas(filha, novoRef.id);
+        }
+        return novoRef.id;
+      };
+
+      const idsTopoOriginais = tipo.perguntasIds || [];
+      const novosIdsTopo = [];
+      for (const idOriginal of idsTopoOriginais) {
+        const pergOriginal = todasPerguntasRef.find(p => p.id === idOriginal);
+        if (!pergOriginal) continue; // ID fantasma — ignora
+        const novoId = await clonarComFilhas(pergOriginal, null);
+        novosIdsTopo.push(novoId);
+      }
+
+      // Depois de clonar tudo, resolve condições que ainda apontam pra
+      // perguntas de FORA da árvore desse tipo (raro, mas possível) — nesse
+      // caso mantém apontando pra original mesmo, já tratado no fallback acima.
+
+      await addDoc(collection(db, 'tiposEvento'), {
+        nome: `${tipo.nome} (cópia)`,
+        ativo: false, // começa inativo de propósito, pra revisar antes de ativar
+        perguntasIds: novosIdsTopo,
+        etapas: tipo.etapas || [],
+        createdAt: serverTimestamp(),
+      });
+
+      await carregar();
+    } catch (err) { console.error(err); alert('Erro ao duplicar. Tente novamente.'); }
+    finally { setDuplicando(null); }
   };
 
   const toggleAtivo = async (t, e) => {
@@ -214,6 +275,9 @@ export default function TiposEvento() {
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{t.nome}</h3>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button onClick={e => abrirEditarNome(t, e)} title="Renomear" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>✏️</button>
+                  <button onClick={e => duplicarTipo(t, e)} disabled={duplicando === t.id} title="Duplicar" style={{ background: 'none', border: 'none', cursor: duplicando === t.id ? 'not-allowed' : 'pointer', fontSize: 12, opacity: duplicando === t.id ? 0.4 : 1 }}>
+                    {duplicando === t.id ? '⏳' : '📋'}
+                  </button>
                   <button onClick={e => excluirTipo(t, e)} title="Excluir" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>🗑️</button>
                 </div>
               </div>
