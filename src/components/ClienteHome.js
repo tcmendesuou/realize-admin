@@ -315,74 +315,70 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
         </div>
 
         {activeSection === 'workspace' && (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div style={{ background: '#ccd4ea', margin: '0 -32px -28px', padding: '24px 32px', minHeight: 'calc(100vh - 115px)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 }}>
               <div>
-                <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Meus Eventos</h1>
-                <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Acompanhe seus eventos em tempo real</p>
+                <h1 style={{ fontSize: 22, fontWeight: 300, color: '#1e293b', letterSpacing: -0.3 }}>Meus Eventos</h1>
+                <p style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Acompanhe seus eventos em tempo real</p>
               </div>
               <button
-                style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(0,229,196,0.3)', background: 'rgba(0,229,196,0.06)', color: '#00E5C4', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,196,0.12)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,229,196,0.06)'}
+                style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(0,229,196,0.4)', background: 'rgba(0,229,196,0.1)', color: '#0d9488', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', transition: 'all 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,196,0.18)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,229,196,0.1)'}
                 onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}>
                 + Novo Evento
               </button>
             </div>
 
-            <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, minHeight: 90 }}>
-              {loading ? (
-                <div style={{ textAlign: 'center', padding: 60, color: '#475569', fontSize: 14 }}>Carregando...</div>
-              ) : eventosAtivos.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 60 }}>
-                  <div style={{ fontSize: 14, color: '#475569', marginBottom: 20 }}>Você ainda não tem eventos</div>
-                  <button
-                    onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}
-                    style={{ padding: '12px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                    Planejar meu primeiro evento
-                  </button>
-                </div>
-              ) : (
-                <>
-                {eventosAtivos.map(event => {
-                  const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
-                  const temAcaoPendente = event.status === 'pendingApproval' || tasksPendentesAprov.some(t => t.budgetId === event.id);
-                  return (
-                    <div key={event.id} onClick={() => setSelectedEvent(event)}
-                      style={{ position: 'relative', display: 'flex', alignItems: 'center', background: '#e3eafa', borderRadius: 12, padding: '14px 16px', marginBottom: 10, cursor: 'pointer' }}>
-                      {temAcaoPendente && (
-                        <span title="Ação pendente" style={{ position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
-                      )}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 60, color: '#475569', fontSize: 14 }}>Carregando...</div>
+            ) : eventosAtivos.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 60 }}>
+                <div style={{ fontSize: 14, color: '#475569', marginBottom: 20 }}>Você ainda não tem eventos</div>
+                <button
+                  onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}
+                  style={{ padding: '12px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                  Planejar meu primeiro evento
+                </button>
+              </div>
+            ) : (
+              eventosAtivos.map(event => {
+                const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
+                const temAcaoPendente = event.status === 'pendingApproval' || tasksPendentesAprov.some(t => t.budgetId === event.id);
+                return (
+                  <div key={event.id} onClick={() => setSelectedEvent(event)}
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', background: '#e3eafa', borderRadius: 12, padding: '14px 16px', marginBottom: 10, cursor: 'pointer' }}>
+                    {temAcaoPendente && (
+                      <span title="Ação pendente" style={{ position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }} />
+                    )}
 
-                      {/* Info à esquerda */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>
-                          {event.eventName || event.eventTypeName || 'Meu Evento'}
+                    {/* Info à esquerda */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>
+                        {event.eventName || event.eventTypeName || 'Meu Evento'}
+                      </div>
+                      {event.jobCode && <div style={{ fontSize: 11, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{event.jobCode}</div>}
+                      {event.eventTypeName && <div style={{ fontSize: 12, color: '#475569', marginBottom: 1 }}>{event.eventTypeName}</div>}
+                      {(event.startDate || event.endDate) && (
+                        <div style={{ fontSize: 12, color: '#475569' }}>
+                          {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` até ${event.endDate}` : ''}
                         </div>
-                        {event.jobCode && <div style={{ fontSize: 11, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{event.jobCode}</div>}
-                        {event.eventTypeName && <div style={{ fontSize: 12, color: '#475569', marginBottom: 1 }}>{event.eventTypeName}</div>}
-                        {(event.startDate || event.endDate) && (
-                          <div style={{ fontSize: 12, color: '#475569' }}>
-                            {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` até ${event.endDate}` : ''}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Divisor */}
-                      <div style={{ width: 1, height: 44, background: 'rgba(61,76,107,0.15)', margin: '0 16px' }} />
-
-                      {/* Status à direita */}
-                      <div style={{ alignItems: 'center', minWidth: 100, textAlign: 'center' }}>
-                        <div style={{ fontSize: 9, fontWeight: 700, color: '#7481a3', letterSpacing: 0.5, marginBottom: 6 }}>STATUS</div>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: 10, background: st.color, color: 'white' }}>{st.label}</span>
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
-                </>
-              )}
-            </div>
-          </>
+
+                    {/* Divisor */}
+                    <div style={{ width: 1, height: 44, background: 'rgba(61,76,107,0.15)', margin: '0 16px' }} />
+
+                    {/* Status à direita */}
+                    <div style={{ alignItems: 'center', minWidth: 100, textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#7481a3', letterSpacing: 0.5, marginBottom: 6 }}>STATUS</div>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: 10, background: st.color, color: 'white' }}>{st.label}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         )}
 
         {activeSection === 'historico' && (
