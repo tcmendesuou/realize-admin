@@ -539,11 +539,11 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  { label: 'Eventos ativos', value: eventosAtivos, icon: '', cor: '#0080FF' },
  { label: 'Eventos acontecendo', value: eventos.filter(e => e.workspaceStage === 'Acontecendo').length, icon: '', cor: '#FFA726' },
  { label: 'Total de eventos',value: totalEventos, icon: '', cor: '#667eea' },
- { label: 'Verba utilizada', value: formatBRL(totalGasto), icon: '', cor: '#66BB6A' },
+ { label: 'Verba utilizada', value: formatBRL(totalGasto), icon: '', cor: '#66BB6A', isValor: true },
  ].map((m, i) => (
  <div key={i} style={{ background: '#e3eafa', borderRadius: 14, padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
  <div style={{ fontSize: 22 }}>{m.icon}</div>
- <div style={{ fontSize: 24, fontWeight: 700, color: m.cor }}>{m.value}</div>
+ <div style={{ fontSize: m.isValor ? 24 : 17, fontWeight: 700, color: m.cor }}>{m.value}</div>
  <div style={{ fontSize: 12, color: '#475569' }}>{m.label}</div>
  </div>
  ))}
@@ -801,12 +801,15 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  </div>
  {etapaAtual && (
- <div style={{ textAlign: 'center', flexShrink: 0, padding: '0 12px' }}>
+ <>
+ <div style={{ textAlign: 'center', flexShrink: 0, padding: '0 18px' }}>
  <div style={{ fontSize: 9, fontWeight: 700, color: '#7481a3', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Etapa atual</div>
  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{etapaAtual}</div>
  </div>
+ <div style={{ width: 1, height: 36, background: 'rgba(30,41,59,0.25)', flexShrink: 0 }} />
+ </>
  )}
- <div style={{ textAlign: 'right', flexShrink: 0 }}>
+ <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: etapaAtual ? 18 : 0 }}>
  <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
  <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, padding: '2px 8px', borderRadius: 6, display: 'inline-block', background: ev.status === 'approved' ? 'rgba(102,187,106,0.15)' : ev.status === 'analyzing' ? 'rgba(255,167,38,0.15)' : 'rgba(102,126,234,0.15)', color: ev.status === 'approved' ? '#16a34a' : ev.status === 'analyzing' ? '#d97706' : '#667eea' }}>
  {ev.status === 'approved' ? 'APROVADO' : ev.status === 'analyzing' ? 'EM ANÁLISE' : (ev.status || '—').toUpperCase()}
@@ -850,19 +853,19 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#3d4c6b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Carteira Geral</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
                     <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Total carregado</div><div style={{ fontSize: 18, fontWeight: 700, color: corPrimary }}>{formatBRL(totalPool)}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Alocado (em eventos)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#FFA726' }}>{formatBRL(totalAlocado)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Alocado (em eventos)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#EA580C' }}>{formatBRL(totalAlocado)}</div></div>
                     <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Utilizado (pago)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{formatBRL(totalUsado)}</div></div>
                     <div><div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Livre</div><div style={{ fontSize: 18, fontWeight: 700, color: '#16a34a' }}>{formatBRL(livre)}</div></div>
                   </div>
                   {/* Barra dupla: alocado (amarelo) + utilizado (vermelho) */}
                   <div style={{ borderRadius: 6, height: 10, overflow: 'hidden', marginBottom: 6, display: 'flex' }}>
                     <div style={{ width: `${pctUsado}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
-                    <div style={{ width: `${pctAlocado}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
+                    <div style={{ width: `${pctAlocado}%`, height: '100%', background: '#EA580C', transition: 'width 0.5s' }} />
                     <div style={{ flex: 1, height: '100%', background: '#16a34a', opacity: 0.55, transition: 'width 0.5s' }} />
                   </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#475569', marginBottom: 16 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />Utilizado {pctUsado.toFixed(1)}%</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FFA726', display: 'inline-block' }} />Alocado {pctAlocado.toFixed(1)}%</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#EA580C', display: 'inline-block' }} />Alocado {pctAlocado.toFixed(1)}%</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />Livre {(100 - pctUsado - pctAlocado).toFixed(1)}%</span>
                   </div>
                   {verbasGerais.length > 0 && (
@@ -931,13 +934,13 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, color: '#475569' }}>Alocado: <strong style={{ color: '#FFA726' }}>{formatBRL(alocBucket)}</strong></div>
+                        <div style={{ fontSize: 12, color: '#475569' }}>Alocado: <strong style={{ color: '#EA580C' }}>{formatBRL(alocBucket)}</strong></div>
                         <div style={{ fontSize: 12, color: '#475569' }}>Utilizado: <strong style={{ color: '#ef4444' }}>{formatBRL(usadoBucket)}</strong></div>
                         <div style={{ fontSize: 12, color: '#475569' }}>Livre: <strong style={{ color: '#16a34a' }}>{formatBRL(Math.max(0, saldo - alocBucket - usadoBucket))}</strong></div>
                       </div>
                       <div style={{ borderRadius: 6, height: 8, overflow: 'hidden', display: 'flex' }}>
                         <div style={{ width: `${pctU}%`, height: '100%', background: '#ef4444', transition: 'width 0.5s' }} />
-                        <div style={{ width: `${pctA}%`, height: '100%', background: '#FFA726', transition: 'width 0.5s' }} />
+                        <div style={{ width: `${pctA}%`, height: '100%', background: '#EA580C', transition: 'width 0.5s' }} />
                         <div style={{ flex: 1, height: '100%', background: '#16a34a', opacity: 0.55, transition: 'width 0.5s' }} />
                       </div>
                       <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>{(pctU + pctA).toFixed(1)}% comprometido</div>
@@ -1090,7 +1093,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
             onClick={e => { if (e.target === e.currentTarget) setEventoSelecionado(null); }}>
-            <div style={{ background: 'white', width: '100%', maxWidth: 560, maxHeight: '88vh', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: 'white', width: '100%', maxWidth: 560, height: '82vh', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
               {/* Header */}
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                 <div>
