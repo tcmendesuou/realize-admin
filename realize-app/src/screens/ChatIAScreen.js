@@ -746,8 +746,6 @@ export default function ChatIAScreen({ navigation }) {
                       {m.altura > 0 && <Text style={styles.modeloInfoItem}>Altura: {m.altura} m</Text>}
                     </View>
                     {fmtLista(m.caracteristicas) ? <Text style={styles.modeloListaItem}>Características: {fmtLista(m.caracteristicas)}</Text> : null}
-                    {fmtLista(m.moveisInclusos) ? <Text style={styles.modeloListaItem}>Móveis inclusos: {fmtLista(m.moveisInclusos)}</Text> : null}
-                    {fmtLista(m.tecnologiaInclusa) ? <Text style={styles.modeloListaItem}>Tecnologia inclusa: {fmtLista(m.tecnologiaInclusa)}</Text> : null}
                   </View>
                 )}
               </View>
