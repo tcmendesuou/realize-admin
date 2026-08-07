@@ -330,19 +330,20 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
               </button>
             </div>
 
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: 60, color: '#7BAFD4', fontSize: 14 }}>Carregando...</div>
-            ) : eventosAtivos.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 80 }}>
-                <div style={{ fontSize: 14, color: 'rgba(123,175,212,0.5)', marginBottom: 20 }}>Voce ainda nao tem eventos</div>
-                <button
-                  onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}
-                  style={{ padding: '12px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                  Planejar meu primeiro evento
-                </button>
-              </div>
-            ) : (
-              <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14 }}>
+            <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, minHeight: 90 }}>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: 60, color: '#475569', fontSize: 14 }}>Carregando...</div>
+              ) : eventosAtivos.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 60 }}>
+                  <div style={{ fontSize: 14, color: '#475569', marginBottom: 20 }}>Você ainda não tem eventos</div>
+                  <button
+                    onClick={() => { setChatKey(k => k + 1); setShowChat(true); }}
+                    style={{ padding: '12px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Planejar meu primeiro evento
+                  </button>
+                </div>
+              ) : (
+                <>
                 {eventosAtivos.map(event => {
                   const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
                   const temAcaoPendente = event.status === 'pendingApproval' || tasksPendentesAprov.some(t => t.budgetId === event.id);
@@ -378,8 +379,9 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
                     </div>
                   );
                 })}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </>
         )}
 
