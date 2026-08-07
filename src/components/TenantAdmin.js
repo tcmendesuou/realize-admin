@@ -359,7 +359,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
 
  // ── Render ───────────────────────────────────────────────────────────────────
  return (
- <div style={{ minHeight: '100vh', background: '#f8faff', fontFamily: 'Outfit, sans-serif' }}>
+ <div style={{ minHeight: '100vh', background: '#ccd4ea', fontFamily: 'Outfit, sans-serif' }}>
 
  {/* Sidebar — mesmo visual do admin principal (App.css: .sidebar, .nav-item, etc.) */}
  <aside className="sidebar">
@@ -417,10 +417,12 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <>
  <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>Visão Geral — {tenantNome}</div>
  {/* Cards de métricas */}
- <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+ <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
  {[
  { label: 'Colaboradores', value: franqueados.length, icon: '', cor: corPrimary },
+ { label: 'Unidades ativas', value: unidades.filter(u => u.ativo !== false).length, icon: '', cor: '#AB47BC' },
  { label: 'Eventos ativos', value: eventosAtivos, icon: '', cor: '#0080FF' },
+ { label: 'Eventos acontecendo', value: eventos.filter(e => e.workspaceStage === 'Acontecendo').length, icon: '', cor: '#FFA726' },
  { label: 'Total de eventos',value: totalEventos, icon: '', cor: '#667eea' },
  { label: 'Verba utilizada', value: formatBRL(totalGasto), icon: '', cor: '#66BB6A' },
  ].map((m, i) => (
@@ -430,27 +432,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ fontSize: 12, color: '#94a3b8' }}>{m.label}</div>
  </div>
  ))}
- </div>
-
- {/* Últimos eventos */}
- <div style={card}>
- <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>Últimos Eventos</div>
- {loading ? <div style={{ color: '#94a3b8', fontSize: 13 }}>Carregando...</div>
- : eventos.slice(0, 8).map(ev => {
- const franq = franqueados.find(f => f.id === ev.clientUserId);
- return (
- <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: '1px solid #f8faff' }}>
- <div style={{ flex: 1 }}>
- <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
- <div style={{ fontSize: 11, color: '#94a3b8' }}>{franq?.name || ev.clientName} · {formatDate(ev.createdAt)}</div>
- </div>
- <div style={{ fontSize: 13, fontWeight: 700, color: corAccent }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
- <div style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: ev.status === 'approved' ? 'rgba(102,187,106,0.1)' : 'rgba(255,167,38,0.1)', color: ev.status === 'approved' ? '#16a34a' : '#d97706' }}>
- {ev.status === 'approved' ? 'APROVADO' : ev.status === 'analyzing' ? 'EM ANÁLISE' : ev.status?.toUpperCase()}
- </div>
- </div>
- );
- })}
  </div>
  </>
  )}
