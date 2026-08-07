@@ -382,63 +382,46 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
         )}
 
         {activeSection === 'historico' && (
-          <>
-            <div>
-              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#E8F4FF', letterSpacing: -0.3 }}>Histórico</h1>
-              <p style={{ fontSize: 13, color: '#7BAFD4', marginTop: 4 }}>Eventos concluídos ou cancelados</p>
+          <div style={{ background: '#ccd4ea', margin: '0 -32px -28px', padding: '24px 32px', minHeight: 'calc(100vh - 115px)' }}>
+            <div style={{ marginBottom: 20 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 300, color: '#1e293b', letterSpacing: -0.3 }}>Histórico</h1>
+              <p style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Eventos concluídos ou cancelados</p>
             </div>
 
             {loading ? (
-              <div style={{ textAlign: 'center', padding: 60, color: '#7BAFD4', fontSize: 14 }}>Carregando...</div>
+              <div style={{ textAlign: 'center', padding: 60, color: '#475569', fontSize: 14 }}>Carregando...</div>
             ) : eventosHistorico.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 80 }}>
-                <div style={{ fontSize: 14, color: 'rgba(123,175,212,0.5)' }}>Nenhum evento no histórico ainda.</div>
+              <div style={{ textAlign: 'center', padding: 60 }}>
+                <div style={{ fontSize: 14, color: '#475569' }}>Nenhum evento no histórico ainda.</div>
               </div>
             ) : (
-              <div className="cl-events-grid">
-                {eventosHistorico.map(event => {
-                  const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
-                  return (
-                    <div key={event.id} className="cl-event-card" onClick={() => setSelectedEvent(event)}
-                      style={{ borderTopColor: st.color }}>
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: st.color, borderRadius: '14px 14px 0 0' }} />
-
-                      {/* Status badge */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: st.bg, color: st.color, letterSpacing: 0.5 }}>{st.label}</span>
-                        {event.jobCode && <span style={{ fontSize: 10, color: 'rgba(123,175,212,0.4)' }}>{event.jobCode}</span>}
-                      </div>
-
-                      {/* Nome do evento */}
-                      <div style={{ fontSize: 16, fontWeight: 500, color: '#E8F4FF', marginBottom: 6 }}>
+              eventosHistorico.map(event => {
+                const st = STATUS_CONFIG[event.status] || STATUS_CONFIG.analyzing;
+                return (
+                  <div key={event.id} onClick={() => setSelectedEvent(event)}
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', background: '#e3eafa', borderRadius: 12, padding: '14px 16px', marginBottom: 10, cursor: 'pointer' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>
                         {event.eventName || event.eventTypeName || 'Meu Evento'}
                       </div>
-
-                      {/* Tipo */}
-                      {event.eventTypeName && (
-                        <div style={{ fontSize: 12, color: '#7BAFD4', marginBottom: 12 }}>{event.eventTypeName}</div>
-                      )}
-
-                      {/* Datas */}
+                      {event.jobCode && <div style={{ fontSize: 11, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{event.jobCode}</div>}
+                      {event.eventTypeName && <div style={{ fontSize: 12, color: '#475569', marginBottom: 1 }}>{event.eventTypeName}</div>}
                       {(event.startDate || event.endDate) && (
-                        <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.6)', marginBottom: 12 }}>
-                          {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` ate ${event.endDate}` : ''}
+                        <div style={{ fontSize: 12, color: '#475569' }}>
+                          {event.startDate}{event.endDate && event.endDate !== event.startDate ? ` até ${event.endDate}` : ''}
                         </div>
                       )}
-
-                      {/* Footer */}
-                      <div style={{ paddingTop: 12, borderTop: '1px solid rgba(0,180,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: 'rgba(123,175,212,0.4)' }}>
-                          {event.createdAt?.toDate ? event.createdAt.toDate().toLocaleDateString('pt-BR') : ''}
-                        </span>
-                        <span style={{ fontSize: 11, color: '#00E5C4' }}>Ver detalhes →</span>
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div style={{ width: 1, height: 44, background: 'rgba(61,76,107,0.15)', margin: '0 16px' }} />
+                    <div style={{ alignItems: 'center', minWidth: 100, textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#7481a3', letterSpacing: 0.5, marginBottom: 6 }}>STATUS</div>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: 10, background: st.color, color: 'white' }}>{st.label}</span>
+                    </div>
+                  </div>
+                );
+              })
             )}
-          </>
+          </div>
         )}
 
         {activeSection === 'financeiro' && (
@@ -479,12 +462,12 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
             </div>
 
             {/* Custos por evento */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(123,175,212,0.6)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Seus eventos</div>
+            <div style={{ background: '#ccd4ea', margin: '20px -32px -28px', padding: '20px 32px', minHeight: 200 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#7481a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Seus eventos</div>
               {events.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: 'rgba(123,175,212,0.4)', fontSize: 13 }}>Nenhum evento ainda.</div>
+                <div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>Nenhum evento ainda.</div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {events.map(ev => {
                     const custo = ev.orcamentoFinal?.total || ev.financeiro?.valorTotal || 0;
                     const parcelas = ev.financeiro?.parcelas || [];
@@ -492,17 +475,15 @@ export default function ClienteHome({ userData, onLogout, tenant }) {
                     const pago = parcelas.length > 0 && parcelas.every(p => p.pago);
                     return (
                       <div key={ev.id} onClick={() => setSelectedEvent(ev)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 10, border: '1px solid rgba(0,180,255,0.08)', cursor: 'pointer', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', borderRadius: 12, background: '#e3eafa', cursor: 'pointer' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#E8F4FF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.eventName || ev.eventTypeName || 'Meu Evento'}</div>
-                          <div style={{ fontSize: 11, color: 'rgba(123,175,212,0.5)', marginTop: 2 }}>{custo > 0 ? formatBRL(custo) : 'Sem custo definido ainda'}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.eventName || ev.eventTypeName || 'Meu Evento'}</div>
+                          <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{custo > 0 ? formatBRL(custo) : 'Sem custo definido ainda'}</div>
                         </div>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: notaEnviada ? 'rgba(0,128,255,0.12)' : 'rgba(123,175,212,0.08)', color: notaEnviada ? '#0080FF' : 'rgba(123,175,212,0.5)' }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: notaEnviada ? 'rgba(0,128,255,0.15)' : 'rgba(61,76,107,0.1)', color: notaEnviada ? '#0080FF' : '#7481a3' }}>
                           {notaEnviada ? 'Nota enviada' : 'Sem nota'}
                         </span>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: pago ? 'rgba(102,187,106,0.12)' : 'rgba(255,167,38,0.12)', color: pago ? '#66BB6A' : '#FFA726' }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 10, background: pago ? 'rgba(102,187,106,0.18)' : 'rgba(255,167,38,0.2)', color: pago ? '#2e7d32' : '#b45309' }}>
                           {pago ? '✓ Pago' : 'Pendente'}
                         </span>
                       </div>
