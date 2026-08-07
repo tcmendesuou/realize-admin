@@ -78,6 +78,8 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
   const [formVerba, setFormVerba]         = useState({ valor: '', descricao: '', dataInicio: '', dataFim: '' });
   const [savingVerba2, setSavingVerba2]   = useState(false);
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
+  const [filtroUnidadeEventos, setFiltroUnidadeEventos] = useState('todas');
+  const [filtroStatusEventos, setFiltroStatusEventos] = useState('todos');
   const [modalTab, setModalTab] = useState('briefing');
   useEffect(() => { if (eventoSelecionado) setModalTab('briefing'); }, [eventoSelecionado?.id]);
   const [showGerenciarVerba, setShowGerenciarVerba] = useState(null);
@@ -730,9 +732,57 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  {/* ── EVENTOS ──────────────────────────────────────────────────────── */}
  {view === 'eventos' && (
  <>
- <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>Todos os Eventos</div>
+ <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 18 }}>Todos os Eventos</div>
+
+ {/* Filtros */}
+ <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+   <select value={filtroUnidadeEventos} onChange={e => setFiltroUnidadeEventos(e.target.value)}
+     style={{ ...inp, width: 'auto', minWidth: 180, background: 'white' }}>
+     <option value="todas">Todas as unidades</option>
+     <option value="matriz">Empresa-mãe (sem unidade)</option>
+     {unidades.filter(u => u.ativo !== false).map(u => (
+       <option key={u.id} value={u.id}>{u.nome}</option>
+     ))}
+   </select>
+   <select value={filtroStatusEventos} onChange={e => setFiltroStatusEventos(e.target.value)}
+     style={{ ...inp, width: 'auto', minWidth: 160, background: 'white' }}>
+     <option value="todos">Todos os status</option>
+     <option value="analyzing">Em análise</option>
+     <option value="pendingApproval">Ag. aprovação da unidade</option>
+     <option value="pendingAdminApproval">Ag. sua aprovação</option>
+     <option value="approved">Aprovado</option>
+     <option value="inProgress">Em andamento</option>
+     <option value="completed">Concluído</option>
+     <option value="rejected">Recusado</option>
+   </select>
+   {(filtroUnidadeEventos !== 'todas' || filtroStatusEventos !== 'todos') && (
+     <button onClick={() => { setFiltroUnidadeEventos('todas'); setFiltroStatusEventos('todos'); }}
+       style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.2)', background: 'none', color: '#3d4c6b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+       Limpar filtros
+     </button>
+   )}
+ </div>
+
  <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
- {eventos.map(ev => {
+ {(() => {
+   const eventosFiltrados = eventos.filter(ev => {
+     if (filtroStatusEventos !== 'todos' && ev.status !== filtroStatusEventos) return false;
+     if (filtroUnidadeEventos !== 'todas') {
+       const franqEv = franqueados.find(f => f.id === ev.clientUserId || f.uid === ev.clientUserId);
+       const unidadeIdEv = franqEv?.unidadeId || null;
+       if (filtroUnidadeEventos === 'matriz') { if (unidadeIdEv) return false; }
+       else if (unidadeIdEv !== filtroUnidadeEventos) return false;
+     }
+     return true;
+   });
+   if (eventosFiltrados.length === 0) {
+     return (
+       <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>
+         <div>{eventos.length === 0 ? 'Nenhum evento ainda.' : 'Nenhum evento encontrado com esse filtro.'}</div>
+       </div>
+     );
+   }
+   return eventosFiltrados.map(ev => {
  const franq = franqueados.find(f => f.id === ev.clientUserId || f.uid === ev.clientUserId);
  const nomeUnidade = unidadeDe(franq || {}).nome;
  const etapaAtual = ultimaEtapaPorEvento[ev.id];
@@ -764,12 +814,8 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  </div>
  );
- })}
- {eventos.length === 0 && !loading && (
- <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>
- <div>Nenhum evento ainda.</div>
- </div>
- )}
+ });
+ })()}
  </div>
  </>
  )}
