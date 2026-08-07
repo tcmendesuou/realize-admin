@@ -915,11 +915,9 @@ export default function ChatIAScreen({ navigation }) {
     conteudo = (
       <View>
         <Pergunta texto={`Olá, ${userName}! 😊\n\n${raizPergunta.texto}`} />
-        {raizPergunta.opcoes.map(op => {
-          const tipo = tiposEvento.find(t => t.id === op.valor);
-          if (!tipo) return null;
-          return <OpcaoBtn key={op.valor} label={op.label} onPress={() => avancarDaRaiz(op.valor)} />;
-        })}
+        {tiposEvento.filter(t => t.ativo !== false).map(tipo => (
+          <OpcaoBtn key={tipo.id} label={tipo.nome} onPress={() => avancarDaRaiz(tipo.id)} />
+        ))}
       </View>
     );
   } else if (passoEspecial === 'equipe_detalhes') {
