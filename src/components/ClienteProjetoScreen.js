@@ -185,6 +185,21 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
 
       if (!precisaAprovacaoAdmin) {
         await criarTasksParaFornecedores(project);
+      } else {
+        // Avisa quem é Admin da Empresa desse tenant que tem uma aprovação esperando
+        try {
+          const adminsSnap = await getDocs(query(
+            collection(db, 'users'),
+            where('tenantId', '==', project.tenantId),
+            where('roleName', '==', 'Administrador da Empresa')
+          ));
+          await Promise.all(adminsSnap.docs.map(d => criarNotificacao(d.id, {
+            titulo: 'Orçamento aguardando sua aprovação',
+            mensagem: `O orçamento do evento "${project.eventName || ''}" foi aprovado pela unidade e está esperando sua aprovação final.`,
+            tipo: 'acao',
+            budgetId: project.id,
+          })));
+        } catch (e) { console.error('notif admin tenant:', e); }
       }
     } catch (e) { console.error(e); alert('Erro ao aprovar.'); }
     finally { setAprovando(false); }
@@ -420,31 +435,21 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
                       <div key={tipo} style={{ marginBottom: 16 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{labelTipo}</div>
                         {itens.map((op, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.12)', marginBottom: 6, background: 'white' }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
-                              {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
-                              {/* Detalhes de equipe */}
-                              {equipe2.itens?.find(e => e.tipo === op.serviceName) && (() => {
-                                const det = equipe2.itens.find(e => e.tipo === op.serviceName);
-                                return (
-                                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                    {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
-                                    {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
-                                    {det.dias > 0 && ` · ${det.dias} dia(s)`}
-                                    {det.observacoes && ` · ${det.observacoes}`}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                            {op.valor > 0 && (
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: '#00E5C4' }}>
-                                  {formatBRL(op.valor)}
+                          <div key={i} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.12)', marginBottom: 6, background: 'white' }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{op.serviceName}</div>
+                            {op.nome && <div style={{ fontSize: 11, color: '#667eea', marginTop: 2 }}>Opção: {op.nome}</div>}
+                            {/* Detalhes de equipe */}
+                            {equipe2.itens?.find(e => e.tipo === op.serviceName) && (() => {
+                              const det = equipe2.itens.find(e => e.tipo === op.serviceName);
+                              return (
+                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                  {det.quantidade > 0 && `${det.quantidade} profissional(is)`}
+                                  {det.horasPorDia > 0 && ` · ${det.horasPorDia}h/dia`}
+                                  {det.dias > 0 && ` · ${det.dias} dia(s)`}
+                                  {det.observacoes && ` · ${det.observacoes}`}
                                 </div>
-                                {op.unidade && <div style={{ fontSize: 10, color: '#94a3b8' }}>{op.unidade}</div>}
-                              </div>
-                            )}
+                              );
+                            })()}
                           </div>
                         ))}
                       </div>

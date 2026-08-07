@@ -540,7 +540,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
          {eventosAguardandoAdmin.map(ev => {
            const franq = franqueados.find(f => f.id === ev.clientUserId);
            return (
-             <div key={ev.id} style={{ background: '#e3eafa', borderRadius: 12, padding: '16px 20px' }}>
+             <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ background: '#e3eafa', borderRadius: 12, padding: '16px 20px', cursor: 'pointer' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
                  <div style={{ flex: 1 }}>
                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{ev.eventName || 'Sem nome'}</div>
@@ -555,15 +555,8 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                  </div>
                  <div style={{ fontSize: 18, fontWeight: 700, color: corAccent, flexShrink: 0 }}>{formatBRL(ev.orcamentoFinal?.total)}</div>
                </div>
-               <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                 <button onClick={() => handleRecusarComoAdmin(ev)} disabled={processandoAprovacaoAdmin === ev.id}
-                   style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                   Recusar
-                 </button>
-                 <button onClick={() => handleAprovarComoAdmin(ev)} disabled={processandoAprovacaoAdmin === ev.id}
-                   style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: processandoAprovacaoAdmin === ev.id ? '#cbd5e1' : corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: processandoAprovacaoAdmin === ev.id ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
-                   {processandoAprovacaoAdmin === ev.id ? 'Processando...' : '✓ Aprovar orçamento'}
-                 </button>
+               <div style={{ marginTop: 14 }}>
+                 <span style={{ fontSize: 12, fontWeight: 600, color: corPrimary }}>Ver orçamento completo e decidir →</span>
                </div>
              </div>
            );
@@ -969,9 +962,9 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
         ) : null;
 
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
             onClick={e => { if (e.target === e.currentTarget) setEventoSelecionado(null); }}>
-            <div style={{ background: 'white', width: '100%', maxWidth: 560, height: '100vh', overflow: 'auto', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: 'white', width: '100%', maxWidth: 560, maxHeight: '88vh', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
               {/* Header */}
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                 <div>
@@ -979,7 +972,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                   <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>{ev2.numeroPedido} · {franq?.name || ev2.clientName}</div>
                   <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: `${corStatus[ev2.status] || '#94a3b8'}18`, color: corStatus[ev2.status] || '#94a3b8' }}>
-                      {labelStatus[ev2.status] || ev2.status}
+                      {labelStatus[ev2.status] || (ev2.status === 'pendingAdminApproval' ? 'Aguardando sua aprovação' : ev2.status)}
                     </span>
                     {ev2.orcamentoFinal?.total > 0 && (
                       <span style={{ fontSize: 13, fontWeight: 700, color: corPrimary }}>{formatBRL(ev2.orcamentoFinal.total)}</span>
@@ -1085,6 +1078,20 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                   </>
                 )}
               </div>
+
+              {/* Ações — só aparece se estiver esperando aprovação do Admin */}
+              {ev2.status === 'pendingAdminApproval' && (
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #f0f2f5', flexShrink: 0, display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setEventoSelecionado(null); handleRecusarComoAdmin(ev2); }} disabled={processandoAprovacaoAdmin === ev2.id}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    Recusar
+                  </button>
+                  <button onClick={() => { setEventoSelecionado(null); handleAprovarComoAdmin(ev2); }} disabled={processandoAprovacaoAdmin === ev2.id}
+                    style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', background: processandoAprovacaoAdmin === ev2.id ? '#cbd5e1' : corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: processandoAprovacaoAdmin === ev2.id ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    {processandoAprovacaoAdmin === ev2.id ? 'Processando...' : '✓ Aprovar orçamento'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
