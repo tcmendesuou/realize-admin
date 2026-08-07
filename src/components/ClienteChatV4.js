@@ -957,17 +957,34 @@ export default function ClienteChatV4({ userData, onClose, tenant }) {
             : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {modelosEspeciais.map(m => {
                   const fotos = m.fotos?.length > 0 ? m.fotos.map(f => f.url) : (m.fotoUrl ? [m.fotoUrl] : []);
+                  const sel = modeloSelecionado?.id === m.id;
+                  const fmtLista = v => Array.isArray(v) ? v.join(', ') : (v || '');
                   return (
-                    <div key={m.id} onClick={() => setModeloSelecionado(m)}
-                      style={{ borderRadius: 12, border: `2px solid ${modeloSelecionado?.id === m.id ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: modeloSelecionado?.id === m.id ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden' }}>
-                      <div style={{ height: 130, background: 'rgba(0,128,255,0.08)', position: 'relative' }}>
-                        {fotos.length > 0 ? <ModeloCarrossel fotos={fotos} idx={carrosselIdx[m.id]||0} onPrev={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id]||0)-1+fotos.length)%fotos.length }))} onNext={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id]||0)+1)%fotos.length }))} onDot={i => setCarrosselIdx(p2 => ({ ...p2, [m.id]: i }))} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', fontSize: 11 }}>Sem foto</div>}
-                        {modeloSelecionado?.id === m.id && <div style={{ position: 'absolute', top: 8, right: 8, background: '#00E5C4', color: '#0A1626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>✓</div>}
+                    <div key={m.id} style={{ gridColumn: sel ? '1/-1' : 'auto' }}>
+                      <div onClick={() => setModeloSelecionado(m)}
+                        style={{ borderRadius: 12, border: `2px solid ${sel ? '#00E5C4' : 'rgba(0,180,255,0.15)'}`, background: sel ? 'rgba(0,229,196,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', overflow: 'hidden' }}>
+                        <div style={{ height: 130, background: 'rgba(0,128,255,0.08)', position: 'relative' }}>
+                          {fotos.length > 0 ? <ModeloCarrossel fotos={fotos} idx={carrosselIdx[m.id]||0} onPrev={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id]||0)-1+fotos.length)%fotos.length }))} onNext={() => setCarrosselIdx(p2 => ({ ...p2, [m.id]: ((p2[m.id]||0)+1)%fotos.length }))} onDot={i => setCarrosselIdx(p2 => ({ ...p2, [m.id]: i }))} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(123,175,212,0.3)', fontSize: 11 }}>Sem foto</div>}
+                          {sel && <div style={{ position: 'absolute', top: 8, right: 8, background: '#00E5C4', color: '#0A1626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>✓</div>}
+                        </div>
+                        <div style={{ padding: '10px 12px' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#E8F4FF' }}>{m.nome}</div>
+                          {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 3 }}>{m.descricao}</div>}
+                        </div>
                       </div>
-                      <div style={{ padding: '10px 12px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#E8F4FF' }}>{m.nome}</div>
-                        {m.descricao && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 3 }}>{m.descricao}</div>}
-                      </div>
+                      {sel && (
+                        <div style={{ background: 'rgba(0,229,196,0.05)', border: '1px solid rgba(0,229,196,0.15)', borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: fmtLista(m.caracteristicas) || fmtLista(m.moveisInclusos) || fmtLista(m.tecnologiaInclusa) ? 10 : 0 }}>
+                            {m.precoBase > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Valor base: R$ {parseFloat(m.precoBase).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                            {m.diasProducao > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Produção: {m.diasProducao} dia(s)</span>}
+                            {m.areaM2 > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Área: {m.areaM2} m²</span>}
+                            {m.altura > 0 && <span style={{ fontSize: 12, color: '#E8F4FF', fontWeight: 600 }}>Altura: {m.altura} m</span>}
+                          </div>
+                          {fmtLista(m.caracteristicas) && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4 }}>Características: {fmtLista(m.caracteristicas)}</div>}
+                          {fmtLista(m.moveisInclusos) && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4 }}>Móveis inclusos: {fmtLista(m.moveisInclusos)}</div>}
+                          {fmtLista(m.tecnologiaInclusa) && <div style={{ fontSize: 11, color: '#7BAFD4', marginTop: 4 }}>Tecnologia inclusa: {fmtLista(m.tecnologiaInclusa)}</div>}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
