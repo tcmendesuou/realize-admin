@@ -535,7 +535,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
      const eventosAtivosLista = eventos.filter(e => !['completed', 'rejected'].includes(e.status));
      return gruposUnidade.map(u => {
        const franqsDaUnidade = franqueados.filter(f => (f.unidadeId || null) === u.id);
-       const idsFranqs = franqsDaUnidade.map(f => f.id);
+       const idsFranqs = franqsDaUnidade.flatMap(f => [f.id, f.uid].filter(Boolean));
        const evsDaUnidade = eventosAtivosLista.filter(e => idsFranqs.includes(e.clientUserId));
        if (evsDaUnidade.length === 0) return null;
        return (
@@ -543,7 +543,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
            <div style={{ fontSize: 12, fontWeight: 700, color: '#3d4c6b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{u.nome}</div>
            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
              {evsDaUnidade.map(ev => {
-               const franq = franqueados.find(f => f.id === ev.clientUserId);
+               const franq = franqueados.find(f => f.id === ev.clientUserId || f.uid === ev.clientUserId);
                return (
                  <div key={ev.id} onClick={() => setEventoSelecionado(ev)}
                    style={{ background: '#e3eafa', borderRadius: 10, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 12 }}>
@@ -583,7 +583,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
      ) : (
        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
          {eventosAguardandoAdmin.map(ev => {
-           const franq = franqueados.find(f => f.id === ev.clientUserId);
+           const franq = franqueados.find(f => f.id === ev.clientUserId || f.uid === ev.clientUserId);
            return (
              <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ background: '#e3eafa', borderRadius: 12, padding: '16px 20px', cursor: 'pointer' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
@@ -625,7 +625,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  </div>
  <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
  {franqueados.map(f => {
- const evsFranq = eventos.filter(e => e.clientUserId === f.id);
+ const evsFranq = eventos.filter(e => e.clientUserId === f.id || e.clientUserId === f.uid);
  const gastoFranq = evsFranq.filter(e => (e.financeiro?.parcelas?.length > 0) && e.financeiro.parcelas.every(p => p.pago)).reduce((acc, e) => acc + (e.orcamentoFinal?.total || 0), 0);
  return (
  <div key={f.id} style={{ background: '#e3eafa', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -708,7 +708,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>Todos os Eventos</div>
  <div style={{ background: '#ccd4ea', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
  {eventos.map(ev => {
- const franq = franqueados.find(f => f.id === ev.clientUserId);
+ const franq = franqueados.find(f => f.id === ev.clientUserId || f.uid === ev.clientUserId);
  return (
  <div key={ev.id} onClick={() => setEventoSelecionado(ev)} style={{ cursor: 'pointer', background: '#e3eafa', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ flex: 1 }}>
