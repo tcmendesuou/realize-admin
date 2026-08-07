@@ -101,6 +101,19 @@ export default function ProjectDetailScreen({ route, navigation }) {
             });
             if (!precisaAprovacaoAdmin) {
               await criarTasksParaFornecedores(project);
+            } else {
+              try {
+                const adminsSnap = await getDocs(query(
+                  collection(db, 'users'),
+                  where('tenantId', '==', project.tenantId),
+                  where('roleName', '==', 'Administrador da Empresa')
+                ));
+                await Promise.all(adminsSnap.docs.map(d => addDoc(collection(db, 'notificacoes', d.id, 'items'), {
+                  titulo: 'Orçamento aguardando sua aprovação',
+                  mensagem: `O orçamento do evento "${project.eventName || ''}" foi aprovado pela unidade e está esperando sua aprovação final.`,
+                  tipo: 'acao', budgetId: project.id, lida: false, createdAt: serverTimestamp(),
+                })));
+              } catch (e) { console.error('notif admin tenant:', e); }
             }
             Alert.alert('✓ Aprovado!', precisaAprovacaoAdmin ? 'Aguardando aprovação do Admin da empresa.' : 'Orçamento aprovado com sucesso.');
           } catch (e) { console.error(e); Alert.alert('Erro', 'Não foi possível aprovar.'); }
