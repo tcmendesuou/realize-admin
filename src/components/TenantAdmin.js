@@ -215,9 +215,25 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  setSavingEditFranq(true);
  try {
  const cargoEscolhido = cargosCliente.find(c => c.id === formEditFranq.cargoId);
+ const emailMudou = formEditFranq.email.trim() !== (editandoFranq.email || '');
+
+ // O e-mail é tratado à parte — precisa trocar o LOGIN de verdade no
+ // Firebase Authentication (Admin SDK, só roda no servidor), senão o
+ // colaborador fica com cadastro e login desincronizados e não consegue
+ // mais entrar.
+ if (emailMudou) {
+ const idToken = await auth.currentUser.getIdToken();
+ const resp = await fetch('/api/trocarEmailColaborador', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ idToken, userId: editandoFranq.id, novoEmail: formEditFranq.email.trim() }),
+ });
+ const data = await resp.json();
+ if (!resp.ok) throw new Error(data.error || 'Erro ao trocar o e-mail de login.');
+ }
+
  await updateDoc(doc(db, 'users', editandoFranq.id), {
  name: formEditFranq.nome.trim(),
- email: formEditFranq.email.trim(),
  unidadeId: formEditFranq.unidadeId || null,
  cargoId: formEditFranq.cargoId,
  roleName: cargoEscolhido?.nome || '',
@@ -1032,7 +1048,7 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <label style={lbl}>Email *</label>
                 <input type="email" value={formEditFranq.email} onChange={e => setFormEditFranq(p => ({ ...p, email: e.target.value }))} style={inp} placeholder="email@franquia.com" />
                 <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
-                  Isso só muda o email de cadastro. Pra alterar o email de <strong>login</strong>, é preciso mexer direto no Firebase Authentication.
+                  Mudar aqui troca o e-mail de <strong>login</strong> de verdade — ele vai precisar entrar com esse novo e-mail a partir de agora.
                 </div>
               </div>
               <div>
