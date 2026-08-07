@@ -128,8 +128,7 @@ export default function ClientHomeScreen({ navigation }) {
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Workspace</Text>
-            <Text style={styles.sectionSubtitle}>{events.length} evento(s) ativo(s)</Text>
+            <Text style={styles.sectionTitle}>STATUS</Text>
 
             {events.length === 0 ? (
               <View style={styles.emptyState}>
@@ -146,15 +145,21 @@ export default function ClientHomeScreen({ navigation }) {
                     style={styles.card}
                     onPress={() => navigation.navigate('ProjectDetail', { budgetId: ev.id })}
                   >
-                    <View style={styles.cardTop}>
+                    <View style={styles.cardInfo}>
                       <Text style={styles.cardTitle} numberOfLines={1}>{getProjectName(ev)}</Text>
+                      {ev.numeroPedido && <Text style={styles.cardNumber}>{ev.numeroPedido}</Text>}
+                      {ev.eventTypeName && <Text style={styles.cardSub}>{ev.eventTypeName}</Text>}
+                      {(ev.briefingData?.evento?.cidade || ev.location) && (
+                        <Text style={styles.cardSub}>{ev.briefingData?.evento?.cidade || ev.location}</Text>
+                      )}
+                    </View>
+                    <View style={styles.cardDivider} />
+                    <View style={styles.cardStatus}>
+                      <Text style={styles.cardStatusLabel}>STATUS</Text>
                       <View style={[styles.badge, { backgroundColor: st.color }]}>
                         <Text style={styles.badgeText}>{st.label}</Text>
                       </View>
                     </View>
-                    {ev.eventTypeName && <Text style={styles.cardSub}>{ev.eventTypeName}</Text>}
-                    {ev.numeroPedido && <Text style={styles.cardNumber}>{ev.numeroPedido}</Text>}
-                    <Text style={styles.cardDate}>Criado em {formatDate(ev.createdAt)}</Text>
                   </TouchableOpacity>
                 );
               })
@@ -192,27 +197,29 @@ const styles = StyleSheet.create({
   },
   newButtonText: { fontSize: 15, fontWeight: '700', color: '#0A1626' },
 
-  section: { marginTop: 24, marginBottom: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#E8F4FF' },
-  sectionSubtitle: { fontSize: 13, color: '#7BAFD4', marginTop: 2, marginBottom: 14 },
+  section: { marginTop: 24, marginBottom: 24, backgroundColor: '#ccd4ea', borderRadius: 16, padding: 14 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#3d4c6b', letterSpacing: 1, marginBottom: 12 },
 
   emptyState: {
-    alignItems: 'center', padding: 40, backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(0,180,255,0.1)', borderStyle: 'dashed',
+    alignItems: 'center', padding: 40, backgroundColor: '#e3eafa',
+    borderRadius: 14,
   },
   emptyIcon: { fontSize: 40, marginBottom: 10 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#E8F4FF', marginBottom: 4 },
-  emptyText: { fontSize: 13, color: '#7BAFD4', textAlign: 'center' },
+  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#1e293b', marginBottom: 4 },
+  emptyText: { fontSize: 13, color: '#475569', textAlign: 'center' },
 
   card: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: 'rgba(0,180,255,0.1)',
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#e3eafa', borderRadius: 12, padding: 14, marginBottom: 10,
   },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: '#E8F4FF', flex: 1, marginRight: 8 },
+  cardInfo: { flex: 1 },
+  cardDivider: { width: 1, height: 44, backgroundColor: 'rgba(61,76,107,0.15)', marginHorizontal: 12 },
+  cardStatus: { alignItems: 'center', minWidth: 96 },
+  cardStatusLabel: { fontSize: 9, fontWeight: '700', color: '#7481a3', letterSpacing: 0.5, marginBottom: 6 },
+  cardTitle: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
   badge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 10, fontWeight: '700', color: 'white' },
-  cardSub: { fontSize: 12, color: '#7BAFD4', marginBottom: 2 },
-  cardNumber: { fontSize: 11, color: 'rgba(123,175,212,0.5)', marginBottom: 6 },
-  cardDate: { fontSize: 11, color: 'rgba(123,175,212,0.5)' },
+  cardSub: { fontSize: 11, color: '#475569', marginBottom: 1 },
+  cardNumber: { fontSize: 11, fontWeight: '600', color: '#334155', marginBottom: 2 },
+  cardDate: { fontSize: 11, color: '#64748b' },
 });
