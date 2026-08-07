@@ -650,7 +650,7 @@ export default function ChatIAScreen({ navigation }) {
             multiline={p.tipo === 'texto_longo'}
             autoFocus
           />
-          <BtnAvancar onPress={() => responder(p.id, valLocal, { [CAMPO_DESTINO[p.destino] || 'generico']: valLocal })} disabled={!valLocal && p.quemResponde === 'todos'} />
+          <BtnAvancar onPress={() => responder(p.id, valLocal, p.destino === 'generico' ? { respostasGenericas: { ...dados.respostasGenericas, [p.id]: valLocal } } : { [CAMPO_DESTINO[p.destino] || 'generico']: valLocal })} disabled={!valLocal && p.quemResponde === 'todos'} />
         </View>
       );
     }
