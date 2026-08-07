@@ -8,6 +8,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '../firebase/config';
 import SinoNotificacoes from './SinoNotificacoes';
 import { criarTasksParaFornecedores } from './aprovacaoOrcamento';
+import EtapasTimeline from './EtapasTimeline';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { usePermissoes } from '../hooks/usePermissoes';
 import PermissoesOverride from './PermissoesOverride';
@@ -77,6 +78,8 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
   const [formVerba, setFormVerba]         = useState({ valor: '', descricao: '', dataInicio: '', dataFim: '' });
   const [savingVerba2, setSavingVerba2]   = useState(false);
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
+  const [modalTab, setModalTab] = useState('briefing');
+  useEffect(() => { if (eventoSelecionado) setModalTab('briefing'); }, [eventoSelecionado?.id]);
   const [showGerenciarVerba, setShowGerenciarVerba] = useState(null);
   const [valorAtribuir, setValorAtribuir] = useState('');
   const [periodoAtribuir, setPeriodoAtribuir] = useState('');
@@ -1059,8 +1062,20 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <button onClick={() => setEventoSelecionado(null)} style={{ background: 'none', border: 'none', fontSize: 22, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
               </div>
 
+              {/* Abas */}
+              <div style={{ display: 'flex', gap: 4, padding: '0 24px', borderBottom: '1px solid #f0f2f5', flexShrink: 0 }}>
+                {[['briefing', 'Briefing'], ['etapas', 'Etapas'], ['financeiro', 'Financeiro']].map(([id, label]) => (
+                  <button key={id} onClick={() => setModalTab(id)}
+                    style={{ padding: '10px 16px', border: 'none', borderBottom: modalTab === id ? `2px solid ${corPrimary}` : '2px solid transparent', background: 'none', color: modalTab === id ? corPrimary : '#94a3b8', fontWeight: modalTab === id ? 700 : 500, fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               {/* Conteúdo */}
               <div style={{ padding: '16px 24px', flex: 1, overflowY: 'auto' }}>
+                {modalTab === 'briefing' && (
+                  <>
 
                 {/* Resumo IA */}
                 {ev2.descricaoBriefing && (
@@ -1098,6 +1113,22 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                   </>
                 )}
 
+                {/* Info extra */}
+                {bd.infoExtra && (
+                  <>
+                    <SecTitle>Observações</SecTitle>
+                    <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{bd.infoExtra}</div>
+                  </>
+                )}
+                  </>
+                )}
+
+                {modalTab === 'etapas' && (
+                  <EtapasTimeline project={ev2} userData={userData} isFornecedor={false} />
+                )}
+
+                {modalTab === 'financeiro' && (
+                  <>
                 {/* Serviços */}
                 {opc.length > 0 && (
                   <>
@@ -1146,12 +1177,6 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                     </div>
                   </>
                 )}
-
-                {/* Info extra */}
-                {bd.infoExtra && (
-                  <>
-                    <SecTitle>Observações</SecTitle>
-                    <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{bd.infoExtra}</div>
                   </>
                 )}
               </div>
