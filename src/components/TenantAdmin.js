@@ -63,6 +63,9 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  // Modal novo franqueado
  const [showNovoFranq, setShowNovoFranq] = useState(false);
  const [formFranq, setFormFranq] = useState({ nome: '', email: '', senha: '', unidadeId: '', cargoId: '' });
+ const [editandoFranq, setEditandoFranq] = useState(null);
+ const [formEditFranq, setFormEditFranq] = useState({ nome: '', email: '', unidadeId: '', cargoId: '', active: true });
+ const [savingEditFranq, setSavingEditFranq] = useState(false);
  const [savingFranq, setSavingFranq] = useState(false);
 
  // Modal verba
@@ -200,6 +203,32 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
     setEventos(unicos.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)));
   }, [eventosComTenant, semTenantBudgets]);
 
+
+ const abrirEditarFranq = (f) => {
+ setEditandoFranq(f);
+ setFormEditFranq({ nome: f.name || '', email: f.email || '', unidadeId: f.unidadeId || '', cargoId: f.cargoId || '', active: f.active !== false });
+ };
+
+ const salvarEditFranq = async () => {
+ if (!formEditFranq.nome.trim() || !formEditFranq.email.trim()) { alert('Nome e email são obrigatórios'); return; }
+ if (!formEditFranq.cargoId) { alert('Selecione o cargo'); return; }
+ setSavingEditFranq(true);
+ try {
+ const cargoEscolhido = cargosCliente.find(c => c.id === formEditFranq.cargoId);
+ await updateDoc(doc(db, 'users', editandoFranq.id), {
+ name: formEditFranq.nome.trim(),
+ email: formEditFranq.email.trim(),
+ unidadeId: formEditFranq.unidadeId || null,
+ cargoId: formEditFranq.cargoId,
+ roleName: cargoEscolhido?.nome || '',
+ active: formEditFranq.active,
+ updatedAt: serverTimestamp(),
+ });
+ setFranqueados(prev => prev.map(f => f.id === editandoFranq.id ? { ...f, name: formEditFranq.nome.trim(), email: formEditFranq.email.trim(), unidadeId: formEditFranq.unidadeId || null, cargoId: formEditFranq.cargoId, roleName: cargoEscolhido?.nome || '', active: formEditFranq.active } : f));
+ setEditandoFranq(null);
+ } catch (e) { console.error(e); alert(`Erro: ${e.message}`); }
+ finally { setSavingEditFranq(false); }
+ };
 
  // ── Criar franqueado ─────────────────────────────────────────────────────────
  const handleCriarFranqueado = async () => {
@@ -465,10 +494,16 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
  <div style={{ fontSize: 12, color: '#475569' }}>{evsFranq.length} evento(s)</div>
  <div style={{ fontSize: 13, fontWeight: 700, color: corAccent }}>{formatBRL(gastoFranq)} utilizado</div>
  </div>
+ <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+ <button onClick={() => abrirEditarFranq(f)}
+ style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.2)', background: 'none', color: '#3d4c6b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
+ Editar
+ </button>
  <button onClick={() => abrirPermissoes(f)}
  style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(61,76,107,0.2)', background: 'none', color: '#3d4c6b', fontSize: 12, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
  Permissões
  </button>
+ </div>
  </div>
  );
  })}
@@ -972,6 +1007,61 @@ export default function TenantAdmin({ userData, onLogout, tenant }) {
                 <button onClick={handleAdicionarVerba} disabled={savingVerba2}
                   style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingVerba2 ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingVerba2 ? 0.7 : 1 }}>
                   {savingVerba2 ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Editar Colaborador ─────────────────────────────────────── */}
+      {editandoFranq && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setEditandoFranq(null); }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Editar Colaborador</div>
+              <button onClick={() => setEditandoFranq(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={lbl}>Nome completo *</label>
+                <input value={formEditFranq.nome} onChange={e => setFormEditFranq(p => ({ ...p, nome: e.target.value }))} style={inp} placeholder="Nome do colaborador" />
+              </div>
+              <div>
+                <label style={lbl}>Email *</label>
+                <input type="email" value={formEditFranq.email} onChange={e => setFormEditFranq(p => ({ ...p, email: e.target.value }))} style={inp} placeholder="email@franquia.com" />
+                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                  Isso só muda o email de cadastro. Pra alterar o email de <strong>login</strong>, é preciso mexer direto no Firebase Authentication.
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Unidade</label>
+                <select value={formEditFranq.unidadeId} onChange={e => setFormEditFranq(p => ({ ...p, unidadeId: e.target.value }))} style={{ ...inp, background: 'white' }}>
+                  <option value="">Sem unidade — pessoa da empresa-mãe</option>
+                  {unidades.filter(u => u.ativo !== false).map(u => (
+                    <option key={u.id} value={u.id}>{u.nome}{u.cidade ? ` — ${u.cidade}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Cargo</label>
+                <select value={formEditFranq.cargoId} onChange={e => setFormEditFranq(p => ({ ...p, cargoId: e.target.value }))} style={{ ...inp, background: 'white' }}>
+                  <option value="">Selecione o cargo...</option>
+                  {cargosCliente.map(c => (
+                    <option key={c.id} value={c.id}>{c.nome} (nível {c.nivel})</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input type="checkbox" id="franq-ativo" checked={formEditFranq.active} onChange={e => setFormEditFranq(p => ({ ...p, active: e.target.checked }))} style={{ width: 16, height: 16, accentColor: corPrimary }} />
+                <label htmlFor="franq-ativo" style={{ fontSize: 13, color: '#475569', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Colaborador ativo (desmarcar bloqueia o acesso dele)</label>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #f0f2f5' }}>
+                <button onClick={() => setEditandoFranq(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'none', color: '#64748b', fontSize: 13, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Cancelar</button>
+                <button onClick={salvarEditFranq} disabled={savingEditFranq}
+                  style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: corPrimary, color: 'white', fontSize: 13, fontWeight: 600, cursor: savingEditFranq ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', opacity: savingEditFranq ? 0.7 : 1 }}>
+                  {savingEditFranq ? 'Salvando...' : 'Salvar alterações'}
                 </button>
               </div>
             </div>
