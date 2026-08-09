@@ -238,6 +238,7 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
     { id: 'briefing',    label: 'Briefing' },
     { id: 'acao',        label: `Ação${tasksPendentes.length ? ` (${tasksPendentes.length})` : ''}` },
     { id: 'cronograma',  label: 'Cronograma' },
+    { id: 'etapas',      label: 'Etapas' },
     { id: 'financeiro',  label: 'Financeiro' },
   ];
 
@@ -660,13 +661,17 @@ export default function ClienteProjetoScreen({ budget, userData, onBack }) {
             </div>
           )}
 
-          {/* ── ETAPAS (linha do tempo com fotos, dentro da mesma aba Cronograma) ── */}
+          {/* ── ABA ETAPAS ── */}
           {/* Só aparece depois que a proposta foi aprovada — antes disso não há
               nada pra mostrar (fornecedores ainda nem foram confirmados). */}
-          {activeTab === 'cronograma' && !['analyzing', 'pendingApproval', 'rejected'].includes(project.status) && (
-            <div style={{ marginTop: 20 }}>
+          {activeTab === 'etapas' && (
+            !['analyzing', 'pendingApproval', 'rejected'].includes(project.status) ? (
               <EtapasTimeline project={project} userData={userData} isFornecedor={false} />
-            </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', fontSize: 13 }}>
+                As Etapas aparecem aqui assim que a proposta for aprovada.
+              </div>
+            )
           )}
 
           {/* ── ABA FINANCEIRO ── */}
