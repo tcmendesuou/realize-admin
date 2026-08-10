@@ -179,6 +179,7 @@ export default function ProjectDetailScreen({ route, navigation }) {
 
   const statusInfo = STATUS_CONFIG[project.status] || STATUS_CONFIG.analyzing;
   const ev = project.briefingData?.evento || {};
+  const est = project.briefingData?.estrutura || {};
   const orcamento = project.orcamentoFinal;
   const tasksPendAprov = tasks.filter(t =>
     ['aguardando_pre_aprovacao','aguardando_aprovacao_execucao','aguardando_aprovacao_entrega'].includes(t.status)
@@ -209,12 +210,16 @@ export default function ProjectDetailScreen({ route, navigation }) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Informações do Evento</Text>
           {[
+            ['Empresa', ev.nomeEmpresa],
             ['Tipo', ev.tipo],
             ['Data início', ev.dataInicio ? fmtDate(ev.dataInicio) : null],
             ['Data fim', ev.dataFim ? fmtDate(ev.dataFim) : null],
             ['Duração', ev.diasDuracao ? `${ev.diasDuracao} dia(s)` : null],
-            ['Local', ev.local || ev.cidade],
+            ['Horário', ev.horarioInicio ? `${ev.horarioInicio} às ${ev.horarioFim || ''}` : null],
+            ['Cidade', ev.cidade],
+            ['Local', ev.local],
             ['Visitantes/dia', ev.visitantesPorDia],
+            ['Pagamento', { '50_50': '50% + 50%', '30_60_90': '30/60/90 dias', 'a_vista': 'À vista' }[project.briefingData?.formaPagamento] || project.briefingData?.formaPagamento],
           ].filter(([,v]) => v).map(([label, val]) => (
             <View key={label} style={styles.infoRow}>
               <Text style={styles.infoLabel}>{label}</Text>
@@ -222,6 +227,26 @@ export default function ProjectDetailScreen({ route, navigation }) {
             </View>
           ))}
         </View>
+
+        {/* Stand */}
+        {est.ativo && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Stand</Text>
+            {[
+              ['Tipo', est.tipoEstande === 'modular' ? 'Modular' : 'Personalizado'],
+              ['Área', est.areaM2 > 0 ? `${est.areaM2} m²` : null],
+              ['Teto', est.alturaTeto],
+              ['Montagem', est.diasMontagem > 0 ? `${est.diasMontagem} dias antes` : null],
+              ['Restrições', est.restricoes],
+              ['Identidade visual', est.identidadeVisual === 'sim' ? 'Sim, enviada' : 'Não definida'],
+            ].filter(([,v]) => v).map(([label, val]) => (
+              <View key={label} style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{label}</Text>
+                <Text style={styles.infoValue}>{val}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Aprovações de tasks pendentes */}
         {tasksPendAprov.length > 0 && (
@@ -286,11 +311,29 @@ export default function ProjectDetailScreen({ route, navigation }) {
                 <Text style={styles.orcItemVal}>R$ {parseFloat(item.subtotal||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</Text>
               </View>
             ))}
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                <Text style={{ fontSize: 12, color: '#475569' }}>Subtotal serviços</Text>
+                <Text style={{ fontSize: 12, color: '#475569' }}>R$ {parseFloat(orcamento.subtotalFornecedores || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+              </View>
+              {orcamento.valorFee > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>Taxa de serviço ({orcamento.pctFee}%)</Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>R$ {parseFloat(orcamento.valorFee).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                </View>
+              )}
+              {orcamento.valorImpostos > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>Impostos ({orcamento.pctImpostos}%)</Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>R$ {parseFloat(orcamento.valorImpostos).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.orcTotal}>
               <Text style={styles.orcTotalLabel}>Total</Text>
               <Text style={styles.orcTotalVal}>R$ {parseFloat(orcamento.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</Text>
             </View>
-            <Text style={styles.orcObs}>* Valores de referência. Taxa de serviço e impostos adicionados na proposta final.</Text>
+            <Text style={styles.orcObs}>* Valores de referência.</Text>
             <View style={styles.orcBtns}>
               <TouchableOpacity onPress={handleRecusarOrcamento} disabled={aprovando} style={styles.btnRecusar}>
                 <Text style={styles.btnRecusarText}>Recusar</Text>
