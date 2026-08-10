@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp, writeBatch, deleteDoc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
@@ -30,6 +30,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
   const [supplierJob, setSupplierJob]     = useState(null);   // primeiro job (compat)
   const [supplierJobsMine, setSupplierJobsMine] = useState([]); // todos os jobs do fornecedor
   const [confirming, setConfirming]       = useState(false);
+  const precoRefs = useRef({}); // { [supplierJobId]: <input DOM node> } — usado só quando o item nasce sem preço (ex: Stand Personalizado), pra guardar o valor digitado até a hora de confirmar
    const [supplierJobs, setSupplierJobs]   = useState([]);
   const [gerandoOrcamento, setGerandoOrcamento] = useState(false);
   const [editandoJob, setEditandoJob]           = useState(null);  // id do job sendo editado
@@ -583,13 +584,19 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
     });
   };
 
-  const handleConfirmarItem = async (sjId, serviceName) => {
+  const handleConfirmarItem = async (sjId, serviceName, precoInformado) => {
     setConfirming(true);
     try {
+      const extra = {};
+      if (precoInformado !== undefined && precoInformado !== null && parseFloat(precoInformado) > 0) {
+        extra.preco = parseFloat(precoInformado);
+        extra.unidade = extra.unidade || 'por evento';
+      }
       await updateDoc(doc(db, 'supplierJobs', sjId), {
         status: 'confirmed',
         confirmedAt: serverTimestamp(),
         confirmedBy: userData?.name,
+        ...extra,
       });
 
       // Cancela outros fornecedores concorrentes para o mesmo serviço neste budget
@@ -611,7 +618,7 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
         ],
         updatedAt: serverTimestamp(),
       });
-      setSupplierJobsMine(prev => prev.map(sj => sj.id === sjId ? { ...sj, status: 'confirmed' } : sj));
+      setSupplierJobsMine(prev => prev.map(sj => sj.id === sjId ? { ...sj, status: 'confirmed', ...extra } : sj));
     } catch (e) { console.error(e); alert('Erro ao confirmar.'); }
     finally { setConfirming(false); }
   };
@@ -2181,6 +2188,16 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                                 );
                               })()}
 
+                              {sj.preco === 0 && isPending && (
+                                <div style={{ padding: '0 16px 12px' }}>
+                                  <label style={{ fontSize: 10, color: '#7BAFD4', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>
+                                    Esse item não tem preço de catálogo — informe seu valor pra esse evento
+                                  </label>
+                                  <input type="number" min="0" step="0.01" placeholder="Seu valor (R$)" defaultValue={sj.preco > 0 ? sj.preco : ''}
+                                    ref={el => { precoRefs.current[sj.id] = el; }}
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'Outfit, sans-serif', boxSizing: 'border-box', outline: 'none', color: '#1e293b' }} />
+                                </div>
+                              )}
                               <div style={{ padding: '0 16px 14px' }}>
                                 <textarea defaultValue={sj.observacaoFornecedor || ''}
                                   onBlur={async e => { if (e.target.value !== (sj.observacaoFornecedor || '')) await updateDoc(doc(db, 'supplierJobs', sj.id), { observacaoFornecedor: e.target.value, updatedAt: serverTimestamp() }); }}
@@ -2190,7 +2207,15 @@ export default function ProjetoScreen({ projectId, onBack, userData }) {
                               {isPending && (
                                 <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', justifyContent: 'flex-end' }}>
                                   <button onClick={() => handleRecusarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Recusar</button>
-                                  <button onClick={() => handleConfirmarItem(sj.id, nome)} disabled={confirming} style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Confirmar</button>
+                                  <button onClick={() => {
+                                    if (sj.preco === 0) {
+                                      const val = precoRefs.current[sj.id]?.value;
+                                      if (!val || parseFloat(val) <= 0) { alert('Informe o valor desse serviço antes de confirmar.'); return; }
+                                      handleConfirmarItem(sj.id, nome, val);
+                                    } else {
+                                      handleConfirmarItem(sj.id, nome);
+                                    }
+                                  }} disabled={confirming} style={{ padding: '7px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00E5C4,#0080FF)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Confirmar</button>
                                 </div>
                               )}
                             </>
