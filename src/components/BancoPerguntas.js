@@ -154,6 +154,58 @@ export default function BancoPerguntas() {
   const perguntaRaiz  = perguntas.find(p => p.destino === 'raiz.tipoEvento');
   const filhasDe = (paiId) => perguntas.filter(p => p.perguntaPaiId === paiId);
 
+  // Gera um documento de texto com todas as perguntas cadastradas (incluindo
+  // sub-perguntas, em hierarquia) e onde cada uma está vinculada — pra mandar
+  // pra quem vai construir os fluxos.
+  const exportarPerguntas = () => {
+    const linhas = [];
+    linhas.push('PERGUNTAS CADASTRADAS — REALIZE HUB');
+    linhas.push(`Exportado em ${new Date().toLocaleDateString('pt-BR')}`);
+    linhas.push('='.repeat(60));
+    linhas.push('');
+
+    const descreverVinculo = (p) => {
+      if (p.destino === 'generico') return 'Campo genérico (livre, não conecta a nenhum cálculo)';
+      if (p.destino === 'catalogo.especifico') {
+        const partes = [p.servicoNome, p.servicoCategoriaNome, p.servicoTipoServico].filter(Boolean);
+        return `Serviço Específico — ${partes.join(' > ') || '(não configurado)'}`;
+      }
+      const info = DESTINOS_FIXOS[p.destino];
+      return info ? info.label : (p.destino || '(sem destino)');
+    };
+
+    const descreverLinha = (p, nivel) => {
+      const prefixo = '  '.repeat(nivel) + (nivel > 0 ? '└─ ' : '');
+      linhas.push(`${prefixo}[${p.ativo === false ? 'INATIVA' : 'ativa'}] ${p.texto}`);
+      const detalheIndent = '  '.repeat(nivel + 1);
+      linhas.push(`${detalheIndent}Tipo: ${TIPOS_LABEL[p.tipo] || p.tipo || '—'}`);
+      linhas.push(`${detalheIndent}Vinculada a: ${descreverVinculo(p)}`);
+      if (p.subtitulo) linhas.push(`${detalheIndent}Subtítulo: ${p.subtitulo}`);
+      if (p.opcoes?.length > 0) linhas.push(`${detalheIndent}Opções: ${p.opcoes.map(o => o.label).join(' | ')}`);
+      const quemResp = QUEM_RESPONDE_OPCOES.find(q => q.valor === p.quemResponde)?.label;
+      if (quemResp && p.quemResponde !== 'todos') linhas.push(`${detalheIndent}Só responde: ${quemResp}`);
+      if (p.condicaoExibicao?.verificarDestino) {
+        const alvo = p.condicaoExibicao.verificarDestino.startsWith('pergunta:')
+          ? (perguntas.find(x => x.id === p.condicaoExibicao.verificarDestino.replace('pergunta:', ''))?.texto || '(pergunta apagada)')
+          : (DESTINOS_FIXOS[p.condicaoExibicao.verificarDestino]?.label || p.condicaoExibicao.verificarDestino);
+        linhas.push(`${detalheIndent}Pergunta Condicional: aparece se "${alvo}" contém "${p.condicaoExibicao.contemTexto}"`);
+      }
+      if (p.mostrarNoBriefingStand) linhas.push(`${detalheIndent}★ Aparece no briefing (seção Stand)`);
+      linhas.push('');
+      filhasDe(p.id).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).forEach(filha => descreverLinha(filha, nivel + 1));
+    };
+
+    perguntasTopo.forEach(p => descreverLinha(p, 0));
+
+    const blob = new Blob([linhas.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `perguntas-realizehub-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const moverIrma = async (p, irmas, direcao) => {
     const lista = [...irmas].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
     const idx = lista.findIndex(x => x.id === p.id);
@@ -429,6 +481,9 @@ export default function BancoPerguntas() {
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Perguntas reutilizáveis pro chat do cliente — monte os Tipos de Evento com elas depois</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={exportarPerguntas} style={{ padding: '9px 20px', borderRadius: 9, border: '1.5px solid #cbd5e1', background: 'none', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+            ⬇ Exportar
+          </button>
           <button onClick={abrirNovaCondicional} style={{ padding: '9px 20px', borderRadius: 9, border: '1.5px dashed #667eea', background: 'none', color: '#667eea', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
             + Pergunta Condicional
           </button>
